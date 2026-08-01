@@ -651,6 +651,46 @@ SCHEMA_STATEMENTS: list[str] = [
     CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_table, entity_id);
     """,
     # ------------------------------------------------------------------
+    # Additional indexes for network database performance optimization
+    # These composite indexes speed up common queries on hosted databases
+    # ------------------------------------------------------------------
+    """
+    CREATE INDEX IF NOT EXISTS idx_accounts_company_code ON accounts(company_id, account_code);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_accounts_company_active ON accounts(company_id, is_active);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_je_company_date ON journal_entries(company_id, entry_date);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_je_company_posted ON journal_entries(company_id, is_posted);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_jel_account_entry ON journal_entry_lines(account_id, journal_entry_id);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_parties_company_type ON parties(company_id, party_type);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_items_company_active ON items(company_id, is_active);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_batches_item_warehouse ON stock_batches(item_id, warehouse_id);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_si_company_date_status ON sales_invoices(company_id, invoice_date, status);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_pi_company_date_status ON purchase_invoices(company_id, invoice_date, status);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_payments_company_date ON payments(company_id, payment_date);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_receipts_company_date ON receipts(company_id, receipt_date);
+    """,
+    # ------------------------------------------------------------------
     # Settings (key/value, no hardcoded settings anywhere in app code)
     # ------------------------------------------------------------------
     """
