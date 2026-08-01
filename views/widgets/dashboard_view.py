@@ -1,7 +1,7 @@
 """Dashboard widget - main home screen."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -20,12 +20,31 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class DashboardLoadThread(QThread):
+    """Background thread for loading dashboard data."""
+    
+    data_loaded = Signal(dict, str)  # data, error
+    
+    def __init__(self, controller: DashboardController):
+        super().__init__()
+        self.controller = controller
+    
+    def run(self):
+        try:
+            data, error = self.controller.get_dashboard_data()
+            self.data_loaded.emit(data or {}, error or "")
+        except Exception as e:
+            logger.exception(f"Error in dashboard load thread: {e}")
+            self.data_loaded.emit({}, str(e))
+
+
 class DashboardView(QWidget):
     """Main dashboard view."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.controller = DashboardController()
+        self._load_thread = None
         self._build_ui()
         self._load_data()
 
@@ -95,16 +114,20 @@ class DashboardView(QWidget):
                 self._clear_layout(item.layout())
 
     def _load_data(self):
-        """Load dashboard data."""
+        """Load dashboard data asynchronously."""
         logger.info("🔄 LOADING DASHBOARD DATA")
         
-        try:
-            data, error = self.controller.get_dashboard_data()
-        except Exception as e:
-            logger.exception(f"❌ Error loading data: {e}")
-            self._show_empty_state()
-            return
+        # Cancel any existing load thread
+        if self._load_thread and self._load_thread.isRunning():
+            self._load_thread.terminate()
         
+        # Start new load thread
+        self._load_thread = DashboardLoadThread(self.controller)
+        self._load_thread.data_loaded.connect(self._on_data_loaded)
+        self._load_thread.start()
+    
+    def _on_data_loaded(self, data, error):
+        """Handle dashboard data loaded from background thread."""
         if error:
             logger.error(f"❌ Error: {error}")
             self._show_empty_state()
