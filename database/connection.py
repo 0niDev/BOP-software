@@ -24,12 +24,13 @@ logger = get_logger(__name__)
 class ConnectionPool:
     """Thread-safe connection pool for SQLite Cloud."""
     
-    def __init__(self, max_connections: int = 5):
+    def __init__(self, max_connections: int = 20):
         self.max_connections = max_connections
         self._connections: list = []
         self._lock = threading.Lock()
         self._connection_string: str | None = None
         self._is_initialized = False
+        self._prepared_statements: dict = {}  # Cache prepared statements
     
     def initialize(self, connection_string: str) -> None:
         with self._lock:
@@ -52,13 +53,21 @@ class ConnectionPool:
             
             if not self._connection_string:
                 raise RuntimeError("Connection string not set")
-            return sqlitecloud.connect(self._connection_string)
+            conn = sqlitecloud.connect(self._connection_string)
+            # Optimize connection settings for network latency
+            conn.execute("PRAGMA busy_timeout = 5000")
+            return conn
     
     def return_connection(self, conn) -> None:
         if conn is None:
             return
         with self._lock:
             if len(self._connections) < self.max_connections:
+                # Clean up any uncommitted transactions before returning to pool
+                try:
+                    conn.execute("ROLLBACK")
+                except Exception:
+                    pass
                 self._connections.append(conn)
             else:
                 try:
@@ -77,7 +86,7 @@ class ConnectionPool:
             self._is_initialized = False
 
 
-_pool = ConnectionPool(max_connections=5)
+_pool = ConnectionPool(max_connections=20)
 
 
 def init_pool(connection_string: str) -> None:

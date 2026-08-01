@@ -10,6 +10,11 @@ class StockBatchRepository(BaseRepository):
 
     def find_by_item_and_warehouse(self, item_id: int, warehouse_id: int) -> dict | None:
         """Find a batch for an item in a warehouse (FIFO - returns the one with stock)."""
+        cache_key = self._get_cache_key("find_by_item_and_warehouse", item_id, warehouse_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         # First try to get a batch with stock
         batch = self.db.fetch_one(
             """
@@ -33,6 +38,8 @@ class StockBatchRepository(BaseRepository):
                 (item_id, warehouse_id),
             )
         
+        if batch:
+            self._set_cached(cache_key, batch)
         return batch
 
 
@@ -79,6 +86,8 @@ class StockBatchRepository(BaseRepository):
             """,
             (quantity_change, batch_id),
         )
+        # Invalidate cache for this batch
+        self._invalidate_cache(f"find_by_item_and_warehouse")
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""

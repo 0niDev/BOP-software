@@ -9,10 +9,18 @@ class AccountRepository(BaseRepository):
     table_name = "accounts"
 
     def find_by_code(self, account_code: str, company_id: int = 1) -> dict | None:
-        return self.db.fetch_one(
+        cache_key = self._get_cache_key("find_by_code", account_code, company_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
+        result = self.db.fetch_one(
             "SELECT * FROM accounts WHERE account_code = ? AND company_id = ?",
             (account_code, company_id),
         )
+        if result:
+            self._set_cached(cache_key, result)
+        return result
 
     def code_exists(self, account_code: str, company_id: int = 1, exclude_id: int | None = None) -> bool:
         sql = "SELECT id FROM accounts WHERE account_code = ? AND company_id = ?"
@@ -23,25 +31,46 @@ class AccountRepository(BaseRepository):
         return self.db.fetch_one(sql, params) is not None
 
     def find_all_for_company(self, company_id: int = 1, active_only: bool = True) -> list[dict]:
+        cache_key = self._get_cache_key("find_all_for_company", company_id, active_only)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         sql = "SELECT * FROM accounts WHERE company_id = ?"
         params: tuple = (company_id,)
         if active_only:
             sql += " AND is_active = 1"
         sql += " ORDER BY account_code"
-        return self.db.fetch_all(sql, params)
+        result = self.db.fetch_all(sql, params)
+        self._set_cached(cache_key, result)
+        return result
 
     def find_by_type(self, account_type: str, company_id: int = 1) -> list[dict]:
-        return self.db.fetch_all(
+        cache_key = self._get_cache_key("find_by_type", account_type, company_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
+        result = self.db.fetch_all(
             "SELECT * FROM accounts WHERE account_type = ? AND company_id = ? "
             "AND is_active = 1 ORDER BY account_code",
             (account_type, company_id),
         )
+        self._set_cached(cache_key, result)
+        return result
 
     def find_children(self, parent_account_id: int) -> list[dict]:
-        return self.db.fetch_all(
+        cache_key = self._get_cache_key("find_children", parent_account_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
+        result = self.db.fetch_all(
             "SELECT * FROM accounts WHERE parent_account_id = ? ORDER BY account_code",
             (parent_account_id,),
         )
+        self._set_cached(cache_key, result)
+        return result
 
     def get_current_balance(self, account_id: int) -> float:
         """
@@ -57,6 +86,11 @@ class AccountRepository(BaseRepository):
         through journal_entry_lines. Adding the column value on top
         would double-count it.
         """
+        cache_key = self._get_cache_key("get_current_balance", account_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         account = self.get_by_id(account_id)
         totals = self.db.fetch_one(
             """
@@ -73,8 +107,12 @@ class AccountRepository(BaseRepository):
 
         debit_normal = account["account_type"] in ("ASSET", "EXPENSE")
         if debit_normal:
-            return debit_total - credit_total
-        return credit_total - debit_total
+            balance = debit_total - credit_total
+        else:
+            balance = credit_total - debit_total
+        
+        self._set_cached(cache_key, balance)
+        return balance
 
     def insert_unique(self, data: dict) -> int:
         if self.code_exists(data["account_code"], data.get("company_id", 1)):
