@@ -29579,3 +29579,8 @@ AttributeError: 'SalesInvoiceService' object has no attribute '_update_stock'
 2026-08-02 01:07:11,403 | INFO     | erp.__main__ | 🔄 Closing database connections...
 2026-08-02 01:07:11,405 | INFO     | erp.database.connection | SQLite Cloud connections closed
 2026-08-02 01:07:11,405 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-01 20:34:17,136 | INFO     | erp.__main__ | Starting performance index migration...
+2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_accounts_company_active ON accounts(company_id, i
+2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_accounts_code_order ON accounts(company_id, accou
+2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_je_posted ON journal_entries(is_posted, id);
+2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_jel_account_je ON journal_entry_lines(account_id,
