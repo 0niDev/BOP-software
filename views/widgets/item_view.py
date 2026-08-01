@@ -105,7 +105,7 @@ class ItemView(QWidget):
 
         self.refresh_btn = QPushButton("Refresh")
         self.refresh_btn.setFixedWidth(100)
-        self.refresh_btn.clicked.connect(self._load_items)
+        self.refresh_btn.clicked.connect(self._load_items_async)
         controls_layout.addWidget(self.refresh_btn)
 
         layout.addLayout(controls_layout)
@@ -307,6 +307,10 @@ class ItemView(QWidget):
         self._load_thread = ItemLoadThread(self.controller, active_only=True)
         self._load_thread.data_loaded.connect(self._on_items_loaded)
         self._load_thread.start()
+    
+    def _load_items(self):
+        """Synchronous wrapper for backward compatibility (e.g., refresh button)."""
+        self._load_items_async()
     
     def _on_items_loaded(self, items, error):
         """Handle items loaded from background thread."""
