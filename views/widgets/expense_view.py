@@ -212,6 +212,12 @@ class ExpenseView(QWidget):
         
         self._is_loaded = True
     
+    def _load_expenses(self) -> None:
+        """Reload expenses by restarting the async load."""
+        self._is_loaded = False
+        self._show_loading_state()
+        QTimer.singleShot(50, self._load_data_async)
+    
     def _on_load_error(self, error_msg):
         """Handle loading error."""
         QMessageBox.warning(self, "Load Error", f"Failed to load data: {error_msg}")
