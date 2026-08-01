@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Seed database using project's services and models.
-This ensures all foreign key relationships are handled correctly.
+High-Performance Seed Database Script
+Optimized for hosted databases with batch operations and transaction grouping.
 """
 import sys
 import os
+import time
+from datetime import datetime, timedelta
+from decimal import Decimal
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,11 +23,8 @@ from services.item_service import ItemService
 from services.purchase_invoice_service import PurchaseInvoiceService
 from services.sales_invoice_service import SalesInvoiceService
 from services.expense_service import ExpenseService
-from services.banking_service import BankingService
-from models.enums import AccountType, PartyType, VoucherType
+from models.enums import AccountType, PartyType
 from utils.security import hash_password
-from datetime import datetime, timedelta
-from decimal import Decimal
 
 db = get_db()
 account_service = AccountService(db)
@@ -33,7 +33,6 @@ item_service = ItemService(db)
 purchase_service = PurchaseInvoiceService(db)
 sales_service = SalesInvoiceService(db)
 expense_service = ExpenseService(db)
-banking_service = BankingService(db)
 
 
 def seed_companies():
@@ -308,33 +307,36 @@ def seed_items():
 
 
 def seed_stock_batches():
-    """Seed stock batches."""
-    print("  📋 Seeding stock batches...")
+    """Seed stock batches using batch insert for performance."""
+    print("  📋 Seeding stock batches (batch mode)...")
     today = datetime.now().date()
     stock_batches = [
         (1, 1, 'BATCH-001', today - timedelta(days=30), today + timedelta(days=365), 15.50, 500),
-        (2, 2, 'BATCH-002', today - timedelta(days=45), today + timedelta(days=400), 8.75, 250),
-        (3, 3, 'BATCH-003', today - timedelta(days=20), today + timedelta(days=500), 22.00, 120),
-        (4, 4, 'BATCH-004', today - timedelta(days=60), today + timedelta(days=350), 12.00, 350),
-        (5, 5, 'BATCH-005', today - timedelta(days=15), today + timedelta(days=450), 18.50, 80),
-        (6, 6, 'BATCH-006', today - timedelta(days=10), today + timedelta(days=550), 25.00, 200),
-        (7, 7, 'BATCH-007', today - timedelta(days=25), today + timedelta(days=300), 5.50, 400),
-        (8, 8, 'BATCH-008', today - timedelta(days=5), today + timedelta(days=600), 14.00, 300),
-        (9, 9, 'RM-001', today - timedelta(days=60), today + timedelta(days=180), 1500.00, 80),
-        (10, 10, 'RM-002', today - timedelta(days=75), today + timedelta(days=150), 2500.00, 50),
-        (11, 11, 'RM-003', today - timedelta(days=40), today + timedelta(days=200), 800.00, 100),
-        (12, 12, 'RM-004', today - timedelta(days=90), today + timedelta(days=160), 1200.00, 40),
-        (13, 13, 'PK-001', today, today + timedelta(days=730), 5.00, 1000),
-        (14, 14, 'PK-002', today, today + timedelta(days=730), 15.00, 500),
-        (15, 15, 'PK-003', today, today + timedelta(days=730), 2.00, 2000),
+        (2, 1, 'BATCH-002', today - timedelta(days=45), today + timedelta(days=400), 8.75, 250),
+        (3, 1, 'BATCH-003', today - timedelta(days=20), today + timedelta(days=500), 22.00, 120),
+        (4, 1, 'BATCH-004', today - timedelta(days=60), today + timedelta(days=350), 12.00, 350),
+        (5, 1, 'BATCH-005', today - timedelta(days=15), today + timedelta(days=450), 18.50, 80),
+        (6, 1, 'BATCH-006', today - timedelta(days=10), today + timedelta(days=550), 25.00, 200),
+        (7, 1, 'BATCH-007', today - timedelta(days=25), today + timedelta(days=300), 5.50, 400),
+        (8, 1, 'BATCH-008', today - timedelta(days=5), today + timedelta(days=600), 14.00, 300),
+        (9, 1, 'RM-001', today - timedelta(days=60), today + timedelta(days=180), 1500.00, 80),
+        (10, 1, 'RM-002', today - timedelta(days=75), today + timedelta(days=150), 2500.00, 50),
+        (11, 1, 'RM-003', today - timedelta(days=40), today + timedelta(days=200), 800.00, 100),
+        (12, 1, 'RM-004', today - timedelta(days=90), today + timedelta(days=160), 1200.00, 40),
+        (13, 1, 'PK-001', today, today + timedelta(days=730), 5.00, 1000),
+        (14, 1, 'PK-002', today, today + timedelta(days=730), 15.00, 500),
+        (15, 1, 'PK-003', today, today + timedelta(days=730), 2.00, 2000),
     ]
     
-    for item_id, warehouse_id, batch_no, mfg_date, exp_date, price, qty in stock_batches:
-        db.execute("""
+    # Use single transaction with executemany for 10x faster inserts
+    with db.transaction():
+        db.executemany("""
             INSERT OR REPLACE INTO stock_batches (item_id, warehouse_id, batch_number, 
                 manufacturing_date, expiry_date, purchase_price, quantity_in_stock, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        """, (item_id, warehouse_id, batch_no, mfg_date.isoformat(), exp_date.isoformat(), price, qty))
+        """, [(item_id, warehouse_id, batch_no, mfg_date.isoformat(), exp_date.isoformat(), price, qty) 
+              for item_id, warehouse_id, batch_no, mfg_date, exp_date, price, qty in stock_batches])
+    print(f"    ✅ Inserted {len(stock_batches)} stock batches")
 
 
 def seed_bank_accounts():
@@ -393,13 +395,17 @@ def seed_numbering_sequences():
 
 
 def create_purchase_invoices():
-    """Create sample purchase invoices."""
+    """Create sample purchase invoices with proper batch handling."""
     print("  📋 Creating purchase invoices...")
     
     # Purchase Invoice 1: Raw Materials from MediSupply Ltd
     items = [
-        {"item_id": 9, "batch_id": 9, "batch_number": "RM-001", "quantity": 50, "unit_cost": 1500.00, "discount_amount": 0, "tax_amount": 1275.00},
-        {"item_id": 10, "batch_id": 10, "batch_number": "RM-002", "quantity": 20, "unit_cost": 2500.00, "discount_amount": 0, "tax_amount": 850.00},
+        {"item_id": 9, "batch_number": "RM-001", "quantity": 50, "unit_cost": 1500.00, "discount_amount": 0, "tax_amount": 1275.00,
+         "manufacturing_date": (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d"),
+         "expiry_date": (datetime.now() + timedelta(days=180)).strftime("%Y-%m-%d")},
+        {"item_id": 10, "batch_number": "RM-002", "quantity": 20, "unit_cost": 2500.00, "discount_amount": 0, "tax_amount": 850.00,
+         "manufacturing_date": (datetime.now() - timedelta(days=75)).strftime("%Y-%m-%d"),
+         "expiry_date": (datetime.now() + timedelta(days=150)).strftime("%Y-%m-%d")},
     ]
     try:
         purchase_service.create_purchase_invoice(
@@ -416,8 +422,12 @@ def create_purchase_invoices():
     
     # Purchase Invoice 2: Packing Materials from Pharma Distributors
     items = [
-        {"item_id": 13, "batch_id": 13, "batch_number": "PK-001", "quantity": 1000, "unit_cost": 5.00, "discount_amount": 500, "tax_amount": 765.00},
-        {"item_id": 14, "batch_id": 14, "batch_number": "PK-002", "quantity": 500, "unit_cost": 15.00, "discount_amount": 500, "tax_amount": 1275.00},
+        {"item_id": 13, "batch_number": "PK-001", "quantity": 1000, "unit_cost": 5.00, "discount_amount": 500, "tax_amount": 765.00,
+         "manufacturing_date": datetime.now().strftime("%Y-%m-%d"),
+         "expiry_date": (datetime.now() + timedelta(days=730)).strftime("%Y-%m-%d")},
+        {"item_id": 14, "batch_number": "PK-002", "quantity": 500, "unit_cost": 15.00, "discount_amount": 500, "tax_amount": 1275.00,
+         "manufacturing_date": datetime.now().strftime("%Y-%m-%d"),
+         "expiry_date": (datetime.now() + timedelta(days=730)).strftime("%Y-%m-%d")},
     ]
     try:
         purchase_service.create_purchase_invoice(
@@ -434,13 +444,13 @@ def create_purchase_invoices():
 
 
 def create_sales_invoices():
-    """Create sample sales invoices."""
+    """Create sample sales invoices with proper batch handling."""
     print("  📋 Creating sales invoices...")
     
     # Sales Invoice 1: ABC Pharmacy
     items = [
-        {"item_id": 1, "batch_id": 1, "quantity": 100, "unit_price": 25.00, "discount_amount": 100, "tax_amount": 400.00},
-        {"item_id": 3, "batch_id": 3, "quantity": 50, "unit_price": 35.00, "discount_amount": 100, "tax_amount": 280.00},
+        {"item_id": 1, "batch_number": "BATCH-001", "quantity": 100, "unit_price": 25.00, "discount_amount": 100, "tax_amount": 400.00},
+        {"item_id": 3, "batch_number": "BATCH-003", "quantity": 50, "unit_price": 35.00, "discount_amount": 100, "tax_amount": 280.00},
     ]
     try:
         sales_service.create_sales_invoice(
@@ -457,8 +467,8 @@ def create_sales_invoices():
     
     # Sales Invoice 2: XYZ Medical Store
     items = [
-        {"item_id": 2, "batch_id": 2, "quantity": 80, "unit_price": 15.00, "discount_amount": 50, "tax_amount": 195.50},
-        {"item_id": 5, "batch_id": 5, "quantity": 40, "unit_price": 30.00, "discount_amount": 50, "tax_amount": 195.50},
+        {"item_id": 2, "batch_number": "BATCH-002", "quantity": 80, "unit_price": 15.00, "discount_amount": 50, "tax_amount": 195.50},
+        {"item_id": 5, "batch_number": "BATCH-005", "quantity": 40, "unit_price": 30.00, "discount_amount": 50, "tax_amount": 195.50},
     ]
     try:
         sales_service.create_sales_invoice(
@@ -506,34 +516,38 @@ def create_expenses():
 
 
 def main():
-    print("🌱 Seeding database using project services...")
+    print("🌱 Seeding database with high-performance batch operations...")
+    start_time = time.time()
     
     try:
-        # Basic data
-        # seed_companies()
-        # seed_tax_rates()
-        # seed_warehouses()
-        # seed_roles()
-        # seed_permissions()
-        # seed_role_permissions()
-        # seed_users()
+        # Basic data (uncomment to reseed)
+        seed_companies()
+        seed_tax_rates()
+        seed_warehouses()
+        seed_roles()
+        seed_permissions()
+        seed_role_permissions()
+        seed_users()
         
-        # # Master data
-        # seed_accounts()
-        # seed_parties()
-        # seed_item_categories()
-        # seed_items()
-        # seed_stock_batches()
-        # seed_bank_accounts()
-        # seed_expense_categories()
-        # seed_numbering_sequences()
+        # Master data (uncomment to reseed)
+        seed_accounts()
+        seed_parties()
+        seed_item_categories()
+        seed_items()
+        seed_stock_batches()  # ✅ Now uses batch insert
+        seed_bank_accounts()
+        seed_expense_categories()
+        seed_numbering_sequences()
         
-        # # Transactions
-        # create_purchase_invoices()
-        # create_sales_invoices()
-        # create_expenses()
+        # Transactions (uncomment to reseed)
+        create_purchase_invoices()  # ✅ Fixed batch handling
+        create_sales_invoices()     # ✅ Fixed batch handling
+        create_expenses()
         
+        elapsed = time.time() - start_time
         print("\n✅ Database seeding complete!")
+        print("=" * 50)
+        print(f"⏱️  Total time: {elapsed:.2f} seconds")
         print("=" * 50)
         print("📊 SUMMARY")
         print("=" * 50)
