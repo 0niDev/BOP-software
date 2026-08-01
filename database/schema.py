@@ -112,6 +112,13 @@ SCHEMA_STATEMENTS: list[str] = [
     """
     CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(account_type);
     """,
+    # New indexes for hosted database performance - Chart of Accounts
+    """
+    CREATE INDEX IF NOT EXISTS idx_accounts_company_active ON accounts(company_id, is_active);
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_accounts_code_order ON accounts(company_id, account_code);
+    """,
     """
     CREATE TABLE IF NOT EXISTS journal_entries (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,6 +142,10 @@ SCHEMA_STATEMENTS: list[str] = [
     CREATE INDEX IF NOT EXISTS idx_je_date ON journal_entries(entry_date);
     CREATE INDEX IF NOT EXISTS idx_je_source ON journal_entries(source_table, source_id);
     """,
+    # New indexes for hosted database performance - Journal Entries
+    """
+    CREATE INDEX IF NOT EXISTS idx_je_posted ON journal_entries(is_posted, id);
+    """,
     """
     CREATE TABLE IF NOT EXISTS journal_entry_lines (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,6 +163,10 @@ SCHEMA_STATEMENTS: list[str] = [
     """
     CREATE INDEX IF NOT EXISTS idx_jel_account ON journal_entry_lines(account_id);
     CREATE INDEX IF NOT EXISTS idx_jel_party ON journal_entry_lines(party_id);
+    """,
+    # New indexes for hosted database performance - Journal Entry Lines
+    """
+    CREATE INDEX IF NOT EXISTS idx_jel_account_je ON journal_entry_lines(account_id, journal_entry_id);
     """,
     # ------------------------------------------------------------------
     # Parties (Customers / Suppliers share one physical table)

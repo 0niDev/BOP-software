@@ -44,6 +44,15 @@ def cleanup():
         
         logger.info("🔄 Closing database connections...")
         close_db()
+        
+        # Close all pooled SQLite Cloud connections
+        try:
+            from database.sqlitecloud_connection import SQLiteCloudConnection
+            SQLiteCloudConnection.close_all()
+            logger.info("✅ SQLite Cloud connection pool closed")
+        except Exception as e:
+            logger.warning(f"Could not close connection pool: {e}")
+        
         logger.info("✅ Database connections closed")
     except Exception as e:
         logger.warning(f"Cleanup error: {e}")

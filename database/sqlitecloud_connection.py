@@ -19,11 +19,54 @@ logger = get_logger(__name__)
 class SQLiteCloudConnection:
     """SQLite Cloud implementation - multiple instances share one database."""
     
+    # Class-level connection pool
+    _connection_pool = []
+    _pool_size = 20  # Increased from default for better concurrency
+    _pool_initialized = False
+    
     def __init__(self, config: DatabaseConfig | None = None):
         self._config = config or get_config().database
         self._conn = None
-        self._connect()
+        # Get connection from pool instead of creating new one
+        self._conn = self._get_from_pool()
+        if self._conn is None:
+            self._connect()
 
+    @classmethod
+    def _initialize_pool(cls, config: DatabaseConfig):
+        """Initialize connection pool on first use."""
+        if cls._pool_initialized:
+            return
+        
+        logger.info(f"Initializing SQLite Cloud connection pool (size={cls._pool_size})")
+        for _ in range(cls._pool_size):
+            try:
+                connection_string = config.sqlite_cloud_url or os.environ.get('SQLITE_CLOUD_URL')
+                if not connection_string:
+                    break
+                conn = sqlitecloud.connect(connection_string)
+                conn.execute("PRAGMA foreign_keys = ON")
+                conn.execute("PRAGMA journal_mode = WAL")
+                cls._connection_pool.append(conn)
+            except Exception as e:
+                logger.warning(f"Could not create pooled connection: {e}")
+        
+        cls._pool_initialized = True
+        logger.info(f"Initialized {len(cls._connection_pool)} pooled connections")
+    
+    @classmethod
+    def _get_from_pool(cls) -> sqlitecloud.SQLiteCloudConnection | None:
+        """Get a connection from the pool if available."""
+        if cls._connection_pool:
+            return cls._connection_pool.pop()
+        return None
+    
+    @classmethod
+    def _return_to_pool(cls, conn):
+        """Return a connection to the pool."""
+        if len(cls._connection_pool) < cls._pool_size:
+            cls._connection_pool.append(conn)
+    
     def _connect(self) -> None:
         """Establish SQLite Cloud connection with retry."""
         max_retries = 3
@@ -39,6 +82,9 @@ class SQLiteCloudConnection:
                 self._conn = sqlitecloud.connect(connection_string)
                 self._conn.execute("PRAGMA foreign_keys = ON")
                 self._conn.execute("PRAGMA journal_mode = WAL")
+                # Optimize for network queries
+                self._conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+                self._conn.execute("PRAGMA temp_store = MEMORY")
                 logger.info("Connected to SQLite Cloud database")
                 return
             except Exception as exc:
@@ -113,5 +159,17 @@ class SQLiteCloudConnection:
 
     def close(self):
         if self._conn:
-            self._conn.close()
+            # Return connection to pool instead of closing it
+            self._return_to_pool(self._conn)
             self._conn = None
+    
+    @classmethod
+    def close_all(cls):
+        """Close all pooled connections (call on app shutdown)."""
+        for conn in cls._connection_pool:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        cls._connection_pool.clear()
+        cls._pool_initialized = False

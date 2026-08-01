@@ -145,12 +145,37 @@ class ChartOfAccountsWidget(QWidget):
         layout.addWidget(self.table)
 
     def refresh(self) -> None:
-        accounts, error = self.controller.list_accounts(active_only=False)
+        # Load accounts asynchronously to keep UI responsive
+        from PySide6.QtCore import QThread, Signal
+        
+        class AccountLoader(QThread):
+            finished = Signal(list, str)
+            
+            def __init__(self, controller):
+                super().__init__()
+                self.controller = controller
+                
+            def run(self):
+                accounts, error = self.controller.list_accounts(active_only=False)
+                self.finished.emit(accounts, error or "")
+        
+        # Disable UI during load
+        self.table.setEnabled(False)
+        self._loader = AccountLoader(self.controller)
+        self._loader.finished.connect(self._on_load_complete)
+        self._loader.start()
+    
+    def _on_load_complete(self, accounts, error):
+        """Handle completed account load."""
         if error:
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Error", error)
+            self.table.setEnabled(True)
             return
+        
         self._accounts = sorted(accounts, key=lambda a: a.account_code)
         self._populate_table(self._accounts)
+        self.table.setEnabled(True)
 
     def _populate_table(self, accounts: list[Account]) -> None:
         by_id = {a.id: a for a in self._accounts}

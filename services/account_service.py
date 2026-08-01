@@ -155,10 +155,49 @@ class AccountService:
         return Account.from_row(self.repo.get_by_id(account_id))
 
     def list_accounts(self, company_id: int = 1, active_only: bool = True) -> list[Account]:
+        cache_key = self.repo._get_cache_key("list_accounts", company_id, active_only)
+        cached = self.repo._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
         rows = self.repo.find_all_for_company(company_id, active_only)
         accounts = [Account.from_row(r) for r in rows]
-        for acc in accounts:
-            acc.current_balance = self.repo.get_current_balance(acc.id)
+        
+        # Batch fetch all balances in a SINGLE query instead of N+1 queries
+        if accounts:
+            account_ids = [acc.id for acc in accounts]
+            placeholders = ", ".join("?" for _ in account_ids)
+            
+            # Get all balances at once with a single JOIN query
+            balances_data = self.db.fetch_all(f"""
+                SELECT 
+                    jel.account_id,
+                    COALESCE(SUM(jel.debit), 0) AS total_debit,
+                    COALESCE(SUM(jel.credit), 0) AS total_credit
+                FROM journal_entry_lines jel
+                JOIN journal_entries je ON je.id = jel.journal_entry_id
+                WHERE jel.account_id IN ({placeholders}) AND je.is_posted = 1
+                GROUP BY jel.account_id
+            """, account_ids)
+            
+            # Create a lookup map for balances
+            balance_map = {}
+            for row in balances_data:
+                acc_id = row["account_id"]
+                # We need account type to determine normal balance
+                acc_obj = next((a for a in accounts if a.id == acc_id), None)
+                if acc_obj:
+                    debit_normal = acc_obj.account_type in ("ASSET", "EXPENSE")
+                    if debit_normal:
+                        balance_map[acc_id] = row["total_debit"] - row["total_credit"]
+                    else:
+                        balance_map[acc_id] = row["total_credit"] - row["total_debit"]
+            
+            # Assign balances to accounts
+            for acc in accounts:
+                acc.current_balance = balance_map.get(acc.id, 0.0)
+        
+        self.repo._set_cached(cache_key, accounts)
         return accounts
 
     def list_by_type(self, account_type: AccountType, company_id: int = 1) -> list[Account]:
