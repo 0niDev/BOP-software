@@ -308,18 +308,20 @@ class ReportView(QWidget):
         self._load_thread.error.connect(self._on_report_error)
         self._load_thread.start()
     
-    def _on_trial_balance_loaded(self, data):
+    def _on_trial_balance_loaded(self, result):
         """Handle trial balance data loaded from thread."""
-        if not data:
-            QMessageBox.information(self, "No Data", "No data found.")
-            return
-        
-        error = data[1] if isinstance(data, tuple) else None
-        if isinstance(data, tuple):
-            data = data[0]
+        # Unpack tuple (data, error) returned by controller
+        if isinstance(result, tuple):
+            data, error = result
+        else:
+            data, error = result, None
         
         if error:
             QMessageBox.warning(self, "Error", error)
+            return
+        
+        if not data:
+            self.tb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found. Please add some transactions first.</div>")
             return
         
         # Reuse existing HTML generation logic (lines 295-480)
@@ -570,18 +572,20 @@ class ReportView(QWidget):
         self._load_thread.error.connect(self._on_report_error)
         self._load_thread.start()
     
-    def _on_profit_loss_loaded(self, data):
+    def _on_profit_loss_loaded(self, result):
         """Handle P&L data loaded from thread."""
-        if not data:
-            QMessageBox.information(self, "No Data", "No data found.")
-            return
-        
-        error = data[1] if isinstance(data, tuple) else None
-        if isinstance(data, tuple):
-            data = data[0]
+        # Unpack tuple (data, error) returned by controller
+        if isinstance(result, tuple):
+            data, error = result
+        else:
+            data, error = result, None
         
         if error:
             QMessageBox.warning(self, "Error", error)
+            return
+        
+        if not data:
+            self.pl_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for the selected period.</div>")
             return
         
         is_profit = data.get('is_profit', False)
@@ -764,18 +768,20 @@ class ReportView(QWidget):
         self._load_thread.error.connect(self._on_report_error)
         self._load_thread.start()
     
-    def _on_balance_sheet_loaded(self, data):
+    def _on_balance_sheet_loaded(self, result):
         """Handle balance sheet data loaded from thread."""
-        if not data:
-            QMessageBox.information(self, "No Data", "No data found.")
-            return
-        
-        error = data[1] if isinstance(data, tuple) else None
-        if isinstance(data, tuple):
-            data = data[0]
+        # Unpack tuple (data, error) returned by controller
+        if isinstance(result, tuple):
+            data, error = result
+        else:
+            data, error = result, None
         
         if error:
             QMessageBox.warning(self, "Error", error)
+            return
+        
+        if not data:
+            self.bs_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found. Please add some transactions first.</div>")
             return
         
         balanced = data.get('is_balanced', True)
@@ -944,18 +950,24 @@ class ReportView(QWidget):
         self._load_thread.error.connect(self._on_report_error)
         self._load_thread.start()
     
-    def _on_party_ledger_loaded(self, data):
+    def _on_party_ledger_loaded(self, result):
         """Handle party ledger data loaded from thread."""
-        if not data:
-            QMessageBox.information(self, "No Data", "No transactions found.")
+        # Unpack tuple (data, error) returned by controller
+        if isinstance(result, tuple):
+            data, error = result
+        else:
+            data, error = result, None
+        
+        if error:
+            QMessageBox.warning(self, "Error", error)
             return
         
-        error = data[1] if isinstance(data, tuple) else None
-        if isinstance(data, tuple):
-            data = data[0]
+        if not data:
+            self.pl_text2.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for this party.</div>")
+            return
         
-        if not data or "error" in data:
-            error_msg = data.get("error", "Unknown error") if isinstance(data, dict) else "Failed to load data"
+        if "error" in data:
+            error_msg = data.get("error", "Unknown error")
             QMessageBox.warning(self, "Error", error_msg)
             return
         
@@ -1117,18 +1129,24 @@ class ReportView(QWidget):
         self._load_thread.error.connect(self._on_report_error)
         self._load_thread.start()
     
-    def _on_cash_book_loaded(self, data):
+    def _on_cash_book_loaded(self, result):
         """Handle cash book data loaded from thread."""
-        if not data:
-            QMessageBox.information(self, "No Data", "No data found.")
+        # Unpack tuple (data, error) returned by controller
+        if isinstance(result, tuple):
+            data, error = result
+        else:
+            data, error = result, None
+        
+        if error:
+            QMessageBox.warning(self, "Error", error)
             return
         
-        error = data[1] if isinstance(data, tuple) else None
-        if isinstance(data, tuple):
-            data = data[0]
+        if not data:
+            self.cb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for the selected period.</div>")
+            return
         
-        if not data or "error" in data:
-            error_msg = data.get("error", "Unknown error") if isinstance(data, dict) else "Failed to load data"
+        if "error" in data:
+            error_msg = data.get("error", "Unknown error")
             QMessageBox.warning(self, "Error", error_msg)
             return
         
