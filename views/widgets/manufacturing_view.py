@@ -594,6 +594,12 @@ class ManufacturingView(QWidget):
             if item and text.lower() in item.text().lower():
                 matches = True
             self.bom_table.setRowHidden(row, not matches)
+    
+    def _load_boms(self) -> None:
+        """Reload BOMs by restarting the async load."""
+        self._is_loaded = False
+        self._show_loading_state()
+        QTimer.singleShot(50, self._load_data_async)
 
     def _on_bom_table_clicked(self, index) -> None:
         """Handle BOM table click."""

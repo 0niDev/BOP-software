@@ -468,6 +468,10 @@ class SalesInvoiceView(QWidget):
         self._invoices_cache = invoices
         self._populate_invoice_table()
     
+    def _load_invoices(self):
+        """Synchronous wrapper for backward compatibility."""
+        self._load_invoices_async()
+    
     def _populate_invoice_table(self):
         """Populate invoice table with cached data."""
         invoices = self._invoices_cache
