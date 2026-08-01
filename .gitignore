@@ -1,9 +1,1 @@
-```
-# Python compiled files
-*.pyc
-__pycache__/
-
-# Logs
-*.log
-logs/
-```
+Nothing needs to be added to the .gitignore file based on the provided changes. The only modified file is a Python source file (`views/widgets/report_view.py`), which should not be ignored.
