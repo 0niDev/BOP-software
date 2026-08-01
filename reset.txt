@@ -1,0 +1,57 @@
+-- Start transaction
+BEGIN;
+
+-- Disable foreign key checks
+PRAGMA foreign_keys = OFF;
+
+-- Drop all tables
+DROP TABLE IF EXISTS tax_rates;
+DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS warehouses;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS permissions;
+DROP TABLE IF EXISTS role_permissions;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS journal_entries;
+DROP TABLE IF EXISTS journal_entry_lines;
+DROP TABLE IF EXISTS parties;
+DROP TABLE IF EXISTS item_categories;
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS stock_batches;
+DROP TABLE IF EXISTS stock_movements;
+DROP TABLE IF EXISTS sales_invoices;
+DROP TABLE IF EXISTS sales_invoice_items;
+DROP TABLE IF EXISTS sales_returns;
+DROP TABLE IF EXISTS sales_return_items;
+DROP TABLE IF EXISTS purchase_invoices;
+DROP TABLE IF EXISTS purchase_invoice_items;
+DROP TABLE IF EXISTS purchase_returns;
+DROP TABLE IF EXISTS purchase_return_items;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS payment_allocations;
+DROP TABLE IF EXISTS receipts;
+DROP TABLE IF EXISTS receipt_allocations;
+DROP TABLE IF EXISTS bill_of_materials;
+DROP TABLE IF EXISTS bom_components;
+DROP TABLE IF EXISTS production_orders;
+DROP TABLE IF EXISTS production_consumption;
+DROP TABLE IF EXISTS stock_losses;
+DROP TABLE IF EXISTS bank_accounts;
+DROP TABLE IF EXISTS cheques;
+DROP TABLE IF EXISTS bank_transactions;
+DROP TABLE IF EXISTS expense_categories;
+DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS asset_details;
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS settings;
+DROP TABLE IF EXISTS numbering_sequences;
+
+-- Reset auto-increment
+DELETE FROM sqlite_sequence;
+
+-- Re-enable foreign keys
+PRAGMA foreign_keys = ON;
+
+-- Commit changes
+COMMIT;
