@@ -45,8 +45,9 @@ class DashboardView(QWidget):
         super().__init__(parent)
         self.controller = DashboardController()
         self._load_thread = None
+        self._is_loaded = False  # Track if data has been loaded
         self._build_ui()
-        self._load_data()
+        # Don't load on init - wait for showEvent
 
         # Auto-refresh every 60 seconds
         self.timer = QTimer()
@@ -56,7 +57,10 @@ class DashboardView(QWidget):
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
-        self._load_data()
+        # Only load if not already loaded or if user manually refreshed
+        if not self._is_loaded:
+            self._load_data()
+            self._is_loaded = True
         logger.info("🔄 Dashboard View refreshed on show")
 
     def _build_ui(self):
@@ -120,6 +124,7 @@ class DashboardView(QWidget):
         # Cancel any existing load thread
         if self._load_thread and self._load_thread.isRunning():
             self._load_thread.terminate()
+            self._load_thread.wait()
         
         # Start new load thread
         self._load_thread = DashboardLoadThread(self.controller)

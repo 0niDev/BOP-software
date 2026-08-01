@@ -67,260 +67,290 @@ class DashboardService:
         # Check cache
         if cache_key in self._cache:
             if time.time() - self._cache_time.get(cache_key, 0) < self._cache_ttl:
+                logger.info(f"✅ Dashboard cache hit for {cache_key}")
                 return self._cache[cache_key]
         
+        logger.info(f"🔄 Dashboard cache miss, fetching from DB...")
         today = datetime.now().date().isoformat()
         month_start = datetime.now().date().replace(day=1).isoformat()
         
-        # ============================================================
-        # ONE BIG QUERY - all essential data
-        # ============================================================
-        result = self.db.fetch_one("""
-            WITH 
-            today_stats AS (
+        try:
+            # ============================================================
+            # ONE BIG QUERY - all essential data
+            # ============================================================
+            result = self.db.fetch_one("""
+                WITH 
+                today_stats AS (
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN si.status != 'CANCELLED' THEN si.total_amount ELSE 0 END), 0) as sales_total,
+                        COUNT(CASE WHEN si.status != 'CANCELLED' THEN 1 END) as sales_count,
+                        COALESCE(SUM(CASE WHEN pi.status != 'CANCELLED' THEN pi.total_amount ELSE 0 END), 0) as purchases_total,
+                        COUNT(CASE WHEN pi.status != 'CANCELLED' THEN 1 END) as purchases_count
+                    FROM (SELECT 1) 
+                    LEFT JOIN sales_invoices si ON si.company_id = ? AND date(si.invoice_date) = date(?)
+                    LEFT JOIN purchase_invoices pi ON pi.company_id = ? AND date(pi.invoice_date) = date(?)
+                ),
+                balances AS (
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN a.account_code IN ('1000', '1020') THEN jel.debit - jel.credit ELSE 0 END), 0) as cash,
+                        COALESCE(SUM(CASE WHEN a.account_code = '1010' THEN jel.debit - jel.credit ELSE 0 END), 0) as bank,
+                        COALESCE(SUM(CASE WHEN a.account_code = '1100' THEN jel.debit - jel.credit ELSE 0 END), 0) as receivable,
+                        COALESCE(SUM(CASE WHEN a.account_code = '2000' THEN jel.credit - jel.debit ELSE 0 END), 0) as payable
+                    FROM journal_entries je
+                    JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+                    JOIN accounts a ON a.id = jel.account_id
+                    WHERE je.is_posted = 1 AND je.company_id = ?
+                ),
+                monthly_pl AS (
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN a.account_type = 'REVENUE' THEN jel.credit ELSE 0 END), 0) as revenue,
+                        COALESCE(SUM(CASE WHEN a.account_type = 'EXPENSE' THEN jel.debit ELSE 0 END), 0) as expenses
+                    FROM journal_entries je
+                    JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+                    JOIN accounts a ON a.id = jel.account_id
+                    WHERE je.is_posted = 1 AND je.company_id = ?
+                    AND je.entry_date >= ? AND je.entry_date <= ?
+                ),
+                inventory_total AS (
+                    SELECT COALESCE(SUM(sb.quantity_in_stock * sb.purchase_price), 0) as inventory_value
+                    FROM stock_batches sb
+                    JOIN items i ON i.id = sb.item_id
+                    WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+                ),
+                total_items_count AS (
+                    SELECT COUNT(*) as count
+                    FROM items
+                    WHERE company_id = ? AND is_active = 1
+                )
                 SELECT 
-                    COALESCE(SUM(CASE WHEN si.status != 'CANCELLED' THEN si.total_amount ELSE 0 END), 0) as sales_total,
-                    COUNT(CASE WHEN si.status != 'CANCELLED' THEN 1 END) as sales_count,
-                    COALESCE(SUM(CASE WHEN pi.status != 'CANCELLED' THEN pi.total_amount ELSE 0 END), 0) as purchases_total,
-                    COUNT(CASE WHEN pi.status != 'CANCELLED' THEN 1 END) as purchases_count
-                FROM (SELECT 1) 
-                LEFT JOIN sales_invoices si ON si.company_id = ? AND date(si.invoice_date) = date(?)
-                LEFT JOIN purchase_invoices pi ON pi.company_id = ? AND date(pi.invoice_date) = date(?)
-            ),
-            balances AS (
+                    ts.sales_total, ts.sales_count,
+                    ts.purchases_total, ts.purchases_count,
+                    b.cash, b.bank, b.receivable, b.payable,
+                    mp.revenue, mp.expenses,
+                    iv.inventory_value,
+                    tc.count as total_items
+                FROM today_stats ts
+                CROSS JOIN balances b
+                CROSS JOIN monthly_pl mp
+                CROSS JOIN inventory_total iv
+                CROSS JOIN total_items_count tc
+            """, (
+                company_id, today, company_id, today,  # today_stats
+                company_id,  # balances
+                company_id, month_start, today,  # monthly_pl
+                company_id,  # inventory_total
+                company_id,  # total_items_count
+            ))
+            
+            if not result:
+                logger.warning("⚠️ No result from main dashboard query")
+                result = {}
+            
+            logger.info("✅ Main dashboard query completed")
+            
+            # ============================================================
+            # Recent transactions (one query, not 5 separate ones)
+            # ============================================================
+            recent = self.db.fetch_all("""
+                SELECT * FROM (
+                    SELECT 
+                        si.invoice_number as reference,
+                        si.invoice_date as date,
+                        'Sales' as type,
+                        si.total_amount as amount,
+                        p.name as party_name,
+                        1 as sort_order
+                    FROM sales_invoices si
+                    JOIN parties p ON p.id = si.customer_id
+                    WHERE si.company_id = ? AND si.status != 'CANCELLED'
+                    UNION ALL
+                    SELECT 
+                        pi.invoice_number,
+                        pi.invoice_date,
+                        'Purchases',
+                        pi.total_amount,
+                        p.name,
+                        2
+                    FROM purchase_invoices pi
+                    JOIN parties p ON p.id = pi.supplier_id
+                    WHERE pi.company_id = ? AND pi.status != 'CANCELLED'
+                    UNION ALL
+                    SELECT 
+                        p.voucher_number,
+                        p.payment_date,
+                        'Payment',
+                        p.amount,
+                        pa.name,
+                        3
+                    FROM payments p
+                    JOIN parties pa ON pa.id = p.party_id
+                    WHERE p.company_id = ?
+                    UNION ALL
+                    SELECT 
+                        r.voucher_number,
+                        r.receipt_date,
+                        'Receipt',
+                        r.amount,
+                        pa.name,
+                        4
+                    FROM receipts r
+                    JOIN parties pa ON pa.id = r.party_id
+                    WHERE r.company_id = ?
+                    UNION ALL
+                    SELECT 
+                        e.voucher_number,
+                        e.expense_date,
+                        'Expense',
+                        e.amount,
+                        ec.name,
+                        5
+                    FROM expenses e
+                    JOIN expense_categories ec ON ec.id = e.category_id
+                    WHERE e.company_id = ?
+                )
+                ORDER BY date DESC
+                LIMIT 15
+            """, (company_id, company_id, company_id, company_id, company_id))
+            
+            logger.info(f"✅ Fetched {len(recent)} recent transactions")
+            
+            # ============================================================
+            # Low stock (one query)
+            # ============================================================
+            low_stock = self.db.fetch_all("""
                 SELECT 
-                    COALESCE(SUM(CASE WHEN a.account_code IN ('1000', '1020') THEN jel.debit - jel.credit ELSE 0 END), 0) as cash,
-                    COALESCE(SUM(CASE WHEN a.account_code = '1010' THEN jel.debit - jel.credit ELSE 0 END), 0) as bank,
-                    COALESCE(SUM(CASE WHEN a.account_code = '1100' THEN jel.debit - jel.credit ELSE 0 END), 0) as receivable,
-                    COALESCE(SUM(CASE WHEN a.account_code = '2000' THEN jel.credit - jel.debit ELSE 0 END), 0) as payable
-                FROM journal_entries je
-                JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
-                JOIN accounts a ON a.id = jel.account_id
-                WHERE je.is_posted = 1 AND je.company_id = ?
-            ),
-            monthly_pl AS (
+                    i.item_code, i.item_name, 
+                    COALESCE(SUM(sb.quantity_in_stock), 0) as current_stock,
+                    i.minimum_stock
+                FROM items i
+                LEFT JOIN stock_batches sb ON sb.item_id = i.id AND sb.is_active = 1
+                WHERE i.company_id = ? AND i.is_active = 1
+                GROUP BY i.id
+                HAVING current_stock < i.minimum_stock
+                ORDER BY (current_stock / i.minimum_stock) ASC
+                LIMIT 10
+            """, (company_id,))
+            
+            logger.info(f"✅ Found {len(low_stock)} low stock items")
+            
+            # ============================================================
+            # Expiring items (one query)
+            # ============================================================
+            expiring = self.db.fetch_all("""
                 SELECT 
-                    COALESCE(SUM(CASE WHEN a.account_type = 'REVENUE' THEN jel.credit ELSE 0 END), 0) as revenue,
-                    COALESCE(SUM(CASE WHEN a.account_type = 'EXPENSE' THEN jel.debit ELSE 0 END), 0) as expenses
-                FROM journal_entries je
-                JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
-                JOIN accounts a ON a.id = jel.account_id
-                WHERE je.is_posted = 1 AND je.company_id = ?
-                AND je.entry_date >= ? AND je.entry_date <= ?
-            ),
-            inventory_total AS (
-                SELECT COALESCE(SUM(sb.quantity_in_stock * sb.purchase_price), 0) as inventory_value
+                    i.item_code,
+                    i.item_name,
+                    sb.batch_number,
+                    sb.expiry_date,
+                    sb.quantity_in_stock
                 FROM stock_batches sb
                 JOIN items i ON i.id = sb.item_id
-                WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
-            ),
-            total_items_count AS (
-                SELECT COUNT(*) as count
-                FROM items
-                WHERE company_id = ? AND is_active = 1
-            )
-            SELECT 
-                ts.sales_total, ts.sales_count,
-                ts.purchases_total, ts.purchases_count,
-                b.cash, b.bank, b.receivable, b.payable,
-                mp.revenue, mp.expenses,
-                iv.inventory_value,
-                tc.count as total_items
-            FROM today_stats ts
-            CROSS JOIN balances b
-            CROSS JOIN monthly_pl mp
-            CROSS JOIN inventory_total iv
-            CROSS JOIN total_items_count tc
-        """, (
-            company_id, today, company_id, today,  # today_stats
-            company_id,  # balances
-            company_id, month_start, today,  # monthly_pl
-            company_id,  # inventory_total
-            company_id,  # total_items_count
-        ))
-        
-        # ============================================================
-        # Recent transactions (one query, not 5 separate ones)
-        # ============================================================
-        recent = self.db.fetch_all("""
-            SELECT * FROM (
-                SELECT 
-                    si.invoice_number as reference,
-                    si.invoice_date as date,
-                    'Sales' as type,
-                    si.total_amount as amount,
-                    p.name as party_name,
-                    1 as sort_order
-                FROM sales_invoices si
-                JOIN parties p ON p.id = si.customer_id
-                WHERE si.company_id = ? AND si.status != 'CANCELLED'
-                UNION ALL
-                SELECT 
-                    pi.invoice_number,
-                    pi.invoice_date,
-                    'Purchases',
-                    pi.total_amount,
-                    p.name,
-                    2
-                FROM purchase_invoices pi
-                JOIN parties p ON p.id = pi.supplier_id
-                WHERE pi.company_id = ? AND pi.status != 'CANCELLED'
-                UNION ALL
-                SELECT 
-                    p.voucher_number,
-                    p.payment_date,
-                    'Payment',
-                    p.amount,
-                    pa.name,
-                    3
-                FROM payments p
-                JOIN parties pa ON pa.id = p.party_id
-                WHERE p.company_id = ?
-                UNION ALL
-                SELECT 
-                    r.voucher_number,
-                    r.receipt_date,
-                    'Receipt',
-                    r.amount,
-                    pa.name,
-                    4
-                FROM receipts r
-                JOIN parties pa ON pa.id = r.party_id
-                WHERE r.company_id = ?
-                UNION ALL
-                SELECT 
-                    e.voucher_number,
-                    e.expense_date,
-                    'Expense',
-                    e.amount,
-                    ec.name,
-                    5
-                FROM expenses e
-                JOIN expense_categories ec ON ec.id = e.category_id
-                WHERE e.company_id = ?
-            )
-            ORDER BY date DESC
-            LIMIT 15
-        """, (company_id, company_id, company_id, company_id, company_id))
-        
-        # ============================================================
-        # Low stock (one query)
-        # ============================================================
-        low_stock = self.db.fetch_all("""
-            SELECT 
-                i.item_code, i.item_name, 
-                COALESCE(SUM(sb.quantity_in_stock), 0) as current_stock,
-                i.minimum_stock
-            FROM items i
-            LEFT JOIN stock_batches sb ON sb.item_id = i.id AND sb.is_active = 1
-            WHERE i.company_id = ? AND i.is_active = 1
-            GROUP BY i.id
-            HAVING current_stock < i.minimum_stock
-            ORDER BY (current_stock / i.minimum_stock) ASC
-            LIMIT 10
-        """, (company_id,))
-        
-        # ============================================================
-        # Expiring items (one query)
-        # ============================================================
-        expiring = self.db.fetch_all("""
-            SELECT 
-                i.item_code,
-                i.item_name,
-                sb.batch_number,
-                sb.expiry_date,
-                sb.quantity_in_stock
-            FROM stock_batches sb
-            JOIN items i ON i.id = sb.item_id
-            WHERE sb.is_active = 1 
-            AND i.is_active = 1
-            AND i.company_id = ?
-            AND sb.expiry_date IS NOT NULL
-            AND date(sb.expiry_date) <= date(?, '+30 days')
-            ORDER BY sb.expiry_date ASC
-            LIMIT 10
-        """, (company_id, today))
-        
-        # ============================================================
-        # Build the data dictionary
-        # ============================================================
-        data = {
-            "today": {
-                "sales_total": float(result.get("sales_total", 0)),
-                "sales_count": int(result.get("sales_count", 0)),
-                "purchases_total": float(result.get("purchases_total", 0)),
-                "purchases_count": int(result.get("purchases_count", 0)),
-            },
-            "balances": {
-                "cash": float(result.get("cash", 0)),
-                "bank": float(result.get("bank", 0)),
-                "inventory": float(result.get("inventory_value", 0)),
-                "total": float(result.get("cash", 0)) + float(result.get("bank", 0)) + float(result.get("inventory_value", 0)),
-            },
-            "receivables_payables": {
-                "receivable": float(result.get("receivable", 0)),
-                "payable": float(result.get("payable", 0)),
-            },
-            "profit_loss": {
-                "revenue": float(result.get("revenue", 0)),
-                "expenses": float(result.get("expenses", 0)),
-                "profit": float(result.get("revenue", 0)) - float(result.get("expenses", 0)),
-                "is_profit": float(result.get("revenue", 0)) > float(result.get("expenses", 0)),
-            },
-            "recent_transactions": recent,
-            "inventory": {
-                "total_items": int(result.get("total_items", 0)),
-                "low_stock_count": len(low_stock),
-                "low_stock_items": low_stock,
-                "expiring_count": len(expiring),
-                "expiring_items": expiring,
-            },
-            "alerts": {
-                "count": 0,
-                "alerts": [],
-            },
-        }
-        
-        # ============================================================
-        # Build alerts (without extra queries)
-        # ============================================================
-        alerts = []
-        
-        # Low stock alerts
-        for item in low_stock[:5]:
-            alerts.append({
-                "type": "warning",
-                "title": f"Low Stock: {item['item_code']}",
-                "message": f"{item['item_name']} - Current: {item['current_stock']:.2f}, Min: {item['minimum_stock']:.2f}",
-            })
-        
-        # Expiring alerts
-        for batch in expiring[:3]:
-            alerts.append({
-                "type": "danger",
-                "title": f"Expiring Soon: {batch['batch_number']}",
-                "message": f"{batch['item_name']} - Expires: {batch['expiry_date']}",
-            })
-        
-        if not alerts:
-            alerts.append({
-                "type": "success",
-                "title": "All Clear!",
-                "message": "No critical alerts at this time.",
-            })
-        
-        data["alerts"] = {
-            "count": len(alerts),
-            "alerts": alerts,
-        }
-        
-        # ============================================================
-        # Cache the data
-        # ============================================================
-        self._cache[cache_key] = data
-        self._cache_time[cache_key] = time.time()
-        
-        return data
+                WHERE sb.is_active = 1 
+                AND i.is_active = 1
+                AND i.company_id = ?
+                AND sb.expiry_date IS NOT NULL
+                AND date(sb.expiry_date) <= date(?, '+30 days')
+                ORDER BY sb.expiry_date ASC
+                LIMIT 10
+            """, (company_id, today))
+            
+            logger.info(f"✅ Found {len(expiring)} expiring items")
+            
+            # ============================================================
+            # Build the data dictionary
+            # ============================================================
+            data = {
+                "today": {
+                    "sales_total": float(result.get("sales_total", 0)),
+                    "sales_count": int(result.get("sales_count", 0)),
+                    "purchases_total": float(result.get("purchases_total", 0)),
+                    "purchases_count": int(result.get("purchases_count", 0)),
+                },
+                "balances": {
+                    "cash": float(result.get("cash", 0)),
+                    "bank": float(result.get("bank", 0)),
+                    "inventory": float(result.get("inventory_value", 0)),
+                    "total": float(result.get("cash", 0)) + float(result.get("bank", 0)) + float(result.get("inventory_value", 0)),
+                },
+                "receivables_payables": {
+                    "receivable": float(result.get("receivable", 0)),
+                    "payable": float(result.get("payable", 0)),
+                },
+                "profit_loss": {
+                    "revenue": float(result.get("revenue", 0)),
+                    "expenses": float(result.get("expenses", 0)),
+                    "profit": float(result.get("revenue", 0)) - float(result.get("expenses", 0)),
+                    "is_profit": float(result.get("revenue", 0)) > float(result.get("expenses", 0)),
+                },
+                "recent_transactions": recent,
+                "inventory": {
+                    "total_items": int(result.get("total_items", 0)),
+                    "low_stock_count": len(low_stock),
+                    "low_stock_items": low_stock,
+                    "expiring_count": len(expiring),
+                    "expiring_items": expiring,
+                },
+                "alerts": {
+                    "count": 0,
+                    "alerts": [],
+                },
+            }
+            
+            # ============================================================
+            # Build alerts (without extra queries)
+            # ============================================================
+            alerts = []
+            
+            # Low stock alerts
+            for item in low_stock[:5]:
+                alerts.append({
+                    "type": "warning",
+                    "title": f"Low Stock: {item['item_code']}",
+                    "message": f"{item['item_name']} - Current: {item['current_stock']:.2f}, Min: {item['minimum_stock']:.2f}",
+                })
+            
+            # Expiring alerts
+            for batch in expiring[:3]:
+                alerts.append({
+                    "type": "danger",
+                    "title": f"Expiring Soon: {batch['batch_number']}",
+                    "message": f"{batch['item_name']} - Expires: {batch['expiry_date']}",
+                })
+            
+            if not alerts:
+                alerts.append({
+                    "type": "success",
+                    "title": "All Clear!",
+                    "message": "No critical alerts at this time.",
+                })
+            
+            data["alerts"] = {
+                "count": len(alerts),
+                "alerts": alerts,
+            }
+            
+            # ============================================================
+            # Cache the data
+            # ============================================================
+            self._cache[cache_key] = data
+            self._cache_time[cache_key] = time.time()
+            
+            logger.info(f"✅ Dashboard data built and cached")
+            
+            return data
+            
+        except Exception as e:
+            logger.exception(f"❌ Error fetching dashboard data: {e}")
+            # Return empty data on error
+            return {
+                "today": {"sales_total": 0, "sales_count": 0, "purchases_total": 0, "purchases_count": 0},
+                "balances": {"cash": 0, "bank": 0, "inventory": 0, "total": 0},
+                "receivables_payables": {"receivable": 0, "payable": 0},
+                "profit_loss": {"revenue": 0, "expenses": 0, "profit": 0, "is_profit": True},
+                "recent_transactions": [],
+                "inventory": {"total_items": 0, "low_stock_count": 0, "low_stock_items": [], "expiring_count": 0, "expiring_items": []},
+                "alerts": {"count": 1, "alerts": [{"type": "danger", "title": "Error", "message": str(e)}]},
+            }
 
     def load_heavy_data(self, company_id: int = 1) -> dict:
         """Load heavy dashboard data (call in background) - DEPRECATED, use get_dashboard_data instead."""
