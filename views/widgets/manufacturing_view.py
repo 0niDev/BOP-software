@@ -1,7 +1,7 @@
 """Manufacturing management widget - BOM and Production Orders."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QDate
+from PySide6.QtCore import Qt, Signal, QDate, QThread, QObject, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -31,6 +31,46 @@ from models.production_order import ProductionOrder
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class ManufacturingDataLoader(QObject):
+    """Background worker for loading manufacturing data."""
+    data_loaded = Signal(dict)
+    error_occurred = Signal(str)
+    
+    def __init__(self, controller, item_controller):
+        super().__init__()
+        self.controller = controller
+        self.item_controller = item_controller
+    
+    def run(self):
+        """Load all manufacturing data in background."""
+        try:
+            # Load BOMs
+            boms, bom_error = self.controller.list_boms(active_only=None)
+            if bom_error:
+                self.error_occurred.emit(f"BOMs: {bom_error}")
+                return
+            
+            # Load production orders
+            orders, order_error = self.controller.list_production_orders(status=None)
+            if order_error:
+                self.error_occurred.emit(f"Orders: {order_error}")
+                return
+            
+            # Load items for lookups
+            items, item_error = self.item_controller.list_items(active_only=False)
+            if item_error:
+                logger.warning(f"Could not load items: {item_error}")
+                items = []
+            
+            self.data_loaded.emit({
+                'boms': boms,
+                'orders': orders,
+                'items': items
+            })
+        except Exception as e:
+            self.error_occurred.emit(str(e))
 
 # views/widgets/manufacturing_view.py - BOMDialog
 
@@ -294,17 +334,82 @@ class ManufacturingView(QWidget):
         self.item_controller = item_controller or ItemController()
         self._selected_bom_id: int | None = None
         self._selected_order_id: int | None = None
+        self._loader_thread = None
+        self._data_cache = {}
         self._build_ui()
-        self._load_boms()
-        self._load_orders()
+        # Don't load immediately - wait for showEvent
 
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
-        # Refresh data when view is shown
-        self._load_boms()
-        self._load_orders()
-        print("🔄 Manufacturing View refreshed")
+        if not hasattr(self, '_is_loaded') or not self._is_loaded:
+            self._show_loading_state()
+            QTimer.singleShot(50, self._load_data_async)
+    
+    def _show_loading_state(self):
+        """Show loading state in tables."""
+        self.bom_table.setRowCount(1)
+        self.bom_table.setColumnCount(1)
+        self.bom_table.setHorizontalHeaderLabels(["Loading..."])
+        loading_item = QTableWidgetItem("Loading BOMs...")
+        loading_item.setTextAlignment(Qt.AlignCenter)
+        self.bom_table.setItem(0, 0, loading_item)
+        
+        self.order_table.setRowCount(1)
+        self.order_table.setColumnCount(1)
+        self.order_table.setHorizontalHeaderLabels(["Loading..."])
+        loading_item2 = QTableWidgetItem("Loading Production Orders...")
+        loading_item2.setTextAlignment(Qt.AlignCenter)
+        self.order_table.setItem(0, 0, loading_item2)
+    
+    def _load_data_async(self):
+        """Load manufacturing data in background thread."""
+        if hasattr(self, '_is_loaded') and self._is_loaded:
+            return
+        
+        # Create worker
+        self._loader_thread = QThread()
+        self._worker = ManufacturingDataLoader(self.controller, self.item_controller)
+        self._worker.moveToThread(self._loader_thread)
+        
+        # Connect signals
+        self._loader_thread.started.connect(self._worker.run)
+        self._worker.data_loaded.connect(self._on_data_loaded)
+        self._worker.error_occurred.connect(self._on_load_error)
+        self._worker.data_loaded.connect(self._loader_thread.quit)
+        self._worker.error_occurred.connect(self._loader_thread.quit)
+        
+        # Cleanup
+        self._worker.data_loaded.connect(self._cleanup_loader)
+        self._worker.error_occurred.connect(self._cleanup_loader)
+        
+        # Start thread
+        self._loader_thread.start()
+    
+    def _on_data_loaded(self, data):
+        """Handle loaded data - update UI on main thread."""
+        self._data_cache = data
+        
+        # Populate BOMs with cached items
+        self._populate_boms(data['boms'], data['items'])
+        
+        # Populate production orders
+        self._populate_orders(data['orders'])
+        
+        self._is_loaded = True
+    
+    def _on_load_error(self, error_msg):
+        """Handle loading error."""
+        QMessageBox.warning(self, "Load Error", f"Failed to load data: {error_msg}")
+        self._is_loaded = True  # Prevent retry loop
+    
+    def _cleanup_loader(self):
+        """Cleanup loader thread."""
+        if self._loader_thread and self._loader_thread.isRunning():
+            self._loader_thread.quit()
+            self._loader_thread.wait(3000)
+        self._loader_thread = None
+        self._worker = None
 
     def _build_ui(self) -> None:
         """Builds the UI."""
@@ -434,14 +539,10 @@ class ManufacturingView(QWidget):
     # BOM Methods
     # ===================================================================
 
-    def _load_boms(self) -> None:
-        """Load BOMs into table."""
-        active_only = self.bom_active_filter.currentData()
-        boms, error = self.controller.list_boms(active_only=active_only)
-        
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
+    def _populate_boms(self, boms, items) -> None:
+        """Populate BOMs table with cached items."""
+        # Create item lookup dict
+        item_dict = {i.id: i.item_name for i in items}
         
         self.bom_table.setRowCount(len(boms))
         self.bom_table.setColumnCount(5)
@@ -450,9 +551,8 @@ class ManufacturingView(QWidget):
         ])
         
         for row, bom in enumerate(boms):
-            # Get finished item name
-            items, _ = self.item_controller.list_items(active_only=False)
-            item_name = next((i.item_name for i in items if i.id == bom.finished_item_id), "Unknown")
+            # Get finished item name from cache
+            item_name = item_dict.get(bom.finished_item_id, "Unknown")
             
             self.bom_table.setItem(row, 0, QTableWidgetItem(bom.bom_name))
             self.bom_table.setItem(row, 1, QTableWidgetItem(item_name))
@@ -464,6 +564,27 @@ class ManufacturingView(QWidget):
         self._selected_bom_id = None
         self.edit_bom_btn.setEnabled(False)
         self.delete_bom_btn.setEnabled(False)
+    
+    def _populate_orders(self, orders) -> None:
+        """Populate production orders table."""
+        self.order_table.setRowCount(len(orders))
+        self.order_table.setColumnCount(7)
+        self.order_table.setHorizontalHeaderLabels([
+            "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch"
+        ])
+        
+        for row, order in enumerate(orders):
+            self.order_table.setItem(row, 0, QTableWidgetItem(order.order_number))
+            self.order_table.setItem(row, 1, QTableWidgetItem(order.bom_name or "-"))
+            self.order_table.setItem(row, 2, QTableWidgetItem(order.planned_start_date or "-"))
+            self.order_table.setItem(row, 3, QTableWidgetItem(order.actual_start_date or "-"))
+            self.order_table.setItem(row, 4, QTableWidgetItem(order.status.value))
+            self.order_table.setItem(row, 5, QTableWidgetItem(order.order_date))
+            self.order_table.setItem(row, 6, QTableWidgetItem(order.batch_number or "-"))
+        
+        self.order_table.resizeColumnsToContents()
+        self._selected_order_id = None
+        self.complete_order_btn.setEnabled(False)
 
     def _on_bom_search(self, text: str) -> None:
         """Filter BOM table."""
