@@ -3,7 +3,7 @@ Sales Invoice management widget - with Customer Search.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QDate
+from PySide6.QtCore import Qt, Signal, QDate, QThread, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -34,6 +34,43 @@ from models.sales_invoice import SalesInvoice
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class InvoiceLoadThread(QThread):
+    """Background thread for loading invoices."""
+    
+    data_loaded = Signal(list, str)  # invoices, error
+    
+    def __init__(self, controller, status=None):
+        super().__init__()
+        self.controller = controller
+        self.status = status
+    
+    def run(self):
+        try:
+            invoices, error = self.controller.list_sales_invoices(status=self.status)
+            self.data_loaded.emit(invoices or [], error or "")
+        except Exception as e:
+            logger.exception(f"Error in invoice load thread: {e}")
+            self.data_loaded.emit([], str(e))
+
+
+class CustomerLoadThread(QThread):
+    """Background thread for loading customers."""
+    
+    data_loaded = Signal(list, str)  # customers, error
+    
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+    
+    def run(self):
+        try:
+            parties, error = self.controller.list_parties(active_only=True)
+            self.data_loaded.emit(parties or [], error or "")
+        except Exception as e:
+            logger.exception(f"Error in customer load thread: {e}")
+            self.data_loaded.emit([], str(e))
 
 
 class SalesItemSelectionDialog(QDialog):
@@ -226,8 +263,12 @@ class SalesInvoiceView(QWidget):
         self._selected_invoice_id: int | None = None
         self._invoice_items: list[dict] = []
         self._all_customers = []  # Store all customers for filtering
+        self._invoices_cache = []
+        self._customers_cache = []
+        self._invoice_load_thread = None
+        self._customer_load_thread = None
         self._build_ui()
-        self._load_invoices()
+        # Don't load immediately - wait for showEvent
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -361,20 +402,40 @@ class SalesInvoiceView(QWidget):
         self._load_customers()
 
     def showEvent(self, event):
+        """Called when the widget is shown - lazy load data."""
         super().showEvent(event)
-        self._load_customers()
-        self._load_invoices()
-        self._clear_form()
-        print("🔄 Sales Invoice View refreshed")
-
-    def _load_invoices(self) -> None:
-        invoices, error = self.invoice_controller.list_sales_invoices(
+        if not hasattr(self, '_is_loaded') or not self._is_loaded:
+            self._load_customers_async()
+            self._load_invoices_async()
+            self._clear_form()
+            self._is_loaded = True
+    
+    def _load_invoices_async(self):
+        """Load invoices asynchronously using background thread."""
+        if self._invoice_load_thread and self._invoice_load_thread.isRunning():
+            self._invoice_load_thread.terminate()
+        
+        self._invoice_load_thread = InvoiceLoadThread(
+            self.invoice_controller, 
             status=self.status_filter.currentData()
         )
+        self._invoice_load_thread.data_loaded.connect(self._on_invoices_loaded)
+        self._invoice_load_thread.start()
+    
+    def _on_invoices_loaded(self, invoices, error):
+        """Handle invoices loaded from background thread."""
         if error:
             QMessageBox.warning(self, "Load Error", error)
             return
-
+        
+        logger.info(f"Loaded {len(invoices)} invoices")
+        self._invoices_cache = invoices
+        self._populate_invoice_table()
+    
+    def _populate_invoice_table(self):
+        """Populate invoice table with cached data."""
+        invoices = self._invoices_cache
+        
         self.table.setRowCount(len(invoices))
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
@@ -384,8 +445,7 @@ class SalesInvoiceView(QWidget):
         for row, invoice in enumerate(invoices):
             self.table.setItem(row, 0, QTableWidgetItem(invoice.invoice_number))
             customer_name = "Unknown"
-            parties, _ = self.party_controller.list_parties(active_only=False)
-            for p in parties:
+            for p in self._customers_cache:
                 if p.id == invoice.customer_id:
                     customer_name = p.name
                     break
@@ -398,15 +458,32 @@ class SalesInvoiceView(QWidget):
         
         self.table.resizeColumnsToContents()
         self._selected_invoice_id = None
-        self._clear_form()
-
-    def _load_customers(self) -> None:
-        parties, _ = self.party_controller.list_parties(active_only=True)
-        self._all_customers = parties
+    
+    def _load_customers_async(self):
+        """Load customers asynchronously using background thread."""
+        if self._customer_load_thread and self._customer_load_thread.isRunning():
+            self._customer_load_thread.terminate()
         
+        self._customer_load_thread = CustomerLoadThread(self.party_controller)
+        self._customer_load_thread.data_loaded.connect(self._on_customers_loaded)
+        self._customer_load_thread.start()
+    
+    def _on_customers_loaded(self, parties, error):
+        """Handle customers loaded from background thread."""
+        if error:
+            logger.error(f"Error loading customers: {error}")
+            return
+        
+        logger.info(f"Loaded {len(parties)} customers")
+        self._customers_cache = parties
+        self._all_customers = parties
+        self._populate_customer_dropdown()
+    
+    def _populate_customer_dropdown(self):
+        """Populate customer dropdown with cached data."""
         self.customer_input.clear()
         self.customer_input.addItem("Select Customer", None)
-        for party in parties:
+        for party in self._customers_cache:
             if party.party_type in ["CUSTOMER", "BOTH"]:
                 display = f"{party.name} ({party.code})"
                 self.customer_input.addItem(display, party.id)

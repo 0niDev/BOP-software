@@ -1,7 +1,7 @@
 """Party management widget - follows the same pattern as ChartOfAccountsWidget."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 from database.connection import invalidate_db_cache
-from PySide6.QtCore import QTimer
 from controllers.party_controller import PartyController
 from config.app_config import get_config
 from models.enums import PartyType
@@ -26,6 +25,29 @@ from models.party import Party
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class PartyLoadThread(QThread):
+    """Background thread for loading parties."""
+    
+    data_loaded = Signal(list, str)  # parties, error
+    
+    def __init__(self, controller, active_only=False, party_type=None):
+        super().__init__()
+        self.controller = controller
+        self.active_only = active_only
+        self.party_type = party_type
+    
+    def run(self):
+        try:
+            parties, error = self.controller.list_parties(
+                active_only=self.active_only,
+                party_type=self.party_type
+            )
+            self.data_loaded.emit(parties or [], error or "")
+        except Exception as e:
+            logger.exception(f"Error in party load thread: {e}")
+            self.data_loaded.emit([], str(e))
 
 
 class PartyView(QWidget):
@@ -39,8 +61,10 @@ class PartyView(QWidget):
         super().__init__(parent)
         self.controller = party_controller or PartyController()
         self._selected_party_id: int | None = None
+        self._parties_cache = []
+        self._load_thread = None
         self._build_ui()
-        self._load_parties()
+        # Don't load immediately - wait for showEvent
 
     def _build_ui(self) -> None:
         """Builds the UI"""
@@ -130,7 +154,7 @@ class PartyView(QWidget):
         super().showEvent(event)
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._show_loading_state()
-            QTimer.singleShot(50, self._load_parties)
+            QTimer.singleShot(50, self._load_parties_async)
 
     def _show_loading_state(self):
         """Show loading state in the table."""
@@ -141,19 +165,37 @@ class PartyView(QWidget):
         loading_item.setTextAlignment(Qt.AlignCenter)
         self.table.setItem(0, 0, loading_item)
         self.table.horizontalHeader().setStretchLastSection(True)
-    def _load_parties(self) -> None:
-        """Loads parties into table."""
-        parties, error = self.controller.list_parties(
-            active_only=False,  # Show all so user can see active/inactive
+    
+    def _load_parties_async(self):
+        """Load parties asynchronously using background thread."""
+        if self._load_thread and self._load_thread.isRunning():
+            self._load_thread.terminate()
+        
+        self._load_thread = PartyLoadThread(
+            self.controller, 
+            active_only=False,
             party_type=self.type_filter.currentData()
         )
-        
+        self._load_thread.data_loaded.connect(self._on_parties_loaded)
+        self._load_thread.start()
+    
+    def _on_parties_loaded(self, parties, error):
+        """Handle parties loaded from background thread."""
         if error:
             QMessageBox.warning(self, "Load Error", error)
             return
-
+        
+        logger.info(f"Loaded {len(parties)} parties")
+        self._parties_cache = parties
+        self._populate_table()
+        self._is_loaded = True
+    
+    def _populate_table(self):
+        """Populate the table with cached data."""
+        parties = self._parties_cache
+        
         self.table.setRowCount(len(parties))
-        self.table.setColumnCount(6)  # ← Add one more column
+        self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Code", "Name", "Type", "Credit Limit", "Account", "Status"])
         
         for row, party in enumerate(parties):
