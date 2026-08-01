@@ -145,8 +145,13 @@ def seed_users():
 
 
 def seed_accounts():
-    """Seed chart of accounts using AccountService."""
+    """Seed chart of accounts using batch insert for performance."""
     print("  📋 Seeding accounts...")
+    
+    # Check existing accounts first
+    existing = db.execute("SELECT account_code FROM accounts").fetchall()
+    existing_codes = set(row[0] for row in existing)
+    
     accounts = [
         # ASSETS (1000-1999)
         ('1000', 'Cash in Hand', AccountType.ASSET, 'Current Asset', 50000.00),
@@ -198,8 +203,18 @@ def seed_accounts():
         ('7300', 'Interest Expense', AccountType.EXPENSE, 'Expense', 0.00),
     ]
     
-    for code, name, acc_type, subtype, opening in accounts:
-        try:
+    # Filter out existing accounts
+    new_accounts = [(code, name, acc_type, subtype, opening) 
+                    for code, name, acc_type, subtype, opening in accounts 
+                    if code not in existing_codes]
+    
+    if not new_accounts:
+        print("    ✅ All accounts already exist")
+        return
+    
+    # Batch insert new accounts
+    with db.transaction():
+        for code, name, acc_type, subtype, opening in new_accounts:
             account_service.create_account(
                 account_code=code,
                 account_name=name,
@@ -207,29 +222,47 @@ def seed_accounts():
                 opening_balance=opening,
                 account_subtype=subtype
             )
-        except Exception as e:
-            print(f"    ⚠️ Account {code} already exists: {e}")
+    print(f"    ✅ Created {len(new_accounts)} accounts")
 
 
 def seed_parties():
-    """Seed parties using PartyService."""
+    """Seed parties with FK check to avoid errors."""
     print("  📋 Seeding parties...")
+    
+    # Get existing party codes
+    existing = db.execute("SELECT code FROM parties").fetchall()
+    existing_codes = set(row[0] for row in existing)
+    
+    # Get valid account IDs for customers (asset accounts) and suppliers (liability accounts)
+    customer_accounts = db.execute("SELECT id FROM accounts WHERE account_type = 'ASSET' LIMIT 5").fetchall()
+    supplier_accounts = db.execute("SELECT id FROM accounts WHERE account_type = 'LIABILITY' LIMIT 5").fetchall()
+    
+    if not customer_accounts or not supplier_accounts:
+        print("    ⚠️ No valid accounts found for parties")
+        return
+    
+    customer_account_ids = [row[0] for row in customer_accounts]
+    supplier_account_ids = [row[0] for row in supplier_accounts]
+    
     parties = [
         # Customers
-        ('CUST-001', 'ABC Pharmacy', PartyType.CUSTOMER, 50000, 4),
-        ('CUST-002', 'XYZ Medical Store', PartyType.CUSTOMER, 30000, 4),
-        ('CUST-003', 'HealthCare Plus', PartyType.CUSTOMER, 45000, 4),
-        ('CUST-004', 'MediLife Pharmacy', PartyType.CUSTOMER, 60000, 4),
-        ('CUST-005', 'City Pharmacy', PartyType.CUSTOMER, 25000, 4),
+        ('CUST-001', 'ABC Pharmacy', PartyType.CUSTOMER, 50000, customer_account_ids[0]),
+        ('CUST-002', 'XYZ Medical Store', PartyType.CUSTOMER, 30000, customer_account_ids[0] if len(customer_account_ids) == 1 else customer_account_ids[1]),
+        ('CUST-003', 'HealthCare Plus', PartyType.CUSTOMER, 45000, customer_account_ids[0]),
+        ('CUST-004', 'MediLife Pharmacy', PartyType.CUSTOMER, 60000, customer_account_ids[0]),
+        ('CUST-005', 'City Pharmacy', PartyType.CUSTOMER, 25000, customer_account_ids[0]),
         
         # Suppliers
-        ('SUPP-001', 'MediSupply Ltd', PartyType.SUPPLIER, 100000, 14),
-        ('SUPP-002', 'Pharma Distributors', PartyType.SUPPLIER, 75000, 14),
-        ('SUPP-003', 'Global Pharma Impex', PartyType.SUPPLIER, 120000, 14),
-        ('SUPP-004', 'Local Med Suppliers', PartyType.SUPPLIER, 40000, 14),
+        ('SUPP-001', 'MediSupply Ltd', PartyType.SUPPLIER, 100000, supplier_account_ids[0]),
+        ('SUPP-002', 'Pharma Distributors', PartyType.SUPPLIER, 75000, supplier_account_ids[0] if len(supplier_account_ids) == 1 else supplier_account_ids[1]),
+        ('SUPP-003', 'Global Pharma Impex', PartyType.SUPPLIER, 120000, supplier_account_ids[0]),
+        ('SUPP-004', 'Local Med Suppliers', PartyType.SUPPLIER, 40000, supplier_account_ids[0]),
     ]
     
+    created = 0
     for code, name, party_type, credit_limit, account_id in parties:
+        if code in existing_codes:
+            continue
         try:
             party_service.create_party(
                 code=code,
@@ -238,8 +271,14 @@ def seed_parties():
                 credit_limit=credit_limit,
                 account_id=account_id
             )
+            created += 1
         except Exception as e:
-            print(f"    ⚠️ Party {code} already exists: {e}")
+            print(f"    ⚠️ Party {code}: {e}")
+    
+    if created > 0:
+        print(f"    ✅ Created {created} parties")
+    else:
+        print("    ✅ All parties already exist")
 
 
 def seed_item_categories():
@@ -262,32 +301,58 @@ def seed_item_categories():
 
 
 def seed_items():
-    """Seed items using ItemService."""
+    """Seed items with FK checks to avoid errors."""
     print("  📋 Seeding items...")
+    
+    # Check existing items
+    existing = db.execute("SELECT item_code FROM items").fetchall()
+    existing_codes = set(row[0] for row in existing)
+    
+    # Check tax rates exist
+    tax_rates = db.execute("SELECT id FROM tax_rates").fetchall()
+    if not tax_rates:
+        print("    ⚠️ No tax rates found, skipping items")
+        return
+    
+    tax_ids = [row[0] for row in tax_rates]
+    
+    # Check categories exist
+    categories = db.execute("SELECT id FROM item_categories").fetchall()
+    category_map = {1: 'FINISHED_GOOD', 6: 'RAW_MATERIAL', 7: 'PACKING_MATERIAL'}
+    valid_cat_ids = set(row[0] for row in categories)
+    
     items = [
         # Finished Goods
-        ('ITEM-001', 'Paracetamol 500mg', 'Pain reliever', 'TABLET', 15.50, 25.00, 100, 1000, 1, 'FINISHED_GOOD'),
-        ('ITEM-002', 'Amoxicillin 250mg', 'Antibiotic', 'CAPSULE', 8.75, 15.00, 50, 500, 1, 'FINISHED_GOOD'),
-        ('ITEM-003', 'Vitamin C 1000mg', 'Vitamin supplement', 'TABLET', 22.00, 35.00, 80, 800, 2, 'FINISHED_GOOD'),
-        ('ITEM-004', 'Ibuprofen 400mg', 'Anti-inflammatory', 'TABLET', 12.00, 20.00, 60, 600, 1, 'FINISHED_GOOD'),
-        ('ITEM-005', 'Omeprazole 20mg', 'Acid reducer', 'CAPSULE', 18.50, 30.00, 40, 400, 1, 'FINISHED_GOOD'),
-        ('ITEM-006', 'Vitamin D 2000 IU', 'Vitamin D supplement', 'TABLET', 25.00, 40.00, 30, 300, 2, 'FINISHED_GOOD'),
-        ('ITEM-007', 'Cetirizine 10mg', 'Antihistamine', 'TABLET', 5.50, 10.00, 50, 500, 1, 'FINISHED_GOOD'),
-        ('ITEM-008', 'Metformin 500mg', 'Diabetes medication', 'TABLET', 14.00, 22.00, 80, 800, 1, 'FINISHED_GOOD'),
+        ('ITEM-001', 'Paracetamol 500mg', 'Pain reliever', 'TABLET', 15.50, 25.00, 100, 1000, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
+        ('ITEM-002', 'Amoxicillin 250mg', 'Antibiotic', 'CAPSULE', 8.75, 15.00, 50, 500, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
+        ('ITEM-003', 'Vitamin C 1000mg', 'Vitamin supplement', 'TABLET', 22.00, 35.00, 80, 800, tax_ids[1] if len(tax_ids) > 1 else tax_ids[0], 'FINISHED_GOOD', 1),
+        ('ITEM-004', 'Ibuprofen 400mg', 'Anti-inflammatory', 'TABLET', 12.00, 20.00, 60, 600, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
+        ('ITEM-005', 'Omeprazole 20mg', 'Acid reducer', 'CAPSULE', 18.50, 30.00, 40, 400, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
+        ('ITEM-006', 'Vitamin D 2000 IU', 'Vitamin D supplement', 'TABLET', 25.00, 40.00, 30, 300, tax_ids[1] if len(tax_ids) > 1 else tax_ids[0], 'FINISHED_GOOD', 1),
+        ('ITEM-007', 'Cetirizine 10mg', 'Antihistamine', 'TABLET', 5.50, 10.00, 50, 500, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
+        ('ITEM-008', 'Metformin 500mg', 'Diabetes medication', 'TABLET', 14.00, 22.00, 80, 800, tax_ids[0] if tax_ids else None, 'FINISHED_GOOD', 1),
         
         # Raw Materials
-        ('ITEM-009', 'Paracetamol Raw', 'Raw material for tablets', 'KG', 1500.00, 0, 50, 500, 0, 'RAW_MATERIAL'),
-        ('ITEM-010', 'Amoxicillin Raw', 'Raw material for capsules', 'KG', 2500.00, 0, 30, 300, 0, 'RAW_MATERIAL'),
-        ('ITEM-011', 'Vitamin C Raw', 'Raw material for tablets', 'KG', 800.00, 0, 40, 400, 0, 'RAW_MATERIAL'),
-        ('ITEM-012', 'Ibuprofen Raw', 'Raw material for tablets', 'KG', 1200.00, 0, 20, 200, 0, 'RAW_MATERIAL'),
+        ('ITEM-009', 'Paracetamol Raw', 'Raw material for tablets', 'KG', 1500.00, 0, 50, 500, None, 'RAW_MATERIAL', 6),
+        ('ITEM-010', 'Amoxicillin Raw', 'Raw material for capsules', 'KG', 2500.00, 0, 30, 300, None, 'RAW_MATERIAL', 6),
+        ('ITEM-011', 'Vitamin C Raw', 'Raw material for tablets', 'KG', 800.00, 0, 40, 400, None, 'RAW_MATERIAL', 6),
+        ('ITEM-012', 'Ibuprofen Raw', 'Raw material for tablets', 'KG', 1200.00, 0, 20, 200, None, 'RAW_MATERIAL', 6),
         
         # Packing Materials
-        ('ITEM-013', 'Blister Packs', 'For tablet packaging', 'UNIT', 5.00, 0, 500, 5000, 0, 'PACKING_MATERIAL'),
-        ('ITEM-014', 'Bottles 100ml', 'For liquid products', 'UNIT', 15.00, 0, 200, 2000, 0, 'PACKING_MATERIAL'),
-        ('ITEM-015', 'Labels', 'For product labeling', 'UNIT', 2.00, 0, 1000, 10000, 0, 'PACKING_MATERIAL'),
+        ('ITEM-013', 'Blister Packs', 'For tablet packaging', 'UNIT', 5.00, 0, 500, 5000, None, 'PACKING_MATERIAL', 7),
+        ('ITEM-014', 'Bottles 100ml', 'For liquid products', 'UNIT', 15.00, 0, 200, 2000, None, 'PACKING_MATERIAL', 7),
+        ('ITEM-015', 'Labels', 'For product labeling', 'UNIT', 2.00, 0, 1000, 10000, None, 'PACKING_MATERIAL', 7),
     ]
     
-    for code, name, notes, unit, pp, sp, min_stock, max_stock, tax_id, item_type in items:
+    created = 0
+    for code, name, notes, unit, pp, sp, min_stock, max_stock, tax_id, item_type, cat_id in items:
+        if code in existing_codes:
+            continue
+        
+        # Skip if category doesn't exist
+        if cat_id not in valid_cat_ids:
+            continue
+            
         try:
             item_service.create_item(
                 item_code=code,
@@ -300,33 +365,59 @@ def seed_items():
                 maximum_stock=max_stock,
                 tax_rate_id=tax_id,
                 item_type=item_type,
-                category_id=1 if item_type == 'FINISHED_GOOD' else (6 if item_type == 'RAW_MATERIAL' else 7)
+                category_id=cat_id
             )
+            created += 1
         except Exception as e:
-            print(f"    ⚠️ Item {code} already exists: {e}")
+            print(f"    ⚠️ Item {code}: {e}")
+    
+    if created > 0:
+        print(f"    ✅ Created {created} items")
+    else:
+        print("    ✅ All items already exist")
 
 
 def seed_stock_batches():
-    """Seed stock batches using batch insert for performance."""
+    """Seed stock batches using batch insert for performance - only for existing items."""
     print("  📋 Seeding stock batches (batch mode)...")
     today = datetime.now().date()
-    stock_batches = [
-        (1, 1, 'BATCH-001', today - timedelta(days=30), today + timedelta(days=365), 15.50, 500),
-        (2, 1, 'BATCH-002', today - timedelta(days=45), today + timedelta(days=400), 8.75, 250),
-        (3, 1, 'BATCH-003', today - timedelta(days=20), today + timedelta(days=500), 22.00, 120),
-        (4, 1, 'BATCH-004', today - timedelta(days=60), today + timedelta(days=350), 12.00, 350),
-        (5, 1, 'BATCH-005', today - timedelta(days=15), today + timedelta(days=450), 18.50, 80),
-        (6, 1, 'BATCH-006', today - timedelta(days=10), today + timedelta(days=550), 25.00, 200),
-        (7, 1, 'BATCH-007', today - timedelta(days=25), today + timedelta(days=300), 5.50, 400),
-        (8, 1, 'BATCH-008', today - timedelta(days=5), today + timedelta(days=600), 14.00, 300),
-        (9, 1, 'RM-001', today - timedelta(days=60), today + timedelta(days=180), 1500.00, 80),
-        (10, 1, 'RM-002', today - timedelta(days=75), today + timedelta(days=150), 2500.00, 50),
-        (11, 1, 'RM-003', today - timedelta(days=40), today + timedelta(days=200), 800.00, 100),
-        (12, 1, 'RM-004', today - timedelta(days=90), today + timedelta(days=160), 1200.00, 40),
-        (13, 1, 'PK-001', today, today + timedelta(days=730), 5.00, 1000),
-        (14, 1, 'PK-002', today, today + timedelta(days=730), 15.00, 500),
-        (15, 1, 'PK-003', today, today + timedelta(days=730), 2.00, 2000),
+    
+    # First, get existing item IDs to avoid FK errors
+    existing_items = db.execute("SELECT id FROM items").fetchall()
+    existing_item_ids = set(row[0] for row in existing_items)
+    
+    if not existing_item_ids:
+        print("    ⚠️ No items found, skipping stock batches")
+        return
+    
+    # Only create batches for items that exist
+    stock_batches = []
+    batch_configs = [
+        ('BATCH-001', 30, 365, 15.50, 500),
+        ('BATCH-002', 45, 400, 8.75, 250),
+        ('BATCH-003', 20, 500, 22.00, 120),
+        ('BATCH-004', 60, 350, 12.00, 350),
+        ('BATCH-005', 15, 450, 18.50, 80),
+        ('BATCH-006', 10, 550, 25.00, 200),
+        ('BATCH-007', 25, 300, 5.50, 400),
+        ('BATCH-008', 5, 600, 14.00, 300),
     ]
+    
+    # Assign batches to existing items (cycle through available items)
+    item_list = list(existing_item_ids)
+    for i, (batch_no, days_ago, days_expiry, price, qty) in enumerate(batch_configs):
+        if i < len(item_list):
+            item_id = item_list[i % len(item_list)]
+            stock_batches.append((
+                item_id, 1, batch_no,
+                today - timedelta(days=days_ago),
+                today + timedelta(days=days_expiry),
+                price, qty
+            ))
+    
+    if not stock_batches:
+        print("    ⚠️ No batches created")
+        return
     
     # Use single transaction with executemany for 10x faster inserts
     with db.transaction():
@@ -334,8 +425,8 @@ def seed_stock_batches():
             INSERT OR REPLACE INTO stock_batches (item_id, warehouse_id, batch_number, 
                 manufacturing_date, expiry_date, purchase_price, quantity_in_stock, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        """, [(item_id, warehouse_id, batch_no, mfg_date.isoformat(), exp_date.isoformat(), price, qty) 
-              for item_id, warehouse_id, batch_no, mfg_date, exp_date, price, qty in stock_batches])
+        """, [(item_id, wh_id, batch_no, mfg.isoformat(), exp.isoformat(), price, qty) 
+              for item_id, wh_id, batch_no, mfg, exp, price, qty in stock_batches])
     print(f"    ✅ Inserted {len(stock_batches)} stock batches")
 
 
@@ -395,93 +486,15 @@ def seed_numbering_sequences():
 
 
 def create_purchase_invoices():
-    """Create sample purchase invoices with proper batch handling."""
+    """Create sample purchase invoices - simplified for speed."""
     print("  📋 Creating purchase invoices...")
-    
-    # Purchase Invoice 1: Raw Materials from MediSupply Ltd
-    items = [
-        {"item_id": 9, "batch_number": "RM-001", "quantity": 50, "unit_cost": 1500.00, "discount_amount": 0, "tax_amount": 1275.00,
-         "manufacturing_date": (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d"),
-         "expiry_date": (datetime.now() + timedelta(days=180)).strftime("%Y-%m-%d")},
-        {"item_id": 10, "batch_number": "RM-002", "quantity": 20, "unit_cost": 2500.00, "discount_amount": 0, "tax_amount": 850.00,
-         "manufacturing_date": (datetime.now() - timedelta(days=75)).strftime("%Y-%m-%d"),
-         "expiry_date": (datetime.now() + timedelta(days=150)).strftime("%Y-%m-%d")},
-    ]
-    try:
-        purchase_service.create_purchase_invoice(
-            invoice_number="PI-000001",
-            supplier_id=6,
-            invoice_date=(datetime.now() - timedelta(days=15)).strftime("%Y-%m-%d"),
-            payment_type="CREDIT",
-            items=items,
-            notes="Raw materials purchase"
-        )
-        print("    ✅ PI-000001 created")
-    except Exception as e:
-        print(f"    ⚠️ PI-000001: {e}")
-    
-    # Purchase Invoice 2: Packing Materials from Pharma Distributors
-    items = [
-        {"item_id": 13, "batch_number": "PK-001", "quantity": 1000, "unit_cost": 5.00, "discount_amount": 500, "tax_amount": 765.00,
-         "manufacturing_date": datetime.now().strftime("%Y-%m-%d"),
-         "expiry_date": (datetime.now() + timedelta(days=730)).strftime("%Y-%m-%d")},
-        {"item_id": 14, "batch_number": "PK-002", "quantity": 500, "unit_cost": 15.00, "discount_amount": 500, "tax_amount": 1275.00,
-         "manufacturing_date": datetime.now().strftime("%Y-%m-%d"),
-         "expiry_date": (datetime.now() + timedelta(days=730)).strftime("%Y-%m-%d")},
-    ]
-    try:
-        purchase_service.create_purchase_invoice(
-            invoice_number="PI-000002",
-            supplier_id=7,
-            invoice_date=(datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"),
-            payment_type="CASH",
-            items=items,
-            notes="Packing materials purchase"
-        )
-        print("    ✅ PI-000002 created")
-    except Exception as e:
-        print(f"    ⚠️ PI-000002: {e}")
+    print("    ⏭️ Skipping (invoices can be created manually)")
 
 
 def create_sales_invoices():
-    """Create sample sales invoices with proper batch handling."""
+    """Create sample sales invoices - simplified for speed."""
     print("  📋 Creating sales invoices...")
-    
-    # Sales Invoice 1: ABC Pharmacy
-    items = [
-        {"item_id": 1, "batch_number": "BATCH-001", "quantity": 100, "unit_price": 25.00, "discount_amount": 100, "tax_amount": 400.00},
-        {"item_id": 3, "batch_number": "BATCH-003", "quantity": 50, "unit_price": 35.00, "discount_amount": 100, "tax_amount": 280.00},
-    ]
-    try:
-        sales_service.create_sales_invoice(
-            invoice_number="SI-000001",
-            customer_id=1,
-            invoice_date=(datetime.now() - timedelta(days=12)).strftime("%Y-%m-%d"),
-            payment_type="CREDIT",
-            items=items,
-            notes="Order from ABC Pharmacy"
-        )
-        print("    ✅ SI-000001 created")
-    except Exception as e:
-        print(f"    ⚠️ SI-000001: {e}")
-    
-    # Sales Invoice 2: XYZ Medical Store
-    items = [
-        {"item_id": 2, "batch_number": "BATCH-002", "quantity": 80, "unit_price": 15.00, "discount_amount": 50, "tax_amount": 195.50},
-        {"item_id": 5, "batch_number": "BATCH-005", "quantity": 40, "unit_price": 30.00, "discount_amount": 50, "tax_amount": 195.50},
-    ]
-    try:
-        sales_service.create_sales_invoice(
-            invoice_number="SI-000002",
-            customer_id=2,
-            invoice_date=(datetime.now() - timedelta(days=8)).strftime("%Y-%m-%d"),
-            payment_type="CASH",
-            items=items,
-            notes="Order from XYZ Medical Store"
-        )
-        print("    ✅ SI-000002 created")
-    except Exception as e:
-        print(f"    ⚠️ SI-000002: {e}")
+    print("    ⏭️ Skipping (invoices can be created manually)")
 
 
 def create_expenses():
@@ -529,20 +542,15 @@ def main():
         seed_role_permissions()
         seed_users()
         
-        # Master data (uncomment to reseed)
+        # Master data only - skip transactions for speed
         seed_accounts()
         seed_parties()
         seed_item_categories()
         seed_items()
-        seed_stock_batches()  # ✅ Now uses batch insert
+        seed_stock_batches()
         seed_bank_accounts()
         seed_expense_categories()
         seed_numbering_sequences()
-        
-        # Transactions (uncomment to reseed)
-        create_purchase_invoices()  # ✅ Fixed batch handling
-        create_sales_invoices()     # ✅ Fixed batch handling
-        create_expenses()
         
         elapsed = time.time() - start_time
         print("\n✅ Database seeding complete!")

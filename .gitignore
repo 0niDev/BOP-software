@@ -1,1 +1,9 @@
-Nothing should be ignored based on the provided file changes, as they only include source code files (.py) without any build artifacts, dependencies, or temporary files.
+```
+# Python compiled files
+*.pyc
+__pycache__/
+
+# Logs
+*.log
+logs/
+```

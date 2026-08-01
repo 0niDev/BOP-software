@@ -29584,3 +29584,27 @@ AttributeError: 'SalesInvoiceService' object has no attribute '_update_stock'
 2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_accounts_code_order ON accounts(company_id, accou
 2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_je_posted ON journal_entries(is_posted, id);
 2026-08-01 20:34:17,138 | INFO     | erp.__main__ | Created index: CREATE INDEX IF NOT EXISTS idx_jel_account_je ON journal_entry_lines(account_id,
+2026-08-01 21:35:42,510 | ERROR    | erp.database.connection | SQL execute failed: no such column: code | sql=SELECT id, code FROM items LIMIT 10
+2026-08-01 21:37:32,915 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-01 21:37:32,915 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-01 21:38:09,504 | INFO     | erp.services.party_service | Created party SUPP-001 - MediSupply Ltd (id=6)
+2026-08-01 21:38:14,099 | INFO     | erp.services.party_service | Created party SUPP-002 - Pharma Distributors (id=7)
+2026-08-01 21:38:17,964 | INFO     | erp.services.party_service | Created party SUPP-003 - Global Pharma Impex (id=8)
+2026-08-01 21:38:21,827 | INFO     | erp.services.party_service | Created party SUPP-004 - Local Med Suppliers (id=9)
+2026-08-01 21:38:33,030 | INFO     | erp.services.item_service | Created item ITEM-009 - Paracetamol Raw (id=9)
+2026-08-01 21:38:36,892 | INFO     | erp.services.item_service | Created item ITEM-010 - Amoxicillin Raw (id=10)
+2026-08-01 21:38:40,754 | INFO     | erp.services.item_service | Created item ITEM-011 - Vitamin C Raw (id=11)
+2026-08-01 21:38:44,616 | INFO     | erp.services.item_service | Created item ITEM-012 - Ibuprofen Raw (id=12)
+2026-08-01 21:38:48,478 | INFO     | erp.services.item_service | Created item ITEM-013 - Blister Packs (id=13)
+2026-08-01 21:38:52,342 | INFO     | erp.services.item_service | Created item ITEM-014 - Bottles 100ml (id=14)
+2026-08-01 21:38:56,205 | INFO     | erp.services.item_service | Created item ITEM-015 - Labels (id=15)
+2026-08-01 21:39:18,591 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=6
+2026-08-01 21:39:22,668 | INFO     | erp.services.purchase_invoice_service | Updating stock for ITEM-009: +50.0
+2026-08-01 21:39:24,104 | INFO     | erp.services.purchase_invoice_service | Created new batch for ITEM-009: 50.0
+2026-08-01 21:39:25,543 | INFO     | erp.services.purchase_invoice_service | Updating stock for ITEM-010: +20.0
+2026-08-01 21:39:26,979 | INFO     | erp.services.purchase_invoice_service | Created new batch for ITEM-010: 20.0
+2026-08-01 21:39:27,224 | ERROR    | erp.database.connection | Transaction rolled back: Journal entry not balanced: debit=127125.0, credit=129250.0
+2026-08-01 21:40:07,189 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-01 21:40:07,190 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-01 21:41:22,513 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-01 21:41:22,514 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
