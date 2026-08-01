@@ -74,6 +74,24 @@ class SupplierLoadThread(QThread):
             self.data_loaded.emit([], str(e))
 
 
+class ItemLoadThread(QThread):
+    """Background thread for loading items in dialog."""
+    
+    data_loaded = Signal(list, str)  # items, error
+    
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+    
+    def run(self):
+        try:
+            items, error = self.controller.list_items(active_only=True)
+            self.data_loaded.emit(items or [], error or "")
+        except Exception as e:
+            logger.exception(f"Error in item load thread: {e}")
+            self.data_loaded.emit([], str(e))
+
+
 class PurchaseItemSelectionDialog(QDialog):
     """Dialog for selecting an item with search."""
     
@@ -86,11 +104,12 @@ class PurchaseItemSelectionDialog(QDialog):
         self.unit_cost = 0.0
         self.discount_amount = 0.0
         self.tax_amount = 0.0
+        self._item_load_thread = None
         self.setWindowTitle("Add Item to Invoice")
         self.setModal(True)
         self.resize(500, 450)
         self._setup_ui()
-        self._load_items()
+        self._load_items_async()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -171,7 +190,26 @@ class PurchaseItemSelectionDialog(QDialog):
         self.line_total_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2ecc71;")
         layout.addWidget(self.line_total_label)
 
+    def _load_items_async(self) -> None:
+        """Load items asynchronously using background thread."""
+        if self._item_load_thread and self._item_load_thread.isRunning():
+            self._item_load_thread.terminate()
+        
+        self._item_load_thread = ItemLoadThread(self.item_controller)
+        self._item_load_thread.data_loaded.connect(self._on_items_loaded)
+        self._item_load_thread.start()
+    
+    def _on_items_loaded(self, items, error):
+        """Handle items loaded from background thread."""
+        if error:
+            logger.error(f"Error loading items in dialog: {error}")
+            return
+        
+        self.all_items = items
+        self._populate_combo(items)
+
     def _load_items(self) -> None:
+        """Synchronous fallback (kept for compatibility)."""
         items, error = self.item_controller.list_items(active_only=True)
         if error:
             QMessageBox.warning(self, "Load Error", error)
@@ -393,8 +431,6 @@ class PurchaseInvoiceView(QWidget):
 
         layout.addWidget(form_group)
 
-        self._load_suppliers()
-
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
         super().showEvent(event)
@@ -461,6 +497,10 @@ class PurchaseInvoiceView(QWidget):
         self._supplier_load_thread = SupplierLoadThread(self.party_controller)
         self._supplier_load_thread.data_loaded.connect(self._on_suppliers_loaded)
         self._supplier_load_thread.start()
+    
+    def _load_suppliers(self):
+        """Synchronous wrapper for backward compatibility."""
+        self._load_suppliers_async()
     
     def _on_suppliers_loaded(self, parties, error):
         """Handle suppliers loaded from background thread."""
