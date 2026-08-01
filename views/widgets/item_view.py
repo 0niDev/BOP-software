@@ -1,7 +1,7 @@
 """Item management widget - matches your actual schema exactly."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -18,13 +18,57 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 from database.connection import invalidate_db_cache
-from PySide6.QtCore import QTimer
 from controllers.item_controller import ItemController
 from config.app_config import get_config
 from models.item import Item
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class ItemLoadThread(QThread):
+    """Background thread for loading items."""
+    
+    data_loaded = Signal(list, str)  # items, error
+    
+    def __init__(self, controller, active_only=True):
+        super().__init__()
+        self.controller = controller
+        self.active_only = active_only
+    
+    def run(self):
+        try:
+            items, error = self.controller.list_items(active_only=self.active_only)
+            self.data_loaded.emit(items or [], error or "")
+        except Exception as e:
+            logger.exception(f"Error in item load thread: {e}")
+            self.data_loaded.emit([], str(e))
+
+
+class StockLoadThread(QThread):
+    """Background thread for loading stock for multiple items."""
+    
+    stocks_loaded = Signal(dict)  # item_id -> stock
+    
+    def __init__(self, controller, item_ids):
+        super().__init__()
+        self.controller = controller
+        self.item_ids = item_ids
+    
+    def run(self):
+        try:
+            stocks = {}
+            for item_id in self.item_ids:
+                stock_result = self.controller.service.repo.db.fetch_one("""
+                    SELECT COALESCE(SUM(quantity_in_stock), 0) as total
+                    FROM stock_batches
+                    WHERE item_id = ? AND is_active = 1
+                """, (item_id,))
+                stocks[item_id] = stock_result["total"] if stock_result else 0
+            self.stocks_loaded.emit(stocks)
+        except Exception as e:
+            logger.exception(f"Error in stock load thread: {e}")
+            self.stocks_loaded.emit({})
 
 
 class ItemView(QWidget):
@@ -38,8 +82,12 @@ class ItemView(QWidget):
         super().__init__(parent)
         self.controller = item_controller or ItemController()
         self._selected_item_id: int | None = None
+        self._items_cache = []
+        self._stocks_cache = {}
+        self._load_thread = None
+        self._stock_thread = None
         self._build_ui()
-        self._load_items()
+        # Don't load immediately - wait for showEvent
     # views/widgets/item_view.py - Update the form and save logic
 
     def _build_ui(self) -> None:
@@ -238,7 +286,7 @@ class ItemView(QWidget):
         super().showEvent(event)
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._show_loading_state()
-            QTimer.singleShot(50, self._load_items)
+            QTimer.singleShot(50, self._load_items_async)
 
     def _show_loading_state(self):
         """Show loading state in the table."""
@@ -249,17 +297,52 @@ class ItemView(QWidget):
         loading_item.setTextAlignment(Qt.AlignCenter)
         self.table.setItem(0, 0, loading_item)
         self.table.horizontalHeader().setStretchLastSection(True)
-    def _load_items(self) -> None:
-        """Loads items into table"""
-        items, error = self.controller.list_items(active_only=True)
+    
+    def _load_items_async(self):
+        """Load items asynchronously using background thread."""
+        # Cancel previous thread if still running
+        if self._load_thread and self._load_thread.isRunning():
+            self._load_thread.terminate()
         
+        self._load_thread = ItemLoadThread(self.controller, active_only=True)
+        self._load_thread.data_loaded.connect(self._on_items_loaded)
+        self._load_thread.start()
+    
+    def _on_items_loaded(self, items, error):
+        """Handle items loaded from background thread."""
         if error:
             QMessageBox.warning(self, "Load Error", error)
             return
-
-        # Debug print
-        print(f"Loading {len(items)} items...")
-
+        
+        logger.info(f"Loaded {len(items)} items")
+        self._items_cache = items
+        
+        # Now load stocks in background
+        item_ids = [item.id for item in items]
+        if item_ids:
+            self._load_stocks_async(item_ids)
+        else:
+            self._populate_table()
+    
+    def _load_stocks_async(self, item_ids):
+        """Load stock quantities asynchronously."""
+        if self._stock_thread and self._stock_thread.isRunning():
+            self._stock_thread.terminate()
+        
+        self._stock_thread = StockLoadThread(self.controller, item_ids)
+        self._stock_thread.stocks_loaded.connect(self._on_stocks_loaded)
+        self._stock_thread.start()
+    
+    def _on_stocks_loaded(self, stocks):
+        """Handle stocks loaded from background thread."""
+        self._stocks_cache = stocks
+        self._populate_table()
+    
+    def _populate_table(self):
+        """Populate the table with cached data."""
+        items = self._items_cache
+        stocks = self._stocks_cache
+        
         self.table.setRowCount(len(items))
         self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels([
@@ -268,16 +351,7 @@ class ItemView(QWidget):
         ])
         
         for row, item in enumerate(items):
-            # Get current stock from database
-            stock_result = self.controller.service.repo.db.fetch_one("""
-                SELECT COALESCE(SUM(quantity_in_stock), 0) as total
-                FROM stock_batches
-                WHERE item_id = ? AND is_active = 1
-            """, (item.id,))
-            current_stock = stock_result["total"] if stock_result else 0
-            
-            # Debug print
-            print(f"  {item.item_code}: stock = {current_stock}")
+            current_stock = stocks.get(item.id, 0)
             
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))
@@ -298,6 +372,7 @@ class ItemView(QWidget):
         self._selected_item_id = None
         self._clear_form()
         self._populate_dropdowns()
+        self._is_loaded = True
 
     def _populate_dropdowns(self) -> None:
         """Populates tax rates and categories dropdowns"""
