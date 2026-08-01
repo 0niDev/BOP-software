@@ -1,7 +1,7 @@
 """Login window shown at application startup."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -16,6 +16,29 @@ from PySide6.QtWidgets import (
 from config.app_config import get_config
 from controllers.auth_controller import AuthController
 from models.user import User
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class LoginThread(QThread):
+    """Background thread for login to prevent UI freezing."""
+    
+    login_result = Signal(object, str)  # user, error
+    
+    def __init__(self, controller: AuthController, username: str, password: str):
+        super().__init__()
+        self.controller = controller
+        self.username = username
+        self.password = password
+    
+    def run(self):
+        try:
+            user, error = self.controller.login(self.username, self.password)
+            self.login_result.emit(user, error or "")
+        except Exception as e:
+            logger.exception(f"Error in login thread: {e}")
+            self.login_result.emit(None, str(e))
 
 
 class LoginView(QWidget):
@@ -26,6 +49,7 @@ class LoginView(QWidget):
     def __init__(self, auth_controller: AuthController | None = None, parent=None):
         super().__init__(parent)
         self.controller = auth_controller or AuthController()
+        self._login_thread = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -87,16 +111,30 @@ class LoginView(QWidget):
             self._show_error("Please enter both username and password.")
             return
 
+        # Disable UI during login
         self.login_button.setEnabled(False)
-        user, error = self.controller.login(username, password)
+        self.login_button.setText("Logging in...")
+        self.error_label.hide()
+        
+        # Start login in background thread
+        if self._login_thread and self._login_thread.isRunning():
+            self._login_thread.terminate()
+        
+        self._login_thread = LoginThread(self.controller, username, password)
+        self._login_thread.login_result.connect(self._on_login_result)
+        self._login_thread.start()
+    
+    def _on_login_result(self, user, error):
+        """Handle login result from background thread."""
         self.login_button.setEnabled(True)
-
+        self.login_button.setText("Login")
+        
         if error:
             self._show_error(error)
             self.password_input.clear()
             self.password_input.setFocus()
             return
-
+        
         self.error_label.hide()
         self.login_successful.emit(user)
 

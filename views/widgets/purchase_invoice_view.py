@@ -452,6 +452,10 @@ class PurchaseInvoiceView(QWidget):
         self._invoice_load_thread.data_loaded.connect(self._on_invoices_loaded)
         self._invoice_load_thread.start()
     
+    def _load_invoices(self):
+        """Synchronous wrapper for backward compatibility."""
+        self._load_invoices_async()
+    
     def _on_invoices_loaded(self, invoices, error):
         """Handle invoices loaded from background thread."""
         if error:

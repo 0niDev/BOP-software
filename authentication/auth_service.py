@@ -31,15 +31,10 @@ class AuthService:
 
     def login(self, username: str, password: str) -> User:
         row = self.user_repo.find_by_username(username.strip())
-        print(f"DEBUG: Row found: {row}")  # ← ADD THIS
         if row is None or not row["is_active"]:
             logger.warning("Failed login attempt for username=%s", username)
             raise AuthenticationError("Invalid username or password.")
 
-        print(f"DEBUG: Password: {password}")  # ← ADD THIS
-        print(f"DEBUG: Salt: {row['password_salt']}")  # ← ADD THIS
-        print(f"DEBUG: Hash: {row['password_hash']}")  # ← ADD THIS
-        
         if not verify_password(password, row["password_salt"], row["password_hash"]):
             logger.warning("Failed login attempt for username=%s", username)
             raise AuthenticationError("Invalid username or password.")
