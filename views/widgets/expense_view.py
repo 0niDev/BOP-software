@@ -1,7 +1,7 @@
 """Expense management widget."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QDate
+from PySide6.QtCore import Qt, Signal, QDate, QThread, QObject, QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -29,6 +29,39 @@ from models.expense import ExpenseCategory
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class ExpenseDataLoader(QObject):
+    """Background worker for loading expense data."""
+    data_loaded = Signal(dict)
+    error_occurred = Signal(str)
+    
+    def __init__(self, controller, account_controller):
+        super().__init__()
+        self.controller = controller
+        self.account_controller = account_controller
+    
+    def run(self):
+        """Load all expense data in background."""
+        try:
+            # Load categories
+            categories, cat_error = self.controller.list_categories()
+            if cat_error:
+                self.error_occurred.emit(f"Categories: {cat_error}")
+                return
+            
+            # Load expenses
+            expenses, exp_error = self.controller.list_expenses()
+            if exp_error:
+                self.error_occurred.emit(f"Expenses: {exp_error}")
+                return
+            
+            self.data_loaded.emit({
+                'categories': categories,
+                'expenses': expenses
+            })
+        except Exception as e:
+            self.error_occurred.emit(str(e))
 
 
 class CategoryDialog(QDialog):
@@ -115,9 +148,82 @@ class ExpenseView(QWidget):
         self._selected_expense_id: int | None = None
         self._selected_category_id: int | None = None
         self._categories: list[ExpenseCategory] = []
+        self._loader_thread = None
+        self._data_cache = {}
         self._build_ui()
-        self._load_categories()
-        self._load_expenses()
+        # Don't load immediately - wait for showEvent
+
+    def showEvent(self, event):
+        """Called when the widget is shown - lazy load data."""
+        super().showEvent(event)
+        if not hasattr(self, '_is_loaded') or not self._is_loaded:
+            self._show_loading_state()
+            QTimer.singleShot(50, self._load_data_async)
+    
+    def _show_loading_state(self):
+        """Show loading state in tables."""
+        self.table.setRowCount(1)
+        self.table.setColumnCount(1)
+        self.table.setHorizontalHeaderLabels(["Loading..."])
+        loading_item = QTableWidgetItem("Loading expenses...")
+        loading_item.setTextAlignment(Qt.AlignCenter)
+        self.table.setItem(0, 0, loading_item)
+        
+        self.category_table.setRowCount(1)
+        self.category_table.setColumnCount(1)
+        self.category_table.setHorizontalHeaderLabels(["Loading..."])
+        loading_item2 = QTableWidgetItem("Loading categories...")
+        loading_item2.setTextAlignment(Qt.AlignCenter)
+        self.category_table.setItem(0, 0, loading_item2)
+    
+    def _load_data_async(self):
+        """Load expense data in background thread."""
+        if hasattr(self, '_is_loaded') and self._is_loaded:
+            return
+        
+        # Create worker
+        self._loader_thread = QThread()
+        self._worker = ExpenseDataLoader(self.controller, self.account_controller)
+        self._worker.moveToThread(self._loader_thread)
+        
+        # Connect signals
+        self._loader_thread.started.connect(self._worker.run)
+        self._worker.data_loaded.connect(self._on_data_loaded)
+        self._worker.error_occurred.connect(self._on_load_error)
+        self._worker.data_loaded.connect(self._loader_thread.quit)
+        self._worker.error_occurred.connect(self._loader_thread.quit)
+        
+        # Cleanup
+        self._worker.data_loaded.connect(self._cleanup_loader)
+        self._worker.error_occurred.connect(self._cleanup_loader)
+        
+        # Start thread
+        self._loader_thread.start()
+    
+    def _on_data_loaded(self, data):
+        """Handle loaded data - update UI on main thread."""
+        self._data_cache = data
+        
+        # Populate categories
+        self._populate_categories(data['categories'])
+        
+        # Populate expenses
+        self._populate_expenses(data['expenses'])
+        
+        self._is_loaded = True
+    
+    def _on_load_error(self, error_msg):
+        """Handle loading error."""
+        QMessageBox.warning(self, "Load Error", f"Failed to load data: {error_msg}")
+        self._is_loaded = True  # Prevent retry loop
+    
+    def _cleanup_loader(self):
+        """Cleanup loader thread."""
+        if self._loader_thread and self._loader_thread.isRunning():
+            self._loader_thread.quit()
+            self._loader_thread.wait(3000)
+        self._loader_thread = None
+        self._worker = None
 
 
     def _build_ui(self):
@@ -221,12 +327,8 @@ class ExpenseView(QWidget):
 
         layout.addLayout(button_layout)
 
-    def _load_categories(self):
-        categories, error = self.controller.list_categories()
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
-
+    def _populate_categories(self, categories):
+        """Populate categories from cached data."""
         self._categories = categories
 
         # Update category filter
@@ -251,22 +353,9 @@ class ExpenseView(QWidget):
         self._selected_category_id = None
         self.edit_cat_btn.setEnabled(False)
         self.delete_cat_btn.setEnabled(False)
-
-    def _load_expenses(self):
-        date_from = self.date_from.date().toString("yyyy-MM-dd")
-        date_to = self.date_to.date().toString("yyyy-MM-dd")
-        category_id = self.category_filter.currentData()
-
-        expenses, error = self.controller.list_expenses(
-            date_from=date_from,
-            date_to=date_to,
-            category_id=category_id,
-        )
-
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
-
+    
+    def _populate_expenses(self, expenses):
+        """Populate expenses table from cached data."""
         self.table.setRowCount(len(expenses))
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels([

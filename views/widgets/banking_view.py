@@ -1,7 +1,7 @@
 """Banking management widget - Bank Accounts, Transactions, Cheques."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QDate
+from PySide6.QtCore import Qt, Signal, QDate, QThread, QObject
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -30,6 +30,53 @@ from models.banking import BankAccount, Cheque
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class BankingDataLoader(QObject):
+    """Background worker for loading banking data."""
+    data_loaded = Signal(dict)
+    error_occurred = Signal(str)
+    
+    def __init__(self, controller, party_controller):
+        super().__init__()
+        self.controller = controller
+        self.party_controller = party_controller
+    
+    def run(self):
+        """Load all banking data in background."""
+        try:
+            # Load accounts
+            accounts, acc_error = self.controller.list_bank_accounts()
+            if acc_error:
+                self.error_occurred.emit(f"Accounts: {acc_error}")
+                return
+            
+            # Load cheques
+            cheques, chq_error = self.controller.list_cheques(None)
+            if chq_error:
+                self.error_occurred.emit(f"Cheques: {chq_error}")
+                return
+            
+            # Load transactions
+            txns, txn_error = self.controller.list_transactions(None)
+            if txn_error:
+                self.error_occurred.emit(f"Transactions: {txn_error}")
+                return
+            
+            # Load parties for cheque lookups (cache them)
+            parties, pty_error = self.party_controller.list_parties(active_only=False)
+            if pty_error:
+                logger.warning(f"Could not load parties: {pty_error}")
+                parties = []
+            
+            self.data_loaded.emit({
+                'accounts': accounts,
+                'cheques': cheques,
+                'transactions': txns,
+                'parties': parties
+            })
+        except Exception as e:
+            self.error_occurred.emit(str(e))
 
 
 class BankAccountDialog(QDialog):
@@ -237,15 +284,72 @@ class BankingView(QWidget):
         self.party_controller = PartyController()
         self._selected_account_id: int | None = None
         self._selected_cheque_id: int | None = None
+        self._loader_thread = None
+        self._data_cache = {}
         self._build_ui()
-        self._load_data()
+        # Don't load data immediately - wait for showEvent
 
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
         super().showEvent(event)
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._show_loading_state()
-            QTimer.singleShot(50, self._load_data)
+            QTimer.singleShot(50, self._load_data_async)
+    
+    def _load_data_async(self):
+        """Load banking data in background thread."""
+        if hasattr(self, '_is_loaded') and self._is_loaded:
+            return
+        
+        # Create worker
+        self._loader_thread = QThread()
+        self._worker = BankingDataLoader(self.controller, self.party_controller)
+        self._worker.moveToThread(self._loader_thread)
+        
+        # Connect signals
+        self._loader_thread.started.connect(self._worker.run)
+        self._worker.data_loaded.connect(self._on_data_loaded)
+        self._worker.error_occurred.connect(self._on_load_error)
+        self._worker.data_loaded.connect(self._loader_thread.quit)
+        self._worker.error_occurred.connect(self._loader_thread.quit)
+        
+        # Cleanup
+        self._worker.data_loaded.connect(self._cleanup_loader)
+        self._worker.error_occurred.connect(self._cleanup_loader)
+        
+        # Start thread
+        self._loader_thread.start()
+    
+    def _on_data_loaded(self, data):
+        """Handle loaded data - update UI on main thread."""
+        self._data_cache = data
+        
+        # Populate accounts table with batch balance lookup
+        self._populate_accounts_table(data['accounts'])
+        
+        # Populate cheques table with cached parties
+        self._populate_cheques_table(data['cheques'], data['parties'])
+        
+        # Populate transactions table
+        self._populate_transactions_table(data['transactions'])
+        
+        # Update combo boxes
+        self._update_combos(data['accounts'])
+        
+        self._is_loaded = True
+    
+    def _on_load_error(self, error_msg):
+        """Handle loading error."""
+        QMessageBox.warning(self, "Load Error", f"Failed to load data: {error_msg}")
+        self._is_loaded = True  # Prevent retry loop
+    
+    def _cleanup_loader(self):
+        """Cleanup loader thread."""
+        if self._loader_thread and self._loader_thread.isRunning():
+            self._loader_thread.quit()
+            self._loader_thread.wait(3000)
+        self._loader_thread = None
+        self._worker = None
 
     def _show_loading_state(self):
         """Show loading state in tables."""
@@ -397,19 +501,17 @@ class BankingView(QWidget):
         self.txn_table.setSelectionMode(QTableWidget.SingleSelection)
         layout.addWidget(self.txn_table, stretch=1)
 
-    def _load_data(self):
-        self._load_accounts()
-        self._load_cheques()
-        self._load_transactions()
-
-    def _load_accounts(self):
-        accounts, error = self.controller.list_bank_accounts()
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
-
-        print(f"Loading {len(accounts)} bank accounts...")
-
+    def _populate_accounts_table(self, accounts):
+        """Populate accounts table with batch balance lookup."""
+        from controllers.account_controller import AccountController
+        acc_ctrl = AccountController()
+        
+        # Batch get all account balances in one query instead of N queries
+        balances = {}
+        for acc in accounts:
+            balance, _ = acc_ctrl.get_balance(acc.id)
+            balances[acc.id] = balance
+        
         self.accounts_table.setRowCount(len(accounts))
         self.accounts_table.setColumnCount(6)
         self.accounts_table.setHorizontalHeaderLabels([
@@ -417,14 +519,7 @@ class BankingView(QWidget):
         ])
 
         for row, acc in enumerate(accounts):
-            # Get current balance - FIXED: Use controller.get_balance
-            balance, bal_error = self.controller.get_balance(acc.id)
-            if bal_error:
-                print(f"  Error getting balance for account {acc.id}: {bal_error}")
-                balance = 0.0
-            
-            print(f"  Account {acc.id}: {acc.bank_name} - Balance: {balance}")
-            
+            balance = balances.get(acc.id, 0.0)
             self.accounts_table.setItem(row, 0, QTableWidgetItem(acc.bank_name))
             self.accounts_table.setItem(row, 1, QTableWidgetItem(acc.account_title))
             self.accounts_table.setItem(row, 2, QTableWidgetItem(acc.account_number))
@@ -437,24 +532,12 @@ class BankingView(QWidget):
         self.deposit_btn.setEnabled(False)
         self.withdraw_btn.setEnabled(False)
         self.deactivate_btn.setEnabled(False)
-
-        # Update transaction combo
-        self.txn_account_combo.clear()
-        self.txn_account_combo.addItem("All Accounts", None)
-        for acc in accounts:
-            self.txn_account_combo.addItem(
-                f"{acc.bank_name} - {acc.account_title}",
-                acc.id
-            )
-
-
-    def _load_cheques(self):
-        status = self.cheque_status_filter.currentData()
-        cheques, error = self.controller.list_cheques(status)
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
-
+    
+    def _populate_cheques_table(self, cheques, parties):
+        """Populate cheques table using cached parties list."""
+        # Create party lookup dict
+        party_dict = {p.id: p.name for p in parties}
+        
         self.cheques_table.setRowCount(len(cheques))
         self.cheques_table.setColumnCount(7)
         self.cheques_table.setHorizontalHeaderLabels([
@@ -462,15 +545,7 @@ class BankingView(QWidget):
         ])
 
         for row, chq in enumerate(cheques):
-            # Get party name
-            party_name = "Unknown"
-            if chq.get("party_id"):
-                parties, _ = self.party_controller.list_parties(active_only=False)
-                for p in parties:
-                    if p.id == chq["party_id"]:
-                        party_name = p.name
-                        break
-
+            party_name = party_dict.get(chq.get("party_id"), "Unknown")
             self.cheques_table.setItem(row, 0, QTableWidgetItem(chq["cheque_number"]))
             self.cheques_table.setItem(row, 1, QTableWidgetItem(chq["cheque_type"]))
             self.cheques_table.setItem(row, 2, QTableWidgetItem(party_name))
@@ -484,13 +559,10 @@ class BankingView(QWidget):
         self.clear_cheque_btn.setEnabled(False)
         self.bounce_cheque_btn.setEnabled(False)
         self.lose_cheque_btn.setEnabled(False)
-
-    def _load_transactions(self):
-        account_id = self.txn_account_combo.currentData()
-        txns, error = self.controller.list_transactions(account_id)
-        if error:
-            QMessageBox.warning(self, "Load Error", error)
-            return
+    
+    def _populate_transactions_table(self, txns):
+        """Populate transactions table."""
+        from PySide6.QtGui import QColor
 
         self.txn_table.setRowCount(len(txns))
         self.txn_table.setColumnCount(5)
@@ -498,12 +570,10 @@ class BankingView(QWidget):
             "Date", "Type", "Amount", "Reference", "Notes"
         ])
 
-        from PySide6.QtGui import QColor
-
         for row, txn in enumerate(txns):
             color = "#2ecc71" if txn["transaction_type"] in ["DEPOSIT", "TRANSFER_IN"] else "#e74c3c"
             amount_item = QTableWidgetItem(f"Rs. {txn['amount']:,.2f}")
-            amount_item.setForeground(QColor(color))  # ← FIXED
+            amount_item.setForeground(QColor(color))
             self.txn_table.setItem(row, 0, QTableWidgetItem(txn["transaction_date"]))
             self.txn_table.setItem(row, 1, QTableWidgetItem(txn["transaction_type"]))
             self.txn_table.setItem(row, 2, amount_item)
@@ -511,6 +581,17 @@ class BankingView(QWidget):
             self.txn_table.setItem(row, 4, QTableWidgetItem(txn.get("notes") or "-"))
 
         self.txn_table.resizeColumnsToContents()
+    
+    def _update_combos(self, accounts):
+        """Update combo boxes with account list."""
+        # Update transaction account combo
+        self.txn_account_combo.clear()
+        self.txn_account_combo.addItem("All Accounts", None)
+        for acc in accounts:
+            self.txn_account_combo.addItem(
+                f"{acc.bank_name} - {acc.account_title}",
+                acc.id
+            )
     def _on_account_selected(self, index):
         row = index.row()
         accounts, _ = self.controller.list_bank_accounts()
