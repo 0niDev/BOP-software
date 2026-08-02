@@ -74,7 +74,7 @@ class PaymentService:
                 account_id=ap_account["id"],
                 debit=amount,
                 credit=0,
-                party_id=supplier_id,  # [OK] ADD THIS - links payment to supplier
+                party_id=supplier_id,  # ✅ ADD THIS - links payment to supplier
                 description=f"Payment to {supplier['name']}"
             ),
             JournalLine(
@@ -119,7 +119,7 @@ class PaymentService:
                     SET paid_amount = paid_amount + ? 
                     WHERE id = ?
                 """, (amount, purchase_invoice_id))
-                logger.info(f"[OK] Updated paid_amount for purchase invoice {purchase_invoice_id}: +{amount}")
+                logger.info(f"✅ Updated paid_amount for purchase invoice {purchase_invoice_id}: +{amount}")
             
             logger.info(f"Payment {voucher_number} recorded: Rs. {amount:,.2f} to {supplier['name']}")
             return payment_id
@@ -230,7 +230,7 @@ class PaymentService:
                     SET paid_amount = paid_amount + ? 
                     WHERE id = ?
                 """, (amount, sales_invoice_id))
-                logger.info(f"[OK] Updated paid_amount for sales invoice {sales_invoice_id}: +{amount}")
+                logger.info(f"✅ Updated paid_amount for sales invoice {sales_invoice_id}: +{amount}")
             
             logger.info(f"Receipt {voucher_number} recorded: Rs. {amount:,.2f} from {customer['name']}")
             return receipt_id

@@ -56,7 +56,7 @@ class ItemService:
         if item_type not in ["RAW_MATERIAL", "PACKING_MATERIAL", "FINISHED_GOOD"]:
             raise ValidationError(f"Invalid item type: {item_type}")
 
-        # 2. [OK] Handle item_code (manual or auto-generate)
+        # 2. ✅ Handle item_code (manual or auto-generate)
         if item_code is not None:
             # Manual code provided - validate it
             item_code = item_code.strip()

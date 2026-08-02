@@ -105,51 +105,38 @@ class MainWindow(QMainWindow):
 
         # -- Sidebar --------------------------------------------------
         sidebar = QWidget()
-        sidebar.setFixedWidth(260)
+        sidebar.setFixedWidth(240)
         sidebar.setObjectName("sidebar")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(0)
 
-        # Brand header with professional styling
-        brand_container = QWidget()
-        brand_container.setStyleSheet("""
-            background-color: rgba(0, 0, 0, 0.15);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        """)
-        brand_layout = QVBoxLayout(brand_container)
-        brand_layout.setContentsMargins(0, 20, 0, 20)
-        
-        brand = QLabel("BOP NUTRACEUTICALS")
+        brand = QLabel("BOP Nutraceuticals")
         brand.setWordWrap(True)
         brand.setAlignment(Qt.AlignCenter)
         brand.setStyleSheet("""
-            font-weight: 700;
-            font-size: 16px;
+            font-weight: bold;
+            font-size: 14px;
+            padding: 16px 8px;
             color: #ffffff;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         """)
-        brand_layout.addWidget(brand)
-        
-        subtitle = QLabel("Accounts Software")
-        subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setStyleSheet("""
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 11px;
-            font-weight: 400;
-            letter-spacing: 0.5px;
-        """)
-        brand_layout.addWidget(subtitle)
-        
-        sidebar_layout.addWidget(brand_container)
+        brand.setFixedHeight(60)
+        sidebar_layout.addWidget(brand)
 
         self.nav_list = QListWidget()
         self.nav_list.setFrameShape(QListWidget.NoFrame)
         self.nav_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.nav_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.nav_list.setStyleSheet("")  # Use global stylesheet
+
+        self.nav_list.setStyleSheet("""
+            QListWidget::item {
+                padding: 8px 16px;
+                margin: 1px 4px;
+            }
+        """)
 
         # Add filtered navigation items
         for label, key, _ in self._nav_items:
@@ -162,53 +149,20 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.nav_list, 1)
 
         # User info at bottom of sidebar
-        user_container = QWidget()
-        user_container.setStyleSheet("""
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            background-color: rgba(0, 0, 0, 0.1);
-        """)
-        user_layout = QVBoxLayout(user_container)
-        user_layout.setContentsMargins(0, 12, 0, 12)
-        user_layout.setSpacing(4)
-        
-        user_info = QLabel(f"{self.user.full_name}")
+        user_info = QLabel(f"👤 {self.user.full_name}\n{self.user.role_name}")
         user_info.setWordWrap(True)
         user_info.setAlignment(Qt.AlignCenter)
         user_info.setStyleSheet("""
-            color: #ffffff;
-            font-weight: 600;
-            font-size: 12px;
-        """)
-        user_layout.addWidget(user_info)
-        
-        role_info = QLabel(f"{self.user.role_name}")
-        role_info.setAlignment(Qt.AlignCenter)
-        role_info.setStyleSheet("""
-            color: rgba(255, 255, 255, 0.6);
+            color: #a8b2d1;
+            padding: 8px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 11px;
         """)
-        user_layout.addWidget(role_info)
-        
-        sidebar_layout.addWidget(user_container)
+        sidebar_layout.addWidget(user_info)
 
         logout_btn = QPushButton("Logout")
-        logout_btn.setFixedHeight(42)
-        logout_btn.setCursor(Qt.PointingHandCursor)
+        logout_btn.setFixedHeight(40)
         logout_btn.clicked.connect(self._on_logout)
-        logout_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: #ffffff;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.15);
-                border-color: rgba(255, 255, 255, 0.3);
-            }
-        """)
         sidebar_layout.addWidget(logout_btn)
 
         # -- Content stack ---------------------------------------------
@@ -251,7 +205,7 @@ class MainWindow(QMainWindow):
             placeholder = QWidget()
             layout = QVBoxLayout(placeholder)
             layout.setAlignment(Qt.AlignCenter)
-            label = QLabel("[OK] Opening Balance set successfully!")
+            label = QLabel("✅ Opening Balance set successfully!")
             label.setStyleSheet("color: #2ecc71; font-size: 16px;")
             layout.addWidget(label)
             return placeholder

@@ -228,7 +228,7 @@ class PurchaseInvoiceService:
         if payment_type == "CREDIT":
             credit_account_id = ap_account_id
             credit_description = f"Supplier credit - {supplier.name}"
-            credit_party_id = supplier_id  # [OK] SET party_id for credit purchases
+            credit_party_id = supplier_id  # ✅ SET party_id for credit purchases
             logger.info(f"🔧 CREDIT purchase - party_id={supplier_id}")
             
         elif payment_type in ["BANK", "CHEQUE"] and bank_account_id:
@@ -238,7 +238,7 @@ class PurchaseInvoiceService:
             if bank_account:
                 credit_account_id = bank_account["account_id"]
                 credit_description = f"{payment_type} payment - {bank_account['bank_name']}"
-                logger.info(f"[OK] Using specific bank account: {bank_account['bank_name']}")
+                logger.info(f"✅ Using specific bank account: {bank_account['bank_name']}")
             else:
                 raise ValidationError("Selected bank account not found.")
                 
@@ -255,7 +255,7 @@ class PurchaseInvoiceService:
             credit_description = f"{payment_type} payment"
 
         # ============================================================
-        # [OK] FIX: Build journal lines with party_id
+        # ✅ FIX: Build journal lines with party_id
         # ============================================================
         journal_lines = [
             JournalLine(
@@ -268,7 +268,7 @@ class PurchaseInvoiceService:
                 account_id=credit_account_id,
                 debit=0.0,
                 credit=float(total_amount),
-                party_id=credit_party_id,  # [OK] This is correct
+                party_id=credit_party_id,  # ✅ This is correct
                 description=credit_description
             )
         ]
@@ -304,7 +304,7 @@ class PurchaseInvoiceService:
                     expiry_date=item_data.get("expiry_date"),
                 )
             
-            # [OK] Post journal entry with party_id
+            # ✅ Post journal entry with party_id
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.PURCHASE,
                 entry_date=invoice_date,
@@ -333,7 +333,7 @@ class PurchaseInvoiceService:
                     invoice_number,
                     f"Purchase invoice {invoice_number} - {payment_type} payment"
                 ))
-                logger.info(f"[OK] Recorded bank withdrawal for invoice {invoice_number} from bank account {bank_account_id}")
+                logger.info(f"✅ Recorded bank withdrawal for invoice {invoice_number} from bank account {bank_account_id}")
 
         logger.info("Created purchase invoice %s for supplier %s (id=%s)", 
                 invoice_number, supplier_id, invoice.id)
@@ -516,7 +516,7 @@ class PurchaseInvoiceService:
                             description=f"REVERSAL: {line.get('description', '')}"
                         )
                     )
-                print(f"[OK] Found {len(old_lines)} lines to reverse")
+                print(f"✅ Found {len(old_lines)} lines to reverse")
 
         # ============================================================
         # STEP 2: Determine credit account for new entry
@@ -624,7 +624,7 @@ class PurchaseInvoiceService:
                     source_id=invoice_id,
                     narration=f"Reverse old purchase invoice {existing_invoice.invoice_number}"
                 )
-                print(f"[OK] Reversed {len(old_journal_lines)} lines")
+                print(f"✅ Reversed {len(old_journal_lines)} lines")
             
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.PURCHASE,
@@ -634,9 +634,9 @@ class PurchaseInvoiceService:
                 source_id=invoice_id,
                 narration=f"Purchase invoice {invoice_number} updated"
             )
-            print(f"[OK] Created new entry with {len(new_journal_lines)} lines")
+            print(f"✅ Created new entry with {len(new_journal_lines)} lines")
             
-            # [OK] Handle bank transaction on payment type change
+            # ✅ Handle bank transaction on payment type change
             if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
                 existing_txn = self.db.fetch_one("""
                     SELECT id FROM bank_transactions 
@@ -656,7 +656,7 @@ class PurchaseInvoiceService:
                         f"Purchase invoice {invoice_number} - {payment_type} payment (updated)",
                         invoice_number
                     ))
-                    logger.info(f"[OK] Updated bank withdrawal for invoice {invoice_number}")
+                    logger.info(f"✅ Updated bank withdrawal for invoice {invoice_number}")
                 else:
                     self.db.execute("""
                         INSERT INTO bank_transactions (
@@ -675,14 +675,14 @@ class PurchaseInvoiceService:
                         invoice_number,
                         f"Purchase invoice {invoice_number} - {payment_type} payment"
                     ))
-                    logger.info(f"[OK] Recorded bank withdrawal for invoice {invoice_number}")
+                    logger.info(f"✅ Recorded bank withdrawal for invoice {invoice_number}")
             
             elif payment_type == "CASH" and existing_invoice.payment_type in ["BANK", "CHEQUE"]:
                 self.db.execute("""
                     DELETE FROM bank_transactions 
                     WHERE reference_no = ? AND transaction_type = 'WITHDRAWAL'
                 """, (invoice_number,))
-                logger.info(f"[OK] Removed bank withdrawal for invoice {invoice_number} (changed to CASH)")
+                logger.info(f"✅ Removed bank withdrawal for invoice {invoice_number} (changed to CASH)")
         
         logger.info("Updated purchase invoice %s (id=%s) - Payment Type: %s", 
                     invoice_number, invoice_id, payment_type)
@@ -777,7 +777,7 @@ class PurchaseInvoiceService:
                     SET quantity_in_stock = quantity_in_stock - ?
                     WHERE id = ?
                 """, (item["quantity"], item["batch_id"]))
-                logger.info(f"[OK] Restored stock for item {item['item_id']}: -{item['quantity']}")
+                logger.info(f"✅ Restored stock for item {item['item_id']}: -{item['quantity']}")
             
             if reversal_lines:
                 self.accounting_service.post_journal_entry(
@@ -794,6 +794,6 @@ class PurchaseInvoiceService:
                     DELETE FROM bank_transactions 
                     WHERE reference_no = ? AND transaction_type = 'WITHDRAWAL'
                 """, (invoice.invoice_number,))
-                logger.info(f"[OK] Removed bank withdrawal for cancelled invoice {invoice.invoice_number}")
+                logger.info(f"✅ Removed bank withdrawal for cancelled invoice {invoice.invoice_number}")
         
         logger.info("Cancelled purchase invoice %s (id=%s)", invoice.invoice_number, invoice_id)

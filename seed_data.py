@@ -209,7 +209,7 @@ def seed_accounts():
                     if code not in existing_codes]
     
     if not new_accounts:
-        print("    [OK] All accounts already exist")
+        print("    ✅ All accounts already exist")
         return
     
     # Batch insert new accounts
@@ -222,7 +222,7 @@ def seed_accounts():
                 opening_balance=opening,
                 account_subtype=subtype
             )
-    print(f"    [OK] Created {len(new_accounts)} accounts")
+    print(f"    ✅ Created {len(new_accounts)} accounts")
 
 
 def seed_parties():
@@ -238,7 +238,7 @@ def seed_parties():
     supplier_accounts = db.execute("SELECT id FROM accounts WHERE account_type = 'LIABILITY' LIMIT 5").fetchall()
     
     if not customer_accounts or not supplier_accounts:
-        print("    [WARN] No valid accounts found for parties")
+        print("    ⚠️ No valid accounts found for parties")
         return
     
     customer_account_ids = [row[0] for row in customer_accounts]
@@ -273,12 +273,12 @@ def seed_parties():
             )
             created += 1
         except Exception as e:
-            print(f"    [WARN] Party {code}: {e}")
+            print(f"    ⚠️ Party {code}: {e}")
     
     if created > 0:
-        print(f"    [OK] Created {created} parties")
+        print(f"    ✅ Created {created} parties")
     else:
-        print("    [OK] All parties already exist")
+        print("    ✅ All parties already exist")
 
 
 def seed_item_categories():
@@ -311,7 +311,7 @@ def seed_items():
     # Check tax rates exist
     tax_rates = db.execute("SELECT id FROM tax_rates").fetchall()
     if not tax_rates:
-        print("    [WARN] No tax rates found, skipping items")
+        print("    ⚠️ No tax rates found, skipping items")
         return
     
     tax_ids = [row[0] for row in tax_rates]
@@ -369,12 +369,12 @@ def seed_items():
             )
             created += 1
         except Exception as e:
-            print(f"    [WARN] Item {code}: {e}")
+            print(f"    ⚠️ Item {code}: {e}")
     
     if created > 0:
-        print(f"    [OK] Created {created} items")
+        print(f"    ✅ Created {created} items")
     else:
-        print("    [OK] All items already exist")
+        print("    ✅ All items already exist")
 
 
 def seed_stock_batches():
@@ -387,7 +387,7 @@ def seed_stock_batches():
     existing_item_ids = set(row[0] for row in existing_items)
     
     if not existing_item_ids:
-        print("    [WARN] No items found, skipping stock batches")
+        print("    ⚠️ No items found, skipping stock batches")
         return
     
     # Only create batches for items that exist
@@ -416,7 +416,7 @@ def seed_stock_batches():
             ))
     
     if not stock_batches:
-        print("    [WARN] No batches created")
+        print("    ⚠️ No batches created")
         return
     
     # Use single transaction with executemany for 10x faster inserts
@@ -427,7 +427,7 @@ def seed_stock_batches():
             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
         """, [(item_id, wh_id, batch_no, mfg.isoformat(), exp.isoformat(), price, qty) 
               for item_id, wh_id, batch_no, mfg, exp, price, qty in stock_batches])
-    print(f"    [OK] Inserted {len(stock_batches)} stock batches")
+    print(f"    ✅ Inserted {len(stock_batches)} stock batches")
 
 
 def seed_bank_accounts():
@@ -524,8 +524,8 @@ def create_expenses():
                 description=desc
             )
         except Exception as e:
-            print(f"    [WARN] {voucher}: {e}")
-    print("    [OK] Expenses created")
+            print(f"    ⚠️ {voucher}: {e}")
+    print("    ✅ Expenses created")
 
 
 def main():
@@ -553,7 +553,7 @@ def main():
         seed_numbering_sequences()
         
         elapsed = time.time() - start_time
-        print("\n[OK] Database seeding complete!")
+        print("\n✅ Database seeding complete!")
         print("=" * 50)
         print(f"⏱️  Total time: {elapsed:.2f} seconds")
         print("=" * 50)
@@ -566,7 +566,7 @@ def main():
         print("=" * 50)
         
     except Exception as e:
-        print(f"[ERROR] Error seeding database: {e}")
+        print(f"❌ Error seeding database: {e}")
         import traceback
         traceback.print_exc()
 

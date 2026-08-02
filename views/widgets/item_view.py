@@ -121,7 +121,7 @@ class ItemView(QWidget):
         form_group = QGroupBox("Item Details")
         form_layout = QFormLayout(form_group)
 
-        # [OK] Make code read-only (auto-generated)
+        # ✅ Make code read-only (auto-generated)
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("Auto-generated on save")
         self.code_input.setReadOnly(True)
@@ -203,7 +203,7 @@ class ItemView(QWidget):
 
     def _on_save_clicked(self) -> None:
         """Handles save/update button click"""
-        # [OK] Code is auto-generated - no need to validate it
+        # ✅ Code is auto-generated - no need to validate it
         item_name = self.name_input.text().strip()
         notes = self.notes_input.text().strip() or None
         unit = self.unit_input.currentData()
@@ -237,7 +237,7 @@ class ItemView(QWidget):
         category_id = self.category_input.currentData()
 
         if self._selected_item_id is None:
-            # [OK] Create new item - code is AUTO-GENERATED
+            # ✅ Create new item - code is AUTO-GENERATED
             success, error = self.controller.create_item(
                 # item_code is NOT sent - auto-generated!
                 item_name=item_name,
@@ -293,7 +293,7 @@ class ItemView(QWidget):
         self.table.setRowCount(1)
         self.table.setColumnCount(1)
         self.table.setHorizontalHeaderLabels(["Loading..."])
-        loading_item = QTableWidgetItem("[R] Loading items...")
+        loading_item = QTableWidgetItem("🔄 Loading items...")
         loading_item.setTextAlignment(Qt.AlignCenter)
         self.table.setItem(0, 0, loading_item)
         self.table.horizontalHeader().setStretchLastSection(True)

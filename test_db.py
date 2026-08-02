@@ -8,11 +8,11 @@ def test_connection():
         
         # Test items
         items = conn.execute("SELECT COUNT(*) as count FROM items").fetchone()
-        print(f"[OK] Items in cloud: {items[0]}")
+        print(f"✅ Items in cloud: {items[0]}")
         
         # Test parties
         parties = conn.execute("SELECT COUNT(*) as count FROM parties").fetchone()
-        print(f"[OK] Parties in cloud: {parties[0]}")
+        print(f"✅ Parties in cloud: {parties[0]}")
         
         # Get sample items
         sample = conn.execute("SELECT * FROM items LIMIT 3").fetchall()
@@ -24,7 +24,7 @@ def test_connection():
         conn.close()
         return True
     except Exception as e:
-        print(f"[ERROR] Error: {e}")
+        print(f"❌ Error: {e}")
         return False
 
 if __name__ == "__main__":

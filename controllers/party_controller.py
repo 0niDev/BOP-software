@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 class PartyController:
     def __init__(self, party_service: PartyService | None = None):
-        # [OK] FIX: Set self.service
+        # ✅ FIX: Set self.service
         self.service = party_service or PartyService()  # ← THIS WAS MISSING!
 
     def create_party(
@@ -22,7 +22,7 @@ class PartyController:
         party_type: PartyType,
         credit_limit: float,
         account_id: int | None = None,
-        code: str | None = None,  # [OK] Make it optional
+        code: str | None = None,  # ✅ Make it optional
     ) -> tuple[bool, str | None]:
         """Attempts to create party with optional code (auto-generated if not provided)."""
         try:
