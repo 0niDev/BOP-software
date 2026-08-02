@@ -86,8 +86,8 @@ class StockBatchRepository(BaseRepository):
             """,
             (quantity_change, batch_id),
         )
-        # Invalidate cache for this batch
-        self._invalidate_cache(f"find_by_item_and_warehouse")
+        # Invalidate cache for all item/warehouse combinations
+        self._invalidate_cache()
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""
