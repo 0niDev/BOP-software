@@ -91,6 +91,44 @@ class ItemLoadThread(QThread):
             self.data_loaded.emit([], str(e))
 
 
+class InvoiceSaveThread(QThread):
+    """Background thread for creating/saving invoices to prevent UI hanging."""
+    
+    saved = Signal(bool, str, object)  # success, error_message, invoice_object
+    
+    def __init__(self, controller, is_create=True, **kwargs):
+        super().__init__()
+        self.controller = controller
+        self.is_create = is_create
+        self.kwargs = kwargs
+    
+    def run(self):
+        try:
+            if self.is_create:
+                success, error = self.controller.create_purchase_invoice(**self.kwargs)
+                invoice = None
+                if success and self.kwargs.get("invoice_number"):
+                    invoices, _ = self.controller.list_purchase_invoices()
+                    invoice = next(
+                        (inv for inv in invoices if inv.invoice_number == self.kwargs["invoice_number"]), 
+                        None
+                    )
+                self.saved.emit(success, error or "", invoice)
+            else:
+                success, error = self.controller.update_purchase_invoice(**self.kwargs)
+                invoice = None
+                if success and self.kwargs.get("invoice_id"):
+                    invoices, _ = self.controller.list_purchase_invoices()
+                    invoice = next(
+                        (inv for inv in invoices if inv.id == self.kwargs["invoice_id"]), 
+                        None
+                    )
+                self.saved.emit(success, error or "", invoice)
+        except Exception as e:
+            logger.exception(f"Error in invoice save thread: {e}")
+            self.saved.emit(False, str(e), None)
+
+
 class PurchaseItemSelectionDialog(QDialog):
     """Dialog for selecting an item with search."""
     
@@ -721,8 +759,15 @@ class PurchaseInvoiceView(QWidget):
             QMessageBox.warning(self, "Input Error", "Please add at least one item to the invoice.")
             return
         
+        # Disable save button during processing
+        self.save_button.setEnabled(False)
+        self.save_button.setText("Saving...")
+        
         if self._selected_invoice_id is None:
-            success, error = self.invoice_controller.create_purchase_invoice(
+            # Create invoice in background thread
+            self._save_thread = InvoiceSaveThread(
+                self.invoice_controller,
+                is_create=True,
                 invoice_number=invoice_number,
                 supplier_id=supplier_id,
                 invoice_date=invoice_date,
@@ -731,20 +776,13 @@ class PurchaseInvoiceView(QWidget):
                 notes=notes,
                 bank_account_id=bank_account_id,
             )
-            if success:
-                invoices, _ = self.invoice_controller.list_purchase_invoices()
-                created_invoice = next(
-                    (inv for inv in invoices if inv.invoice_number == invoice_number), 
-                    None
-                )
-                if created_invoice:
-                    self.invoice_created.emit(created_invoice)
-                self._load_invoices()
-                self._clear_form()
-            else:
-                QMessageBox.warning(self, "Creation Failed", error)
+            self._save_thread.saved.connect(self._on_save_completed)
+            self._save_thread.start()
         else:
-            success, error = self.invoice_controller.update_purchase_invoice(
+            # Update invoice in background thread
+            self._save_thread = InvoiceSaveThread(
+                self.invoice_controller,
+                is_create=False,
                 invoice_id=self._selected_invoice_id,
                 invoice_number=invoice_number,
                 supplier_id=supplier_id,
@@ -755,18 +793,24 @@ class PurchaseInvoiceView(QWidget):
                 status="CONFIRMED",
                 bank_account_id=bank_account_id,
             )
-            if success:
-                invoices, _ = self.invoice_controller.list_purchase_invoices()
-                updated_invoice = next(
-                    (inv for inv in invoices if inv.id == self._selected_invoice_id), 
-                    None
-                )
-                if updated_invoice:
-                    self.invoice_updated.emit(updated_invoice)
-                self._load_invoices()
-                self._clear_form()
-            else:
-                QMessageBox.warning(self, "Update Failed", error)
+            self._save_thread.saved.connect(self._on_save_completed)
+            self._save_thread.start()
+    
+    def _on_save_completed(self, success: bool, error: str, invoice: object | None):
+        """Handle completion of background save operation."""
+        self.save_button.setEnabled(True)
+        self.save_button.setText("Save")
+        
+        if success:
+            if invoice:
+                if self._selected_invoice_id is None:
+                    self.invoice_created.emit(invoice)
+                else:
+                    self.invoice_updated.emit(invoice)
+            self._load_invoices()
+            self._clear_form()
+        else:
+            QMessageBox.warning(self, "Operation Failed", error)
 
     def _on_edit_clicked(self) -> None:
         if self._selected_invoice_id is not None:
