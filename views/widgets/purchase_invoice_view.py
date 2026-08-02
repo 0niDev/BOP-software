@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QDoubleSpinBox,
 )
-from database.connection import invalidate_db_cache
 
 from controllers.purchase_invoice_controller import PurchaseInvoiceController
 from controllers.party_controller import PartyController
@@ -768,8 +767,6 @@ class PurchaseInvoiceView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Update Failed", error)
-        
-        invalidate_db_cache()  # Clear all cache
 
     def _on_edit_clicked(self) -> None:
         if self._selected_invoice_id is not None:
@@ -801,7 +798,6 @@ class PurchaseInvoiceView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
-        invalidate_db_cache()  #
 
     def _on_clear_clicked(self) -> None:
         self._clear_form()

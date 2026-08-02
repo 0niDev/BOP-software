@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QTableWidgetItem,
 )
-from database.connection import invalidate_db_cache
 from controllers.party_controller import PartyController
 from config.app_config import get_config
 from models.enums import PartyType
@@ -322,8 +321,7 @@ class PartyView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Update Failed", error)
-        
-        invalidate_db_cache()  # Clear all cache
+
     # ← NEW METHODS ADDED HERE
     def _on_edit_clicked(self) -> None:
         """Handles explicit edit button click"""
@@ -358,7 +356,7 @@ class PartyView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
-        invalidate_db_cache()  #
+
     # ← END NEW METHODS
 
     # ← CHANGED: Method renamed from _on_clear_clicked to _on_add_clicked

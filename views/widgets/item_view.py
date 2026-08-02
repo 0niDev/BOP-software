@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QTableWidgetItem,
 )
-from database.connection import invalidate_db_cache
 from controllers.item_controller import ItemController
 from config.app_config import get_config
 from models.item import Item
@@ -300,7 +299,7 @@ class ItemView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Update Failed", error)
-        invalidate_db_cache()  #
+
     # Add this temporary method to add test stock
     def _add_test_stock(self):
         """Add test stock batches for items"""
@@ -567,7 +566,7 @@ class ItemView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
-        invalidate_db_cache()  #
+
     def _on_add_clicked(self) -> None:
         """Clears form for adding a new entry"""
         self._clear_form()
