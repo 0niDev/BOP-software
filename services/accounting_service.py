@@ -51,6 +51,19 @@ class AccountingService:
         self.db = db or get_db()
         self.journal_repo = JournalRepository(self.db)
         self.account_repo = AccountRepository(self.db)
+        # Cache for account lookups by code
+        self._account_cache: dict[str, dict] = {}
+
+    def _get_account_by_code_cached(self, account_code: str, company_id: int = 1) -> dict | None:
+        """Get account by code with caching to avoid repeated DB lookups."""
+        cache_key = f"{account_code}:{company_id}"
+        if cache_key in self._account_cache:
+            return self._account_cache[cache_key]
+        
+        account = self.account_repo.find_by_code(account_code, company_id)
+        if account:
+            self._account_cache[cache_key] = account
+        return account
 
     def post_journal_entry(
         self,

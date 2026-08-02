@@ -88,11 +88,8 @@ class StockBatchRepository(BaseRepository):
         )
         # Only invalidate cache if explicitly requested (to avoid redundant cache clearing in batch operations)
         if use_cache:
-            # Invalidate ALL cache to ensure dashboard and views get fresh data
-            self._invalidate_cache()
-            # Also invalidate item repository cache since stock changed
-            from repositories.item_repository import ItemRepository
-            ItemRepository.clear_all_cache()
+            # Invalidate only the specific batch cache, not all cache
+            self._invalidate_cache(pattern=f"stock_batches:find_by_item_and_warehouse")
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""
