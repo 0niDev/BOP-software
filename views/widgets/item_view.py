@@ -44,7 +44,6 @@ class ItemLoadThread(QThread):
             logger.exception(f"Error in item load thread: {e}")
             self.data_loaded.emit([], str(e))
 
-
 class StockLoadThread(QThread):
     """Background thread for loading stock for multiple items."""
     
@@ -59,17 +58,35 @@ class StockLoadThread(QThread):
         try:
             stocks = {}
             for item_id in self.item_ids:
+                # Debug: log what we're looking for
+                logger.debug(f"Looking for stock for item_id: {item_id}")
+                
                 stock_result = self.controller.service.repo.db.fetch_one("""
                     SELECT COALESCE(SUM(quantity_in_stock), 0) as total
                     FROM stock_batches
                     WHERE item_id = ? AND is_active = 1
                 """, (item_id,))
-                # Fix: Handle None result and ensure we get the 'total' key
-                if stock_result and "total" in stock_result:
-                    stocks[item_id] = float(stock_result["total"])
+                
+                # Debug: log the result
+                logger.debug(f"Stock result for item {item_id}: {stock_result}")
+                
+                # Fix: Handle the result properly
+                if stock_result:
+                    # The result might be a tuple or dict depending on your db layer
+                    if isinstance(stock_result, dict):
+                        total = stock_result.get("total", 0)
+                    elif isinstance(stock_result, (list, tuple)):
+                        total = stock_result[0] if stock_result else 0
+                    else:
+                        total = 0
+                    
+                    stocks[item_id] = float(total) if total else 0.0
                 else:
                     stocks[item_id] = 0.0
+                    
+            logger.info(f"Loaded stocks for {len(stocks)} items: {stocks}")
             self.stocks_loaded.emit(stocks)
+            
         except Exception as e:
             logger.exception(f"Error in stock load thread: {e}")
             self.stocks_loaded.emit({})
@@ -284,13 +301,60 @@ class ItemView(QWidget):
             else:
                 QMessageBox.warning(self, "Update Failed", error)
         invalidate_db_cache()  #
+    # Add this temporary method to add test stock
+    def _add_test_stock(self):
+        """Add test stock batches for items"""
+        try:
+            # Get first item
+            items, _ = self.controller.list_items(active_only=False)
+            if not items:
+                return
+                
+            # Add stock batch for first item
+            self.controller.service.repo.db.execute("""
+                INSERT INTO stock_batches 
+                (item_id, warehouse_id, batch_number, quantity_in_stock, is_active)
+                VALUES (?, 1, 'TEST001', 100, 1)
+            """, (items[0].id,))
+            
+            # Add stock batch for second item
+            if len(items) > 1:
+                self.controller.service.repo.db.execute("""
+                    INSERT INTO stock_batches 
+                    (item_id, warehouse_id, batch_number, quantity_in_stock, is_active)
+                    VALUES (?, 1, 'TEST002', 50, 1)
+                """, (items[1].id,))
+                
+            logger.info("Test stock added successfully")
+            self._load_items_async()
+            
+        except Exception as e:
+            logger.error(f"Error adding test stock: {e}")
+
 
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
+        """Debug method to check stock query"""
+        try:
+            # Check if stock_batches table has data
+            count = self.controller.service.repo.db.fetch_one("""
+                SELECT COUNT(*) as count FROM stock_batches
+            """)
+            logger.info(f"Total stock batches: {count['count'] if count else 0}")
+            
+            # Check for any stock data
+            sample = self.controller.service.repo.db.fetch_one("""
+                SELECT * FROM stock_batches LIMIT 5
+            """)
+            logger.info(f"Sample stock: {sample}")
+            
+        except Exception as e:
+            logger.error(f"Debug error: {e}")
         super().showEvent(event)
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._show_loading_state()
             QTimer.singleShot(50, self._load_items_async)
+        
 
     def _show_loading_state(self):
         """Show loading state in the table."""
@@ -349,7 +413,27 @@ class ItemView(QWidget):
     def _populate_table(self):
         """Populate the table with cached data."""
         items = self._items_cache
-        stocks = self._stocks_cache
+        
+        # Directly query stock for all items in one go
+        stock_map = {}
+        try:
+            # Get all stock in one query
+            stock_results = self.controller.service.repo.db.fetch_all("""
+                SELECT 
+                    item_id,
+                    COALESCE(SUM(quantity_in_stock), 0) as total_stock
+                FROM stock_batches
+                WHERE is_active = 1
+                GROUP BY item_id
+            """)
+            
+            for row in stock_results:
+                stock_map[row["item_id"]] = float(row["total_stock"])
+                
+            logger.info(f"Loaded stock for {len(stock_map)} items: {stock_map}")
+            
+        except Exception as e:
+            logger.error(f"Error loading stock: {e}")
         
         self.table.setRowCount(len(items))
         self.table.setColumnCount(10)
@@ -359,7 +443,7 @@ class ItemView(QWidget):
         ])
         
         for row, item in enumerate(items):
-            current_stock = stocks.get(item.id, 0)
+            current_stock = stock_map.get(item.id, 0.0)
             
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))
