@@ -76,20 +76,38 @@ class DashboardService:
         
         try:
             # ============================================================
-            # ONE BIG QUERY - all essential data
+            # Get today's sales total
+            # ============================================================
+            today_sales = self.db.fetch_one("""
+                SELECT 
+                    COALESCE(SUM(total_amount), 0) as sales_total,
+                    COUNT(*) as sales_count
+                FROM sales_invoices
+                WHERE company_id = ? 
+                AND date(invoice_date) = date(?)
+                AND status != 'CANCELLED'
+            """, (company_id, today)) or {"sales_total": 0, "sales_count": 0}
+            
+            # ============================================================
+            # Get today's purchases total
+            # ============================================================
+            today_purchases = self.db.fetch_one("""
+                SELECT 
+                    COALESCE(SUM(total_amount), 0) as purchases_total,
+                    COUNT(*) as purchases_count
+                FROM purchase_invoices
+                WHERE company_id = ? 
+                AND date(invoice_date) = date(?)
+                AND status != 'CANCELLED'
+            """, (company_id, today)) or {"purchases_total": 0, "purchases_count": 0}
+            
+            logger.info(f"✅ Today's stats: Sales={today_sales['sales_total']}, Purchases={today_purchases['purchases_total']}")
+            
+            # ============================================================
+            # ONE BIG QUERY - all other data
             # ============================================================
             result = self.db.fetch_one("""
                 WITH 
-                today_stats AS (
-                    SELECT 
-                        COALESCE(SUM(CASE WHEN si.status != 'CANCELLED' THEN si.total_amount ELSE 0 END), 0) as sales_total,
-                        COUNT(CASE WHEN si.status != 'CANCELLED' THEN 1 END) as sales_count,
-                        COALESCE(SUM(CASE WHEN pi.status != 'CANCELLED' THEN pi.total_amount ELSE 0 END), 0) as purchases_total,
-                        COUNT(CASE WHEN pi.status != 'CANCELLED' THEN 1 END) as purchases_count
-                    FROM (SELECT 1) 
-                    LEFT JOIN sales_invoices si ON si.company_id = ? AND date(si.invoice_date) = date(?)
-                    LEFT JOIN purchase_invoices pi ON pi.company_id = ? AND date(pi.invoice_date) = date(?)
-                ),
                 balances AS (
                     SELECT 
                         COALESCE(SUM(CASE WHEN a.account_code IN ('1000', '1020') THEN jel.debit - jel.credit ELSE 0 END), 0) as cash,
@@ -123,19 +141,15 @@ class DashboardService:
                     WHERE company_id = ? AND is_active = 1
                 )
                 SELECT 
-                    ts.sales_total, ts.sales_count,
-                    ts.purchases_total, ts.purchases_count,
                     b.cash, b.bank, b.receivable, b.payable,
                     mp.revenue, mp.expenses,
                     iv.inventory_value,
                     tc.count as total_items
-                FROM today_stats ts
-                CROSS JOIN balances b
+                FROM balances b
                 CROSS JOIN monthly_pl mp
                 CROSS JOIN inventory_total iv
                 CROSS JOIN total_items_count tc
             """, (
-                company_id, today, company_id, today,  # today_stats
                 company_id,  # balances
                 company_id, month_start, today,  # monthly_pl
                 company_id,  # inventory_total
@@ -261,10 +275,10 @@ class DashboardService:
             # ============================================================
             data = {
                 "today": {
-                    "sales_total": float(result.get("sales_total", 0)),
-                    "sales_count": int(result.get("sales_count", 0)),
-                    "purchases_total": float(result.get("purchases_total", 0)),
-                    "purchases_count": int(result.get("purchases_count", 0)),
+                    "sales_total": float(today_sales.get("sales_total", 0)),
+                    "sales_count": int(today_sales.get("sales_count", 0)),
+                    "purchases_total": float(today_purchases.get("purchases_total", 0)),
+                    "purchases_count": int(today_purchases.get("purchases_count", 0)),
                 },
                 "balances": {
                     "cash": float(result.get("cash", 0)),
