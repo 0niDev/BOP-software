@@ -1,1 +1,9 @@
-Nothing should be ignored based on the provided file changes. The modification of 'views/widgets/sales_invoice_view.py' is a source code file and does not require any new ignore rules.
+```
+# Database files
+*.db
+data/*.db
+
+# Cache files
+*.cache
+*.tmp
+```
