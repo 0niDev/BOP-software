@@ -57,6 +57,7 @@ class PurchaseInvoiceService:
         batch_number: str | None = None,
         manufacturing_date: str | None = None,
         expiry_date: str | None = None,
+        batch_cache: dict | None = None,
     ) -> None:
         """Update stock when purchasing items."""
         import datetime
@@ -621,6 +622,10 @@ class PurchaseInvoiceService:
             )
             
             self.item_repo.delete_by_invoice_id(invoice_id)
+            
+            # Initialize batch cache for optimization
+            batch_cache = {}
+            
             for item_data in validated_items:
                 item_data["invoice_id"] = invoice_id
                 item = PurchaseInvoiceItem(**item_data)
@@ -634,6 +639,7 @@ class PurchaseInvoiceService:
                     batch_number=item_data.get("batch_number"),
                     manufacturing_date=item_data.get("manufacturing_date"),
                     expiry_date=item_data.get("expiry_date"),
+                    batch_cache=batch_cache,
                 )
             
             if old_journal_lines:
