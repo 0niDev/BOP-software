@@ -17,12 +17,21 @@ class ProfitLossReport(Report):
 
     def generate(self) -> dict:
         """Generate P&L report with ONE query."""
-        date_from = self.date_from or datetime.now().replace(day=1).strftime("%Y-%m-%d")
-        date_to = self.date_to or datetime.now().strftime("%Y-%m-%d")
         company_id = 1
+        
+        # Only apply date filter if both dates are explicitly set
+        if self.date_from and self.date_to:
+            date_from = self.date_from
+            date_to = self.date_to
+            date_condition = "AND je.entry_date >= ? AND je.entry_date <= ?"
+            params = (company_id, date_from, date_to)
+        else:
+            # No date filter - show ALL posted transactions
+            date_condition = ""
+            params = (company_id,)
 
-        # ONE QUERY - gets all revenue and expense accounts (remove HAVING to show all accounts)
-        rows = self.db.fetch_all("""
+        # ONE QUERY - gets all revenue and expense accounts
+        rows = self.db.fetch_all(f"""
             SELECT 
                 a.id,
                 a.account_code,
@@ -36,10 +45,10 @@ class ProfitLossReport(Report):
             AND a.account_type IN ('REVENUE', 'EXPENSE')
             AND a.is_active = 1
             AND (je.is_posted = 1 OR je.is_posted IS NULL)
-            AND (je.entry_date >= ? AND je.entry_date <= ? OR je.entry_date IS NULL)
+            {date_condition}
             GROUP BY a.id
             ORDER BY a.account_code
-        """, (company_id, date_from, date_to))
+        """, params)
 
         sales = []
         other_income = []
