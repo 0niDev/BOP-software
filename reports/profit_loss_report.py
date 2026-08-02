@@ -21,7 +21,7 @@ class ProfitLossReport(Report):
         date_to = self.date_to or datetime.now().strftime("%Y-%m-%d")
         company_id = 1
 
-        # ONE QUERY - gets all revenue and expense accounts
+        # ONE QUERY - gets all revenue and expense accounts (remove HAVING to show all accounts)
         rows = self.db.fetch_all("""
             SELECT 
                 a.id,
@@ -35,10 +35,9 @@ class ProfitLossReport(Report):
             WHERE a.company_id = ?
             AND a.account_type IN ('REVENUE', 'EXPENSE')
             AND a.is_active = 1
-            AND je.is_posted = 1
-            AND je.entry_date >= ? AND je.entry_date <= ?
+            AND (je.is_posted = 1 OR je.is_posted IS NULL)
+            AND (je.entry_date >= ? AND je.entry_date <= ? OR je.entry_date IS NULL)
             GROUP BY a.id
-            HAVING balance != 0
             ORDER BY a.account_code
         """, (company_id, date_from, date_to))
 
