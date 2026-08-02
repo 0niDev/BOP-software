@@ -759,20 +759,28 @@ class PurchaseInvoiceView(QWidget):
             QMessageBox.warning(self, "Input Error", "Please add at least one item to the invoice.")
             return
         
-        # Disable save button during processing
+        # Store current form data before clearing
+        current_invoice_number = invoice_number
+        current_supplier_id = supplier_id
+        current_items = items.copy()
+        
+        # Disable save button briefly to prevent double-click
         self.save_button.setEnabled(False)
         self.save_button.setText("Saving...")
+        
+        # Clear form immediately so user can start new invoice
+        QTimer.singleShot(0, self._clear_form)
         
         if self._selected_invoice_id is None:
             # Create invoice in background thread
             self._save_thread = InvoiceSaveThread(
                 self.invoice_controller,
                 is_create=True,
-                invoice_number=invoice_number,
-                supplier_id=supplier_id,
+                invoice_number=current_invoice_number,
+                supplier_id=current_supplier_id,
                 invoice_date=invoice_date,
                 payment_type=payment_type,
-                items=items,
+                items=current_items,
                 notes=notes,
                 bank_account_id=bank_account_id,
             )
@@ -784,11 +792,11 @@ class PurchaseInvoiceView(QWidget):
                 self.invoice_controller,
                 is_create=False,
                 invoice_id=self._selected_invoice_id,
-                invoice_number=invoice_number,
-                supplier_id=supplier_id,
+                invoice_number=current_invoice_number,
+                supplier_id=current_supplier_id,
                 invoice_date=invoice_date,
                 payment_type=payment_type,
-                items=items,
+                items=current_items,
                 notes=notes,
                 status="CONFIRMED",
                 bank_account_id=bank_account_id,
@@ -798,6 +806,7 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_save_completed(self, success: bool, error: str, invoice: object | None):
         """Handle completion of background save operation."""
+        # Re-enable save button (it may have been re-enabled by clear_form already)
         self.save_button.setEnabled(True)
         self.save_button.setText("Save")
         
@@ -807,10 +816,11 @@ class PurchaseInvoiceView(QWidget):
                     self.invoice_created.emit(invoice)
                 else:
                     self.invoice_updated.emit(invoice)
-            self._load_invoices()
-            self._clear_form()
+            # Refresh invoice list in background
+            QTimer.singleShot(0, self._load_invoices)
         else:
-            QMessageBox.warning(self, "Operation Failed", error)
+            # Show error message - form was already cleared
+            QMessageBox.warning(self, "Operation Failed", f"Error saving invoice: {error}\n\nThe form has been cleared. You can re-enter the data.")
 
     def _on_edit_clicked(self) -> None:
         if self._selected_invoice_id is not None:
