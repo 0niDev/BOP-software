@@ -33,17 +33,37 @@ class JournalRepository(BaseRepository):
         return entry_id
 
     def next_voucher_number(self, company_id: int, document_type: str) -> str:
+        """Get next voucher number for the given document type.
+        
+        Args:
+            company_id: Company identifier
+            document_type: Type of document (e.g., 'SALES', 'PURCHASE')
+            
+        Returns:
+            Formatted voucher number string
+        """
+        # Map voucher types to numbering sequence document types
+        doc_type_mapping = {
+            'SALES': 'SALES_INVOICE',
+            'PURCHASE': 'PURCHASE_INVOICE',
+            'PAYMENT': 'PAYMENT',
+            'RECEIPT': 'RECEIPT',
+            'JOURNAL': 'JOURNAL_VOUCHER',
+            'OPENING': 'OPENING',
+        }
+        seq_doc_type = doc_type_mapping.get(document_type, document_type)
+        
         row = self.db.fetch_one(
             "SELECT prefix, next_number, padding FROM numbering_sequences "
             "WHERE company_id = ? AND document_type = ?",
-            (company_id, document_type),
+            (company_id, seq_doc_type),
         )
         if row is None:
             prefix, next_number, padding = f"{document_type}-", 1, 5
             self.db.execute(
                 "INSERT INTO numbering_sequences (company_id, document_type, prefix, "
                 "next_number, padding) VALUES (?, ?, ?, ?, ?)",
-                (company_id, document_type, prefix, next_number, padding),
+                (company_id, seq_doc_type, prefix, next_number, padding),
             )
         else:
             prefix, next_number, padding = row["prefix"], row["next_number"], row["padding"]
@@ -51,7 +71,7 @@ class JournalRepository(BaseRepository):
         self.db.execute(
             "UPDATE numbering_sequences SET next_number = next_number + 1 "
             "WHERE company_id = ? AND document_type = ?",
-            (company_id, document_type),
+            (company_id, seq_doc_type),
         )
         return f"{prefix}{str(next_number).zfill(padding)}"
     def find_lines_for_entry(self, journal_entry_id: int) -> list[dict]:
