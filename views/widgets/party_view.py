@@ -231,7 +231,7 @@ class PartyView(QWidget):
 
     def _on_filter_changed(self, index: int) -> None:
         """Reloads when party type filter changes"""
-        self._load_parties()
+        self._load_parties_async()
 
     def _on_table_clicked(self, index) -> None:
         """Loads selected party into form for editing"""
@@ -302,7 +302,7 @@ class PartyView(QWidget):
                 # code is NOT sent here - auto-generated!
             )
             if success:
-                self._load_parties()
+                self._load_parties_async()
                 self._clear_form()
                 QMessageBox.information(self, "Success", 
                     "Party created successfully! Code was auto-generated.")
@@ -318,13 +318,18 @@ class PartyView(QWidget):
                 is_active=True,
             )
             if success:
-                self._load_parties()
+                self._load_parties_async()
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Update Failed", error)
         
         invalidate_db_cache()  # Clear all cache
-    # ← NEW METHODS ADDED HERE
+    
+    def _load_parties(self) -> None:
+        """Synchronous wrapper for loading parties (for backward compatibility)."""
+        self._show_loading_state()
+        self._load_parties_async()
+    
     def _on_edit_clicked(self) -> None:
         """Handles explicit edit button click"""
         if self._selected_party_id is not None:
@@ -354,12 +359,11 @@ class PartyView(QWidget):
             success, error = self.controller.deactivate_party(self._selected_party_id)
             if success:
                 self.party_deleted.emit(self._selected_party_id)
-                self._load_parties()
+                self._load_parties_async()
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
-        invalidate_db_cache()  #
-    # ← END NEW METHODS
+        invalidate_db_cache()  # Clear all cache
 
     # ← CHANGED: Method renamed from _on_clear_clicked to _on_add_clicked
     def _on_add_clicked(self) -> None:
@@ -369,4 +373,3 @@ class PartyView(QWidget):
         self.code_input.setEnabled(True)
         self.type_input.setEnabled(True)
     # ← END CHANGED
-
