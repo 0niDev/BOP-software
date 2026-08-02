@@ -16,11 +16,11 @@ def add_bom_numbering():
             INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
             VALUES (1, 'BOM', 'BOM-', 1, 5)
         """)
-        logger.info("✅ Added BOM numbering")
+        logger.info("[OK] Added BOM numbering")
     else:
         logger.info("⏭️ BOM numbering already exists")
     
-    logger.info("✅ BOM numbering setup complete!")
+    logger.info("[OK] BOM numbering setup complete!")
 
 if __name__ == "__main__":
     add_bom_numbering()

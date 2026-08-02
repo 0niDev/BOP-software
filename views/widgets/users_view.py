@@ -127,7 +127,7 @@ class UsersView(QWidget):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
         self._load_users()
-        print("🔄 Users View refreshed")
+        print("[R] Users View refreshed")
 
     def _build_ui(self):
         layout = QVBoxLayout(self)

@@ -63,12 +63,12 @@ class BackupView(QWidget):
         backup_local_btn.setMinimumHeight(40)
         buttons_layout.addWidget(backup_local_btn)
         
-        restore_btn = QPushButton("🔄 Restore Backup")
+        restore_btn = QPushButton("[R] Restore Backup")
         restore_btn.clicked.connect(self._restore_backup)
         restore_btn.setMinimumHeight(40)
         buttons_layout.addWidget(restore_btn)
         
-        refresh_btn = QPushButton("🔄 Refresh Status")
+        refresh_btn = QPushButton("[R] Refresh Status")
         refresh_btn.clicked.connect(self._load_backup_status)
         refresh_btn.setMinimumHeight(40)
         buttons_layout.addWidget(refresh_btn)
@@ -97,7 +97,7 @@ class BackupView(QWidget):
         status, error = self.controller.get_backup_status()
         
         if error:
-            self.status_label.setText(f"❌ Error: {error}")
+            self.status_label.setText(f"[ERROR] Error: {error}")
             return
 
         if not status:
@@ -107,7 +107,7 @@ class BackupView(QWidget):
         # Update locations text
         locations_text = ""
         for location, info in status.items():
-            exists = "✅" if info["exists"] else "❌"
+            exists = "[OK]" if info["exists"] else "[ERROR]"
             count = info["count"]
             latest = info["latest"] or "No backups"
             locations_text += f"{exists} {location}: {count} backups (Latest: {latest})\n"
@@ -124,17 +124,17 @@ class BackupView(QWidget):
             row += 1
 
         self.history_table.resizeColumnsToContents()
-        self.status_label.setText("✅ Status updated")
+        self.status_label.setText("[OK] Status updated")
 
     def _backup_all(self):
         """Backup to all locations."""
-        self.status_label.setText("🔄 Backing up to all locations...")
+        self.status_label.setText("[R] Backing up to all locations...")
         
         results, error = self.controller.backup_all()
         
         if error:
             QMessageBox.warning(self, "Backup Failed", error)
-            self.status_label.setText(f"❌ Backup failed: {error}")
+            self.status_label.setText(f"[ERROR] Backup failed: {error}")
             return
 
         if results:
@@ -143,29 +143,29 @@ class BackupView(QWidget):
             
             if success_count == total_count:
                 QMessageBox.information(self, "Backup Complete", 
-                    f"✅ Successfully backed up to all {total_count} locations!")
+                    f"[OK] Successfully backed up to all {total_count} locations!")
             else:
                 QMessageBox.warning(self, "Backup Partial", 
-                    f"⚠️ Backup complete: {success_count}/{total_count} locations successful.")
+                    f"[WARN] Backup complete: {success_count}/{total_count} locations successful.")
             
-            self.status_label.setText(f"✅ Backup complete: {success_count}/{total_count} locations")
+            self.status_label.setText(f"[OK] Backup complete: {success_count}/{total_count} locations")
             self._load_backup_status()
 
     def _backup_local(self):
         """Backup to local folder only."""
-        self.status_label.setText("🔄 Creating local backup...")
+        self.status_label.setText("[R] Creating local backup...")
         
         success, error = self.controller.backup_local()
         
         if error:
             QMessageBox.warning(self, "Backup Failed", error)
-            self.status_label.setText(f"❌ Local backup failed: {error}")
+            self.status_label.setText(f"[ERROR] Local backup failed: {error}")
             return
 
         if success:
             QMessageBox.information(self, "Backup Complete", 
-                "✅ Local backup created successfully in the 'backups' folder!")
-            self.status_label.setText("✅ Local backup complete")
+                "[OK] Local backup created successfully in the 'backups' folder!")
+            self.status_label.setText("[OK] Local backup complete")
             self._load_backup_status()
 
     def _restore_backup(self):
@@ -183,7 +183,7 @@ class BackupView(QWidget):
         reply = QMessageBox.question(
             self,
             "Confirm Restore",
-            f"⚠️ Restoring will REPLACE your current database!\n\n"
+            f"[WARN] Restoring will REPLACE your current database!\n\n"
             f"Backup file: {file_path}\n\n"
             f"Are you sure you want to continue?",
             QMessageBox.Yes | QMessageBox.No
@@ -192,16 +192,16 @@ class BackupView(QWidget):
         if reply != QMessageBox.Yes:
             return
 
-        self.status_label.setText("🔄 Restoring from backup...")
+        self.status_label.setText("[R] Restoring from backup...")
         
         success, error = self.controller.restore_backup(file_path)
         
         if error:
             QMessageBox.warning(self, "Restore Failed", error)
-            self.status_label.setText(f"❌ Restore failed: {error}")
+            self.status_label.setText(f"[ERROR] Restore failed: {error}")
             return
 
         if success:
             QMessageBox.information(self, "Restore Complete", 
-                "✅ Database restored successfully!\n\nPlease restart the application.")
-            self.status_label.setText("✅ Restore complete")
+                "[OK] Database restored successfully!\n\nPlease restart the application.")
+            self.status_label.setText("[OK] Restore complete")

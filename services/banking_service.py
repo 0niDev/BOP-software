@@ -57,7 +57,7 @@ class BankingService:
         if opening_balance < 0:
             raise ValidationError("Opening balance cannot be negative.")
         
-        # ✅ CHECK FOR DUPLICATE ACCOUNT NUMBER
+        # [OK] CHECK FOR DUPLICATE ACCOUNT NUMBER
         existing = self.account_repo.find_by_account_number(account_number.strip(), company_id)
         if existing:
             raise ValidationError(f"Bank account number '{account_number}' already exists.")
@@ -173,7 +173,7 @@ class BankingService:
         if not bank_account:
             raise ValidationError("Bank account not found.")
         
-        # ✅ ADD BALANCE CHECK FOR WITHDRAWALS
+        # [OK] ADD BALANCE CHECK FOR WITHDRAWALS
         if txn_type == "WITHDRAWAL":
             current_balance = self.get_balance(bank_account_id)
             if amount > current_balance:
@@ -319,7 +319,7 @@ class BankingService:
         if cheque["status"] != "UNCLEARED":
             raise ValidationError(f"Cheque is already {cheque['status']}.")
 
-        # ✅ ADD BALANCE CHECK FOR ISSUED CHEQUES
+        # [OK] ADD BALANCE CHECK FOR ISSUED CHEQUES
         if cheque["cheque_type"] == "ISSUED":
             current_balance = self.get_balance(cheque["bank_account_id"])
             if cheque["amount"] > current_balance:

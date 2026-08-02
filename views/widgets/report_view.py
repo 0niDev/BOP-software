@@ -94,7 +94,7 @@ class ReportView(QWidget):
             self._is_loaded = True
         if self.party_combo.currentIndex() > 0:
             self._show_party_ledger()
-        logger.info("🔄 Report View refreshed")
+        logger.info("[R] Report View refreshed")
     
     def _on_report_error(self, error_msg):
         """Handle report loading errors."""
@@ -1017,7 +1017,7 @@ class ReportView(QWidget):
         balance_label = data.get('balance_label', 'Zero Balance')
         party_type = data.get('party_type', 'CUSTOMER')
         
-        # ✅ Set color based on balance type
+        # [OK] Set color based on balance type
         if balance_type == "Receivable":
             color = '#28a745'  # Green - Customer owes us
         elif balance_type == "Payable":
@@ -1029,7 +1029,7 @@ class ReportView(QWidget):
         else:
             color = '#6c757d'  # Gray - Zero balance
 
-        # ✅ Show party type
+        # [OK] Show party type
         party_type_label = "Customer" if data.get('is_customer', False) else "Supplier"
 
         html = f"""
@@ -1083,7 +1083,7 @@ class ReportView(QWidget):
 
         if data.get('transactions'):
             for txn in data['transactions']:
-                # ✅ Color code based on balance
+                # [OK] Color code based on balance
                 txn_balance = txn['balance']
                 if txn_balance > 0.01:
                     balance_class = 'balance-positive'

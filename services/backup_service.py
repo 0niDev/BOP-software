@@ -46,12 +46,12 @@ class BackupService:
         total_count = len(results)
         
         for location, success in results.items():
-            status = "✅" if success else "❌"
+            status = "[OK]" if success else "[ERROR]"
             short_name = location.replace(os.path.expanduser("~"), "~")
             print(f"  {status} {short_name}")
 
         print("-"*60)
-        print(f"  ✅ {success_count}/{total_count} backups successful")
+        print(f"  [OK] {success_count}/{total_count} backups successful")
         print("="*60)
 
         return results
@@ -68,11 +68,11 @@ class BackupService:
             shutil.copy2(self.db_path, backup_path)
             self._cleanup_old_backups(backup_dir, keep=self.max_backups)
             
-            print(f"  ✅ Local: backups/{backup_name}")
+            print(f"  [OK] Local: backups/{backup_name}")
             return True
 
         except Exception as e:
-            print(f"  ❌ Local backup failed: {e}")
+            print(f"  [ERROR] Local backup failed: {e}")
             logger.error(f"Local backup failed: {e}")
             return False
 
@@ -83,7 +83,7 @@ class BackupService:
             
             # Skip if path doesn't exist (like a drive that's not connected)
             if not location_path.exists():
-                print(f"  ⚠️ Skipping {location}: Path does not exist")
+                print(f"  [WARN] Skipping {location}: Path does not exist")
                 return False
                 
             location_path.mkdir(parents=True, exist_ok=True)
@@ -94,11 +94,11 @@ class BackupService:
             shutil.copy2(self.db_path, backup_path)
             self._cleanup_old_backups(location_path, keep=self.max_backups)
 
-            print(f"  ✅ {location}: {backup_name}")
+            print(f"  [OK] {location}: {backup_name}")
             return True
 
         except Exception as e:
-            print(f"  ❌ {location} backup failed: {e}")
+            print(f"  [ERROR] {location} backup failed: {e}")
             logger.error(f"Backup to {location} failed: {e}")
             return False
 
@@ -114,11 +114,11 @@ class BackupService:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 zipf.write(self.db_path, "erp.db")
 
-            print(f"  ✅ Zip backup: {zip_path}")
+            print(f"  [OK] Zip backup: {zip_path}")
             return True
 
         except Exception as e:
-            print(f"  ❌ Zip backup failed: {e}")
+            print(f"  [ERROR] Zip backup failed: {e}")
             return False
 
     def _cleanup_old_backups(self, directory: Path, keep: int = 10):
@@ -162,18 +162,18 @@ class BackupService:
         """Restore from a backup file."""
         try:
             if not os.path.exists(backup_path):
-                print(f"❌ Backup file not found: {backup_path}")
+                print(f"[ERROR] Backup file not found: {backup_path}")
                 return False
 
             # Create backup of current database first
             if os.path.exists(self.db_path):
                 shutil.copy2(self.db_path, f"{self.db_path}.pre_restore")
-                print(f"✅ Current database backed up to {self.db_path}.pre_restore")
+                print(f"[OK] Current database backed up to {self.db_path}.pre_restore")
 
             shutil.copy2(backup_path, self.db_path)
-            print(f"✅ Restored from: {backup_path}")
+            print(f"[OK] Restored from: {backup_path}")
             return True
 
         except Exception as e:
-            print(f"❌ Restore failed: {e}")
+            print(f"[ERROR] Restore failed: {e}")
             return False

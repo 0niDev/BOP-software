@@ -28,7 +28,7 @@ class PaymentView(QWidget):
         layout.setSpacing(10)
 
         # Title
-        title = QLabel("💰 Payments")
+        title = QLabel("[BALANCE] Payments")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(title)
 

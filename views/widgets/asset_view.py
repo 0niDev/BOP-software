@@ -271,7 +271,7 @@ class AssetDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Success",
-                f"✅ Asset '{name}' logged!\n\n"
+                f"[OK] Asset '{name}' logged!\n\n"
                 f"Amount: Rs. {amount:,.2f}\n"
                 f"Asset Code: {asset_code}\n"
                 f"Classification: {classification}\n"

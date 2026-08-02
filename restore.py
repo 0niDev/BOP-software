@@ -9,7 +9,7 @@ from services.backup_service import BackupService
 def main():
     """Restore from backup."""
     print("\n" + "="*60)
-    print("🔄 RESTORE FROM BACKUP")
+    print("[R] RESTORE FROM BACKUP")
     print("="*60)
     
     # List available backups
@@ -17,7 +17,7 @@ def main():
     backup_files = glob.glob("backups/erp_backup_*.db")
     
     if not backup_files:
-        print("❌ No backups found in 'backups' folder")
+        print("[ERROR] No backups found in 'backups' folder")
         return
     
     print("\n📋 Available backups:")
@@ -34,17 +34,17 @@ def main():
             backup_path = backup_files[choice - 1]
             service = BackupService()
             
-            confirm = input(f"⚠️ Restore from {backup_path}? (yes/no): ")
+            confirm = input(f"[WARN] Restore from {backup_path}? (yes/no): ")
             if confirm.lower() == "yes":
                 success = service.restore_backup(backup_path)
                 if success:
-                    print("✅ Database restored successfully!")
+                    print("[OK] Database restored successfully!")
                 else:
-                    print("❌ Restore failed!")
+                    print("[ERROR] Restore failed!")
         else:
-            print("❌ Invalid selection")
+            print("[ERROR] Invalid selection")
     except ValueError:
-        print("❌ Invalid input")
+        print("[ERROR] Invalid input")
     
     print("="*60)
 

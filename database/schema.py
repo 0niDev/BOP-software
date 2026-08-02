@@ -316,7 +316,7 @@ SCHEMA_STATEMENTS: list[str] = [
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_id          INTEGER NOT NULL REFERENCES sales_invoices(id) ON DELETE CASCADE,
         item_id             INTEGER NOT NULL REFERENCES items(id),
-        batch_id            INTEGER REFERENCES stock_batches(id),  -- ✅ FIXED: NULL allowed
+        batch_id            INTEGER REFERENCES stock_batches(id),  -- [OK] FIXED: NULL allowed
         quantity            REAL NOT NULL,
         unit_price          REAL NOT NULL,
         discount_amount     REAL NOT NULL DEFAULT 0,
@@ -516,7 +516,7 @@ SCHEMA_STATEMENTS: list[str] = [
         notes               TEXT,
         created_by          INTEGER REFERENCES users(id),
         created_at          TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at          TEXT,  -- ✅ ADD THIS LINE
+        updated_at          TEXT,  -- [OK] ADD THIS LINE
         completed_at        TEXT,
         UNIQUE (company_id, order_number)
     );

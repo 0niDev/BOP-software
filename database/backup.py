@@ -16,9 +16,9 @@ def main():
     
     print("\n" + "="*60)
     if success_count == total_count:
-        print(f"✅ All {total_count} backups successful!")
+        print(f"[OK] All {total_count} backups successful!")
     else:
-        print(f"⚠️ {success_count}/{total_count} backups successful")
+        print(f"[WARN] {success_count}/{total_count} backups successful")
     print("="*60)
 
 

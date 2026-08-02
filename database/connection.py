@@ -136,7 +136,7 @@ class SQLiteCloudConnection(DatabaseConnection):
         self._config = config or get_config().database
         self._connection_string = self._get_connection_string()
         init_pool(self._connection_string)
-        logger.info("✅ SQLiteCloudConnection initialized (direct mode)")
+        logger.info("[OK] SQLiteCloudConnection initialized (direct mode)")
 
     def _get_connection_string(self) -> str:
         import os
