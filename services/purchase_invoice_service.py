@@ -58,11 +58,19 @@ class PurchaseInvoiceService:
         manufacturing_date: str | None = None,
         expiry_date: str | None = None,
         batch_cache: dict | None = None,
+        item_cache: dict | None = None,
     ) -> None:
         """Update stock when purchasing items."""
         import datetime
         
-        item = self.item_master_repo.get_by_id(item_id)
+        # Use cached item if available
+        if item_cache is not None and item_id in item_cache:
+            item = item_cache[item_id]
+        else:
+            item = self.item_master_repo.get_by_id(item_id)
+            if item_cache is not None:
+                item_cache[item_id] = item
+        
         if not item:
             logger.warning(f"Item {item_id} not found for stock update")
             return
@@ -76,13 +84,6 @@ class PurchaseInvoiceService:
             manufacturing_date = datetime.date.today().isoformat()
         if not expiry_date:
             expiry_date = (datetime.date.today() + datetime.timedelta(days=730)).isoformat()
-        
-        existing = self.db.fetch_one("""
-            SELECT id, quantity_in_stock 
-            FROM stock_batches 
-            WHERE item_id = ? AND warehouse_id = ? AND is_active = 1
-            ORDER BY id DESC LIMIT 1
-        """, (item_id, warehouse_id))
         
         # Use cached batch if available
         cache_key = f"{item_id}_{warehouse_id}"
@@ -219,7 +220,7 @@ class PurchaseInvoiceService:
             created_by=created_by
         )
 
-        # Get accounts
+        # Get accounts - cache them to avoid repeated lookups
         inventory_account_dict = self.account_repo.find_by_code("1200")
         if not inventory_account_dict:
             raise ValidationError("Inventory account (1200) not found.")
@@ -237,6 +238,7 @@ class PurchaseInvoiceService:
 
         tax_account_dict = self.account_repo.find_by_code("2100")
         tax_account_id = tax_account_dict["id"] if tax_account_dict else None
+        bank_account_dict = self.account_repo.find_by_code("1010")
 
         # ============================================================
         # 🔴 FIX: Determine credit account AND party_id
@@ -266,7 +268,6 @@ class PurchaseInvoiceService:
             
         else:
             # Default to master bank account
-            bank_account_dict = self.account_repo.find_by_code("1010")
             if not bank_account_dict:
                 raise ValidationError("Bank account (1010) not found.")
             credit_account_id = bank_account_dict["id"]
@@ -307,8 +308,9 @@ class PurchaseInvoiceService:
         with self.db.transaction():
             invoice.id = self.invoice_repo.insert_unique(invoice.to_dict())
             
-            # Create batch cache to avoid redundant database lookups
+            # Create caches to avoid redundant database lookups
             batch_cache = {}
+            item_cache = {}
             
             for item_data in validated_items:
                 item_data["invoice_id"] = invoice.id
@@ -324,6 +326,7 @@ class PurchaseInvoiceService:
                     manufacturing_date=item_data.get("manufacturing_date"),
                     expiry_date=item_data.get("expiry_date"),
                     batch_cache=batch_cache,
+                    item_cache=item_cache,
                 )
             
             # ✅ Post journal entry with party_id
