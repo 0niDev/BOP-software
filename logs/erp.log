@@ -1,0 +1,34 @@
+2026-08-02 17:02:31,167 | ERROR    | erp.database.connection | SQL execute failed: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number | sql=INSERT INTO journal_entries (company_id, voucher_number, voucher_type, entry_date, reference_no, narration, source_table, source_id, is_posted, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+2026-08-02 17:02:31,167 | ERROR    | erp.repositories.journal_repository | Insert failed on journal_entries
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 267, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 126, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 270, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+2026-08-02 17:02:31,167 | ERROR    | erp.database.connection | Transaction rolled back: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+2026-08-02 17:02:36,285 | ERROR    | erp.database.connection | SQL execute failed: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number | sql=INSERT INTO journal_entries (company_id, voucher_number, voucher_type, entry_date, reference_no, narration, source_table, source_id, is_posted, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+2026-08-02 17:02:36,285 | ERROR    | erp.repositories.journal_repository | Insert failed on journal_entries
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 267, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 126, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 270, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+2026-08-02 17:02:36,286 | ERROR    | erp.database.connection | Transaction rolled back: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
