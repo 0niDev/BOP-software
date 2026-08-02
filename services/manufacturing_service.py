@@ -64,7 +64,7 @@ class ManufacturingService:
         if finished_item["item_type"] != "FINISHED_GOOD":
             raise ValidationError("Finished item must be of type FINISHED_GOOD.")
 
-        # 2. ✅ Handle BOM name (manual or auto-generate)
+        # 2. [OK] Handle BOM name (manual or auto-generate)
         if bom_name is not None:
             bom_name = bom_name.strip()
             if not bom_name:

@@ -97,7 +97,7 @@ class BOMDialog(QDialog):
         form_group = QGroupBox("BOM Details")
         form_layout = QFormLayout(form_group)
         
-        # ✅ BOM Name - Auto-generated, read-only
+        # [OK] BOM Name - Auto-generated, read-only
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Auto-generated on save")
         self.name_input.setReadOnly(True)
@@ -198,7 +198,7 @@ class BOMDialog(QDialog):
 
     def get_bom_data(self) -> dict | None:
         """Get BOM data from the dialog."""
-        # ✅ BOM name is auto-generated - don't require it
+        # [OK] BOM name is auto-generated - don't require it
         finished_item_id = self.finished_item_combo.currentData()
         if not finished_item_id:
             QMessageBox.warning(self, "Selection Error", "Please select a finished item.")
@@ -240,7 +240,7 @@ class BOMDialog(QDialog):
                     f"{item.item_name} ({item.item_code})", item.id
                 )
                 finished_count += 1
-                print(f"  ✅ Finished: {item.item_code}")
+                print(f"  [OK] Finished: {item.item_code}")
         
         # Component items (raw materials and packing materials)
         self.component_item_combo.clear()
@@ -252,7 +252,7 @@ class BOMDialog(QDialog):
                     f"{item.item_name} ({item.item_code})", item.id
                 )
                 component_count += 1
-                print(f"  ✅ Component: {item.item_code}")
+                print(f"  [OK] Component: {item.item_code}")
         
         print(f"\n📊 Summary: {finished_count} finished, {component_count} components")
         print("="*60)

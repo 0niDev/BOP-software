@@ -167,7 +167,7 @@ class OpeningBalanceDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Equity Calculated",
-                f"✅ Equity set to Rs. {equity_needed:,.2f}\n\n"
+                f"[OK] Equity set to Rs. {equity_needed:,.2f}\n\n"
                 f"Assets (Debit):   Rs. {total_debit:,.2f}\n"
                 f"Liabilities (Credit): Rs. {total_credit:,.2f}\n"
                 f"Equity needed:    Rs. {equity_needed:,.2f}"
@@ -261,7 +261,7 @@ class OpeningBalanceDialog(QDialog):
             QMessageBox.information(
                 self,
                 "Success",
-                f"✅ Opening balance of Rs. {total_debit:,.2f} posted successfully!"
+                f"[OK] Opening balance of Rs. {total_debit:,.2f} posted successfully!"
             )
             self.accept()
 

@@ -29,7 +29,7 @@ class BackupConfig:
                 path.mkdir(parents=True, exist_ok=True)
                 valid.append(str(path))
             except Exception as e:
-                print(f"⚠️ Skipping {location}: {e}")
+                print(f"[WARN] Skipping {location}: {e}")
                 continue
         return valid
 

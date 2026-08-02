@@ -112,7 +112,7 @@ class ChartOfAccountsWidget(QWidget):
         header_row.addWidget(self.search_input)
 
         # ← ADD OPENING BALANCE BUTTON
-        opening_btn = QPushButton("💰 Opening Balance")
+        opening_btn = QPushButton("[BALANCE] Opening Balance")
         opening_btn.clicked.connect(self._on_opening_balance)
         opening_btn.setStyleSheet("background: #3498db; color: white; font-weight: bold;")
         header_row.addWidget(opening_btn)

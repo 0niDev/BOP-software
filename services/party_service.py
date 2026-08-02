@@ -40,7 +40,7 @@ class PartyService:
         if credit_limit < 0:
             raise ValidationError("Credit limit cannot be negative.")
 
-        # 2. ✅ FIX: Handle code properly
+        # 2. [OK] FIX: Handle code properly
         if code is not None:
             # Manual code provided - validate it
             code = code.strip()

@@ -23,7 +23,7 @@ def create_backup():
     
     os.makedirs(backup_dir, exist_ok=True)
     
-    print(f"🔄 Creating .db backup: {backup_file}")
+    print(f"[R] Creating .db backup: {backup_file}")
     
     try:
         # Connect to cloud database
@@ -36,7 +36,7 @@ def create_backup():
         tables = cloud_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
         
         if not tables:
-            print("⚠️ No tables found in database")
+            print("[WARN] No tables found in database")
             cloud_conn.close()
             local_conn.close()
             return None
@@ -80,12 +80,12 @@ def create_backup():
             print(f"  🗑️ Removed old backup: {os.path.basename(old_file)}")
         
         size = os.path.getsize(backup_file)
-        print(f"\n✅ .db backup created: {backup_file}")
+        print(f"\n[OK] .db backup created: {backup_file}")
         print(f"📊 Size: {size / 1024:.2f} KB")
         return backup_file
         
     except Exception as e:
-        print(f"❌ Backup failed: {e}")
+        print(f"[ERROR] Backup failed: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -94,14 +94,14 @@ def create_backup():
 def restore_backup(backup_file):
     """Restore from a .db backup file."""
     if not os.path.exists(backup_file):
-        print(f"❌ Backup file not found: {backup_file}")
+        print(f"[ERROR] Backup file not found: {backup_file}")
         return False
     
-    print(f"⚠️ RESTORE WARNING: This will replace your current database!")
+    print(f"[WARN] RESTORE WARNING: This will replace your current database!")
     confirm = input("Are you sure you want to continue? (yes/no): ")
     
     if confirm.lower() != 'yes':
-        print("❌ Restore cancelled.")
+        print("[ERROR] Restore cancelled.")
         return False
     
     try:
@@ -145,11 +145,11 @@ def restore_backup(backup_file):
         local_conn.close()
         cloud_conn.close()
         
-        print(f"✅ Database restored from: {backup_file}")
+        print(f"[OK] Database restored from: {backup_file}")
         return True
         
     except Exception as e:
-        print(f"❌ Restore failed: {e}")
+        print(f"[ERROR] Restore failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -204,14 +204,14 @@ def main():
                     if 0 <= idx < len(backups):
                         restore_backup(backups[idx])
                     else:
-                        print("❌ Invalid selection.")
+                        print("[ERROR] Invalid selection.")
                 except ValueError:
-                    print("❌ Please enter a valid number.")
+                    print("[ERROR] Please enter a valid number.")
         elif choice == '4':
             print("👋 Goodbye!")
             break
         else:
-            print("❌ Invalid option. Please select 1-4.")
+            print("[ERROR] Invalid option. Please select 1-4.")
 
 
 if __name__ == "__main__":

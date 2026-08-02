@@ -24,7 +24,7 @@ class BaseView(QWidget):
 
     def _on_data_changed(self, data: dict = None):
         """Called when data changes anywhere in the system."""
-        print(f"🔄 Data changed: {data} - Refreshing {self.__class__.__name__}")
+        print(f"Data changed: {data} - Refreshing {self.__class__.__name__}")
         if hasattr(self, 'refresh'):
             self.refresh()
         elif hasattr(self, '_load_data'):

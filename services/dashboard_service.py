@@ -67,10 +67,10 @@ class DashboardService:
         # Check cache
         if cache_key in self._cache:
             if time.time() - self._cache_time.get(cache_key, 0) < self._cache_ttl:
-                logger.info(f"✅ Dashboard cache hit for {cache_key}")
+                logger.info(f"[OK] Dashboard cache hit for {cache_key}")
                 return self._cache[cache_key]
         
-        logger.info(f"🔄 Dashboard cache miss, fetching from DB...")
+        logger.info(f"[R] Dashboard cache miss, fetching from DB...")
         today = datetime.now().date().isoformat()
         month_start = datetime.now().date().replace(day=1).isoformat()
         
@@ -143,10 +143,10 @@ class DashboardService:
             ))
             
             if not result:
-                logger.warning("⚠️ No result from main dashboard query")
+                logger.warning("[WARN] No result from main dashboard query")
                 result = {}
             
-            logger.info("✅ Main dashboard query completed")
+            logger.info("[OK] Main dashboard query completed")
             
             # ============================================================
             # Recent transactions (one query, not 5 separate ones)
@@ -212,7 +212,7 @@ class DashboardService:
                 LIMIT 15
             """, (company_id, company_id, company_id, company_id, company_id))
             
-            logger.info(f"✅ Fetched {len(recent)} recent transactions")
+            logger.info(f"[OK] Fetched {len(recent)} recent transactions")
             
             # ============================================================
             # Low stock (one query)
@@ -231,7 +231,7 @@ class DashboardService:
                 LIMIT 10
             """, (company_id,))
             
-            logger.info(f"✅ Found {len(low_stock)} low stock items")
+            logger.info(f"[OK] Found {len(low_stock)} low stock items")
             
             # ============================================================
             # Expiring items (one query)
@@ -254,7 +254,7 @@ class DashboardService:
                 LIMIT 10
             """, (company_id, today))
             
-            logger.info(f"✅ Found {len(expiring)} expiring items")
+            logger.info(f"[OK] Found {len(expiring)} expiring items")
             
             # ============================================================
             # Build the data dictionary
@@ -335,12 +335,12 @@ class DashboardService:
             self._cache[cache_key] = data
             self._cache_time[cache_key] = time.time()
             
-            logger.info(f"✅ Dashboard data built and cached")
+            logger.info(f"[OK] Dashboard data built and cached")
             
             return data
             
         except Exception as e:
-            logger.exception(f"❌ Error fetching dashboard data: {e}")
+            logger.exception(f"[ERROR] Error fetching dashboard data: {e}")
             # Return empty data on error
             return {
                 "today": {"sales_total": 0, "sales_count": 0, "purchases_total": 0, "purchases_count": 0},
