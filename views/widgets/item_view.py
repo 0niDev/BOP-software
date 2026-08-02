@@ -64,7 +64,11 @@ class StockLoadThread(QThread):
                     FROM stock_batches
                     WHERE item_id = ? AND is_active = 1
                 """, (item_id,))
-                stocks[item_id] = stock_result["total"] if stock_result else 0
+                # Fix: Handle None result and ensure we get the 'total' key
+                if stock_result and "total" in stock_result:
+                    stocks[item_id] = float(stock_result["total"])
+                else:
+                    stocks[item_id] = 0.0
             self.stocks_loaded.emit(stocks)
         except Exception as e:
             logger.exception(f"Error in stock load thread: {e}")
