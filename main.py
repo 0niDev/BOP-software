@@ -39,7 +39,7 @@ def cleanup():
         # Create backup before closing
         from database.auto_backup import auto_backup
         logger.info("🔄 Creating exit backup...")
-        # auto_backup()
+        auto_backup()
         logger.info("✅ Exit backup created")
         
         logger.info("🔄 Closing database connections...")
