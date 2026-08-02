@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QDate, QThread, Signal
+from PySide6.QtCore import Qt, QDate
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -28,35 +28,13 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class ReportLoadThread(QThread):
-    """Background thread for loading reports."""
-    finished = Signal(str)  # HTML content
-    error = Signal(str)     # Error message
-    
-    def __init__(self, report_func, *args, **kwargs):
-        super().__init__()
-        self.report_func = report_func
-        self.args = args
-        self.kwargs = kwargs
-    
-    def run(self):
-        try:
-            result = self.report_func(*self.args, **self.kwargs)
-            self.finished.emit(result)
-        except Exception as e:
-            logger.error(f"Report load error: {e}")
-            self.error.emit(str(e))
-
-
 class ReportView(QWidget):
-    """Widget for viewing and exporting reports with async loading."""
-    
+    """Widget for viewing and exporting reports."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.controller = ReportController()
         self.party_controller = PartyController()
-        self._load_thread = None
-        self._is_loaded = False
         self._build_ui()
     def _set_report_font_size(self, text_edit: QTextEdit, size: int = 12):
         """Set font size for a report text edit."""
@@ -88,18 +66,10 @@ class ReportView(QWidget):
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
-        # Lazy load - only load on first visit
-        if not self._is_loaded:
-            self._load_parties()
-            self._is_loaded = True
+        self._load_parties()
         if self.party_combo.currentIndex() > 0:
             self._show_party_ledger()
-        logger.info("🔄 Report View refreshed")
-    
-    def _on_report_error(self, error_msg):
-        """Handle report loading errors."""
-        QMessageBox.critical(self, "Report Error", f"Failed to load report:\n{error_msg}")
-        logger.error(f"Report view error: {error_msg}")
+        print("🔄 Report View refreshed")
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -290,54 +260,16 @@ class ReportView(QWidget):
         return f"Rs. {amount:,.2f}"
 
     def _show_trial_balance(self):
-        """Show trial balance with async loading."""
-        # Show loading state immediately
-        if hasattr(self, 'tb_text'):
-            self.tb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#666;'>⏳ Loading Trial Balance...</div>")
-        
-        # Cancel previous thread if running
-        if self._load_thread and self._load_thread.isRunning():
-            self._load_thread.terminate()
-            self._load_thread.wait()
-        
-        # Start new thread
-        self._load_thread = ReportLoadThread(
-            self.controller.get_trial_balance
-        )
-        self._load_thread.finished.connect(self._on_trial_balance_loaded)
-        self._load_thread.error.connect(self._on_report_error)
-        self._load_thread.start()
-    
-    def _on_trial_balance_loaded(self, result):
-        """Handle trial balance data loaded from thread."""
-        # Unpack tuple (data, error) returned by controller
-        if isinstance(result, tuple):
-            data, error = result
-        else:
-            data, error = result, None
-        
+        """Show trial balance with 6 columns: Code, Name, ODR, OCR, CDR, CCR + Parties Summary."""
+        data, error = self.controller.get_trial_balance()
         if error:
             QMessageBox.warning(self, "Error", error)
             return
-        
-        # Don't show error if no data - just show 0s
+
         if not data:
-            from datetime import datetime
-            data = {
-                "rows": [],
-                "grouped_rows": {},
-                "total_odr": 0,
-                "total_ocr": 0,
-                "total_cdr": 0,
-                "total_ccr": 0,
-                "is_balanced": True,
-                "balance_diff": 0,
-                "period_label": "",
-                "generated_at": datetime.now().isoformat(),
-                "parties_summary": []
-            }
-        
-        # Reuse existing HTML generation logic (lines 295-480)
+            QMessageBox.information(self, "No Data", "No data found.")
+            return
+
         rows = data.get('rows', [])
         total_odr = data.get('total_odr', 0)
         total_ocr = data.get('total_ocr', 0)
@@ -564,71 +496,19 @@ class ReportView(QWidget):
     # PROFIT & LOSS - TABLE VERSION
     # ============================================================
     def _show_profit_loss(self):
-        """Show profit & loss statement with async loading."""
-        # Show loading state immediately
-        if hasattr(self, 'pl_text'):
-            self.pl_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#666;'>⏳ Loading Profit & Loss...</div>")
-        
-        # Cancel previous thread if running
-        if self._load_thread and self._load_thread.isRunning():
-            self._load_thread.terminate()
-            self._load_thread.wait()
-        
+        """Show profit & loss statement with table format for Excel export."""
         date_from = self.pl_date_from.date().toString("yyyy-MM-dd")
         date_to = self.pl_date_to.date().toString("yyyy-MM-dd")
-        
-        # Start new thread
-        self._load_thread = ReportLoadThread(
-            self.controller.get_profit_loss, date_from, date_to
-        )
-        self._load_thread.finished.connect(self._on_profit_loss_loaded)
-        self._load_thread.error.connect(self._on_report_error)
-        self._load_thread.start()
-    
-    def _on_profit_loss_loaded(self, result):
-        """Handle P&L data loaded from thread."""
-        # Unpack tuple (data, error) returned by controller
-        if isinstance(result, tuple):
-            data, error = result
-        else:
-            data, error = result, None
-        
+
+        data, error = self.controller.get_profit_loss(date_from, date_to)
         if error:
             QMessageBox.warning(self, "Error", error)
             return
-        
-        # Don't show error if no data - just show 0s
+
         if not data:
-            date_from = self.pl_date_from.date().toString("yyyy-MM-dd")
-            date_to = self.pl_date_to.date().toString("yyyy-MM-dd")
-            data = {
-                "title": "Profit & Loss Statement",
-                "date_from": date_from,
-                "date_to": date_to,
-                "generated_at": datetime.now().isoformat(),
-                "period_label": f"Period: {date_from} to {date_to}",
-                "sales": [],
-                "total_sales": 0,
-                "cost_of_sales": [],
-                "total_cost_of_sales": 0,
-                "gross_profit": 0,
-                "general_admin": [],
-                "total_general_admin": 0,
-                "selling_distribution": [],
-                "total_selling_distribution": 0,
-                "other_operating": [],
-                "total_other_operating": 0,
-                "total_operating_expenses": 0,
-                "other_income": [],
-                "total_other_income": 0,
-                "profit_from_operations": 0,
-                "finance_cost": [],
-                "total_finance_cost": 0,
-                "profit_before_tax": 0,
-                "net_profit": 0,
-                "is_profit": True,
-            }
-        
+            QMessageBox.information(self, "No Data", "No data found.")
+            return
+
         is_profit = data.get('is_profit', False)
         profit = data.get('net_profit', 0)
         color = '#28a745' if is_profit else '#dc3545'
@@ -684,7 +564,7 @@ class ReportView(QWidget):
         <body>
         <div class="header">
             <h1>PROFIT & LOSS STATEMENT</h1>
-            <div class="subtitle">Period: {data.get('date_from', 'N/A')} to {data.get('date_to', 'N/A')}</div>
+            <div class="subtitle">Period: {date_from} to {date_to}</div>
         </div>
         <table class="pl-table">
         """
@@ -791,40 +671,16 @@ class ReportView(QWidget):
     # BALANCE SHEET - TABLE VERSION
     # ============================================================
     def _show_balance_sheet(self):
-        """Show balance sheet with async loading."""
-        # Show loading state immediately
-        if hasattr(self, 'bs_text'):
-            self.bs_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#666;'>⏳ Loading Balance Sheet...</div>")
-        
-        # Cancel previous thread if running
-        if self._load_thread and self._load_thread.isRunning():
-            self._load_thread.terminate()
-            self._load_thread.wait()
-        
-        # Start new thread
-        self._load_thread = ReportLoadThread(
-            self.controller.get_balance_sheet
-        )
-        self._load_thread.finished.connect(self._on_balance_sheet_loaded)
-        self._load_thread.error.connect(self._on_report_error)
-        self._load_thread.start()
-    
-    def _on_balance_sheet_loaded(self, result):
-        """Handle balance sheet data loaded from thread."""
-        # Unpack tuple (data, error) returned by controller
-        if isinstance(result, tuple):
-            data, error = result
-        else:
-            data, error = result, None
-        
+        """Show balance sheet with table format for Excel export."""
+        data, error = self.controller.get_balance_sheet()
         if error:
             QMessageBox.warning(self, "Error", error)
             return
-        
+
         if not data:
-            self.bs_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found. Please add some transactions first.</div>")
+            QMessageBox.information(self, "No Data", "No data found.")
             return
-        
+
         balanced = data.get('is_balanced', True)
         color = '#28a745' if balanced else '#dc3545'
         status_text = '✓ Balanced' if balanced else '✗ Not Balanced'
@@ -968,50 +824,25 @@ class ReportView(QWidget):
 
 
     def _show_party_ledger(self):
-        """Show party ledger with async loading."""
+        """Show party ledger with correct balance for both customers and suppliers."""
         party_id = self.party_combo.currentData()
         if not party_id:
             QMessageBox.warning(self, "Selection Error", "Please select a party.")
             return
-        
-        # Show loading state immediately
-        if hasattr(self, 'pl_text2'):
-            self.pl_text2.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#666;'>⏳ Loading Party Ledger...</div>")
-        
-        # Cancel previous thread if running
-        if self._load_thread and self._load_thread.isRunning():
-            self._load_thread.terminate()
-            self._load_thread.wait()
-        
-        # Start new thread
-        self._load_thread = ReportLoadThread(
-            self.controller.get_party_ledger, party_id
-        )
-        self._load_thread.finished.connect(self._on_party_ledger_loaded)
-        self._load_thread.error.connect(self._on_report_error)
-        self._load_thread.start()
-    
-    def _on_party_ledger_loaded(self, result):
-        """Handle party ledger data loaded from thread."""
-        # Unpack tuple (data, error) returned by controller
-        if isinstance(result, tuple):
-            data, error = result
-        else:
-            data, error = result, None
-        
+
+        data, error = self.controller.get_party_ledger(party_id)
         if error:
             QMessageBox.warning(self, "Error", error)
             return
-        
+
         if not data:
-            self.pl_text2.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for this party.</div>")
+            QMessageBox.information(self, "No Data", "No transactions found.")
             return
-        
+
         if "error" in data:
-            error_msg = data.get("error", "Unknown error")
-            QMessageBox.warning(self, "Error", error_msg)
+            QMessageBox.warning(self, "Error", data["error"])
             return
-        
+
         balance = data.get('closing_balance', 0)
         balance_type = data.get('balance_type', 'Zero')
         balance_label = data.get('balance_label', 'Zero Balance')
@@ -1149,57 +980,23 @@ class ReportView(QWidget):
     # CASH BOOK
     # ============================================================
     def _show_cash_book(self):
-        """Show cash book with async loading."""
+        """Show cash book with table format for Excel export."""
         date_from = self.cb_date_from.date().toString("yyyy-MM-dd")
         date_to = self.cb_date_to.date().toString("yyyy-MM-dd")
-        
-        # Show loading state immediately
-        if hasattr(self, 'cb_text'):
-            self.cb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#666;'>⏳ Loading Cash Book...</div>")
-        
-        # Cancel previous thread if running
-        if self._load_thread and self._load_thread.isRunning():
-            self._load_thread.terminate()
-            self._load_thread.wait()
-        
-        # Start new thread
-        self._load_thread = ReportLoadThread(
-            self.controller.get_cash_book, date_from, date_to
-        )
-        self._load_thread.finished.connect(self._on_cash_book_loaded)
-        self._load_thread.error.connect(self._on_report_error)
-        self._load_thread.start()
-    
-    def _on_cash_book_loaded(self, result):
-        """Handle cash book data loaded from thread."""
-        # Unpack tuple (data, error) returned by controller
-        if isinstance(result, tuple):
-            data, error = result
-        else:
-            data, error = result, None
-        
+
+        data, error = self.controller.get_cash_book(date_from, date_to)
         if error:
             QMessageBox.warning(self, "Error", error)
             return
-        
-        # Don't show error if no data - just show 0s
+
         if not data:
-            data = {
-                "title": "Cash Book",
-                "date_from": self.cb_date_from.date().toString("yyyy-MM-dd"),
-                "date_to": self.cb_date_to.date().toString("yyyy-MM-dd"),
-                "opening_balance": 0,
-                "transactions": [],
-                "total_received": 0,
-                "total_paid": 0,
-                "closing_balance": 0
-            }
-        
-        if "error" in data:
-            error_msg = data.get("error", "Unknown error")
-            QMessageBox.warning(self, "Error", error_msg)
+            QMessageBox.information(self, "No Data", "No data found.")
             return
-        
+
+        if "error" in data:
+            QMessageBox.warning(self, "Error", data["error"])
+            return
+
         balance = data['closing_balance']
         balance_color = '#28a745' if balance >= 0 else '#dc3545'
 
@@ -1251,4 +1048,4 @@ class ReportView(QWidget):
         """
 
         self.cb_text.setHtml(html)
-        self._set_report_font_size(self.cb_text, 14)  # 14pt font
+        self._set_report_font_size(self.tb_text, 14)  # 14pt font
