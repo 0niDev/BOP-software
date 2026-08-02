@@ -764,7 +764,7 @@ class PurchaseInvoiceView(QWidget):
         current_supplier_id = supplier_id
         current_items = items.copy()
         
-        # Disable save button briefly to prevent double-click
+        # Disable save button briefly to prevent double-click on same data
         self.save_button.setEnabled(False)
         self.save_button.setText("Saving...")
         
@@ -786,6 +786,9 @@ class PurchaseInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
+            # Re-enable save button immediately so user can submit another invoice
+            self.save_button.setEnabled(True)
+            self.save_button.setText("Save")
         else:
             # Update invoice in background thread
             self._save_thread = InvoiceSaveThread(
@@ -803,6 +806,9 @@ class PurchaseInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
+            # Re-enable save button immediately so user can submit another invoice
+            self.save_button.setEnabled(True)
+            self.save_button.setText("Save")
     
     def _on_save_completed(self, success: bool, error: str, invoice: object | None):
         """Handle completion of background save operation."""
