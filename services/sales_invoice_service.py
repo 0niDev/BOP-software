@@ -128,6 +128,9 @@ class SalesInvoiceService:
         discount_amount = Decimal('0')
         tax_amount = Decimal('0')
         
+        # Cache for items to avoid redundant DB lookups
+        item_cache = {}
+        
         for item_data in items:
             item_id = item_data.get("item_id")
             quantity = Decimal(str(item_data.get("quantity", 0)))
@@ -141,7 +144,13 @@ class SalesInvoiceService:
             if unit_price < 0:
                 raise ValidationError(f"Unit price cannot be negative for item {item_id}")
             
-            item_dict = self.item_master_repo.get_by_id(item_id)
+            # Use cached item if available
+            if item_id in item_cache:
+                item_dict = item_cache[item_id]
+            else:
+                item_dict = self.item_master_repo.get_by_id(item_id)
+                item_cache[item_id] = item_dict
+            
             if not item_dict:
                 raise ValidationError(f"Item {item_id} does not exist.")
             item = Item.from_row(item_dict)
@@ -199,6 +208,7 @@ class SalesInvoiceService:
             created_by=created_by
         )
 
+        # Use cached account lookups to improve performance
         revenue_account_dict = self.account_repo.find_by_code("4000")
         if not revenue_account_dict:
             raise ValidationError("Sales Revenue account (4000) not found.")
@@ -310,10 +320,17 @@ class SalesInvoiceService:
             # ============================================================
             # ADD COGS ENTRY HERE (BEFORE bank transaction)
             # ============================================================
-            # Calculate total COGS
+            # Calculate total COGS using cached item data
             cogs_total = Decimal('0')
             for item_data in validated_items:
-                item_dict = self.item_master_repo.get_by_id(item_data["item_id"])
+                # Use item_cache if available, otherwise fetch
+                item_id = item_data["item_id"]
+                if item_id in item_cache:
+                    item_dict = item_cache[item_id]
+                else:
+                    item_dict = self.item_master_repo.get_by_id(item_id)
+                    item_cache[item_id] = item_dict
+                    
                 if item_dict:
                     purchase_price = Decimal(str(item_dict.get("purchase_price", 0)))
                     cogs_total += purchase_price * Decimal(str(item_data["quantity"]))

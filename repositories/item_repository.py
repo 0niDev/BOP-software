@@ -10,13 +10,21 @@ class ItemRepository(BaseRepository):
 
     def find_by_code(self, item_code: str, company_id: int = 1) -> dict | None:
         """Finds item by item_code"""
-        return self.db.fetch_one(
+        cache_key = self._get_cache_key("find_by_code", item_code, company_id)
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+        
+        result = self.db.fetch_one(
             """
             SELECT * FROM items 
             WHERE item_code = ? AND company_id = ?
             """,
             (item_code, company_id),
         )
+        if result:
+            self._set_cached(cache_key, result)
+        return result
 
     def code_exists(self, item_code: str, company_id: int = 1, exclude_id: int | None = None) -> bool:
         """Checks if item code exists"""
