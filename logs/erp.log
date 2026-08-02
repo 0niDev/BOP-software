@@ -29721,3 +29721,11 @@ AttributeError: 'SalesInvoiceService' object has no attribute '_update_stock'
 2026-08-02 03:11:24,318 | INFO     | erp.database.connection | SQLite Cloud connections closed
 2026-08-02 03:11:24,322 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
 2026-08-02 03:11:24,324 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-02 10:11:46,111 | ERROR    | erp.database.connection | SQL execute failed: no such table: journal_lines | sql=SELECT jl.*, a.account_code, a.account_name FROM journal_lines jl JOIN accounts a ON jl.account_id = a.id WHERE jl.entry_id IN (SELECT id FROM journal_entries ORDER BY id DESC LIMIT 20) ORDER BY jl.entry_id DESC
+2026-08-02 10:11:56,577 | ERROR    | erp.database.connection | SQL execute failed: no such column: jel.entry_id | sql=
+SELECT jel.*, a.account_code, a.account_name 
+FROM journal_entry_lines jel 
+JOIN accounts a ON jel.account_id = a.id 
+WHERE jel.entry_id IN (4, 3) 
+ORDER BY jel.entry_id DESC
+

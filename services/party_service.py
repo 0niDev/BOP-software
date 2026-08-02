@@ -154,8 +154,28 @@ class PartyService:
         return [Party.from_row(r) for r in rows]
 
     def get_balance(self, party_id: int) -> float:
-        """Gets net balance (placeholder - to be implemented in Sales/Purchases)"""
-        return 0.0
+        """Gets net balance for a party from journal entry lines."""
+        result = self.db.fetch_one("""
+            SELECT 
+                COALESCE(SUM(CASE WHEN jel.debit > 0 THEN jel.debit ELSE 0 END), 0) as total_debit,
+                COALESCE(SUM(CASE WHEN jel.credit > 0 THEN jel.credit ELSE 0 END), 0) as total_credit
+            FROM journal_entry_lines jel
+            JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.is_posted = 1
+            WHERE jel.party_id = ?
+        """, (party_id,))
+        
+        if not result:
+            return 0.0
+        
+        # For suppliers (liability): credit balance is what we owe them
+        # For customers (asset): debit balance is what they owe us
+        party = self.repo.get_by_id(party_id)
+        if party and party.get('party_type') == 'SUPPLIER':
+            # Supplier balance = credits - debits (positive = we owe them)
+            return result['total_credit'] - result['total_debit']
+        else:
+            # Customer balance = debits - credits (positive = they owe us)
+            return result['total_debit'] - result['total_credit']
 
     def _has_open_transactions(self, party_id: int) -> bool:
         """Helper: Checks if party has open invoices/payments"""

@@ -1,9 +1,16 @@
 ```
-# Database files
-*.db
-data/*.db
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Cache files
-*.cache
-*.tmp
+# Logs
+*.log
+logs/
+
+# Dependencies
+.venv/
+venv/
+env/
 ```
