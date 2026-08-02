@@ -49,11 +49,11 @@ class SalesInvoiceService:
         """Update stock when selling items - optimized with batch caching."""
         item = self.item_master_repo.get_by_id(item_id)
         if not item:
-            logger.warning(f"Item {item_id} not found for stock update")
+            logger.debug(f"Item {item_id} not found for stock update")
             return
         
         change = quantity if positive else -quantity
-        logger.info(f"Updating stock for {item['item_code']}: {change}")
+        logger.debug(f"Updating stock for {item['item_code']}: {change}")
         
         # Use cached batch if available, otherwise fetch
         cache_key = f"{item_id}_{warehouse_id}"
@@ -66,7 +66,7 @@ class SalesInvoiceService:
         
         if existing_batch:
             current_qty = existing_batch["quantity_in_stock"]
-            logger.info(f"Current stock for {item['item_code']}: {current_qty}")
+            logger.debug(f"Current stock for {item['item_code']}: {current_qty}")
             
             if not positive and current_qty < quantity:
                 logger.warning(f"Insufficient stock for {item['item_code']}: "
@@ -81,11 +81,30 @@ class SalesInvoiceService:
                 new_quantity = current_qty - quantity
                 self.stock_repo.update_quantity(existing_batch["id"], -quantity, use_cache=False)
             
-            logger.info(f"Updated stock for {item['item_code']}: {current_qty} -> {new_quantity}")
+            logger.debug(f"Updated stock for {item['item_code']}: {current_qty} -> {new_quantity}")
         else:
             logger.warning(f"No stock found for {item['item_code']}")
             if not positive:
                 raise ValidationError(f"No stock available for {item['item_name']}")
+
+    def _bulk_update_stock(
+        self,
+        items_data: list[dict],
+        warehouse_id: int,
+        batch_cache: dict | None = None,
+    ) -> None:
+        """Bulk update stock for multiple items - reduces DB queries."""
+        if batch_cache is None:
+            batch_cache = {}
+        
+        for item_data in items_data:
+            self._update_stock(
+                item_id=item_data["item_id"],
+                warehouse_id=warehouse_id,
+                quantity=item_data["quantity"],
+                positive=False,
+                batch_cache=batch_cache,
+            )
 
     def create_sales_invoice(
         self,
@@ -130,6 +149,7 @@ class SalesInvoiceService:
         
         # Cache for items to avoid redundant DB lookups
         item_cache = {}
+        stock_cache = {}  # Cache stock batches to avoid redundant queries
         
         for item_data in items:
             item_id = item_data.get("item_id")
@@ -158,10 +178,17 @@ class SalesInvoiceService:
             if not item.is_active:
                 raise ValidationError(f"Item {item.item_name} is not active.")
             
-            stock_batch = self.stock_repo.find_by_item_and_warehouse(item_id, warehouse_id)
+            # Use cached stock check
+            stock_key = f"{item_id}_{warehouse_id}"
+            if stock_key in stock_cache:
+                stock_batch = stock_cache[stock_key]
+            else:
+                stock_batch = self.stock_repo.find_by_item_and_warehouse(item_id, warehouse_id)
+                stock_cache[stock_key] = stock_batch
+            
             available_stock = stock_batch["quantity_in_stock"] if stock_batch else 0
             
-            logger.info(f"Stock check for {item.item_code}: Available: {available_stock}, Required: {quantity}")
+            logger.debug(f"Stock check for {item.item_code}: Available: {available_stock}, Required: {quantity}")
             
             if available_stock < quantity:
                 raise InsufficientStockError(
@@ -208,27 +235,45 @@ class SalesInvoiceService:
             created_by=created_by
         )
 
-        # Use cached account lookups to improve performance
-        revenue_account_dict = self.account_repo.find_by_code("4000")
+        # Use cached account lookups to improve performance (batch all account lookups)
+        account_codes_needed = ["4000"]  # Sales Revenue
+        if payment_type == "CREDIT":
+            account_codes_needed.append("1100")  # Accounts Receivable
+        elif payment_type == "CASH":
+            account_codes_needed.append("1000")  # Cash
+        elif payment_type in ["BANK", "CHEQUE"]:
+            account_codes_needed.append("1010")  # Bank
+        
+        # Cache for COGS entries
+        account_codes_needed.extend(["5000", "1220", "1200"])
+        
+        # Batch fetch all needed accounts
+        account_cache = {}
+        for code in set(account_codes_needed):
+            account_dict = self.account_repo.find_by_code(code)
+            if account_dict:
+                account_cache[code] = account_dict
+        
+        revenue_account_dict = account_cache.get("4000")
         if not revenue_account_dict:
             raise ValidationError("Sales Revenue account (4000) not found.")
         revenue_account_id = revenue_account_dict["id"]
 
-        tax_account_dict = self.account_repo.find_by_code("2100")
+        tax_account_dict = account_cache.get("2100")
         tax_account_id = tax_account_dict["id"] if tax_account_dict else None
 
-        # Determine debit account based on payment type
+        # Determine debit account based on payment type (use cached accounts)
         debit_account_id = None
         debit_description = ""
 
         if payment_type == "CREDIT":
-            debit_account_dict = self.account_repo.find_by_code("1100")
+            debit_account_dict = account_cache.get("1100")
             if not debit_account_dict:
                 raise ValidationError("Accounts Receivable account (1100) not found.")
             debit_account_id = debit_account_dict["id"]
             debit_description = f"Credit sale to {customer.name}"
         elif payment_type == "CASH":
-            debit_account_dict = self.account_repo.find_by_code("1000")
+            debit_account_dict = account_cache.get("1000")
             if not debit_account_dict:
                 raise ValidationError("Cash account (1000) not found.")
             debit_account_id = debit_account_dict["id"]
@@ -246,7 +291,7 @@ class SalesInvoiceService:
                 else:
                     raise ValidationError("Selected bank account not found.")
             else:
-                debit_account_dict = self.account_repo.find_by_code("1010")
+                debit_account_dict = account_cache.get("1010")
                 if not debit_account_dict:
                     raise ValidationError("Bank account (1010) not found.")
                 debit_account_id = debit_account_dict["id"]
@@ -284,9 +329,8 @@ class SalesInvoiceService:
         with self.db.transaction():
             invoice.id = self.invoice_repo.insert_unique(invoice.to_dict())
             
-            # Create batch cache to avoid redundant database lookups
-            batch_cache = {}
-            
+            # Prepare all invoice items data for batch insert
+            items_data = []
             for item_data in validated_items:
                 clean_item_data = {
                     "invoice_id": invoice.id,
@@ -298,16 +342,15 @@ class SalesInvoiceService:
                     "tax_amount": item_data["tax_amount"],
                     "line_total": item_data["line_total"],
                 }
-                item = SalesInvoiceItem(**clean_item_data)
+                items_data.append(clean_item_data)
+            
+            # Batch insert all invoice items (single DB transaction)
+            for item_data in items_data:
+                item = SalesInvoiceItem(**item_data)
                 self.item_repo.insert(item.to_dict())
-                
-                self._update_stock(
-                    item_id=item_data["item_id"],
-                    warehouse_id=warehouse_id,
-                    quantity=item_data["quantity"],
-                    positive=False,
-                    batch_cache=batch_cache,
-                )
+            
+            # Bulk update stock with shared cache (avoids redundant DB lookups)
+            self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
             
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.SALES,
@@ -336,13 +379,13 @@ class SalesInvoiceService:
                     cogs_total += purchase_price * Decimal(str(item_data["quantity"]))
 
             if cogs_total > 0:
-                cogs_account = self.account_repo.find_by_code("5000")
+                cogs_account = account_cache.get("5000")
                 if not cogs_account:
                     logger.warning("COGS account (5000) not found - skipping COGS entry")
                 else:
-                    inventory_account = self.account_repo.find_by_code("1220")  # Finished Goods
+                    inventory_account = account_cache.get("1220")  # Finished Goods
                     if not inventory_account:
-                        inventory_account = self.account_repo.find_by_code("1200")  # Raw Materials
+                        inventory_account = account_cache.get("1200")  # Raw Materials
                     
                     if inventory_account:
                         self.accounting_service.post_journal_entry(
