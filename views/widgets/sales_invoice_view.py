@@ -28,6 +28,7 @@ from controllers.payment_controller import PaymentController
 from controllers.sales_invoice_controller import SalesInvoiceController
 from controllers.party_controller import PartyController
 from controllers.item_controller import ItemController
+from database.connection import invalidate_db_cache
 from controllers.banking_controller import BankingController
 from database.connection import get_db
 from models.sales_invoice import SalesInvoice
@@ -751,7 +752,7 @@ class SalesInvoiceView(QWidget):
                 QMessageBox.warning(self, "Creation Failed", error)
         else:
             success, error = self.invoice_controller.update_sales_invoice(
-                invoice_id=self._selected_invoice_id,
+                invoice_id=self._selected_item_id,
                 invoice_number=invoice_number,
                 customer_id=customer_id,
                 invoice_date=invoice_date,
@@ -773,6 +774,8 @@ class SalesInvoiceView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Update Failed", error)
+        
+        invalidate_db_cache()  # Clear all cache
 
     def _on_edit_clicked(self) -> None:
         if self._selected_invoice_id is not None:
@@ -804,6 +807,8 @@ class SalesInvoiceView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
+        
+        invalidate_db_cache()  # Clear all cache
 
     def _on_clear_clicked(self) -> None:
         self._clear_form()
