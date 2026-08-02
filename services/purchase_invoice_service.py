@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List
 
-from database.connection import DatabaseConnection, get_db
+from database.connection import DatabaseConnection, get_db, invalidate_db_cache
 from models.enums import VoucherType
 from models.purchase_invoice import PurchaseInvoice
 from models.purchase_invoice_item import PurchaseInvoiceItem

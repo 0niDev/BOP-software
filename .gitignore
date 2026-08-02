@@ -1,1 +1,42 @@
-Nothing should be ignored based on the provided file changes. The only modified file is a Python source file (`repositories/stock_batch_repository.py`), which should not be added to .gitignore. Since there are no build artifacts, dependencies, temporary files, or other ignorable items in the changes, no .gitignore rules are needed.
+```
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Python cache
+.mypy_cache/
+.pytest_cache/
+
+# System files
+.DS_Store
+Thumbs.db
+```

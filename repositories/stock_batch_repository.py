@@ -86,8 +86,11 @@ class StockBatchRepository(BaseRepository):
             """,
             (quantity_change, batch_id),
         )
-        # Invalidate cache for all item/warehouse combinations
+        # Invalidate ALL cache to ensure dashboard and views get fresh data
         self._invalidate_cache()
+        # Also invalidate item repository cache since stock changed
+        from repositories.item_repository import ItemRepository
+        ItemRepository.clear_all_cache()
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""
