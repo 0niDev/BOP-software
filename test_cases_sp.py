@@ -74,7 +74,7 @@ def test_purchase_payment_type_changes():
     item = get_item("RAW-MET-001")
     
     if not supplier or not item:
-        print("[ERROR] Test data not found. Run seed_data.py first.")
+        print("❌ Test data not found. Run seed_data.py first.")
         return
     
     print(f"\n📋 Using Supplier: {supplier.name}")
@@ -106,7 +106,7 @@ def test_purchase_payment_type_changes():
             notes="Test - Initial Credit"
         )
         test_invoices.append(invoice)
-        print(f"  [OK] Created invoice as CREDIT: {invoice.invoice_number}")
+        print(f"  ✅ Created invoice as CREDIT: {invoice.invoice_number}")
         
         # Change to CASH
         purchase_service.update_purchase_invoice(
@@ -119,7 +119,7 @@ def test_purchase_payment_type_changes():
             notes="Test - Changed to CASH",
             status="CONFIRMED"
         )
-        print(f"  [OK] Changed to CASH")
+        print(f"  ✅ Changed to CASH")
         
         # Change back to CREDIT
         purchase_service.update_purchase_invoice(
@@ -132,24 +132,24 @@ def test_purchase_payment_type_changes():
             notes="Test - Changed back to CREDIT",
             status="CONFIRMED"
         )
-        print(f"  [OK] Changed back to CREDIT")
+        print(f"  ✅ Changed back to CREDIT")
         
         # Verify
         final_cash = get_balance('1000')
         final_ap = get_balance('2000')
         
         if abs(final_ap - initial_ap - 25000) < 0.01:
-            print("  [OK] AP correct (increased by 25,000)")
+            print("  ✅ AP correct (increased by 25,000)")
         else:
-            print(f"  [ERROR] AP not correct. Expected: {initial_ap + 25000:.2f}, Got: {final_ap:.2f}")
+            print(f"  ❌ AP not correct. Expected: {initial_ap + 25000:.2f}, Got: {final_ap:.2f}")
             
         if abs(final_cash - initial_cash) < 0.01:
-            print("  [OK] Cash correct (returned to original)")
+            print("  ✅ Cash correct (returned to original)")
         else:
-            print(f"  [ERROR] Cash not correct. Expected: {initial_cash:.2f}, Got: {final_cash:.2f}")
+            print(f"  ❌ Cash not correct. Expected: {initial_cash:.2f}, Got: {final_cash:.2f}")
             
     except Exception as e:
-        print(f"  [ERROR] Error: {e}")
+        print(f"  ❌ Error: {e}")
     
     # ============================================================
     # TEST: Should NOT allow CREDIT → CASH when paid
@@ -169,7 +169,7 @@ def test_purchase_payment_type_changes():
             notes="Test - Credit for payment test"
         )
         test_invoices.append(invoice2)
-        print(f"  [OK] Created invoice as CREDIT: {invoice2.invoice_number}")
+        print(f"  ✅ Created invoice as CREDIT: {invoice2.invoice_number}")
         
         # Pay it
         from services.payment_service import PaymentService
@@ -183,7 +183,7 @@ def test_purchase_payment_type_changes():
             notes=f"Payment for {invoice2.invoice_number}",
             purchase_invoice_id=invoice2.id  # ← ADD THIS!
         )
-        print(f"  [OK] Paid invoice: Rs. {invoice2.total_amount:,.2f}")
+        print(f"  ✅ Paid invoice: Rs. {invoice2.total_amount:,.2f}")
         
         # Try to change to CASH (should fail)
         try:
@@ -197,23 +197,23 @@ def test_purchase_payment_type_changes():
                 notes="Test - Should fail",
                 status="CONFIRMED"
             )
-            print("  [ERROR] Should have failed! Invoice is paid but changed anyway.")
+            print("  ❌ Should have failed! Invoice is paid but changed anyway.")
         except Exception as e:
-            print(f"  [OK] Correctly failed: {e}")
+            print(f"  ✅ Correctly failed: {e}")
             
     except Exception as e:
-        print(f"  [ERROR] Error: {e}")
+        print(f"  ❌ Error: {e}")
     
     # Clean up
     print("\n🧹 Cleaning up test invoices...")
     for inv in test_invoices:
         try:
             purchase_service.delete_purchase_invoice(inv.id)
-            print(f"  [OK] Deleted {inv.invoice_number}")
+            print(f"  ✅ Deleted {inv.invoice_number}")
         except Exception as e:
-            print(f"  [WARN] Could not delete {inv.invoice_number}: {e}")
+            print(f"  ⚠️ Could not delete {inv.invoice_number}: {e}")
     
-    print("\n[OK] Purchase tests complete!")
+    print("\n✅ Purchase tests complete!")
 
 
 def test_sales_payment_type_changes():
@@ -226,7 +226,7 @@ def test_sales_payment_type_changes():
     item = get_item("PARA-500MG")
     
     if not customer or not item:
-        print("[ERROR] Test data not found. Run seed_data.py first.")
+        print("❌ Test data not found. Run seed_data.py first.")
         return
     
     print(f"\n📋 Using Customer: {customer.name}")
@@ -258,7 +258,7 @@ def test_sales_payment_type_changes():
             notes="Test - Initial Credit"
         )
         test_invoices.append(invoice)
-        print(f"  [OK] Created invoice as CREDIT: {invoice.invoice_number}")
+        print(f"  ✅ Created invoice as CREDIT: {invoice.invoice_number}")
         
         # Receive payment
         from services.payment_service import PaymentService
@@ -272,7 +272,7 @@ def test_sales_payment_type_changes():
             notes=f"Payment for {invoice.invoice_number}",
             sales_invoice_id=invoice.id  # ← ADD THIS!
         )
-        print(f"  [OK] Received payment of Rs. {invoice.total_amount:,.2f}")
+        print(f"  ✅ Received payment of Rs. {invoice.total_amount:,.2f}")
         
         # Try to change to CASH (should fail)
         try:
@@ -286,23 +286,23 @@ def test_sales_payment_type_changes():
                 notes="Test - Should fail",
                 status="CONFIRMED"
             )
-            print("  [ERROR] Should have failed! Invoice is paid but changed anyway.")
+            print("  ❌ Should have failed! Invoice is paid but changed anyway.")
         except Exception as e:
-            print(f"  [OK] Correctly failed: {e}")
+            print(f"  ✅ Correctly failed: {e}")
             
     except Exception as e:
-        print(f"  [ERROR] Error: {e}")
+        print(f"  ❌ Error: {e}")
     
     # Clean up
     print("\n🧹 Cleaning up test invoices...")
     for inv in test_invoices:
         try:
             sales_service.delete_sales_invoice(inv.id)
-            print(f"  [OK] Deleted {inv.invoice_number}")
+            print(f"  ✅ Deleted {inv.invoice_number}")
         except Exception as e:
-            print(f"  [WARN] Could not delete {inv.invoice_number}: {e}")
+            print(f"  ⚠️ Could not delete {inv.invoice_number}: {e}")
     
-    print("\n[OK] Sales tests complete!")
+    print("\n✅ Sales tests complete!")
 
 
 def run_all_tests():
@@ -317,7 +317,7 @@ def run_all_tests():
     print_balances()
     
     print("\n" + "="*60)
-    print("[OK] ALL TESTS COMPLETE")
+    print("✅ ALL TESTS COMPLETE")
     print("="*60)
 
 

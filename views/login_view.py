@@ -54,179 +54,51 @@ class LoginView(QWidget):
 
     def _build_ui(self) -> None:
         self.setWindowTitle(get_config().app_name)
-        self.setMinimumSize(450, 520)
-        self.setStyleSheet("""
-            LoginView {
-                background-color: #F5F7FA;
-            }
-        """)
+        self.setMinimumSize(420, 460)
 
         outer = QVBoxLayout(self)
         outer.setAlignment(Qt.AlignCenter)
-        outer.setContentsMargins(20, 20, 20, 20)
 
         card = QFrame()
         card.setObjectName("loginCard")
-        card.setFixedWidth(380)
+        card.setFixedWidth(340)
         card_layout = QVBoxLayout(card)
-        card_layout.setSpacing(16)
-        card_layout.setContentsMargins(40, 40, 40, 40)
+        card_layout.setSpacing(14)
+        card_layout.setContentsMargins(32, 32, 32, 32)
 
-        # Brand logo/title area
-        brand_title = QLabel("BOP NUTRACEUTICALS")
-        brand_title.setWordWrap(True)
-        brand_title.setAlignment(Qt.AlignCenter)
-        brand_title.setStyleSheet("""
-            color: #2E7D32;
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        """)
-        card_layout.addWidget(brand_title)
+        title = QLabel(get_config().app_name)
+        title.setWordWrap(True)
+        title.setAlignment(Qt.AlignCenter)
+        # ✅ Use constructor with size - NO setPointSize
+        title_font = QFont("Segoe UI", 14, QFont.Bold)
+        title.setFont(title_font)
+        card_layout.addWidget(title)
 
-        brand_subtitle = QLabel("Accounts Software")
-        brand_subtitle.setAlignment(Qt.AlignCenter)
-        brand_subtitle.setStyleSheet("""
-            color: #546E7A;
-            font-size: 12px;
-            font-weight: 400;
-            letter-spacing: 0.5px;
-            margin-top: 0px;
-        """)
-        card_layout.addWidget(brand_subtitle)
-
-        # Separator line
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setStyleSheet("""
-            background-color: #E0E0E0;
-            max-height: 1px;
-            min-height: 1px;
-        """)
-        card_layout.addWidget(separator)
+        subtitle = QLabel("Sign in to continue")
+        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle.setStyleSheet("color: #666;")
+        card_layout.addWidget(subtitle)
         card_layout.addSpacing(10)
 
-        subtitle = QLabel("Sign in to your account")
-        subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setStyleSheet("""
-            color: #546E7A;
-            font-size: 13px;
-            margin-bottom: 8px;
-        """)
-        card_layout.addWidget(subtitle)
-        card_layout.addSpacing(5)
-
-        # Username field
-        username_label = QLabel("Username")
-        username_label.setStyleSheet("""
-            color: #1A1A2E;
-            font-weight: 500;
-            font-size: 12px;
-            margin-bottom: 4px;
-        """)
-        card_layout.addWidget(username_label)
-        
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter your username")
-        self.username_input.setStyleSheet("""
-            QLineEdit {
-                background-color: #FFFFFF;
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                padding: 10px 14px;
-                font-size: 13px;
-                color: #1A1A2E;
-            }
-            QLineEdit:focus {
-                border: 2px solid #2E7D32;
-                padding: 9px 13px;
-            }
-            QLineEdit::placeholder {
-                color: #90A4AE;
-            }
-        """)
+        self.username_input.setPlaceholderText("Username")
         card_layout.addWidget(self.username_input)
 
-        card_layout.addSpacing(5)
-
-        # Password field
-        password_label = QLabel("Password")
-        password_label.setStyleSheet("""
-            color: #1A1A2E;
-            font-weight: 500;
-            font-size: 12px;
-            margin-bottom: 4px;
-        """)
-        card_layout.addWidget(password_label)
-        
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter your password")
+        self.password_input.setPlaceholderText("Password")
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.returnPressed.connect(self._on_login_clicked)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                background-color: #FFFFFF;
-                border: 1px solid #E0E0E0;
-                border-radius: 6px;
-                padding: 10px 14px;
-                font-size: 13px;
-                color: #1A1A2E;
-            }
-            QLineEdit:focus {
-                border: 2px solid #2E7D32;
-                padding: 9px 13px;
-            }
-            QLineEdit::placeholder {
-                color: #90A4AE;
-            }
-        """)
         card_layout.addWidget(self.password_input)
 
-        card_layout.addSpacing(10)
-
         self.error_label = QLabel("")
-        self.error_label.setStyleSheet("""
-            color: #D32F2F;
-            font-size: 12px;
-            font-weight: 500;
-            background-color: #FFEBEE;
-            border-radius: 6px;
-            padding: 8px 12px;
-        """)
+        self.error_label.setStyleSheet("color: #c0392b;")
         self.error_label.setWordWrap(True)
         self.error_label.hide()
         card_layout.addWidget(self.error_label)
 
-        card_layout.addSpacing(10)
-
-        self.login_button = QPushButton("Sign In")
+        self.login_button = QPushButton("Login")
         self.login_button.setDefault(True)
-        self.login_button.setCursor(Qt.PointingHandCursor)
         self.login_button.clicked.connect(self._on_login_clicked)
-        self.login_button.setStyleSheet("""
-            QPushButton {
-                background-color: #2E7D32;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 6px;
-                padding: 12px 24px;
-                font-size: 14px;
-                font-weight: 600;
-                letter-spacing: 0.5px;
-            }
-            QPushButton:hover {
-                background-color: #1B5E20;
-            }
-            QPushButton:pressed {
-                background-color: #1B5E20;
-            }
-            QPushButton:disabled {
-                background-color: #BDBDBD;
-                color: #757575;
-            }
-        """)
         card_layout.addWidget(self.login_button)
 
         outer.addWidget(card, alignment=Qt.AlignCenter)

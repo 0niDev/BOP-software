@@ -27,7 +27,7 @@ def auto_backup():
     backup_file = os.path.join(backup_dir, f"erp_backup_{timestamp}.db")
     
     try:
-        print(f"[R] Creating .db backup at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🔄 Creating .db backup at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Connect to cloud database
         cloud_conn = sqlitecloud.connect(DB_URL)
@@ -39,7 +39,7 @@ def auto_backup():
         tables = cloud_conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
         
         if not tables:
-            print("[WARN] No tables found in database")
+            print("⚠️ No tables found in database")
             cloud_conn.close()
             local_conn.close()
             return False
@@ -77,7 +77,7 @@ def auto_backup():
         cloud_conn.close()
         
         size = os.path.getsize(backup_file)
-        print(f"[OK] .db backup created: {backup_file} ({size / 1024:.2f} KB)")
+        print(f"✅ .db backup created: {backup_file} ({size / 1024:.2f} KB)")
         
         # Cleanup old backups
         backup_files = sorted(
@@ -93,7 +93,7 @@ def auto_backup():
         return True
             
     except Exception as e:
-        print(f"[ERROR] Auto-backup failed: {e}")
+        print(f"❌ Auto-backup failed: {e}")
         import traceback
         traceback.print_exc()
         return False

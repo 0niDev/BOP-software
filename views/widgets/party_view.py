@@ -161,7 +161,7 @@ class PartyView(QWidget):
         self.table.setRowCount(1)
         self.table.setColumnCount(1)
         self.table.setHorizontalHeaderLabels(["Loading..."])
-        loading_item = QTableWidgetItem("[R] Loading parties...")
+        loading_item = QTableWidgetItem("🔄 Loading parties...")
         loading_item.setTextAlignment(Qt.AlignCenter)
         self.table.setItem(0, 0, loading_item)
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -293,7 +293,7 @@ class PartyView(QWidget):
             from models.enums import PartyType
             party_type = PartyType(party_type_value)
             
-            # [OK] DO NOT send code - it will be auto-generated!
+            # ✅ DO NOT send code - it will be auto-generated!
             success, error = self.controller.create_party(
                 name=name,
                 party_type=party_type,

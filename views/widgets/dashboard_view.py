@@ -61,7 +61,7 @@ class DashboardView(QWidget):
         if not self._is_loaded:
             self._load_data()
             self._is_loaded = True
-        logger.info("[R] Dashboard View refreshed on show")
+        logger.info("🔄 Dashboard View refreshed on show")
 
     def _build_ui(self):
         """Build the dashboard UI."""
@@ -119,7 +119,7 @@ class DashboardView(QWidget):
 
     def _load_data(self):
         """Load dashboard data asynchronously."""
-        logger.info("[R] LOADING DASHBOARD DATA")
+        logger.info("🔄 LOADING DASHBOARD DATA")
         
         # Cancel any existing load thread
         if self._load_thread and self._load_thread.isRunning():
@@ -134,12 +134,12 @@ class DashboardView(QWidget):
     def _on_data_loaded(self, data, error):
         """Handle dashboard data loaded from background thread."""
         if error:
-            logger.error(f"[ERROR] Error: {error}")
+            logger.error(f"❌ Error: {error}")
             self._show_empty_state()
             return
         
         if not data:
-            logger.warning("[ERROR] No data returned")
+            logger.warning("❌ No data returned")
             self._show_empty_state()
             return
         
@@ -449,7 +449,7 @@ class DashboardView(QWidget):
         """)
         left_layout = QVBoxLayout(left_frame)
         
-        left_title = QLabel("[WARN] Low Stock Items")
+        left_title = QLabel("⚠️ Low Stock Items")
         left_title.setStyleSheet("font-weight: 600; color: #e74c3c;")
         left_layout.addWidget(left_title)
         

@@ -175,7 +175,7 @@ class ReportController:
         """Generate Party Ledger."""
         try:
             report = PartyLedgerReport(party_id)
-            # [OK] Set date range if available
+            # ✅ Set date range if available
             if hasattr(self, 'date_from') and self.date_from:
                 report.set_date_range(self.date_from, self.date_to)
             data = report.generate()

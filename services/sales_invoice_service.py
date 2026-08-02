@@ -174,7 +174,7 @@ class SalesInvoiceService:
 
         total_amount = subtotal - discount_amount + tax_amount
         
-        # [OK] FIX: Create invoice WITH bank_account_id
+        # ✅ FIX: Create invoice WITH bank_account_id
         invoice = SalesInvoice(
             invoice_number=invoice_number,
             customer_id=customer_id,
@@ -224,7 +224,7 @@ class SalesInvoiceService:
                     debit_account_id = bank_account["account_id"]
                     bank_name = bank_account.get("bank_name", "Selected Bank")
                     debit_description = f"{payment_type} sale - {bank_name}"
-                    logger.info(f"[OK] Using specific bank account: {bank_name}")
+                    logger.info(f"✅ Using specific bank account: {bank_name}")
                 else:
                     raise ValidationError("Selected bank account not found.")
             else:
@@ -337,7 +337,7 @@ class SalesInvoiceService:
                             source_id=invoice.id,
                             narration=f"Cost of Goods Sold for {invoice_number}"
                         )
-                        logger.info(f"[OK] Posted COGS: Rs. {cogs_total:,.2f} for invoice {invoice_number}")
+                        logger.info(f"✅ Posted COGS: Rs. {cogs_total:,.2f} for invoice {invoice_number}")
 
             
             if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
@@ -358,7 +358,7 @@ class SalesInvoiceService:
                     invoice_number,
                     f"Sales invoice {invoice_number} - {payment_type} payment"
                 ))
-                logger.info(f"[OK] Recorded bank deposit for invoice {invoice_number} to bank account {bank_account_id}")
+                logger.info(f"✅ Recorded bank deposit for invoice {invoice_number} to bank account {bank_account_id}")
 
         logger.info("Created sales invoice %s for customer %s (id=%s) - Payment: %s", 
                    invoice_number, customer_id, invoice.id, payment_type)
@@ -700,7 +700,7 @@ class SalesInvoiceService:
                         f"Sales invoice {invoice_number} - {payment_type} payment (updated)",
                         invoice_number
                     ))
-                    logger.info(f"[OK] Updated bank deposit for invoice {invoice_number}")
+                    logger.info(f"✅ Updated bank deposit for invoice {invoice_number}")
                 else:
                     self.db.execute("""
                         INSERT INTO bank_transactions (
@@ -719,14 +719,14 @@ class SalesInvoiceService:
                         invoice_number,
                         f"Sales invoice {invoice_number} - {payment_type} payment"
                     ))
-                    logger.info(f"[OK] Recorded bank deposit for invoice {invoice_number}")
+                    logger.info(f"✅ Recorded bank deposit for invoice {invoice_number}")
             
             elif payment_type == "CASH" and existing_invoice.payment_type in ["BANK", "CHEQUE"]:
                 self.db.execute("""
                     DELETE FROM bank_transactions 
                     WHERE reference_no = ? AND transaction_type = 'DEPOSIT'
                 """, (invoice_number,))
-                logger.info(f"[OK] Removed bank deposit for invoice {invoice_number} (changed to CASH)")
+                logger.info(f"✅ Removed bank deposit for invoice {invoice_number} (changed to CASH)")
         
         logger.info("Updated sales invoice %s (id=%s) - Payment: %s", 
                    invoice_number, invoice_id, payment_type)
@@ -810,6 +810,6 @@ class SalesInvoiceService:
                     DELETE FROM bank_transactions 
                     WHERE reference_no = ? AND transaction_type = 'DEPOSIT'
                 """, (invoice.invoice_number,))
-                logger.info(f"[OK] Removed bank deposit for cancelled invoice {invoice.invoice_number}")
+                logger.info(f"✅ Removed bank deposit for cancelled invoice {invoice.invoice_number}")
         
         logger.info("Cancelled sales invoice %s (id=%s)", invoice.invoice_number, invoice_id)
