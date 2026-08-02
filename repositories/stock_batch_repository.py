@@ -76,7 +76,7 @@ class StockBatchRepository(BaseRepository):
         }
         return self.insert(data)
 
-    def update_quantity(self, batch_id: int, quantity_change: float) -> None:
+    def update_quantity(self, batch_id: int, quantity_change: float, use_cache: bool = True) -> None:
         """Update batch quantity (positive or negative)."""
         self.db.execute(
             """
@@ -86,11 +86,13 @@ class StockBatchRepository(BaseRepository):
             """,
             (quantity_change, batch_id),
         )
-        # Invalidate ALL cache to ensure dashboard and views get fresh data
-        self._invalidate_cache()
-        # Also invalidate item repository cache since stock changed
-        from repositories.item_repository import ItemRepository
-        ItemRepository.clear_all_cache()
+        # Only invalidate cache if explicitly requested (to avoid redundant cache clearing in batch operations)
+        if use_cache:
+            # Invalidate ALL cache to ensure dashboard and views get fresh data
+            self._invalidate_cache()
+            # Also invalidate item repository cache since stock changed
+            from repositories.item_repository import ItemRepository
+            ItemRepository.clear_all_cache()
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""

@@ -83,6 +83,20 @@ class PurchaseInvoiceService:
             ORDER BY id DESC LIMIT 1
         """, (item_id, warehouse_id))
         
+        # Use cached batch if available
+        cache_key = f"{item_id}_{warehouse_id}"
+        if batch_cache is not None and cache_key in batch_cache:
+            existing = batch_cache[cache_key]
+        else:
+            existing = self.db.fetch_one("""
+                SELECT id, quantity_in_stock 
+                FROM stock_batches 
+                WHERE item_id = ? AND warehouse_id = ? AND is_active = 1
+                ORDER BY id DESC LIMIT 1
+            """, (item_id, warehouse_id))
+            if batch_cache is not None:
+                batch_cache[cache_key] = existing
+        
         if existing:
             new_quantity = existing["quantity_in_stock"] + quantity
             self.db.execute("""
@@ -91,6 +105,9 @@ class PurchaseInvoiceService:
                 WHERE id = ?
             """, (new_quantity, existing["id"]))
             logger.info(f"Updated stock for {item['item_code']}: {new_quantity}")
+            # Update cache
+            if batch_cache is not None:
+                batch_cache[cache_key] = {"id": existing["id"], "quantity_in_stock": new_quantity}
         else:
             self.db.execute("""
                 INSERT INTO stock_batches (
@@ -289,6 +306,9 @@ class PurchaseInvoiceService:
         with self.db.transaction():
             invoice.id = self.invoice_repo.insert_unique(invoice.to_dict())
             
+            # Create batch cache to avoid redundant database lookups
+            batch_cache = {}
+            
             for item_data in validated_items:
                 item_data["invoice_id"] = invoice.id
                 item = PurchaseInvoiceItem(**item_data)
@@ -302,6 +322,7 @@ class PurchaseInvoiceService:
                     batch_number=item_data.get("batch_number"),
                     manufacturing_date=item_data.get("manufacturing_date"),
                     expiry_date=item_data.get("expiry_date"),
+                    batch_cache=batch_cache,
                 )
             
             # ✅ Post journal entry with party_id

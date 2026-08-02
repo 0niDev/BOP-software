@@ -44,8 +44,9 @@ class SalesInvoiceService:
         warehouse_id: int,
         quantity: float,
         positive: bool = False,
+        batch_cache: dict | None = None,
     ) -> None:
-        """Update stock when selling items."""
+        """Update stock when selling items - optimized with batch caching."""
         item = self.item_master_repo.get_by_id(item_id)
         if not item:
             logger.warning(f"Item {item_id} not found for stock update")
@@ -54,7 +55,14 @@ class SalesInvoiceService:
         change = quantity if positive else -quantity
         logger.info(f"Updating stock for {item['item_code']}: {change}")
         
-        existing_batch = self.stock_repo.find_by_item_and_warehouse(item_id, warehouse_id)
+        # Use cached batch if available, otherwise fetch
+        cache_key = f"{item_id}_{warehouse_id}"
+        if batch_cache is not None and cache_key in batch_cache:
+            existing_batch = batch_cache[cache_key]
+        else:
+            existing_batch = self.stock_repo.find_by_item_and_warehouse(item_id, warehouse_id)
+            if batch_cache is not None:
+                batch_cache[cache_key] = existing_batch
         
         if existing_batch:
             current_qty = existing_batch["quantity_in_stock"]
@@ -68,10 +76,10 @@ class SalesInvoiceService:
             
             if positive:
                 new_quantity = current_qty + quantity
-                self.stock_repo.update_quantity(existing_batch["id"], quantity)
+                self.stock_repo.update_quantity(existing_batch["id"], quantity, use_cache=False)
             else:
                 new_quantity = current_qty - quantity
-                self.stock_repo.update_quantity(existing_batch["id"], -quantity)
+                self.stock_repo.update_quantity(existing_batch["id"], -quantity, use_cache=False)
             
             logger.info(f"Updated stock for {item['item_code']}: {current_qty} -> {new_quantity}")
         else:
@@ -266,6 +274,9 @@ class SalesInvoiceService:
         with self.db.transaction():
             invoice.id = self.invoice_repo.insert_unique(invoice.to_dict())
             
+            # Create batch cache to avoid redundant database lookups
+            batch_cache = {}
+            
             for item_data in validated_items:
                 clean_item_data = {
                     "invoice_id": invoice.id,
@@ -285,6 +296,7 @@ class SalesInvoiceService:
                     warehouse_id=warehouse_id,
                     quantity=item_data["quantity"],
                     positive=False,
+                    batch_cache=batch_cache,
                 )
             
             self.accounting_service.post_journal_entry(
@@ -629,6 +641,10 @@ class SalesInvoiceService:
             )
             
             self.item_repo.delete_by_invoice_id(invoice_id)
+            
+            # Create batch cache to avoid redundant database lookups
+            batch_cache = {}
+            
             for item_data in validated_items:
                 clean_item_data = {
                     "invoice_id": invoice_id,
@@ -653,6 +669,7 @@ class SalesInvoiceService:
                         warehouse_id=1,
                         quantity=new_qty - original_qty,
                         positive=False,
+                        batch_cache=batch_cache,
                     )
                 elif new_qty < original_qty:
                     self._update_stock(
@@ -660,6 +677,7 @@ class SalesInvoiceService:
                         warehouse_id=1,
                         quantity=original_qty - new_qty,
                         positive=True,
+                        batch_cache=batch_cache,
                     )
             
             if old_journal_lines:
@@ -788,12 +806,16 @@ class SalesInvoiceService:
                 }
             )
             
+            # Create batch cache to avoid redundant database lookups
+            batch_cache = {}
+            
             for item in invoice.items:
                 self._update_stock(
                     item_id=item.item_id,
                     warehouse_id=1,
                     quantity=item.quantity,
                     positive=True,
+                    batch_cache=batch_cache,
                 )
             
             self.accounting_service.post_journal_entry(
