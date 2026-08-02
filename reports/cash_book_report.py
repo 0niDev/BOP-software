@@ -18,7 +18,7 @@ class CashBookReport(Report):
         date_from = self.date_from or datetime.now().replace(day=1).strftime("%Y-%m-%d")
         date_to = self.date_to or datetime.now().strftime("%Y-%m-%d")
 
-        # ONE QUERY - gets all cash and bank transactions
+        # ONE QUERY - gets all cash and bank transactions (show 0s if no data)
         rows = self.db.fetch_all("""
             SELECT 
                 je.entry_date,
@@ -65,6 +65,7 @@ class CashBookReport(Report):
                     "balance": round(cash_in - cash_out, 2)
                 })
 
+        # Return data even if empty (show 0s)
         return {
             "title": self.title,
             "date_from": date_from,

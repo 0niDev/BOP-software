@@ -320,9 +320,22 @@ class ReportView(QWidget):
             QMessageBox.warning(self, "Error", error)
             return
         
+        # Don't show error if no data - just show 0s
         if not data:
-            self.tb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found. Please add some transactions first.</div>")
-            return
+            from datetime import datetime
+            data = {
+                "rows": [],
+                "grouped_rows": {},
+                "total_odr": 0,
+                "total_ocr": 0,
+                "total_cdr": 0,
+                "total_ccr": 0,
+                "is_balanced": True,
+                "balance_diff": 0,
+                "period_label": "",
+                "generated_at": datetime.now().isoformat(),
+                "parties_summary": []
+            }
         
         # Reuse existing HTML generation logic (lines 295-480)
         rows = data.get('rows', [])
@@ -584,9 +597,37 @@ class ReportView(QWidget):
             QMessageBox.warning(self, "Error", error)
             return
         
+        # Don't show error if no data - just show 0s
         if not data:
-            self.pl_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for the selected period.</div>")
-            return
+            date_from = self.pl_date_from.date().toString("yyyy-MM-dd")
+            date_to = self.pl_date_to.date().toString("yyyy-MM-dd")
+            data = {
+                "title": "Profit & Loss Statement",
+                "date_from": date_from,
+                "date_to": date_to,
+                "generated_at": datetime.now().isoformat(),
+                "period_label": f"Period: {date_from} to {date_to}",
+                "sales": [],
+                "total_sales": 0,
+                "cost_of_sales": [],
+                "total_cost_of_sales": 0,
+                "gross_profit": 0,
+                "general_admin": [],
+                "total_general_admin": 0,
+                "selling_distribution": [],
+                "total_selling_distribution": 0,
+                "other_operating": [],
+                "total_other_operating": 0,
+                "total_operating_expenses": 0,
+                "other_income": [],
+                "total_other_income": 0,
+                "profit_from_operations": 0,
+                "finance_cost": [],
+                "total_finance_cost": 0,
+                "profit_before_tax": 0,
+                "net_profit": 0,
+                "is_profit": True,
+            }
         
         is_profit = data.get('is_profit', False)
         profit = data.get('net_profit', 0)
@@ -643,7 +684,7 @@ class ReportView(QWidget):
         <body>
         <div class="header">
             <h1>PROFIT & LOSS STATEMENT</h1>
-            <div class="subtitle">Period: {date_from} to {date_to}</div>
+            <div class="subtitle">Period: {data.get('date_from', 'N/A')} to {data.get('date_to', 'N/A')}</div>
         </div>
         <table class="pl-table">
         """
@@ -1141,9 +1182,18 @@ class ReportView(QWidget):
             QMessageBox.warning(self, "Error", error)
             return
         
+        # Don't show error if no data - just show 0s
         if not data:
-            self.cb_text.setHtml("<div style='text-align:center;padding:50px;font-size:14pt;color:#888;'>No transactions found for the selected period.</div>")
-            return
+            data = {
+                "title": "Cash Book",
+                "date_from": self.cb_date_from.date().toString("yyyy-MM-dd"),
+                "date_to": self.cb_date_to.date().toString("yyyy-MM-dd"),
+                "opening_balance": 0,
+                "transactions": [],
+                "total_received": 0,
+                "total_paid": 0,
+                "closing_balance": 0
+            }
         
         if "error" in data:
             error_msg = data.get("error", "Unknown error")
