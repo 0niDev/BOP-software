@@ -244,8 +244,11 @@ class SalesInvoiceService:
         elif payment_type in ["BANK", "CHEQUE"]:
             account_codes_needed.append("1010")  # Bank
         
-        # Cache for COGS entries
+        # Cache for COGS entries - always include these
         account_codes_needed.extend(["5000", "1220", "1200"])
+        
+        # Include tax account in batch fetch
+        account_codes_needed.append("2100")
         
         # Batch fetch all needed accounts
         account_cache = {}
@@ -253,6 +256,8 @@ class SalesInvoiceService:
             account_dict = self.account_repo.find_by_code(code)
             if account_dict:
                 account_cache[code] = account_dict
+            else:
+                logger.debug(f"Account {code} not found in database")
         
         revenue_account_dict = account_cache.get("4000")
         if not revenue_account_dict:
@@ -387,7 +392,9 @@ class SalesInvoiceService:
                     if not inventory_account:
                         inventory_account = account_cache.get("1200")  # Raw Materials
                     
-                    if inventory_account:
+                    if not inventory_account:
+                        logger.warning("Inventory account (1220/1200) not found - skipping COGS entry")
+                    else:
                         self.accounting_service.post_journal_entry(
                             voucher_type=VoucherType.JOURNAL,
                             entry_date=invoice_date,

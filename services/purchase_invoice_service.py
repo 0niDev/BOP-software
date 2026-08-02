@@ -220,25 +220,37 @@ class PurchaseInvoiceService:
             created_by=created_by
         )
 
-        # Get accounts - cache them to avoid repeated lookups
-        inventory_account_dict = self.account_repo.find_by_code("1200")
+        # Get accounts - batch fetch to avoid repeated lookups
+        account_codes_needed = ["1200", "2000", "1000", "1010", "2100"]
+        
+        # Batch fetch all needed accounts
+        account_cache = {}
+        for code in set(account_codes_needed):
+            account_dict = self.account_repo.find_by_code(code)
+            if account_dict:
+                account_cache[code] = account_dict
+            else:
+                logger.debug(f"Account {code} not found in database")
+        
+        inventory_account_dict = account_cache.get("1200")
         if not inventory_account_dict:
             raise ValidationError("Inventory account (1200) not found.")
         inventory_account_id = inventory_account_dict["id"]
 
-        ap_account_dict = self.account_repo.find_by_code("2000")
+        ap_account_dict = account_cache.get("2000")
         if not ap_account_dict:
             raise ValidationError("Accounts Payable account (2000) not found.")
         ap_account_id = ap_account_dict["id"]
 
-        cash_account_dict = self.account_repo.find_by_code("1000")
+        cash_account_dict = account_cache.get("1000")
         if not cash_account_dict:
             raise ValidationError("Cash account (1000) not found.")
         cash_account_id = cash_account_dict["id"]
 
-        tax_account_dict = self.account_repo.find_by_code("2100")
+        tax_account_dict = account_cache.get("2100")
         tax_account_id = tax_account_dict["id"] if tax_account_dict else None
-        bank_account_dict = self.account_repo.find_by_code("1010")
+        
+        bank_account_dict = account_cache.get("1010")
 
         # ============================================================
         # 🔴 FIX: Determine credit account AND party_id
