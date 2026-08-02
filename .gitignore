@@ -1,27 +1,59 @@
 ```
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Python related
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Logs
 *.log
-*.tmp
-*.swp
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-.env
-.env.local
-.env.*
+
+# IDE specific
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Coverage
 .coverage
 coverage/
 htmlcov/
-.pytest_cache/
-.mypy_cache/
-dist/
-build/
-target/
-node_modules/
-venv/
-.venv/
+
+# TypeScript/JavaScript build artifacts
+*.tsbuildinfo
+*.tsx.swp
+
+# Temporary files
+*.tmp
+*.temp
 ```
