@@ -49,6 +49,29 @@ class PartyLoadThread(QThread):
             self.data_loaded.emit([], str(e))
 
 
+class PartySaveThread(QThread):
+    """Background thread for saving/creating parties."""
+    
+    save_completed = Signal(bool, str)  # success, error_message
+    
+    def __init__(self, controller, is_update, **kwargs):
+        super().__init__()
+        self.controller = controller
+        self.is_update = is_update
+        self.kwargs = kwargs
+    
+    def run(self):
+        try:
+            if self.is_update:
+                success, error = self.controller.update_party(**self.kwargs)
+            else:
+                success, error = self.controller.create_party(**self.kwargs)
+            self.save_completed.emit(success, error or "")
+        except Exception as e:
+            logger.exception(f"Error in party save thread: {e}")
+            self.save_completed.emit(False, str(e))
+
+
 class PartyView(QWidget):
     """Widget for managing parties (customers/suppliers)."""
     
@@ -62,6 +85,8 @@ class PartyView(QWidget):
         self._selected_party_id: int | None = None
         self._parties_cache = []
         self._load_thread = None
+        self._save_thread = None
+        self._is_saving = False
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -272,7 +297,10 @@ class PartyView(QWidget):
 # views/widgets/party_view.py
 
     def _on_save_clicked(self) -> None:
-        """Handles save/update button click"""
+        """Handles save/update button click - runs in background thread."""
+        if self._is_saving:
+            return
+            
         name = self.name_input.text().strip()
         party_type_value = self.type_input.currentData()
         
@@ -288,39 +316,64 @@ class PartyView(QWidget):
             # TODO: Replace with proper account lookup when needed
             pass
 
+        # Disable save button for 1 second max
+        self._set_save_enabled(False)
+        QTimer.singleShot(1000, lambda: self._set_save_enabled(True))
+
         if self._selected_party_id is None:
             from models.enums import PartyType
             party_type = PartyType(party_type_value)
             
-            # ✅ DO NOT send code - it will be auto-generated!
-            success, error = self.controller.create_party(
+            # Run save in background thread
+            self._save_thread = PartySaveThread(
+                self.controller,
+                is_update=False,
                 name=name,
                 party_type=party_type,
                 credit_limit=credit_limit,
-                account_id=account_id,
-                # code is NOT sent here - auto-generated!
+                account_id=account_id
             )
-            if success:
-                self._load_parties_async()
-                self._clear_form()
-                QMessageBox.information(self, "Success", 
-                    "Party created successfully! Code was auto-generated.")
-            else:
-                QMessageBox.warning(self, "Creation Failed", error)
+            self._save_thread.save_completed.connect(self._on_save_completed)
+            self._save_thread.start()
+            self._save_thread.finished.connect(self._save_thread.deleteLater)
         else:
-            # Update existing party
-            success, error = self.controller.update_party(
+            # Update existing party in background
+            self._save_thread = PartySaveThread(
+                self.controller,
+                is_update=True,
                 party_id=self._selected_party_id,
                 name=name,
                 credit_limit=credit_limit,
                 account_id=account_id,
-                is_active=True,
+                is_active=True
             )
-            if success:
-                self._load_parties_async()
-                self._clear_form()
-            else:
-                QMessageBox.warning(self, "Update Failed", error)
+            self._save_thread.save_completed.connect(self._on_save_completed)
+            self._save_thread.start()
+            self._save_thread.finished.connect(self._save_thread.deleteLater)
+
+    def _set_save_enabled(self, enabled: bool) -> None:
+        """Enable/disable save button and form inputs."""
+        self._is_saving = not enabled
+        if enabled:
+            self.save_button.setText("Save" if self._selected_party_id is None else "Update")
+        else:
+            self.save_button.setText("⏳ Saving...")
+        
+        # Keep form enabled, only disable save button briefly
+        self.save_button.setEnabled(enabled)
+
+    def _on_save_completed(self, success: bool, error: str) -> None:
+        """Handle save completion from background thread."""
+        if success:
+            self._load_parties_async()
+            self._clear_form()
+            if not self._selected_party_id:
+                QMessageBox.information(self, "Success", 
+                    "Party created successfully! Code was auto-generated.")
+        else:
+            QMessageBox.warning(self, "Save Failed", error)
+            # Re-enable immediately on error
+            self._set_save_enabled(True)
 
     # ← NEW METHODS ADDED HERE
     def _on_edit_clicked(self) -> None:
