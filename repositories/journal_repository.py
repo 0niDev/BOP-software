@@ -42,6 +42,9 @@ class JournalRepository(BaseRepository):
     def next_voucher_number(self, company_id: int, document_type: str) -> str:
         """Get next voucher number for the given document type.
         
+        Uses atomic UPDATE ... RETURNING to prevent race conditions
+        when multiple threads request numbers simultaneously.
+        
         Args:
             company_id: Company identifier
             document_type: Type of document (e.g., 'SALES', 'PURCHASE')
@@ -57,29 +60,24 @@ class JournalRepository(BaseRepository):
             'RECEIPT': 'RECEIPT',
             'JOURNAL': 'JOURNAL_VOUCHER',
             'OPENING': 'OPENING',
+            'CUSTOMER': 'CUSTOMER',
+            'SUPPLIER': 'SUPPLIER',
         }
         seq_doc_type = doc_type_mapping.get(document_type, document_type)
         
-        row = self.db.fetch_one(
-            "SELECT prefix, next_number, padding FROM numbering_sequences "
-            "WHERE company_id = ? AND document_type = ?",
-            (company_id, seq_doc_type),
+        # Atomic increment and fetch in one operation to prevent race conditions
+        result = self.db.fetch_one(
+            """
+            INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
+            VALUES (?, ?, ?, 1, 5)
+            ON CONFLICT(company_id, document_type) DO UPDATE SET
+                next_number = next_number + 1
+            RETURNING prefix, next_number, padding
+            """,
+            (company_id, seq_doc_type, f"{seq_doc_type}-"),
         )
-        if row is None:
-            prefix, next_number, padding = f"{document_type}-", 1, 5
-            self.db.execute(
-                "INSERT INTO numbering_sequences (company_id, document_type, prefix, "
-                "next_number, padding) VALUES (?, ?, ?, ?, ?)",
-                (company_id, seq_doc_type, prefix, next_number, padding),
-            )
-        else:
-            prefix, next_number, padding = row["prefix"], row["next_number"], row["padding"]
-
-        self.db.execute(
-            "UPDATE numbering_sequences SET next_number = next_number + 1 "
-            "WHERE company_id = ? AND document_type = ?",
-            (company_id, seq_doc_type),
-        )
+        
+        prefix, next_number, padding = result["prefix"], result["next_number"], result["padding"]
         return f"{prefix}{str(next_number).zfill(padding)}"
     def find_lines_for_entry(self, journal_entry_id: int) -> list[dict]:
         return self.db.fetch_all(
