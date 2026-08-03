@@ -45,31 +45,47 @@ class ManufacturingDataLoader(QObject):
     
     def run(self):
         """Load all manufacturing data in background."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            logger.debug("DEBUG: ManufacturingDataLoader.run() started")
+            
             # Load BOMs
+            logger.debug("DEBUG: Loading BOMs...")
             boms, bom_error = self.controller.list_boms(active_only=None)
             if bom_error:
+                logger.error(f"DEBUG: BOM error: {bom_error}")
                 self.error_occurred.emit(f"BOMs: {bom_error}")
                 return
+            logger.debug(f"DEBUG: Loaded {len(boms)} BOMs")
             
             # Load production orders
+            logger.debug("DEBUG: Loading production orders...")
             orders, order_error = self.controller.list_production_orders(status=None)
             if order_error:
+                logger.error(f"DEBUG: Order error: {order_error}")
                 self.error_occurred.emit(f"Orders: {order_error}")
                 return
+            logger.debug(f"DEBUG: Loaded {len(orders)} orders")
             
             # Load items for lookups
+            logger.debug("DEBUG: Loading items...")
             items, item_error = self.item_controller.list_items(active_only=False)
             if item_error:
                 logger.warning(f"Could not load items: {item_error}")
                 items = []
+            logger.debug(f"DEBUG: Loaded {len(items)} items")
             
+            logger.debug("DEBUG: Emitting data_loaded signal")
             self.data_loaded.emit({
                 'boms': boms,
                 'orders': orders,
                 'items': items
             })
+            logger.debug("DEBUG: ManufacturingDataLoader.run() completed")
         except Exception as e:
+            logger.error(f"DEBUG: Exception in run(): {e}", exc_info=True)
             self.error_occurred.emit(str(e))
 
 # views/widgets/manufacturing_view.py - BOMDialog
@@ -361,18 +377,32 @@ class ManufacturingView(QWidget):
         self._selected_order_id: int | None = None
         self._loader_thread = None
         self._data_cache = {}
+        self._is_loaded = False  # Initialize flag here
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("DEBUG: ManufacturingView showEvent called")
+        
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
+            logger.debug("DEBUG: Starting data load...")
             self._show_loading_state()
             QTimer.singleShot(50, self._load_data_async)
+        else:
+            logger.debug("DEBUG: Data already loaded, skipping")
     
     def _show_loading_state(self):
         """Show loading state in tables."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("DEBUG: Showing loading state")
+        
         self.bom_table.setRowCount(1)
         self.bom_table.setColumnCount(1)
         self.bom_table.setHorizontalHeaderLabels(["Loading..."])
@@ -389,8 +419,16 @@ class ManufacturingView(QWidget):
     
     def _load_data_async(self):
         """Load manufacturing data in background thread."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("DEBUG: _load_data_async called")
+        
         if hasattr(self, '_is_loaded') and self._is_loaded:
+            logger.debug("DEBUG: Already loaded, returning")
             return
+        
+        logger.debug("DEBUG: Creating worker and starting thread...")
         
         # Create worker
         self._loader_thread = QThread()
@@ -410,6 +448,7 @@ class ManufacturingView(QWidget):
         
         # Start thread
         self._loader_thread.start()
+        logger.debug("DEBUG: Thread started")
     
     def _on_data_loaded(self, data):
         """Handle loaded data - update UI on main thread."""
@@ -455,6 +494,21 @@ class ManufacturingView(QWidget):
             self._loader_thread.wait(3000)
         self._loader_thread = None
         self._worker = None
+    
+    def _on_tab_changed(self, index: int):
+        """Handle tab change - load data when Production Orders tab is selected."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug(f"DEBUG: Tab changed to index {index}")
+        
+        # Index 1 is Production Orders tab
+        if index == 1 and not self._is_loaded:
+            logger.debug("DEBUG: Loading data for Production Orders tab")
+            self._show_loading_state()
+            QTimer.singleShot(50, self._load_data_async)
+        elif index == 1:
+            logger.debug("DEBUG: Data already loaded, skipping")
 
     def _build_ui(self) -> None:
         """Builds the UI."""
@@ -463,6 +517,7 @@ class ManufacturingView(QWidget):
 
         # Tabs for BOM and Production Orders
         self.tabs = QTabWidget()
+        self.tabs.currentChanged.connect(self._on_tab_changed)  # Connect tab change signal
         
         # Tab 1: Bill of Materials
         bom_tab = QWidget()
