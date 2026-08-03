@@ -198,7 +198,16 @@ class BOMDialog(QDialog):
 
     def get_bom_data(self) -> dict | None:
         """Get BOM data from the dialog."""
-        # ✅ BOM name is auto-generated - don't require it
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: get_bom_data called")
+        logger.debug(f"DEBUG: self.bom = {self.bom}")
+        logger.debug(f"DEBUG: self.name_input.text() = '{self.name_input.text()}'")
+        logger.debug("=" * 60)
+        
+        # ✅ BOM name is auto-generated for new BOMs, but required for edits
         finished_item_id = self.finished_item_combo.currentData()
         if not finished_item_id:
             QMessageBox.warning(self, "Selection Error", "Please select a finished item.")
@@ -208,8 +217,24 @@ class BOMDialog(QDialog):
             QMessageBox.warning(self, "Component Error", "Please add at least one component.")
             return None
         
+        # For new BOMs: bom_name=None (auto-generate)
+        # For existing BOMs: use the current name from the input field
+        if self.bom is None:
+            bom_name = None  # Auto-generate for new BOMs
+            logger.debug("DEBUG: Creating NEW BOM - bom_name will be auto-generated")
+        else:
+            bom_name = self.name_input.text().strip()
+            logger.debug(f"DEBUG: Editing EXISTING BOM - bom_name = '{bom_name}'")
+            if not bom_name:
+                logger.error("DEBUG: BOM name is empty for edit!")
+                QMessageBox.warning(self, "Validation Error", "BOM name is required.")
+                return None
+        
+        logger.debug(f"DEBUG: Returning bom_data with bom_name={bom_name}")
+        logger.debug("=" * 60)
+        
         return {
-            "bom_name": None,  # ← Will auto-generate in service
+            "bom_name": bom_name,
             "finished_item_id": finished_item_id,
             "output_quantity": self.output_quantity_spin.value(),
             "components": self.components,
@@ -566,25 +591,114 @@ class ManufacturingView(QWidget):
         self.delete_bom_btn.setEnabled(False)
     
     def _populate_orders(self, orders) -> None:
-        """Populate production orders table."""
-        self.order_table.setRowCount(len(orders))
-        self.order_table.setColumnCount(7)
-        self.order_table.setHorizontalHeaderLabels([
-            "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch"
-        ])
+        """Populate orders table with debug logging"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: _populate_orders called")
+        logger.debug(f"DEBUG: Received data type: {type(orders)}")
+        logger.debug(f"DEBUG: Received orders: {orders}")
+        logger.debug("=" * 60)
+        
+        if not orders:
+            logger.warning("DEBUG: No orders to populate")
+            self.order_table.setRowCount(0)
+            return
+        
+        logger.debug(f"DEBUG: Number of orders: {len(orders)}")
+        
+        self.order_table.setRowCount(0)
         
         for row, order in enumerate(orders):
-            # Get BOM name from bom_id
-            bom, _ = self.controller.get_bom(order.bom_id)
-            bom_name = bom.bom_name if bom else "-"
+            logger.debug("-" * 40)
+            logger.debug(f"DEBUG: Processing order #{row}")
+            logger.debug(f"DEBUG: Order object type: {type(order)}")
+            logger.debug(f"DEBUG: Order attributes: {dir(order)}")
+            logger.debug(f"DEBUG: Order ID: {getattr(order, 'id', 'MISSING')}")
+            logger.debug(f"DEBUG: Order bom_id: {getattr(order, 'bom_id', 'MISSING')}")
+            logger.debug(f"DEBUG: Order status: {getattr(order, 'status', 'MISSING')}")
+            logger.debug(f"DEBUG: Order manufacturing_date: {getattr(order, 'manufacturing_date', 'MISSING')}")
+            logger.debug(f"DEBUG: Order planned_quantity: {getattr(order, 'planned_quantity', 'MISSING')}")
+            logger.debug(f"DEBUG: Order actual_quantity: {getattr(order, 'actual_quantity', 'MISSING')}")
+            logger.debug(f"DEBUG: Order output_batch_number: {getattr(order, 'output_batch_number', 'MISSING')}")
             
-            self.order_table.setItem(row, 0, QTableWidgetItem(order.order_number))
+            # Check if bom_name attribute exists (it shouldn't)
+            if hasattr(order, 'bom_name'):
+                logger.warning(f"DEBUG: Order HAS bom_name attribute: {order.bom_name}")
+            else:
+                logger.debug(f"DEBUG: Order does NOT have bom_name attribute (expected)")
+            
+            self.order_table.insertRow(row)
+            
+            # Order Number
+            order_number = str(getattr(order, 'id', '-'))
+            logger.debug(f"DEBUG: Setting order_number: {order_number}")
+            self.order_table.setItem(row, 0, QTableWidgetItem(order_number))
+            
+            # BOM Name - NEEDS TO FETCH FROM BOM
+            bom_name = "-"
+            if getattr(order, 'bom_id', None):
+                logger.debug(f"DEBUG: Fetching BOM for bom_id={order.bom_id}")
+                try:
+                    bom = self.controller.get_bom(order.bom_id)
+                    logger.debug(f"DEBUG: Fetched BOM result: {bom}")
+                    if bom and len(bom) >= 1:
+                        bom_obj = bom[0] if isinstance(bom, tuple) else bom
+                        logger.debug(f"DEBUG: BOM object: {bom_obj}")
+                        if bom_obj:
+                            bom_name = getattr(bom_obj, 'bom_name', '-')
+                            logger.debug(f"DEBUG: BOM name found: {bom_name}")
+                        else:
+                            logger.warning(f"DEBUG: BOM object is None for bom_id={order.bom_id}")
+                    else:
+                        logger.warning(f"DEBUG: BOM not found for bom_id={order.bom_id}")
+                except Exception as e:
+                    logger.error(f"DEBUG: Error fetching BOM: {e}", exc_info=True)
+            else:
+                logger.debug(f"DEBUG: No bom_id for this order")
+            
+            logger.debug(f"DEBUG: Setting bom_name: {bom_name}")
             self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
-            self.order_table.setItem(row, 2, QTableWidgetItem(f"{order.planned_quantity:.2f}"))
-            self.order_table.setItem(row, 3, QTableWidgetItem(f"{order.actual_quantity:.2f}"))
-            self.order_table.setItem(row, 4, QTableWidgetItem(order.status.replace("_", " ").title()))
-            self.order_table.setItem(row, 5, QTableWidgetItem(order.manufacturing_date))
-            self.order_table.setItem(row, 6, QTableWidgetItem(order.output_batch_number or "-"))
+            
+            # Status - use string directly, not .value
+            status = getattr(order, 'status', 'DRAFT')
+            if status:
+                status_display = status.replace("_", " ").title()
+            else:
+                status_display = "Draft"
+            logger.debug(f"DEBUG: Setting status: {status_display} (from {status})")
+            self.order_table.setItem(row, 2, QTableWidgetItem(status_display))
+            
+            # Manufacturing Date (not order_date)
+            mfg_date = getattr(order, 'manufacturing_date', None)
+            mfg_date_str = mfg_date if mfg_date else "-"
+            logger.debug(f"DEBUG: Setting manufacturing_date: {mfg_date_str}")
+            self.order_table.setItem(row, 3, QTableWidgetItem(mfg_date_str))
+            
+            # Planned Quantity (not planned_start_date)
+            planned_qty = getattr(order, 'planned_quantity', None)
+            planned_qty_str = str(planned_qty) if planned_qty is not None else "-"
+            logger.debug(f"DEBUG: Setting planned_quantity: {planned_qty_str}")
+            self.order_table.setItem(row, 4, QTableWidgetItem(planned_qty_str))
+            
+            # Actual Quantity (not actual_start_date)
+            actual_qty = getattr(order, 'actual_quantity', None)
+            actual_qty_str = str(actual_qty) if actual_qty is not None else "-"
+            logger.debug(f"DEBUG: Setting actual_quantity: {actual_qty_str}")
+            self.order_table.setItem(row, 5, QTableWidgetItem(actual_qty_str))
+            
+            # Output Batch Number (not batch_number)
+            batch_num = getattr(order, 'output_batch_number', None)
+            batch_num_str = batch_num if batch_num else "-"
+            logger.debug(f"DEBUG: Setting output_batch_number: {batch_num_str}")
+            self.order_table.setItem(row, 6, QTableWidgetItem(batch_num_str))
+            
+            logger.debug(f"DEBUG: Finished processing order #{row}")
+        
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: _populate_orders completed")
+        logger.debug("=" * 60)
         
         self.order_table.resizeColumnsToContents()
         self._selected_order_id = None
