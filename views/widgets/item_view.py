@@ -101,6 +101,8 @@ class ItemSaveThread(QThread):
         self.controller = controller
         self.is_update = is_update
         self.kwargs = kwargs
+        # Ensure thread cleans up properly after finishing
+        self.finished.connect(self.deleteLater)
     
     def run(self):
         try:
@@ -361,6 +363,10 @@ class ItemView(QWidget):
                 QMessageBox.information(self, "Success", "Item updated successfully!")
         else:
             QMessageBox.warning(self, "Operation Failed", error or "An error occurred.")
+        
+        # Clear thread reference to allow proper cleanup
+        if hasattr(self, '_save_thread'):
+            self._save_thread = None
 
     # Add this temporary method to add test stock
     def _add_test_stock(self):
