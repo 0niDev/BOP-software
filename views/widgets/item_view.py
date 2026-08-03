@@ -91,6 +91,31 @@ class StockLoadThread(QThread):
             self.stocks_loaded.emit({})
 
 
+class ItemSaveThread(QThread):
+    """Background thread for saving/creating items."""
+    
+    save_completed = Signal(bool, str, object)  # success, error_message, item_or_none
+    
+    def __init__(self, controller, is_update=False, **kwargs):
+        super().__init__()
+        self.controller = controller
+        self.is_update = is_update
+        self.kwargs = kwargs
+    
+    def run(self):
+        try:
+            if self.is_update:
+                success, error = self.controller.update_item(**self.kwargs)
+                self.save_completed.emit(success, error or "", None)
+            else:
+                success, error = self.controller.create_item(**self.kwargs)
+                # For create, we don't pass the item back since controller doesn't return it
+                self.save_completed.emit(success, error or "", None)
+        except Exception as e:
+            logger.exception(f"Error in item save thread: {e}")
+            self.save_completed.emit(False, str(e), None)
+
+
 class ItemView(QWidget):
     """Widget for managing items (products)."""
     
@@ -106,9 +131,10 @@ class ItemView(QWidget):
         self._stocks_cache = {}
         self._load_thread = None
         self._stock_thread = None
+        self._save_thread = None
+        self._is_saving = False
         self._build_ui()
         # Don't load immediately - wait for showEvent
-    # views/widgets/item_view.py - Update the form and save logic
 
     def _build_ui(self) -> None:
         """Builds the UI - matches your actual items table schema"""
@@ -222,7 +248,12 @@ class ItemView(QWidget):
 
 
     def _on_save_clicked(self) -> None:
-        """Handles save/update button click"""
+        """Handles save/update button click - runs in background thread."""
+        # Prevent multiple saves at once
+        if self._is_saving:
+            logger.warning("Save operation already in progress")
+            return
+        
         # ✅ Code is auto-generated - no need to validate it
         item_name = self.name_input.text().strip()
         notes = self.notes_input.text().strip() or None
@@ -256,10 +287,14 @@ class ItemView(QWidget):
         item_type = self.item_type_input.currentData()
         category_id = self.category_input.currentData()
 
+        # Disable UI during save
+        self._set_save_enabled(False)
+        
         if self._selected_item_id is None:
             # ✅ Create new item - code is AUTO-GENERATED
-            success, error = self.controller.create_item(
-                # item_code is NOT sent - auto-generated!
+            self._save_thread = ItemSaveThread(
+                self.controller,
+                is_update=False,
                 item_name=item_name,
                 notes=notes,
                 unit=unit,
@@ -271,16 +306,11 @@ class ItemView(QWidget):
                 item_type=item_type,
                 category_id=category_id,
             )
-            if success:
-                self._load_items()
-                self._clear_form()
-                QMessageBox.information(self, "Success", 
-                    "Item created successfully! Code was auto-generated.")
-            else:
-                QMessageBox.warning(self, "Creation Failed", error)
         else:
             # Update existing item
-            success, error = self.controller.update_item(
+            self._save_thread = ItemSaveThread(
+                self.controller,
+                is_update=True,
                 item_id=self._selected_item_id,
                 item_name=item_name,
                 notes=notes,
@@ -294,11 +324,46 @@ class ItemView(QWidget):
                 category_id=category_id,
                 is_active=True
             )
-            if success:
-                self._load_items()
-                self._clear_form()
+        
+        self._save_thread.save_completed.connect(self._on_save_completed)
+        self._save_thread.start()
+    
+    def _set_save_enabled(self, enabled: bool):
+        """Enable or disable save-related UI elements."""
+        self._is_saving = not enabled
+        self.save_button.setEnabled(enabled)
+        self.clear_button.setEnabled(enabled)
+        self.edit_button.setEnabled(enabled and self._selected_item_id is not None)
+        self.delete_button.setEnabled(enabled and self._selected_item_id is not None)
+        self.name_input.setEnabled(enabled)
+        self.unit_input.setEnabled(enabled)
+        self.purchase_price_input.setEnabled(enabled)
+        self.selling_price_input.setEnabled(enabled)
+        self.min_stock_input.setEnabled(enabled)
+        self.max_stock_input.setEnabled(enabled)
+        self.tax_rate_input.setEnabled(enabled)
+        self.item_type_input.setEnabled(enabled)
+        self.category_input.setEnabled(enabled)
+        
+        if not enabled:
+            self.save_button.setText("⏳ Saving...")
+        else:
+            self.save_button.setText("Save" if self._selected_item_id is None else "Update")
+    
+    def _on_save_completed(self, success: bool, error: str, item):
+        """Handle save completion from background thread."""
+        self._set_save_enabled(True)
+        
+        if success:
+            self._load_items_async()  # Refresh list in background
+            self._clear_form()
+            if self._selected_item_id is None:
+                QMessageBox.information(self, "Success", 
+                    "Item created successfully! Code was auto-generated.")
             else:
-                QMessageBox.warning(self, "Update Failed", error)
+                QMessageBox.information(self, "Success", "Item updated successfully!")
+        else:
+            QMessageBox.warning(self, "Operation Failed", error or "An error occurred.")
 
     # Add this temporary method to add test stock
     def _add_test_stock(self):
@@ -566,7 +631,7 @@ class ItemView(QWidget):
             success, error = self.controller.deactivate_item(self._selected_item_id)
             if success:
                 self.item_deleted.emit(self._selected_item_id)
-                self._load_items()
+                self._load_items_async()  # Use async refresh
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
