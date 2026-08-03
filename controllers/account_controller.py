@@ -80,3 +80,13 @@ class AccountController:
         except Exception:
             logger.exception("Unexpected error deactivating account")
             return False, "An unexpected error occurred."
+
+    def get_balance(self, account_id: int) -> tuple[float, str | None]:
+        """Get the current balance for an account."""
+        try:
+            return self.service.get_balance(account_id), None
+        except ERPException as exc:
+            return 0.0, str(exc)
+        except Exception:
+            logger.exception("Unexpected error getting account balance")
+            return 0.0, "An unexpected error occurred while fetching the balance."
