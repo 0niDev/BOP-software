@@ -294,7 +294,7 @@ class ItemView(QWidget):
         
         if self._selected_item_id is None:
             # ✅ Create new item - code is AUTO-GENERATED
-            self._save_thread = ItemSaveThread(
+            save_thread = ItemSaveThread(
                 self.controller,
                 is_update=False,
                 item_name=item_name,
@@ -310,7 +310,7 @@ class ItemView(QWidget):
             )
         else:
             # Update existing item
-            self._save_thread = ItemSaveThread(
+            save_thread = ItemSaveThread(
                 self.controller,
                 is_update=True,
                 item_id=self._selected_item_id,
@@ -327,10 +327,12 @@ class ItemView(QWidget):
                 is_active=True
             )
         
-        self._save_thread.save_completed.connect(self._on_save_completed)
+        save_thread.save_completed.connect(self._on_save_completed)
         # Keep a reference to prevent premature garbage collection
-        self._save_thread.finished.connect(lambda: setattr(self, '_save_thread', None))
-        self._save_thread.start()
+        save_thread.finished.connect(lambda: setattr(self, '_save_thread', None))
+        save_thread.start()
+        # Store reference to prevent garbage collection during rapid saves
+        setattr(self, '_current_save_thread', save_thread)
     
     def _set_save_enabled(self, enabled: bool):
         """Disable save button briefly (1 sec max) to prevent double-clicks, but keep form active."""

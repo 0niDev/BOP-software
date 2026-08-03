@@ -325,7 +325,7 @@ class PartyView(QWidget):
             party_type = PartyType(party_type_value)
             
             # Run save in background thread
-            self._save_thread = PartySaveThread(
+            save_thread = PartySaveThread(
                 self.controller,
                 is_update=False,
                 name=name,
@@ -333,12 +333,14 @@ class PartyView(QWidget):
                 credit_limit=credit_limit,
                 account_id=account_id
             )
-            self._save_thread.save_completed.connect(self._on_save_completed)
-            self._save_thread.start()
-            self._save_thread.finished.connect(self._save_thread.deleteLater)
+            save_thread.save_completed.connect(self._on_save_completed)
+            save_thread.finished.connect(save_thread.deleteLater)
+            save_thread.start()
+            # Store reference to prevent garbage collection
+            setattr(self, '_current_save_thread', save_thread)
         else:
             # Update existing party in background
-            self._save_thread = PartySaveThread(
+            save_thread = PartySaveThread(
                 self.controller,
                 is_update=True,
                 party_id=self._selected_party_id,
@@ -347,9 +349,11 @@ class PartyView(QWidget):
                 account_id=account_id,
                 is_active=True
             )
-            self._save_thread.save_completed.connect(self._on_save_completed)
-            self._save_thread.start()
-            self._save_thread.finished.connect(self._save_thread.deleteLater)
+            save_thread.save_completed.connect(self._on_save_completed)
+            save_thread.finished.connect(save_thread.deleteLater)
+            save_thread.start()
+            # Store reference to prevent garbage collection
+            setattr(self, '_current_save_thread', save_thread)
 
     def _set_save_enabled(self, enabled: bool) -> None:
         """Enable/disable save button and form inputs."""
