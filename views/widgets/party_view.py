@@ -85,7 +85,7 @@ class PartyView(QWidget):
         self._selected_party_id: int | None = None
         self._parties_cache = []
         self._load_thread = None
-        self._save_thread = None
+        self._save_threads = []  # Keep strong references to prevent GC crash
         self._is_saving = False
         self._build_ui()
         # Don't load immediately - wait for showEvent
@@ -334,10 +334,12 @@ class PartyView(QWidget):
                 account_id=account_id
             )
             save_thread.save_completed.connect(self._on_save_completed)
+            # Keep reference in list to prevent garbage collection during rapid saves
+            self._save_threads.append(save_thread)
+            # Clean up reference when thread finishes
+            save_thread.finished.connect(lambda: self._cleanup_save_thread(save_thread))
             save_thread.finished.connect(save_thread.deleteLater)
             save_thread.start()
-            # Store reference to prevent garbage collection
-            setattr(self, '_current_save_thread', save_thread)
         else:
             # Update existing party in background
             save_thread = PartySaveThread(
@@ -350,10 +352,17 @@ class PartyView(QWidget):
                 is_active=True
             )
             save_thread.save_completed.connect(self._on_save_completed)
+            # Keep reference in list to prevent garbage collection during rapid saves
+            self._save_threads.append(save_thread)
+            # Clean up reference when thread finishes
+            save_thread.finished.connect(lambda: self._cleanup_save_thread(save_thread))
             save_thread.finished.connect(save_thread.deleteLater)
             save_thread.start()
-            # Store reference to prevent garbage collection
-            setattr(self, '_current_save_thread', save_thread)
+    
+    def _cleanup_save_thread(self, thread):
+        """Remove finished thread from references list."""
+        if thread in self._save_threads:
+            self._save_threads.remove(thread)
 
     def _set_save_enabled(self, enabled: bool) -> None:
         """Enable/disable save button and form inputs."""
