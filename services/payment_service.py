@@ -15,6 +15,19 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+# Global dashboard service instance for cache invalidation
+_dashboard_service_instance = None
+
+
+def get_dashboard_service():
+    """Get or create the global dashboard service instance."""
+    global _dashboard_service_instance
+    if _dashboard_service_instance is None:
+        from services.dashboard_service import DashboardService
+        _dashboard_service_instance = DashboardService()
+    return _dashboard_service_instance
+
+
 class PaymentService:
     """Service for recording payments to suppliers and receipts from customers."""
 
@@ -120,6 +133,14 @@ class PaymentService:
                     WHERE id = ?
                 """, (amount, purchase_invoice_id))
                 logger.info(f"✅ Updated paid_amount for purchase invoice {purchase_invoice_id}: +{amount}")
+            
+            # Invalidate dashboard cache to force refresh on next view
+            try:
+                dashboard_service = get_dashboard_service()
+                dashboard_service.invalidate_cache()
+                logger.info("✅ Dashboard cache invalidated after payment")
+            except Exception as e:
+                logger.warning(f"Could not invalidate dashboard cache: {e}")
             
             logger.info(f"Payment {voucher_number} recorded: Rs. {amount:,.2f} to {supplier['name']}")
             return payment_id
@@ -231,6 +252,14 @@ class PaymentService:
                     WHERE id = ?
                 """, (amount, sales_invoice_id))
                 logger.info(f"✅ Updated paid_amount for sales invoice {sales_invoice_id}: +{amount}")
+            
+            # Invalidate dashboard cache to force refresh on next view
+            try:
+                dashboard_service = get_dashboard_service()
+                dashboard_service.invalidate_cache()
+                logger.info("✅ Dashboard cache invalidated after receipt")
+            except Exception as e:
+                logger.warning(f"Could not invalidate dashboard cache: {e}")
             
             logger.info(f"Receipt {voucher_number} recorded: Rs. {amount:,.2f} from {customer['name']}")
             return receipt_id
