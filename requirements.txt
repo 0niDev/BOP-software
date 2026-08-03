@@ -1,10 +1,3 @@
 PySide6>=6.0.0
 openpyxl>=3.0.0
 beautifulsoup4>=4.9.0
-
-set ERP_DB_ENGINE=postgresql
-set ERP_DB_HOST=db.fnjblwvzwukssijrkezt.supabase.co
-set ERP_DB_PORT=5432
-set ERP_DB_NAME=postgres
-set ERP_DB_USER=postgres
-set ERP_DB_PASSWORD=0nidev_supabase
