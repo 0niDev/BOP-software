@@ -125,11 +125,19 @@ class DashboardView(QWidget):
         if self._load_thread and self._load_thread.isRunning():
             self._load_thread.terminate()
             self._load_thread.wait()
+            # Disconnect old signal to prevent multiple calls
+            try:
+                self._load_thread.data_loaded.disconnect(self._on_data_loaded)
+            except:
+                pass
         
         # Start new load thread
         self._load_thread = DashboardLoadThread(self.controller)
         self._load_thread.data_loaded.connect(self._on_data_loaded)
         self._load_thread.start()
+        
+        # Update UI to show loading state
+        self.last_updated_label.setText("Last updated: Loading...")
     
     def _on_data_loaded(self, data, error):
         """Handle dashboard data loaded from background thread."""
