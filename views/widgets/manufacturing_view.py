@@ -413,15 +413,35 @@ class ManufacturingView(QWidget):
     
     def _on_data_loaded(self, data):
         """Handle loaded data - update UI on main thread."""
-        self._data_cache = data
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Populate BOMs with cached items
-        self._populate_boms(data['boms'], data['items'])
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: _on_data_loaded called")
+        logger.debug(f"DEBUG: Received data keys: {data.keys()}")
+        logger.debug(f"DEBUG: Number of BOMs: {len(data.get('boms', []))}")
+        logger.debug(f"DEBUG: Number of orders: {len(data.get('orders', []))}")
+        logger.debug(f"DEBUG: Number of items: {len(data.get('items', []))}")
+        logger.debug("=" * 60)
         
-        # Populate production orders
-        self._populate_orders(data['orders'])
-        
-        self._is_loaded = True
+        try:
+            self._data_cache = data
+            
+            # Populate BOMs with cached items
+            logger.debug("DEBUG: Calling _populate_boms...")
+            self._populate_boms(data['boms'], data['items'])
+            logger.debug("DEBUG: _populate_boms completed")
+            
+            # Populate production orders
+            logger.debug("DEBUG: Calling _populate_orders...")
+            self._populate_orders(data['orders'])
+            logger.debug("DEBUG: _populate_orders completed")
+            
+            self._is_loaded = True
+            logger.debug("DEBUG: _on_data_loaded completed successfully")
+        except Exception as e:
+            logger.error(f"DEBUG: Error in _on_data_loaded: {e}", exc_info=True)
+            self._is_loaded = True  # Prevent retry loop
     
     def _on_load_error(self, error_msg):
         """Handle loading error."""
@@ -566,6 +586,15 @@ class ManufacturingView(QWidget):
 
     def _populate_boms(self, boms, items) -> None:
         """Populate BOMs table with cached items."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: _populate_boms called")
+        logger.debug(f"DEBUG: Number of BOMs: {len(boms)}")
+        logger.debug(f"DEBUG: Number of items: {len(items)}")
+        logger.debug("=" * 60)
+        
         # Create item lookup dict
         item_dict = {i.id: i.item_name for i in items}
         
@@ -576,6 +605,7 @@ class ManufacturingView(QWidget):
         ])
         
         for row, bom in enumerate(boms):
+            logger.debug(f"DEBUG: Processing BOM #{row}: {bom.bom_name}")
             # Get finished item name from cache
             item_name = item_dict.get(bom.finished_item_id, "Unknown")
             
@@ -584,6 +614,9 @@ class ManufacturingView(QWidget):
             self.bom_table.setItem(row, 2, QTableWidgetItem(f"{bom.output_quantity:.2f}"))
             self.bom_table.setItem(row, 3, QTableWidgetItem(str(len(bom.components))))
             self.bom_table.setItem(row, 4, QTableWidgetItem("Active" if bom.is_active else "Inactive"))
+        
+        logger.debug("DEBUG: _populate_boms completed")
+        logger.debug("=" * 60)
         
         self.bom_table.resizeColumnsToContents()
         self._selected_bom_id = None
@@ -641,18 +674,29 @@ class ManufacturingView(QWidget):
             if getattr(order, 'bom_id', None):
                 logger.debug(f"DEBUG: Fetching BOM for bom_id={order.bom_id}")
                 try:
-                    bom = self.controller.get_bom(order.bom_id)
-                    logger.debug(f"DEBUG: Fetched BOM result: {bom}")
-                    if bom and len(bom) >= 1:
-                        bom_obj = bom[0] if isinstance(bom, tuple) else bom
-                        logger.debug(f"DEBUG: BOM object: {bom_obj}")
+                    bom_result = self.controller.get_bom(order.bom_id)
+                    logger.debug(f"DEBUG: Fetched BOM result: {bom_result} (type={type(bom_result)})")
+                    
+                    # Controller returns tuple: (bom_object, error_string)
+                    if isinstance(bom_result, tuple) and len(bom_result) == 2:
+                        bom_obj, error = bom_result
+                        if error:
+                            logger.warning(f"DEBUG: Error from controller: {error}")
+                        else:
+                            logger.debug(f"DEBUG: BOM object from controller: {bom_obj}")
+                            if bom_obj:
+                                bom_name = getattr(bom_obj, 'bom_name', '-')
+                                logger.debug(f"DEBUG: BOM name found: {bom_name}")
+                            else:
+                                logger.warning(f"DEBUG: BOM object is None for bom_id={order.bom_id}")
+                    else:
+                        # Fallback: treat result as direct BOM object
+                        bom_obj = bom_result
                         if bom_obj:
                             bom_name = getattr(bom_obj, 'bom_name', '-')
-                            logger.debug(f"DEBUG: BOM name found: {bom_name}")
+                            logger.debug(f"DEBUG: BOM name found (fallback): {bom_name}")
                         else:
-                            logger.warning(f"DEBUG: BOM object is None for bom_id={order.bom_id}")
-                    else:
-                        logger.warning(f"DEBUG: BOM not found for bom_id={order.bom_id}")
+                            logger.warning(f"DEBUG: BOM not found for bom_id={order.bom_id}")
                 except Exception as e:
                     logger.error(f"DEBUG: Error fetching BOM: {e}", exc_info=True)
             else:
@@ -801,12 +845,23 @@ class ManufacturingView(QWidget):
 
     def _load_orders(self) -> None:
         """Load production orders into table."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.debug("=" * 60)
+        logger.debug("DEBUG: _load_orders called")
+        
         status = self.order_status_filter.currentData()
+        logger.debug(f"DEBUG: Filtering by status: {status}")
+        
         orders, error = self.controller.list_production_orders(status=status)
         
         if error:
+            logger.error(f"DEBUG: Error loading orders: {error}")
             QMessageBox.warning(self, "Load Error", error)
             return
+        
+        logger.debug(f"DEBUG: Loaded {len(orders)} orders")
         
         self.order_table.setRowCount(len(orders))
         self.order_table.setColumnCount(7)
@@ -815,9 +870,25 @@ class ManufacturingView(QWidget):
         ])
         
         for row, order in enumerate(orders):
+            logger.debug(f"DEBUG: Processing order #{row}: {order.order_number}")
             # Get BOM name
-            bom, _ = self.controller.get_bom(order.bom_id)
-            bom_name = bom.bom_name if bom else "Unknown"
+            bom_result = self.controller.get_bom(order.bom_id)
+            logger.debug(f"DEBUG: get_bom returned: {bom_result} (type={type(bom_result)})")
+            
+            # Handle tuple return from controller
+            if isinstance(bom_result, tuple) and len(bom_result) == 2:
+                bom, err = bom_result
+                if err:
+                    logger.warning(f"DEBUG: Error getting BOM: {err}")
+                    bom_name = "Unknown"
+                else:
+                    bom_name = bom.bom_name if bom else "Unknown"
+            else:
+                # Fallback: direct object
+                bom = bom_result
+                bom_name = bom.bom_name if bom else "Unknown"
+            
+            logger.debug(f"DEBUG: BOM name: {bom_name}")
             
             self.order_table.setItem(row, 0, QTableWidgetItem(order.order_number))
             self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
@@ -826,6 +897,9 @@ class ManufacturingView(QWidget):
             self.order_table.setItem(row, 4, QTableWidgetItem(order.status.replace("_", " ").title()))
             self.order_table.setItem(row, 5, QTableWidgetItem(order.manufacturing_date))
             self.order_table.setItem(row, 6, QTableWidgetItem(order.output_batch_number or "-"))
+        
+        logger.debug("DEBUG: _load_orders completed")
+        logger.debug("=" * 60)
         
         self.order_table.resizeColumnsToContents()
         self._selected_order_id = None
