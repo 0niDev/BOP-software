@@ -509,13 +509,14 @@ class BankingView(QWidget):
 
     def _populate_accounts_table(self, accounts):
         """Populate accounts table with batch balance lookup."""
-        from controllers.account_controller import AccountController
-        acc_ctrl = AccountController()
+        # Use BankingController instead of AccountController to get 
+        # the correct bank account balance (opening_balance + transactions)
+        # rather than the Chart of Accounts balance
         
         # Batch get all account balances in one query instead of N queries
         balances = {}
         for acc in accounts:
-            balance, _ = acc_ctrl.get_balance(acc.id)
+            balance, _ = self.controller.get_balance(acc.id)
             balances[acc.id] = balance
         
         self.accounts_table.setRowCount(len(accounts))
