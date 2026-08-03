@@ -574,13 +574,17 @@ class ManufacturingView(QWidget):
         ])
         
         for row, order in enumerate(orders):
+            # Get BOM name from bom_id
+            bom, _ = self.controller.get_bom(order.bom_id)
+            bom_name = bom.bom_name if bom else "-"
+            
             self.order_table.setItem(row, 0, QTableWidgetItem(order.order_number))
-            self.order_table.setItem(row, 1, QTableWidgetItem(order.bom_name or "-"))
-            self.order_table.setItem(row, 2, QTableWidgetItem(order.planned_start_date or "-"))
-            self.order_table.setItem(row, 3, QTableWidgetItem(order.actual_start_date or "-"))
-            self.order_table.setItem(row, 4, QTableWidgetItem(order.status.value))
-            self.order_table.setItem(row, 5, QTableWidgetItem(order.order_date))
-            self.order_table.setItem(row, 6, QTableWidgetItem(order.batch_number or "-"))
+            self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
+            self.order_table.setItem(row, 2, QTableWidgetItem(f"{order.planned_quantity:.2f}"))
+            self.order_table.setItem(row, 3, QTableWidgetItem(f"{order.actual_quantity:.2f}"))
+            self.order_table.setItem(row, 4, QTableWidgetItem(order.status.replace("_", " ").title()))
+            self.order_table.setItem(row, 5, QTableWidgetItem(order.manufacturing_date))
+            self.order_table.setItem(row, 6, QTableWidgetItem(order.output_batch_number or "-"))
         
         self.order_table.resizeColumnsToContents()
         self._selected_order_id = None
