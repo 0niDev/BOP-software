@@ -625,10 +625,19 @@ class ManufacturingView(QWidget):
         dialog = BOMDialog(self.item_controller, parent=self)
         if dialog.exec() == QDialog.Accepted:
             data = dialog.get_bom_data()
+            print("\n" + "="*60)
+            print("DEBUG: BOM DATA FROM DIALOG")
+            print("="*60)
+            for key, value in data.items():
+                print(f"  {key}: {value}")
+            print("="*60)
+            
             success, error = self.controller.create_bom(**data)
             if success:
+                print("✅ BOM created successfully!")
                 self._load_boms()
             else:
+                print(f"❌ BOM creation failed: {error}")
                 QMessageBox.warning(self, "Creation Failed", error)
 
     def _on_edit_bom(self) -> None:
