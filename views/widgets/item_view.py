@@ -523,7 +523,11 @@ class ItemView(QWidget):
                 if index >= 0:
                     self.tax_rate_input.setCurrentIndex(index)
             
-            self.item_type_input.setCurrentText(item.item_type)
+            # Fix: Use findData instead of setCurrentText for item_type
+            # because setCurrentText looks for display text, not data value
+            item_type_idx = self.item_type_input.findData(item.item_type)
+            if item_type_idx >= 0:
+                self.item_type_input.setCurrentIndex(item_type_idx)
             
             if item.category_id:
                 index = self.category_input.findData(item.category_id)
