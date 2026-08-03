@@ -1127,3 +1127,441 @@ sqlitecloud.exceptions.SQLiteCloudError: Your free node has been paused due to i
 2026-08-03 16:35:47,525 | INFO     | erp.database.connection | SQLite Cloud connections closed
 2026-08-03 16:35:47,592 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
 2026-08-03 16:35:47,596 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-03 16:39:33,881 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 16:39:33,881 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 16:39:33,881 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 16:39:33,891 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 16:39:33,891 | INFO     | erp.__main__ | Starting application...
+2026-08-03 16:39:36,901 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-03 16:39:46,804 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-03 16:39:47,871 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:39:47,876 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:39:47,929 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:39:50,201 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:39:51,545 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:39:52,772 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:39:53,994 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:39:55,135 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:39:55,138 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:40:00,455 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-03 16:40:12,946 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:40:55,203 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:40:55,203 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:40:57,589 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:40:58,924 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:41:01,056 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:41:02,710 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:41:04,549 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:41:04,559 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:41:11,261 | INFO     | erp.services.accounting_service | Posted journal entry #24 (RECEIPT) voucher=RV-00003 amount=10000.00
+2026-08-03 16:41:15,020 | INFO     | erp.services.payment_service | ✅ Updated paid_amount for sales invoice 9: +10000.0
+2026-08-03 16:41:15,020 | INFO     | erp.services.payment_service | Receipt RV-00003 recorded: Rs. 10,000.00 from 1
+2026-08-03 16:41:20,720 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:41:23,734 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:23,743 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:28,353 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:28,358 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:34,458 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:41:46,878 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:46,878 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:50,444 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:50,455 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:52,426 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:52,426 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:53,235 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:53,240 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:41:54,344 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:41:54,348 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:46:15,264 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 16:46:15,266 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 16:46:15,266 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 16:46:15,271 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 16:46:15,271 | INFO     | erp.__main__ | Starting application...
+2026-08-03 16:46:17,245 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-03 16:46:27,708 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-03 16:46:28,748 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:46:28,749 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:46:28,779 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:46:31,002 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:46:32,232 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:46:33,250 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:46:34,486 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:46:35,608 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:46:35,616 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:47:27,754 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:47:27,760 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:47:48,214 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-03 16:47:59,990 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:48:36,226 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:48:36,231 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:48:38,883 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:48:40,264 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:48:41,763 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:48:43,349 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:48:44,629 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:48:44,629 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:49:09,312 | INFO     | erp.services.accounting_service | Posted journal entry #25 (RECEIPT) voucher=RV-00004 amount=10.00
+2026-08-03 16:49:12,795 | INFO     | erp.services.payment_service | ✅ Updated paid_amount for sales invoice 7: +10.0
+2026-08-03 16:49:12,797 | INFO     | erp.services.payment_service | Receipt RV-00004 recorded: Rs. 10.00 from 1
+2026-08-03 16:49:19,369 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:49:23,171 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:23,175 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:26,181 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:26,184 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:27,762 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:27,768 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:29,025 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:29,028 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:30,220 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:30,222 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:31,035 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:31,044 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:31,631 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:31,644 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:49:35,341 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:49:46,817 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:46,826 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:49:47,709 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:47,718 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:49:48,559 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:49:48,570 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:49:50,979 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-03 16:49:52,077 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:49:53,125 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:49:54,266 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:49:55,593 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:49:55,990 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-03 16:49:56,043 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-03 16:49:56,046 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-03 16:49:56,048 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-03 16:49:56,051 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-03 16:49:56,063 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-03 16:49:56,064 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-03 16:50:11,594 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 16:50:11,595 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 16:50:11,595 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 16:50:11,601 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 16:50:11,602 | INFO     | erp.__main__ | Starting application...
+2026-08-03 16:50:14,019 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-03 16:50:21,607 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-03 16:50:22,170 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:50:22,170 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:50:22,233 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:50:24,470 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:50:25,815 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:50:29,594 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:50:30,922 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:50:32,046 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:50:32,053 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:50:36,656 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:50:37,581 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-03 16:51:01,374 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:51:30,096 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:51:30,105 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:52:05,441 | INFO     | erp.services.accounting_service | Posted journal entry #26 (RECEIPT) voucher=RV-00005 amount=10.00
+2026-08-03 16:52:09,316 | INFO     | erp.services.payment_service | ✅ Updated paid_amount for sales invoice 8: +10.0
+2026-08-03 16:52:09,316 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-03 16:52:09,316 | INFO     | erp.services.payment_service | ✅ Dashboard cache invalidated after receipt
+2026-08-03 16:52:09,325 | INFO     | erp.services.payment_service | Receipt RV-00005 recorded: Rs. 10.00 from 1
+2026-08-03 16:52:21,631 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:52:21,631 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:52:24,007 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:52:25,710 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:52:26,943 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:52:28,175 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:52:29,924 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:52:29,926 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:53:21,643 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:53:21,647 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:54:21,652 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:54:21,658 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:54:23,864 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:54:25,081 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:54:26,144 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:54:28,103 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:54:29,908 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:54:29,913 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:55:21,649 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:55:21,658 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:56:21,647 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:56:21,654 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:56:23,998 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:56:25,203 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:56:26,251 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:56:27,695 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:56:29,118 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:56:29,118 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:57:21,645 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:57:21,648 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 16:58:21,654 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:58:21,656 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:58:24,082 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:58:25,177 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:58:26,471 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:58:27,439 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:58:28,720 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:58:28,724 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 16:59:11,784 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 16:59:48,829 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 16:59:48,832 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 16:59:48,832 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 16:59:51,382 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 16:59:52,842 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 16:59:53,977 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 16:59:55,033 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 16:59:56,477 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 16:59:56,483 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 17:00:21,644 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:00:21,652 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 17:01:21,645 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:01:21,657 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:01:50,649 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 17:01:56,284 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 17:02:08,297 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 17:02:10,724 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 17:02:21,649 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:02:21,657 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:03:21,654 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:03:21,656 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:04:21,646 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:04:21,653 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:04:50,122 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:04:52,432 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:04:52,444 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:04:53,337 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:04:53,344 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:05:21,653 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:05:21,662 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:06:21,647 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:06:21,651 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:07:21,644 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:07:21,644 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:08:21,655 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:08:21,662 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:09:21,654 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:09:21,654 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:10:21,645 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:10:21,645 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:11:21,650 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:11:21,655 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:12:21,643 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:12:21,669 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:13:21,649 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:13:21,649 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:14:21,654 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:14:21,657 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:14:41,516 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:14:56,927 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:14:58,759 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:14:58,768 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:17:09,602 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 17:17:09,603 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 17:17:09,604 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 17:17:09,606 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 17:17:09,606 | INFO     | erp.__main__ | Starting application...
+2026-08-03 17:17:12,234 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-03 17:17:18,981 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-03 17:17:19,884 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:17:19,884 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:17:19,904 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:17:21,831 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 17:17:23,906 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 17:17:25,098 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 17:17:26,258 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 17:17:27,269 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 17:17:27,270 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 17:18:19,001 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:18:19,005 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 17:18:54,567 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:18:57,531 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-03 17:19:09,521 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 10 invoices
+2026-08-03 17:19:19,017 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:19:19,017 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:19:23,399 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 17:19:24,884 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 17:19:25,780 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 17:19:26,770 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 17:19:27,063 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-03 17:19:28,044 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 17:19:28,046 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 17:19:32,065 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-03 17:19:32,080 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-03 17:19:32,082 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-03 17:19:32,083 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-03 17:19:32,085 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-03 17:19:32,087 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-03 17:19:32,088 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-03 17:20:01,805 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 17:20:01,805 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 17:20:01,808 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 17:20:01,808 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 17:20:01,810 | INFO     | erp.__main__ | Starting application...
+2026-08-03 17:20:05,639 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-03 17:20:11,270 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-03 17:20:11,811 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:20:11,812 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-03 17:20:11,833 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-03 17:20:14,115 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=100000.0
+2026-08-03 17:20:15,214 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-03 17:20:16,270 | INFO     | erp.services.dashboard_service | ✅ Fetched 15 recent transactions
+2026-08-03 17:20:17,222 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-03 17:20:18,130 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-03 17:20:18,131 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-03 17:21:11,283 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-03 17:21:11,288 | INFO     | erp.services.dashboard_service | ✅ Dashboard cache hit for dashboard_1
+2026-08-03 17:21:17,116 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-03 17:21:22,129 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-03 17:21:22,138 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-03 17:21:22,139 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-03 17:21:22,139 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-03 17:21:22,143 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-03 17:21:22,146 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-03 17:21:22,146 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-03 17:59:24,001 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-03 17:59:24,003 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-03 17:59:24,003 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-03 17:59:24,007 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-03 17:59:24,008 | INFO     | erp.__main__ | Starting application...
+2026-08-03 17:59:29,302 | INFO     | erp.database.migrations.migrator | Running schema migration...
+2026-08-03 18:00:43,651 | ERROR    | erp.__main__ | Fatal error initializing database
+Traceback (most recent call last):
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 163, in _internal_connect
+    sock.connect((hostname, port))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1343, in connect
+    self._real_connect(addr, False)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1330, in _real_connect
+    super().connect(addr)
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\bop software\BOP-software\database\connection.py", line 220, in transaction
+    yield self
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 94, in run
+    self._db.execute(sub_stmt)
+  File "F:\software\bop software\BOP-software\database\connection.py", line 188, in execute
+    conn = self._get_cached_connection()
+  File "F:\software\bop software\BOP-software\database\connection.py", line 151, in _get_cached_connection
+    return get_pool().get_connection()
+  File "F:\software\bop software\BOP-software\database\connection.py", line 56, in get_connection
+    conn = sqlitecloud.connect(self._connection_string)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 180, in connect
+    driver.connect(config.account.hostname, config.account.port, config),
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 58, in connect
+    sock = self._internal_connect(hostname, port, config)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 166, in _internal_connect
+    raise SQLiteCloudException(errmsg) from e
+sqlitecloud.exceptions.SQLiteCloudException: An error occurred while initializing the socket.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 509, in _internal_socket_write
+    sock.sendall(command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1205, in sendall
+    v = self.send(byte_view[count:])
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1174, in send
+    return self._sslobj.write(data)
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\bop software\BOP-software\main.py", line 580, in _initialize_database
+    run_migrations(db)
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 170, in run_migrations
+    Migrator(db).run()
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 94, in run
+    self._db.execute(sub_stmt)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\contextlib.py", line 137, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "F:\software\bop software\BOP-software\database\connection.py", line 223, in transaction
+    conn.execute("ROLLBACK")
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 486, in _internal_run_command
+    self._internal_socket_write(connection, command, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 511, in _internal_socket_write
+    raise SQLiteCloudException(
+sqlitecloud.exceptions.SQLiteCloudException: An error occurred while writing data.
+2026-08-03 18:00:43,651 | ERROR    | erp.__main__ | Fatal error: An error occurred while writing data.
+Traceback (most recent call last):
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 163, in _internal_connect
+    sock.connect((hostname, port))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1343, in connect
+    self._real_connect(addr, False)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1330, in _real_connect
+    super().connect(addr)
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\bop software\BOP-software\database\connection.py", line 220, in transaction
+    yield self
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 94, in run
+    self._db.execute(sub_stmt)
+  File "F:\software\bop software\BOP-software\database\connection.py", line 188, in execute
+    conn = self._get_cached_connection()
+  File "F:\software\bop software\BOP-software\database\connection.py", line 151, in _get_cached_connection
+    return get_pool().get_connection()
+  File "F:\software\bop software\BOP-software\database\connection.py", line 56, in get_connection
+    conn = sqlitecloud.connect(self._connection_string)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 180, in connect
+    driver.connect(config.account.hostname, config.account.port, config),
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 58, in connect
+    sock = self._internal_connect(hostname, port, config)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 166, in _internal_connect
+    raise SQLiteCloudException(errmsg) from e
+sqlitecloud.exceptions.SQLiteCloudException: An error occurred while initializing the socket.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 509, in _internal_socket_write
+    sock.sendall(command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1205, in sendall
+    v = self.send(byte_view[count:])
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1174, in send
+    return self._sslobj.write(data)
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\bop software\BOP-software\main.py", line 558, in run
+    self._initialize_database()
+  File "F:\software\bop software\BOP-software\main.py", line 580, in _initialize_database
+    run_migrations(db)
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 170, in run_migrations
+    Migrator(db).run()
+  File "F:\software\bop software\BOP-software\database\migrations\migrator.py", line 94, in run
+    self._db.execute(sub_stmt)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\contextlib.py", line 137, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "F:\software\bop software\BOP-software\database\connection.py", line 223, in transaction
+    conn.execute("ROLLBACK")
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 486, in _internal_run_command
+    self._internal_socket_write(connection, command, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 511, in _internal_socket_write
+    raise SQLiteCloudException(
+sqlitecloud.exceptions.SQLiteCloudException: An error occurred while writing data.
+2026-08-03 18:00:43,669 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-03 18:00:48,689 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-03 18:00:48,699 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-03 18:00:48,699 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-03 18:00:48,699 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-03 18:00:48,699 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-03 18:00:48,710 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-03 18:00:48,710 | INFO     | erp.__main__ | ✅ Database connections closed
