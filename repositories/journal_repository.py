@@ -17,7 +17,14 @@ class JournalRepository(BaseRepository):
         rows. Caller (AccountingService) is expected to wrap this in
         `db.transaction()` together with whatever else must commit
         atomically (e.g. the sales invoice row itself).
+        
+        Raises:
+            ValueError: If lines list is empty - every journal entry must have at least 2 lines
         """
+        if not lines:
+            raise ValueError("Cannot insert journal entry without lines. "
+                           "Every journal entry must have at least 2 lines.")
+        
         entry_id = self.insert(header)
         for order, line in enumerate(lines):
             line = dict(line)
