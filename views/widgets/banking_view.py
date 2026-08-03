@@ -566,6 +566,26 @@ class BankingView(QWidget):
         self.bounce_cheque_btn.setEnabled(False)
         self.lose_cheque_btn.setEnabled(False)
     
+    def _load_cheques(self):
+        """Load/filter cheques based on status filter."""
+        status = self.cheque_status_filter.currentData()
+        
+        # Show loading state
+        self._show_table_loading(self.cheques_table, "Loading cheques...")
+        
+        # Load cheques with optional status filter
+        cheques, error = self.controller.list_cheques(status)
+        if error:
+            QMessageBox.warning(self, "Load Error", f"Failed to load cheques: {error}")
+            return
+        
+        # Use cached parties or reload if needed
+        parties = self._data_cache.get('parties', [])
+        if not parties:
+            parties, _ = self.party_controller.list_parties(active_only=False)
+        
+        self._populate_cheques_table(cheques, parties)
+    
     def _populate_transactions_table(self, txns):
         """Populate transactions table."""
         from PySide6.QtGui import QColor
@@ -587,6 +607,21 @@ class BankingView(QWidget):
             self.txn_table.setItem(row, 4, QTableWidgetItem(txn.get("notes") or "-"))
 
         self.txn_table.resizeColumnsToContents()
+    
+    def _load_transactions(self):
+        """Load/filter transactions based on account filter."""
+        account_id = self.txn_account_combo.currentData()
+        
+        # Show loading state
+        self._show_table_loading(self.txn_table, "Loading transactions...")
+        
+        # Load transactions with optional account filter
+        txns, error = self.controller.list_transactions(account_id)
+        if error:
+            QMessageBox.warning(self, "Load Error", f"Failed to load transactions: {error}")
+            return
+        
+        self._populate_transactions_table(txns)
     
     def _update_combos(self, accounts):
         """Update combo boxes with account list."""
