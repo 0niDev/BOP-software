@@ -328,30 +328,37 @@ class ItemView(QWidget):
             )
         
         self._save_thread.save_completed.connect(self._on_save_completed)
+        # Keep a reference to prevent premature garbage collection
+        self._save_thread.finished.connect(lambda: setattr(self, '_save_thread', None))
         self._save_thread.start()
     
     def _set_save_enabled(self, enabled: bool):
         """Disable save button briefly (1 sec max) to prevent double-clicks, but keep form active."""
+        self._is_saving = not enabled
         self.save_button.setEnabled(enabled)
         
         if not enabled:
-            original_text = self.save_button.text()
+            original_text = "Save" if self._selected_item_id is None else "Update"
             self.save_button.setText("⏳ Saving...")
             # Re-enable after 1 second max so user can continue working
             QTimer.singleShot(1000, lambda: self._restore_save_button(original_text))
     
     def _restore_save_button(self, original_text: str):
         """Restore save button text and enable it after brief delay."""
-        if "⏳" in self.save_button.text():
-            self.save_button.setText(original_text)
-            self.save_button.setEnabled(True)
+        self.save_button.setText(original_text)
+        self.save_button.setEnabled(True)
+        self._is_saving = False
     
     def _on_save_completed(self, success: bool, error: str, item):
         """Handle save completion from background thread."""
-        # Don't re-enable button here - it auto-enables after 1 sec
-        # Just ensure text is correct if save finished before timeout
+        # Button auto-enables after 1 sec, but ensure correct text
+        original_text = "Save" if self._selected_item_id is None else "Update"
         if "⏳" in self.save_button.text():
-            self.save_button.setText("Save" if self._selected_item_id is None else "Update")
+            self.save_button.setText(original_text)
+        # If save finished before timeout, ensure button is enabled
+        if not self.save_button.isEnabled():
+            self.save_button.setEnabled(True)
+            self._is_saving = False
         
         if success:
             self._load_items_async()  # Refresh list in background
@@ -362,11 +369,11 @@ class ItemView(QWidget):
             else:
                 QMessageBox.information(self, "Success", "Item updated successfully!")
         else:
+            # On error, also ensure button is re-enabled immediately
+            self.save_button.setEnabled(True)
+            self._is_saving = False
+            self.save_button.setText(original_text)
             QMessageBox.warning(self, "Operation Failed", error or "An error occurred.")
-        
-        # Clear thread reference to allow proper cleanup
-        if hasattr(self, '_save_thread'):
-            self._save_thread = None
 
     # Add this temporary method to add test stock
     def _add_test_stock(self):
