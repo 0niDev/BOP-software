@@ -287,7 +287,7 @@ class ItemView(QWidget):
         item_type = self.item_type_input.currentData()
         category_id = self.category_input.currentData()
 
-        # Disable UI during save
+        # Disable save button briefly (1 sec max), but keep form active for continuous entry
         self._set_save_enabled(False)
         
         if self._selected_item_id is None:
@@ -329,30 +329,27 @@ class ItemView(QWidget):
         self._save_thread.start()
     
     def _set_save_enabled(self, enabled: bool):
-        """Enable or disable save-related UI elements."""
-        self._is_saving = not enabled
+        """Disable save button briefly (1 sec max) to prevent double-clicks, but keep form active."""
         self.save_button.setEnabled(enabled)
-        self.clear_button.setEnabled(enabled)
-        self.edit_button.setEnabled(enabled and self._selected_item_id is not None)
-        self.delete_button.setEnabled(enabled and self._selected_item_id is not None)
-        self.name_input.setEnabled(enabled)
-        self.unit_input.setEnabled(enabled)
-        self.purchase_price_input.setEnabled(enabled)
-        self.selling_price_input.setEnabled(enabled)
-        self.min_stock_input.setEnabled(enabled)
-        self.max_stock_input.setEnabled(enabled)
-        self.tax_rate_input.setEnabled(enabled)
-        self.item_type_input.setEnabled(enabled)
-        self.category_input.setEnabled(enabled)
         
         if not enabled:
+            original_text = self.save_button.text()
             self.save_button.setText("⏳ Saving...")
-        else:
-            self.save_button.setText("Save" if self._selected_item_id is None else "Update")
+            # Re-enable after 1 second max so user can continue working
+            QTimer.singleShot(1000, lambda: self._restore_save_button(original_text))
+    
+    def _restore_save_button(self, original_text: str):
+        """Restore save button text and enable it after brief delay."""
+        if "⏳" in self.save_button.text():
+            self.save_button.setText(original_text)
+            self.save_button.setEnabled(True)
     
     def _on_save_completed(self, success: bool, error: str, item):
         """Handle save completion from background thread."""
-        self._set_save_enabled(True)
+        # Don't re-enable button here - it auto-enables after 1 sec
+        # Just ensure text is correct if save finished before timeout
+        if "⏳" in self.save_button.text():
+            self.save_button.setText("Save" if self._selected_item_id is None else "Update")
         
         if success:
             self._load_items_async()  # Refresh list in background
