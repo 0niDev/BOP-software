@@ -166,7 +166,7 @@ class ManufacturingService:
         if not existing:
             raise ValidationError("BOM not found.")
 
-        if not bom_name.strip():
+        if not bom_name or not bom_name.strip():
             raise ValidationError("BOM name is required.")
         if output_quantity <= 0:
             raise ValidationError("Output quantity must be greater than 0.")
