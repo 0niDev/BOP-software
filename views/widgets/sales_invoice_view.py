@@ -366,6 +366,12 @@ class SalesInvoiceView(QWidget):
         self.status_filter.currentIndexChanged.connect(self._on_filter_changed)
         controls_layout.addWidget(self.status_filter)
         
+        # Refresh button
+        self.refresh_button = QPushButton("🔄 Refresh")
+        self.refresh_button.setToolTip("Refresh invoices, customers, and items")
+        self.refresh_button.clicked.connect(self._on_refresh_clicked)
+        controls_layout.addWidget(self.refresh_button)
+        
         layout.addLayout(controls_layout)
 
         # Invoice table
@@ -623,6 +629,24 @@ class SalesInvoiceView(QWidget):
 
     def _on_filter_changed(self, index: int) -> None:
         self._load_invoices()
+    
+    def _on_refresh_clicked(self) -> None:
+        """Refresh invoices, customers, and items in the background."""
+        # Disable button temporarily to prevent multiple clicks
+        self.refresh_button.setEnabled(False)
+        self.refresh_button.setText("⏳ Loading...")
+        
+        # Load all data asynchronously
+        self._load_customers_async()
+        self._load_invoices_async()
+        
+        # Re-enable button after a short delay (data loads in background)
+        QTimer.singleShot(500, lambda: self._on_refresh_complete())
+    
+    def _on_refresh_complete(self):
+        """Re-enable refresh button after loading completes."""
+        self.refresh_button.setEnabled(True)
+        self.refresh_button.setText("🔄 Refresh")
 
     def _on_table_clicked(self, index) -> None:
         row = index.row()
