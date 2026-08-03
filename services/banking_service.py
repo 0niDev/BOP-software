@@ -62,7 +62,8 @@ class BankingService:
         if existing:
             raise ValidationError(f"Bank account number '{account_number}' already exists.")
 
-        # Find or create Bank account in Chart of Accounts
+        # Find or create Bank account in Chart of Accounts (code 1010)
+        # All bank accounts link to this single COA entry for consolidated reporting
         bank_acc = self.accounting_repo.find_by_code("1010")
         if not bank_acc:
             from services.account_service import AccountService
