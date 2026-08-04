@@ -153,6 +153,7 @@ class AccountService:
         """Create adjusting journal entry when opening balance changes."""
         from accounting.system_accounts import SystemAccountCodes, SystemAccountResolver
         from services.accounting_service import AccountingService, JournalLine
+        from models.enums import AccountType
         import datetime as _dt
         
         accounting = AccountingService(self.db)
@@ -167,7 +168,12 @@ class AccountService:
         if not account:
             raise ValidationError("Account not found.")
         
-        debit_normal = account["account_type"].normal_balance_is_debit
+        # Convert account_type string to enum if needed
+        account_type = account["account_type"]
+        if isinstance(account_type, str):
+            account_type = AccountType(account_type)
+        
+        debit_normal = account_type.normal_balance_is_debit
         amount = abs(adjustment)
         
         # Determine direction of adjustment
