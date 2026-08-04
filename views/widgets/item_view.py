@@ -368,10 +368,10 @@ class ItemView(QWidget):
             self._is_saving = False
         
         if success:
-            self._load_items_async()  # Refresh list in background
             if self._selected_item_id is None:
                 # For new items, just re-enable save button and keep form data for fast entry
                 # Only clear the auto-generated code so a new one will be generated on next save
+                # DO NOT auto-refresh - user must press Refresh button manually
                 self.code_input.clear()
                 self.name_input.setFocus()
             else:
@@ -410,7 +410,7 @@ class ItemView(QWidget):
                 """, (items[1].id,))
                 
             logger.info("Test stock added successfully")
-            self._load_items_async()
+            # DO NOT auto-refresh - user must press Refresh button manually
             
         except Exception as e:
             logger.error(f"Error adding test stock: {e}")
@@ -651,7 +651,7 @@ class ItemView(QWidget):
             success, error = self.controller.deactivate_item(self._selected_item_id)
             if success:
                 self.item_deleted.emit(self._selected_item_id)
-                self._load_items_async()  # Use async refresh
+                # DO NOT auto-refresh - user must press Refresh button manually
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
