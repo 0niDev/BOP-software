@@ -130,6 +130,9 @@ class AccountService:
             raise ValidationError("System accounts cannot be deactivated.")
         if not account_name.strip():
             raise ValidationError("Account name is required.")
+        
+        old_opening = existing["opening_balance"]
+        
         self.repo.update(
             account_id,
             {
@@ -139,7 +142,61 @@ class AccountService:
                 "is_active": int(is_active),
             },
         )
+        
+        # If opening balance changed, create an adjusting journal entry
+        if abs(opening_balance - old_opening) > 0.01:
+            self._adjust_opening_balance(account_id, opening_balance, old_opening, existing["company_id"])
+        
         logger.info("Updated account id=%s", account_id)
+
+    def _adjust_opening_balance(self, account_id: int, new_balance: float, old_balance: float, company_id: int) -> None:
+        """Create adjusting journal entry when opening balance changes."""
+        from accounting.system_accounts import SystemAccountCodes, SystemAccountResolver
+        from services.accounting_service import AccountingService, JournalLine
+        import datetime as _dt
+        
+        accounting = AccountingService(self.db)
+        resolver = SystemAccountResolver(self.db, company_id)
+        equity_account_id = resolver.id_for(SystemAccountCodes.RETAINED_EARNINGS)
+        
+        adjustment = new_balance - old_balance
+        if abs(adjustment) < 0.01:
+            return
+        
+        account = self.repo.get_by_id(account_id)
+        if not account:
+            raise ValidationError("Account not found.")
+        
+        debit_normal = account["account_type"].normal_balance_is_debit
+        amount = abs(adjustment)
+        
+        # Determine direction of adjustment
+        if adjustment > 0:
+            # Increasing the balance
+            if debit_normal:
+                this_line = JournalLine(account_id=account_id, debit=amount)
+                equity_line = JournalLine(account_id=equity_account_id, credit=amount)
+            else:
+                this_line = JournalLine(account_id=account_id, credit=amount)
+                equity_line = JournalLine(account_id=equity_account_id, debit=amount)
+        else:
+            # Decreasing the balance
+            if debit_normal:
+                this_line = JournalLine(account_id=account_id, credit=amount)
+                equity_line = JournalLine(account_id=equity_account_id, debit=amount)
+            else:
+                this_line = JournalLine(account_id=account_id, debit=amount)
+                equity_line = JournalLine(account_id=equity_account_id, credit=amount)
+        
+        accounting.post_journal_entry(
+            voucher_type=VoucherType.OPENING,
+            entry_date=_dt.date.today().isoformat(),
+            lines=[this_line, equity_line],
+            narration=f"Adjustment to opening balance for {account['account_code']} - {account['account_name']}",
+            source_table="accounts",
+            source_id=account_id,
+            company_id=company_id,
+        )
 
     def deactivate_account(self, account_id: int) -> None:
         account = self.repo.get_by_id(account_id)

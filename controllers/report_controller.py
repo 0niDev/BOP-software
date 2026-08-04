@@ -40,7 +40,9 @@ class ReportController:
             return None, "An unexpected error occurred."
 
     def _build_parties_summary(self, date_from: str | None = None, date_to: str | None = None) -> list[dict]:
-        """Build parties summary from journal entries with opening and closing balances."""
+        """Build parties summary from journal entries.
+        Note: Opening balances at account level don't have party information,
+        so we only show current period transactions for parties."""
         
         params = [1]  # company_id = 1
         date_filter = ""
@@ -59,8 +61,7 @@ class ReportController:
                 jel.debit,
                 jel.credit,
                 je.entry_date,
-                a.account_type,
-                a.opening_balance
+                a.account_type
             FROM journal_entry_lines jel
             JOIN journal_entries je ON je.id = jel.journal_entry_id
             JOIN parties p ON p.id = jel.party_id
@@ -87,29 +88,13 @@ class ReportController:
                     'party_code': row['party_code'],
                     'party_name': row['party_name'],
                     'party_type': row['party_type'],
-                    'opening_debit': 0.0,
-                    'opening_credit': 0.0,
+                    'opening_debit': 0.0,  # Cannot determine opening balance by party
+                    'opening_credit': 0.0,  # Opening balances don't have party info
                     'current_debit': 0.0,
                     'current_credit': 0.0,
                 }
             
-            # Get opening balance from account
-            opening = row['opening_balance'] or 0.0
-            acc_type = row['account_type']
-            
-            # Calculate opening balance contribution for this party
-            if acc_type in ['ASSET', 'EXPENSE']:
-                if opening > 0:
-                    party_map[party_id]['opening_debit'] += opening
-                else:
-                    party_map[party_id]['opening_credit'] += abs(opening)
-            else:
-                if opening > 0:
-                    party_map[party_id]['opening_credit'] += opening
-                else:
-                    party_map[party_id]['opening_debit'] += abs(opening)
-            
-            # Current period transactions
+            # Current period transactions only (opening balances don't have party info)
             debit = row['debit'] or 0.0
             credit = row['credit'] or 0.0
             
