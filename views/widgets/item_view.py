@@ -372,7 +372,7 @@ class ItemView(QWidget):
         if success:
             if self._selected_item_id is None:
                 # For new items, clear form immediately for fast entry
-                # DO NOT auto-refresh - user must press Refresh button manually
+                # This clears the form right after the auto-generated code message
                 self._clear_form()
                 self.name_input.setFocus()
             else:
@@ -456,6 +456,10 @@ class ItemView(QWidget):
         # Cancel previous thread if still running
         if self._load_thread and self._load_thread.isRunning():
             self._load_thread.terminate()
+        
+        # Reset flags for fresh load
+        self._stocks_loaded = False
+        self._stocks_cache = {}
         
         self._load_thread = ItemLoadThread(self.controller, active_only=True)
         self._load_thread.data_loaded.connect(self._on_items_loaded)
