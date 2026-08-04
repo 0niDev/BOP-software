@@ -1,7 +1,7 @@
 """Dashboard widget - main home screen."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -52,11 +52,8 @@ class DashboardView(QWidget):
         self._is_loaded = False  # Track if data has been loaded
         self._build_ui()
         # Don't load on init - wait for showEvent
-
-        # Auto-refresh every 60 seconds
-        self.timer = QTimer()
-        self.timer.timeout.connect(self._load_data)
-        self.timer.start(60000)
+        # NOTE: Auto-refresh disabled to prevent connection pool conflicts with user operations
+        # Users should manually click Refresh button to update dashboard
 
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""

@@ -46,6 +46,8 @@ class ConnectionPool:
             while self._connections:
                 conn = self._connections.pop()
                 try:
+                    # Clean up any pending transactions before reusing connection
+                    conn.execute("ROLLBACK")
                     conn.execute("SELECT 1")
                     return conn
                 except Exception:
@@ -67,9 +69,14 @@ class ConnectionPool:
             return
         with self._lock:
             if len(self._connections) < self.max_connections:
-                # Clean up any uncommitted transactions before returning to pool
+                # Always rollback any pending transactions before returning to pool
                 try:
                     conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                # Reset connection state to ensure clean slate
+                try:
+                    conn.execute("SELECT 1")
                 except Exception:
                     pass
                 self._connections.append(conn)
