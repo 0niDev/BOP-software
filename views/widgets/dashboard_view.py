@@ -25,13 +25,17 @@ class DashboardLoadThread(QThread):
     
     data_loaded = Signal(dict, str)  # data, error
     
-    def __init__(self, controller: DashboardController):
+    def __init__(self, controller: DashboardController, force_refresh: bool = False):
         super().__init__()
         self.controller = controller
+        self.force_refresh = force_refresh
     
     def run(self):
         try:
-            data, error = self.controller.get_dashboard_data()
+            if self.force_refresh:
+                data, error = self.controller.refresh_dashboard_data()
+            else:
+                data, error = self.controller.get_dashboard_data()
             self.data_loaded.emit(data or {}, error or "")
         except Exception as e:
             logger.exception(f"Error in dashboard load thread: {e}")
@@ -81,7 +85,7 @@ class DashboardView(QWidget):
         header_layout.addStretch()
         
         self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(self._load_data)
+        self.refresh_btn.clicked.connect(lambda: self._load_data(force=True))
         self.refresh_btn.setFixedWidth(100)
         header_layout.addWidget(self.refresh_btn)
         
@@ -117,30 +121,41 @@ class DashboardView(QWidget):
             elif item.layout():
                 self._clear_layout(item.layout())
 
-    def _load_data(self):
+    def _load_data(self, force: bool = False):
         """Load dashboard data asynchronously."""
         logger.info("🔄 LOADING DASHBOARD DATA")
         
+        # Reset loaded flag if forcing refresh (e.g., from refresh button)
+        if force:
+            self._is_loaded = False
+        
         # Cancel any existing load thread
         if self._load_thread and self._load_thread.isRunning():
+            logger.warning("⚠️ Previous load thread still running, terminating...")
             self._load_thread.terminate()
-            self._load_thread.wait()
+            self._load_thread.wait(1000)  # Wait up to 1 second
             # Disconnect old signal to prevent multiple calls
             try:
                 self._load_thread.data_loaded.disconnect(self._on_data_loaded)
             except:
                 pass
         
-        # Start new load thread
-        self._load_thread = DashboardLoadThread(self.controller)
-        self._load_thread.data_loaded.connect(self._on_data_loaded)
-        self._load_thread.start()
-        
         # Update UI to show loading state
         self.last_updated_label.setText("Last updated: Loading...")
+        self.refresh_btn.setEnabled(False)
+        self.refresh_btn.setText("Loading...")
+        
+        # Start new load thread with force_refresh flag
+        self._load_thread = DashboardLoadThread(self.controller, force_refresh=force)
+        self._load_thread.data_loaded.connect(self._on_data_loaded)
+        self._load_thread.start()
     
     def _on_data_loaded(self, data, error):
         """Handle dashboard data loaded from background thread."""
+        # Re-enable refresh button
+        self.refresh_btn.setEnabled(True)
+        self.refresh_btn.setText("Refresh")
+        
         if error:
             logger.error(f"❌ Error: {error}")
             self._show_empty_state()

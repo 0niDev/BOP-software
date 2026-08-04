@@ -18,11 +18,24 @@ class DashboardController:
         """Get all dashboard data."""
         try:
             print("📊 DashboardController: Fetching data...")
-            data = self.service.get_dashboard_data()
+            data = self.service.get_dashboard_data(force_refresh=False)
             print(f"📊 DashboardController: Data fetched: {len(data)} sections")
             return data, None
         except ERPException as exc:
             return None, str(exc)
         except Exception:
             logger.exception("Unexpected error getting dashboard data")
+            return None, "An unexpected error occurred."
+
+    def refresh_dashboard_data(self) -> tuple[dict | None, str | None]:
+        """Force refresh dashboard data."""
+        try:
+            print("📊 DashboardController: Forcing refresh...")
+            data = self.service.get_dashboard_data(force_refresh=True)
+            print(f"📊 DashboardController: Data refreshed: {len(data)} sections")
+            return data, None
+        except ERPException as exc:
+            return None, str(exc)
+        except Exception:
+            logger.exception("Unexpected error refreshing dashboard data")
             return None, "An unexpected error occurred."

@@ -59,18 +59,21 @@ class DashboardService:
         self._cache_time.clear()
         logger.info("Dashboard cache cleared")
 
-    def get_dashboard_data(self, company_id: int = 1) -> dict:
+    def get_dashboard_data(self, company_id: int = 1, force_refresh: bool = False) -> dict:
         """Get dashboard data with minimal queries - OPTIMIZED."""
         
         cache_key = f"dashboard_{company_id}"
         
-        # Check cache
-        if cache_key in self._cache:
+        # Check cache (skip if force_refresh)
+        if not force_refresh and cache_key in self._cache:
             if time.time() - self._cache_time.get(cache_key, 0) < self._cache_ttl:
                 logger.info(f"✅ Dashboard cache hit for {cache_key}")
                 return self._cache[cache_key]
         
-        logger.info(f"🔄 Dashboard cache miss, fetching from DB...")
+        if force_refresh:
+            logger.info(f"🔄 Dashboard forced refresh, fetching from DB...")
+        else:
+            logger.info(f"🔄 Dashboard cache miss, fetching from DB...")
         today = datetime.now().date().isoformat()
         month_start = datetime.now().date().replace(day=1).isoformat()
         
