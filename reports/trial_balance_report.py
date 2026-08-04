@@ -92,22 +92,16 @@ class TrialBalanceReport(Report):
             
             acc_type = row['account_type']
             
+            # CDR/CCR should ONLY contain current period transactions, NOT opening balances
+            # Opening balances stay in ODR/OCR columns
             if acc_type in ['ASSET', 'EXPENSE']:
-                net = odr + total_debit - total_credit
-                if net >= 0:
-                    cdr = net
-                    ccr = Decimal('0')
-                else:
-                    cdr = Decimal('0')
-                    ccr = abs(net)
+                # For assets/expenses: normal balance is debit
+                cdr = total_debit
+                ccr = total_credit
             else:
-                net = ocr + total_credit - total_debit
-                if net >= 0:
-                    cdr = Decimal('0')
-                    ccr = net
-                else:
-                    cdr = abs(net)
-                    ccr = Decimal('0')
+                # For liabilities/equity/revenue: normal balance is credit
+                cdr = total_debit
+                ccr = total_credit
             
             total_odr += odr
             total_ocr += ocr
@@ -159,6 +153,8 @@ class TrialBalanceReport(Report):
     def _build_parties_summary(self) -> list[dict]:
         """
         Build parties summary from journal entries.
+        Note: Opening balances at account level don't have party information,
+        so we only show current period transactions for parties.
         """
         params = [self.company_id]
         date_filter = ""
@@ -176,8 +172,7 @@ class TrialBalanceReport(Report):
                 jel.debit,
                 jel.credit,
                 je.entry_date,
-                a.account_type,
-                a.opening_balance
+                a.account_type
             FROM journal_entry_lines jel
             JOIN journal_entries je ON je.id = jel.journal_entry_id
             JOIN parties p ON p.id = jel.party_id
@@ -204,29 +199,13 @@ class TrialBalanceReport(Report):
                     'party_code': row['party_code'],
                     'party_name': row['party_name'],
                     'party_type': row['party_type'],
-                    'opening_debit': 0.0,
-                    'opening_credit': 0.0,
+                    'opening_debit': 0.0,  # Cannot determine opening balance by party
+                    'opening_credit': 0.0,  # Opening balances don't have party info
                     'current_debit': 0.0,
                     'current_credit': 0.0,
                 }
             
-            # Get opening balance from account
-            opening = row['opening_balance'] or 0.0
-            acc_type = row['account_type']
-            
-            # Calculate opening balance contribution for this party
-            if acc_type in ['ASSET', 'EXPENSE']:
-                if opening > 0:
-                    party_map[party_id]['opening_debit'] += opening
-                else:
-                    party_map[party_id]['opening_credit'] += abs(opening)
-            else:
-                if opening > 0:
-                    party_map[party_id]['opening_credit'] += opening
-                else:
-                    party_map[party_id]['opening_debit'] += abs(opening)
-            
-            # Current period transactions
+            # Current period transactions only (opening balances don't have party info)
             debit = row['debit'] or 0.0
             credit = row['credit'] or 0.0
             

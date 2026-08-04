@@ -103,6 +103,8 @@ class BankingService:
 
     def _post_bank_balance(self, bank_account_id: int, amount: float, description: str):
         """Post a journal entry for bank balance changes."""
+        from accounting.system_accounts import SystemAccountCodes, SystemAccountResolver
+        
         bank_account = self.account_repo.get_by_id(bank_account_id)
         if not bank_account:
             raise ValidationError("Bank account not found.")
@@ -112,17 +114,18 @@ class BankingService:
         if not coa_bank:
             raise ValidationError("Bank account not found in Chart of Accounts.")
 
-        # Get equity account for opening balance
-        equity = self.accounting_repo.find_by_code("3000")
-        if not equity:
-            raise ValidationError("Equity account (3000) not found.")
+        # Use Retained Earnings (3100) for opening balances, consistent with AccountService
+        resolver = SystemAccountResolver(self.db, bank_account["company_id"])
+        equity_account_id = resolver.id_for(SystemAccountCodes.RETAINED_EARNINGS)
+        if not equity_account_id:
+            raise ValidationError("Retained Earnings account (3100) not found.")
 
         self.accounting_service.post_journal_entry(
-            voucher_type=VoucherType.JOURNAL,
+            voucher_type=VoucherType.OPENING,  # Use OPENING type, not JOURNAL
             entry_date=datetime.now().date().isoformat(),
             lines=[
                 JournalLine(account_id=coa_bank["id"], debit=amount, credit=0, description=description),
-                JournalLine(account_id=equity["id"], debit=0, credit=amount, description=description),
+                JournalLine(account_id=equity_account_id, debit=0, credit=amount, description=description),
             ],
             narration=f"Bank account opening balance: {bank_account['bank_name']}"
         )

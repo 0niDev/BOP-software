@@ -181,7 +181,9 @@ class OpeningBalanceDialog(QDialog):
             )
 
     def _save(self):
-        """Save opening balances as journal entry."""
+        """Save opening balances as journal entry and update account opening_balance fields."""
+        from accounting.system_accounts import SystemAccountCodes, SystemAccountResolver
+        
         entries = []
         total_debit = 0.0
         total_credit = 0.0
@@ -230,7 +232,7 @@ class OpeningBalanceDialog(QDialog):
             self,
             "Confirm",
             f"Post opening balance of Rs. {total_debit:,.2f}?\n\n"
-            "This will create a journal entry.",
+            "This will create a journal entry and update account opening balances.",
             QMessageBox.Yes | QMessageBox.No
         )
 
@@ -257,6 +259,27 @@ class OpeningBalanceDialog(QDialog):
                 lines=journal_lines,
                 narration="Opening balances setup"
             )
+            
+            # Update the accounts.opening_balance field for each account
+            db = get_db()
+            for entry in entries:
+                acc_id = entry["account_id"]
+                amount = entry["debit"] if entry["debit"] > 0 else entry["credit"]
+                
+                # Determine sign based on account type
+                acc_data = db.fetch_one("SELECT account_type FROM accounts WHERE id = ?", (acc_id,))
+                if acc_data:
+                    acc_type = acc_data["account_type"]
+                    # For assets, debit is positive; for liabilities/equity, credit is positive
+                    if acc_type == "ASSET":
+                        signed_amount = amount  # Positive for assets
+                    else:
+                        signed_amount = amount  # Positive for liabilities/equity
+                    
+                    db.execute(
+                        "UPDATE accounts SET opening_balance = ? WHERE id = ?",
+                        (signed_amount, acc_id)
+                    )
 
             QMessageBox.information(
                 self,
