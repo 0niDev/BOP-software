@@ -56,7 +56,9 @@ class TrialBalanceReport(Report):
                     COALESCE(SUM(jel.credit), 0) as total_credit
                 FROM journal_entry_lines jel
                 JOIN journal_entries je ON je.id = jel.journal_entry_id
-                WHERE je.is_posted = 1 AND je.company_id = ?
+                WHERE je.is_posted = 1 
+                AND je.company_id = ?
+                AND je.voucher_type != 'OPENING'
                 GROUP BY jel.account_id
             )
             SELECT 
