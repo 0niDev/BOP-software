@@ -49,7 +49,11 @@ class ConnectionPool:
                     conn.execute("SELECT 1")
                     return conn
                 except Exception:
-                    pass
+                    # Connection is dead, close it and try next
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             
             if not self._connection_string:
                 raise RuntimeError("Connection string not set")
@@ -165,6 +169,14 @@ class SQLiteCloudConnection(DatabaseConnection):
                 columns = [desc[0] for desc in cursor.description]
                 return [dict(zip(columns, row)) for row in rows]
             return rows
+        except sqlitecloud.Error as exc:
+            logger.error(f"SQLite Cloud fetch_all failed: {exc} | sql={sql}")
+            # Close problematic connection and re-raise
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise
         finally:
             self._return_connection(conn)
 
@@ -180,6 +192,14 @@ class SQLiteCloudConnection(DatabaseConnection):
                 columns = [desc[0] for desc in cursor.description]
                 return dict(zip(columns, row))
             return row
+        except sqlitecloud.Error as exc:
+            logger.error(f"SQLite Cloud fetch_one failed: {exc} | sql={sql}")
+            # Close problematic connection and re-raise
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise
         finally:
             self._return_connection(conn)
 
@@ -188,8 +208,13 @@ class SQLiteCloudConnection(DatabaseConnection):
         conn = self._get_cached_connection()
         try:
             return conn.execute(sql, params)
-        except Exception as exc:
+        except sqlitecloud.Error as exc:
             logger.error("SQL execute failed: %s | sql=%s", exc, sql)
+            # Close problematic connection and re-raise
+            try:
+                conn.close()
+            except Exception:
+                pass
             raise DatabaseError(str(exc)) from exc
         finally:
             self._return_connection(conn)
@@ -201,6 +226,14 @@ class SQLiteCloudConnection(DatabaseConnection):
             cursor = conn.cursor()
             cursor.executemany(sql, seq_of_params)
             return cursor
+        except sqlitecloud.Error as exc:
+            logger.error("SQL executemany failed: %s | sql=%s", exc, sql)
+            # Close problematic connection and re-raise
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise DatabaseError(str(exc)) from exc
         finally:
             self._return_connection(conn)
 
@@ -209,6 +242,14 @@ class SQLiteCloudConnection(DatabaseConnection):
         try:
             cursor = conn.execute("SELECT last_insert_rowid()")
             return cursor.fetchone()[0]
+        except sqlitecloud.Error as exc:
+            logger.error("SQL last_insert_id failed: %s", exc)
+            # Close problematic connection and re-raise
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise DatabaseError(str(exc)) from exc
         finally:
             self._return_connection(conn)
 
@@ -219,8 +260,18 @@ class SQLiteCloudConnection(DatabaseConnection):
             conn.execute("BEGIN")
             yield self
             conn.execute("COMMIT")
+        except sqlitecloud.Error as exc:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            logger.error("Transaction rolled back: %s", exc)
+            raise DatabaseError(str(exc)) from exc
         except Exception as exc:
-            conn.execute("ROLLBACK")
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
             logger.error("Transaction rolled back: %s", exc)
             raise
         finally:

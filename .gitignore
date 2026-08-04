@@ -1,1 +1,29 @@
-Nothing should be ignored based on the provided file changes. The only modified file is 'views/widgets/item_view.py', which is a Python source file and should not be ignored. No build artifacts, dependencies, or temporary files are present in the changes.
+```python
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.*
+.env
+.env.*
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+.DS_Store
+Thumbs.db
+```
