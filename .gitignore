@@ -1,1 +1,15 @@
-Nothing should be ignored based on the provided file changes. The only modified file is a Python source file (`views/widgets/banking_view.py`), which should not be ignored. No build artifacts, dependencies, or temporary files are present in the changes.
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database
+*.db
+
+# Reports
+reports/__pycache__/
+config/__pycache__/
+utils/__pycache__/
+```
