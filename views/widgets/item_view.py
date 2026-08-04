@@ -370,8 +370,10 @@ class ItemView(QWidget):
         if success:
             self._load_items_async()  # Refresh list in background
             if self._selected_item_id is None:
-                # For new items, clear form immediately without dialog for fast entry
-                self._clear_form()
+                # For new items, just re-enable save button and keep form data for fast entry
+                # Only clear the auto-generated code so a new one will be generated on next save
+                self.code_input.clear()
+                self.name_input.setFocus()
             else:
                 # For updates, show confirmation and clear selection
                 self._clear_form()
@@ -679,3 +681,15 @@ class ItemView(QWidget):
         self.delete_button.setEnabled(False)
         
         self.code_input.setFocus()
+
+    def keyPressEvent(self, event):
+        """Handle Enter key to save when creating new items."""
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            # Only trigger save on Enter when creating (not updating) and not already saving
+            if self._selected_item_id is None and not self._is_saving:
+                self._on_save_clicked()
+            else:
+                # For other cases, pass the event to parent class
+                super().keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
