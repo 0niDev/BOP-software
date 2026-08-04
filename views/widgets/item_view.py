@@ -369,12 +369,11 @@ class ItemView(QWidget):
         
         if success:
             self._load_items_async()  # Refresh list in background
+            self._clear_form()
             if self._selected_item_id is None:
-                # For new items, clear form immediately without dialog for fast entry
-                self._clear_form()
+                QMessageBox.information(self, "Success", 
+                    "Item created successfully! Code was auto-generated.")
             else:
-                # For updates, show confirmation and clear selection
-                self._clear_form()
                 QMessageBox.information(self, "Success", "Item updated successfully!")
         else:
             # On error, also ensure button is re-enabled immediately
