@@ -444,3 +444,36 @@ utils.exceptions.DatabaseError: UNIQUE constraint failed: parties.company_id, pa
 2026-08-04 04:09:15,268 | INFO     | erp.__main__ | 🔄 Creating exit backup...
 2026-08-04 04:09:15,269 | INFO     | erp.__main__ | ✅ Exit backup created
 2026-08-04 04:09:15,270 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-04 00:20:31,961 | ERROR    | erp.database.connection | SQL execute failed: no such table: journal_lines | sql=
+    SELECT je.voucher_type, je.entry_date, jl.debit, jl.credit, jl.account_id, a.account_code
+    FROM journal_entries je
+    JOIN journal_lines jl ON je.id = jl.journal_entry_id
+    JOIN accounts a ON jl.account_id = a.id
+    WHERE jl.account_id IN (1, 2)  -- Cash in Hand and Bank Accounts
+    ORDER BY je.entry_date, je.id
+
+2026-08-04 00:20:48,064 | ERROR    | erp.database.connection | SQL execute failed: no such table: journal_lines | sql=
+    SELECT jl.debit, jl.credit, jl.account_id, a.account_code, a.account_name
+    FROM journal_lines jl
+    JOIN accounts a ON jl.account_id = a.id
+    WHERE jl.journal_entry_id = 1
+
+2026-08-04 00:22:03,583 | INFO     | erp.services.account_service | Updated account id=1
+2026-08-04 00:22:18,520 | ERROR    | erp.database.connection | SQL execute failed: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number | sql=INSERT INTO journal_entries (company_id, voucher_number, voucher_type, entry_date, reference_no, narration, source_table, source_id, is_posted, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+2026-08-04 00:22:18,520 | ERROR    | erp.repositories.journal_repository | Insert failed on journal_entries
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 267, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 126, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 270, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
+2026-08-04 00:22:23,336 | INFO     | erp.services.accounting_service | Posted journal entry #6 (OPENING) voucher=OPENING-00002 amount=150.00
+2026-08-04 00:22:23,337 | INFO     | erp.services.account_service | Updated account id=1
