@@ -131,10 +131,12 @@ class ItemView(QWidget):
         self._selected_item_id: int | None = None
         self._items_cache = []
         self._stocks_cache = {}
+        self._stocks_loaded = False  # Track if stock loading has completed
         self._load_thread = None
         self._stock_thread = None
         self._save_threads = []  # Keep strong references to prevent GC crash
         self._is_saving = False
+        self._is_loaded = False  # Track if initial data load has completed
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -434,7 +436,7 @@ class ItemView(QWidget):
         except Exception as e:
             logger.error(f"Debug error: {e}")
         super().showEvent(event)
-        if not hasattr(self, '_is_loaded') or not self._is_loaded:
+        if not self._is_loaded:
             self._show_loading_state()
             QTimer.singleShot(50, self._load_items_async)
         
@@ -477,6 +479,8 @@ class ItemView(QWidget):
         if item_ids:
             self._load_stocks_async(item_ids)
         else:
+            # No items, mark as loaded and populate empty table
+            self._stocks_loaded = True
             self._populate_table()
     
     def _load_stocks_async(self, item_ids):
@@ -491,16 +495,20 @@ class ItemView(QWidget):
     def _on_stocks_loaded(self, stocks):
         """Handle stocks loaded from background thread."""
         self._stocks_cache = stocks
+        self._stocks_loaded = True
         self._populate_table()
     
     def _populate_table(self):
         """Populate the table with cached data."""
         items = self._items_cache
         
+        # Check if we have stock data loaded (even if empty dict means no stock batches exist)
+        has_stock_data = hasattr(self, '_stocks_loaded') and self._stocks_loaded
+        
         # Use the pre-loaded stocks cache instead of querying synchronously
         stock_map = self._stocks_cache if self._stocks_cache else {}
         
-        if not stock_map and items:
+        if not has_stock_data and items:
             # If stocks weren't loaded yet, show placeholder and trigger async load
             self.table.setRowCount(len(items))
             self.table.setColumnCount(10)
