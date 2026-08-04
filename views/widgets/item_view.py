@@ -369,10 +369,9 @@ class ItemView(QWidget):
         
         if success:
             if self._selected_item_id is None:
-                # For new items, just re-enable save button and keep form data for fast entry
-                # Only clear the auto-generated code so a new one will be generated on next save
+                # For new items, clear form immediately for fast entry
                 # DO NOT auto-refresh - user must press Refresh button manually
-                self.code_input.clear()
+                self._clear_form()
                 self.name_input.setFocus()
             else:
                 # For updates, show confirmation and clear selection
@@ -498,37 +497,49 @@ class ItemView(QWidget):
         """Populate the table with cached data."""
         items = self._items_cache
         
-        # Directly query stock for all items in one go
-        stock_map = {}
-        try:
-            # Get all stock in one query
-            stock_results = self.controller.service.repo.db.fetch_all("""
-                SELECT 
-                    item_id,
-                    COALESCE(SUM(quantity_in_stock), 0) as total_stock
-                FROM stock_batches
-                WHERE is_active = 1
-                GROUP BY item_id
-            """)
-            
-            for row in stock_results:
-                stock_map[row["item_id"]] = float(row["total_stock"])
-                
-            logger.info(f"Loaded stock for {len(stock_map)} items: {stock_map}")
-            
-        except Exception as e:
-            logger.error(f"Error loading stock: {e}")
+        # Use the pre-loaded stocks cache instead of querying synchronously
+        stock_map = self._stocks_cache if self._stocks_cache else {}
         
+        if not stock_map and items:
+            # If stocks weren't loaded yet, show placeholder and trigger async load
+            self.table.setRowCount(len(items))
+            self.table.setColumnCount(10)
+            self.table.setHorizontalHeaderLabels([
+                "Code", "Name", "Notes", "Unit", "Purchase Price", 
+                "Selling Price", "Current Stock", "Min Stock", "Max Stock", "Tax Rate"
+            ])
+            for row, item in enumerate(items):
+                self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
+                self.table.setItem(row, 1, QTableWidgetItem(item.item_name))
+                self.table.setItem(row, 2, QTableWidgetItem(item.notes or ""))
+                self.table.setItem(row, 3, QTableWidgetItem(item.unit))
+                self.table.setItem(row, 4, QTableWidgetItem(f"{item.purchase_price:.2f}"))
+                self.table.setItem(row, 5, QTableWidgetItem(f"{item.selling_price:.2f}"))
+                self.table.setItem(row, 6, QTableWidgetItem("..."))
+                self.table.setItem(row, 7, QTableWidgetItem(f"{item.minimum_stock:.2f}"))
+                self.table.setItem(row, 8, QTableWidgetItem(f"{item.maximum_stock:.2f}"))
+                tax_rate_name = "None"
+                if item.tax_rate_id:
+                    tax_rate_name = f"ID:{item.tax_rate_id}"
+                self.table.setItem(row, 9, QTableWidgetItem(tax_rate_name))
+            self.table.resizeColumnsToContents()
+            # Trigger stock load if not already done
+            item_ids = [item.id for item in items]
+            self._load_stocks_async(item_ids)
+            return
+        
+        logger.info(f"Loaded stock for {len(stock_map)} items: {stock_map}")
+
         self.table.setRowCount(len(items))
         self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels([
             "Code", "Name", "Notes", "Unit", "Purchase Price", 
             "Selling Price", "Current Stock", "Min Stock", "Max Stock", "Tax Rate"
         ])
-        
+
         for row, item in enumerate(items):
             current_stock = stock_map.get(item.id, 0.0)
-            
+
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))
             self.table.setItem(row, 2, QTableWidgetItem(item.notes or ""))
@@ -538,12 +549,12 @@ class ItemView(QWidget):
             self.table.setItem(row, 6, QTableWidgetItem(f"{current_stock:.2f}"))
             self.table.setItem(row, 7, QTableWidgetItem(f"{item.minimum_stock:.2f}"))
             self.table.setItem(row, 8, QTableWidgetItem(f"{item.maximum_stock:.2f}"))
-            
+
             tax_rate_name = "None"
             if item.tax_rate_id:
                 tax_rate_name = f"ID:{item.tax_rate_id}"
             self.table.setItem(row, 9, QTableWidgetItem(tax_rate_name))
-        
+
         self.table.resizeColumnsToContents()
         self._selected_item_id = None
         self._clear_form()
