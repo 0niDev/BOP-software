@@ -1,0 +1,4 @@
+"""Repository layer for database access."""
+from repositories.base_repository import BaseRepository
+
+__all__ = ['BaseRepository']
