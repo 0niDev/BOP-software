@@ -21,6 +21,7 @@ from controllers.item_controller import ItemController
 from config.app_config import get_config
 from models.item import Item
 from utils.logger import get_logger
+from utils.helpers import fetch_all_items_with_stock, format_currency
 
 logger = get_logger(__name__)
 
@@ -55,42 +56,28 @@ class StockLoadThread(QThread):
     
     def run(self):
         try:
+            # Use centralized helper function for consistency
+            from utils.helpers import fetch_all_items_with_stock
+            
+            # Fetch all items with stock in one optimized query
+            items = fetch_all_items_with_stock(
+                db=self.controller.service.repo.db,
+                company_id=1,
+                include_inactive=False
+            )
+            
+            # Build stock map for requested item IDs only
             stocks = {}
-            
-            if not self.item_ids:
-                self.stocks_loaded.emit(stocks)
-                return
-            
-            # OPTIMIZED: Batch fetch all stocks in ONE query instead of N+1
-            placeholders = ','.join('?' * len(self.item_ids))
-            stock_results = self.controller.service.repo.db.fetch_all(f"""
-                SELECT item_id, COALESCE(SUM(quantity_in_stock), 0) as total
-                FROM stock_batches
-                WHERE item_id IN ({placeholders}) AND is_active = 1
-                GROUP BY item_id
-            """, self.item_ids)
-            
-            logger.debug(f"Batch stock query returned {len(stock_results)} results")
-            
-            # Build stock map from results
-            for row in stock_results:
-                if isinstance(row, dict):
-                    item_id = row.get("item_id")
-                    total = row.get("total", 0)
-                elif isinstance(row, (list, tuple)):
-                    item_id = row[0]
-                    total = row[1] if len(row) > 1 else 0
-                else:
-                    continue
-                
-                stocks[item_id] = float(total) if total else 0.0
+            for item in items:
+                if item['id'] in self.item_ids:
+                    stocks[item['id']] = float(item.get('stock_qty', 0))
             
             # Ensure all requested item_ids have an entry (even if 0)
             for item_id in self.item_ids:
                 if item_id not in stocks:
                     stocks[item_id] = 0.0
             
-            logger.info(f"Loaded stocks for {len(stocks)} items (batch query)")
+            logger.info(f"Loaded stocks for {len(stocks)} items using helper")
             self.stocks_loaded.emit(stocks)
             
         except Exception as e:
