@@ -140,16 +140,26 @@ class ManufacturingService:
         return bom
 
     def list_boms(self, company_id: int = 1, active_only: bool = True) -> list[BillOfMaterials]:
-        """List all BOMs."""
+        """List all BOMs with components loaded in a single batch query (eliminates N+1)."""
         rows = self.bom_repo.find_all_for_company(company_id, active_only)
+        
+        if not rows:
+            return []
+        
+        # Batch load all components for all BOMs in ONE query
+        bom_ids = [row['id'] for row in rows]
+        components_by_bom = self.bom_component_repo.find_by_bom_ids(bom_ids)
+        
+        # Build BOM objects with their components
         boms = []
         for row in rows:
             bom = BillOfMaterials.from_row(row)
             bom.components = [
-                BOMComponent.from_row(row)
-                for row in self.bom_component_repo.find_by_bom_id(bom.id)
+                BOMComponent.from_row(comp_row)
+                for comp_row in components_by_bom.get(bom.id, [])
             ]
             boms.append(bom)
+        
         return boms
 
     def update_bom(
@@ -270,16 +280,26 @@ class ManufacturingService:
         company_id: int = 1,
         status: str | None = None
     ) -> list[ProductionOrder]:
-        """List production orders."""
+        """List production orders with components loaded in a single batch query (eliminates N+1)."""
         rows = self.order_repo.find_all_for_company(company_id, status)
+        
+        if not rows:
+            return []
+        
+        # Batch load all consumption records for all orders in ONE query
+        order_ids = [row['id'] for row in rows]
+        components_by_order = self.consumption_repo.find_by_production_orders(order_ids)
+        
+        # Build order objects with their components
         orders = []
         for row in rows:
             order = ProductionOrder.from_row(row)
             order.components = [
-                ProductionConsumption.from_row(row)
-                for row in self.consumption_repo.find_by_production_order(order.id)
+                ProductionConsumption.from_row(comp_row)
+                for comp_row in components_by_order.get(order.id, [])
             ]
             orders.append(order)
+        
         return orders
 
     def start_production(self, order_id: int) -> None:

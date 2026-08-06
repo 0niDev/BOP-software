@@ -57,9 +57,39 @@ class BOMComponentRepository(BaseRepository):
             (bom_id,),
         )
 
+    def find_by_bom_ids(self, bom_ids: list[int]) -> dict[int, list[dict]]:
+        """
+        Batch fetch components for multiple BOMs in a single query.
+        Returns a dict mapping bom_id -> list of components.
+        This eliminates N+1 queries when loading multiple BOMs.
+        """
+        if not bom_ids:
+            return {}
+        
+        placeholders = ','.join('?' * len(bom_ids))
+        rows = self.db.fetch_all(f"""
+            SELECT bc.*, i.item_name, i.item_code, i.unit
+            FROM bom_components bc
+            JOIN items i ON i.id = bc.component_item_id
+            WHERE bc.bom_id IN ({placeholders})
+            ORDER BY i.item_name
+        """, bom_ids)
+        
+        # Group by bom_id
+        result = {}
+        for row in rows:
+            bom_id = row['bom_id']
+            if bom_id not in result:
+                result[bom_id] = []
+            result[bom_id].append(row)
+        
+        return result
+
     def delete_by_bom_id(self, bom_id: int) -> None:
         """Delete all components for a BOM."""
         self.db.execute(
             "DELETE FROM bom_components WHERE bom_id = ?",
             (bom_id,)
         )
+        self._invalidate_cache(f"find_by_bom_id:{bom_id}")
+        self._invalidate_cache("find_by_bom_ids")

@@ -451,12 +451,26 @@ class SalesInvoiceService:
         company_id: int = 1, 
         status: str | None = None
     ) -> list[SalesInvoice]:
+        """List invoices with items loaded in a single batch query (eliminates N+1)."""
         rows = self.invoice_repo.find_all_for_company(company_id, status)
+        
+        if not rows:
+            return []
+        
+        # Batch load all items for all invoices in ONE query
+        invoice_ids = [row['id'] for row in rows]
+        items_by_invoice = self.item_repo.find_by_invoice_ids(invoice_ids)
+        
+        # Build invoice objects with their items
         invoices = []
         for row in rows:
             invoice = SalesInvoice.from_row(row)
-            invoice.items = [SalesInvoiceItem.from_row(row) for row in self.item_repo.find_by_invoice_id(invoice.id)]
+            invoice.items = [
+                SalesInvoiceItem.from_row(item_row) 
+                for item_row in items_by_invoice.get(invoice.id, [])
+            ]
             invoices.append(invoice)
+        
         return invoices
 
     def update_sales_invoice(
