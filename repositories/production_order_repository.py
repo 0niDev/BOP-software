@@ -77,9 +77,38 @@ class ProductionConsumptionRepository(BaseRepository):
             (production_order_id,),
         )
 
+    def find_by_production_orders(self, production_order_ids: list[int]) -> dict[int, list[dict]]:
+        """
+        Batch fetch consumption records for multiple production orders in a single query.
+        Returns a dict mapping production_order_id -> list of consumption records.
+        This eliminates N+1 queries when loading multiple production orders.
+        """
+        if not production_order_ids:
+            return {}
+        
+        placeholders = ','.join('?' * len(production_order_ids))
+        rows = self.db.fetch_all(f"""
+            SELECT pc.*, i.item_name, i.item_code, i.unit
+            FROM production_consumption pc
+            JOIN items i ON i.id = pc.component_item_id
+            WHERE pc.production_order_id IN ({placeholders})
+        """, production_order_ids)
+        
+        # Group by production_order_id
+        result = {}
+        for row in rows:
+            po_id = row['production_order_id']
+            if po_id not in result:
+                result[po_id] = []
+            result[po_id].append(row)
+        
+        return result
+
     def delete_by_production_order(self, production_order_id: int) -> None:
         """Delete all consumption records for a production order."""
         self.db.execute(
             "DELETE FROM production_consumption WHERE production_order_id = ?",
             (production_order_id,)
         )
+        self._invalidate_cache(f"find_by_production_order:{production_order_id}")
+        self._invalidate_cache("find_by_production_orders")
