@@ -56,34 +56,41 @@ class StockLoadThread(QThread):
     def run(self):
         try:
             stocks = {}
-            for item_id in self.item_ids:
-                # Debug: log what we're looking for
-                logger.debug(f"Looking for stock for item_id: {item_id}")
-                
-                stock_result = self.controller.service.repo.db.fetch_one("""
-                    SELECT COALESCE(SUM(quantity_in_stock), 0) as total
-                    FROM stock_batches
-                    WHERE item_id = ? AND is_active = 1
-                """, (item_id,))
-                
-                # Debug: log the result
-                logger.debug(f"Stock result for item {item_id}: {stock_result}")
-                
-                # Fix: Handle the result properly
-                if stock_result:
-                    # The result might be a tuple or dict depending on your db layer
-                    if isinstance(stock_result, dict):
-                        total = stock_result.get("total", 0)
-                    elif isinstance(stock_result, (list, tuple)):
-                        total = stock_result[0] if stock_result else 0
-                    else:
-                        total = 0
-                    
-                    stocks[item_id] = float(total) if total else 0.0
+            
+            if not self.item_ids:
+                self.stocks_loaded.emit(stocks)
+                return
+            
+            # OPTIMIZED: Batch fetch all stocks in ONE query instead of N+1
+            placeholders = ','.join('?' * len(self.item_ids))
+            stock_results = self.controller.service.repo.db.fetch_all(f"""
+                SELECT item_id, COALESCE(SUM(quantity_in_stock), 0) as total
+                FROM stock_batches
+                WHERE item_id IN ({placeholders}) AND is_active = 1
+                GROUP BY item_id
+            """, self.item_ids)
+            
+            logger.debug(f"Batch stock query returned {len(stock_results)} results")
+            
+            # Build stock map from results
+            for row in stock_results:
+                if isinstance(row, dict):
+                    item_id = row.get("item_id")
+                    total = row.get("total", 0)
+                elif isinstance(row, (list, tuple)):
+                    item_id = row[0]
+                    total = row[1] if len(row) > 1 else 0
                 else:
+                    continue
+                
+                stocks[item_id] = float(total) if total else 0.0
+            
+            # Ensure all requested item_ids have an entry (even if 0)
+            for item_id in self.item_ids:
+                if item_id not in stocks:
                     stocks[item_id] = 0.0
-                    
-            logger.info(f"Loaded stocks for {len(stocks)} items: {stocks}")
+            
+            logger.info(f"Loaded stocks for {len(stocks)} items (batch query)")
             self.stocks_loaded.emit(stocks)
             
         except Exception as e:
