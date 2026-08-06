@@ -549,9 +549,10 @@ class Application:
         self.login_view: LoginView | None = None
         self.main_window: MainWindow | None = None
         
-        # Start auto-backup
-        logger.info("Starting auto-backup service...")
+        # Start auto-backup service (runs every 24 hours by default)
+        logger.info("🔄 Starting auto-backup service...")
         start_auto_backup(interval_hours=24)
+        logger.info("✅ Auto-backup service started successfully")
     def run(self) -> int:
         try:
             logger.info("Starting application...")
@@ -563,9 +564,18 @@ class Application:
             logger.exception("Fatal error: %s", e)
             return 1
         finally:
-            # Clean shutdown - stop auto-backup
+            # Clean shutdown - stop auto-backup and create final backup
             logger.info("Shutting down auto-backup service...")
             stop_auto_backup()
+            
+            # Create final backup before exit
+            try:
+                from database.auto_backup import auto_backup
+                logger.info("🔄 Creating final backup on exit...")
+                auto_backup()
+                logger.info("✅ Final backup created successfully")
+            except Exception as e:
+                logger.warning(f"Final backup failed: {e}")
 
     def _initialize_database(self) -> None:
         try:

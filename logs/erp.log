@@ -1156,3 +1156,406 @@ sqlitecloud.exceptions.SQLiteCloudError: Your free node has been paused due to i
 2026-08-03 12:56:20,282 | INFO     | erp.services.accounting_service | Posted journal entry #5 (JOURNAL) voucher=JV-00001 amount=50.00
 2026-08-03 12:56:20,282 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 50.00 for invoice TEST-001
 2026-08-03 12:56:20,283 | INFO     | erp.services.sales_invoice_service | Created sales invoice TEST-001 for customer 2 (id=2) - Payment: CREDIT
+2026-08-06 21:29:43,526 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-06 21:29:43,526 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-06 21:29:50,647 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-06 21:29:50,659 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-06 21:29:51,947 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:52,183 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:52,851 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:53,087 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:54,423 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:54,660 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:56,001 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:56,237 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:56,898 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:57,134 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:58,467 | ERROR    | erp.database.connection | SQL execute failed: table parties has no column named contact_number | sql=INSERT INTO parties (name, code, party_type, is_active, contact_number, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:58,704 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table parties has no column named contact_number
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table parties has no column named contact_number
+2026-08-06 21:29:59,335 | ERROR    | erp.database.connection | SQL execute failed: table items has no column named name | sql=INSERT INTO items (name, code, unit_of_measure, is_active, standard_rate, tax_rate_id) VALUES (?, ?, ?, ?, ?, ?)
+2026-08-06 21:29:59,570 | ERROR    | erp.repositories.item_repository | Insert failed on items
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table items has no column named name
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table items has no column named name
+2026-08-06 21:30:00,215 | ERROR    | erp.database.connection | SQL execute failed: table items has no column named name | sql=INSERT INTO items (name, code, unit_of_measure, is_active, standard_rate, tax_rate_id) VALUES (?, ?, ?, ?, ?, ?)
+2026-08-06 21:30:00,461 | ERROR    | erp.repositories.item_repository | Insert failed on items
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: table items has no column named name
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: table items has no column named name
+2026-08-06 21:30:01,098 | ERROR    | erp.database.connection | SQL execute failed: NOT NULL constraint failed: accounts.company_id | sql=INSERT INTO accounts (account_name, account_code, account_type, is_active, parent_account_id) VALUES (?, ?, ?, ?, ?)
+2026-08-06 21:30:01,335 | ERROR    | erp.repositories.account_repository | Insert failed on accounts
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: NOT NULL constraint failed: accounts.company_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: NOT NULL constraint failed: accounts.company_id
+2026-08-06 21:30:02,041 | ERROR    | erp.database.connection | SQL execute failed: NOT NULL constraint failed: accounts.company_id | sql=INSERT INTO accounts (account_name, account_code, account_type, is_active, parent_account_id) VALUES (?, ?, ?, ?, ?)
+2026-08-06 21:30:02,277 | ERROR    | erp.repositories.account_repository | Insert failed on accounts
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: NOT NULL constraint failed: accounts.company_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: NOT NULL constraint failed: accounts.company_id
+2026-08-06 21:30:02,900 | ERROR    | erp.database.connection | SQL execute failed: NOT NULL constraint failed: parties.company_id | sql=INSERT INTO parties (name, code, party_type, is_active) VALUES (?, ?, ?, ?)
+2026-08-06 21:30:03,137 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: NOT NULL constraint failed: parties.company_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: NOT NULL constraint failed: parties.company_id
+2026-08-06 21:30:05,493 | ERROR    | erp.database.connection | Transaction rolled back: NOT NULL constraint failed: parties.company_id
+2026-08-06 21:30:06,338 | ERROR    | erp.database.connection | SQL execute failed: NOT NULL constraint failed: parties.company_id | sql=INSERT INTO parties (name, code, party_type, is_active) VALUES (?, ?, ?, ?)
+2026-08-06 21:30:06,575 | ERROR    | erp.repositories.party_repository | Insert failed on parties
+Traceback (most recent call last):
+  File "/workspace/database/connection.py", line 202, in execute
+    return conn.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlitecloud/driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: NOT NULL constraint failed: parties.company_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/repositories/base_repository.py", line 143, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "/workspace/database/connection.py", line 205, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: NOT NULL constraint failed: parties.company_id
+2026-08-06 21:30:48,821 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-06 21:30:48,822 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
