@@ -1,20 +1,26 @@
 """
-Generic base repository.
+Generic base repository with three-tier caching support.
 
 Every entity-specific repository (AccountRepository, ItemRepository,
 PartyRepository, ...) extends this class and gets consistent CRUD,
-consistent error handling, and a single injected DatabaseConnection --
-so switching the underlying engine later means changing
-database/connection.py only, never any repository.
+consistent error handling, batch operations, and a single injected 
+DatabaseConnection -- so switching the underlying engine later means 
+changing database/connection.py only, never any repository.
+
+Caching Strategy:
+- L1: Instance-level cache (fastest, per-repository)
+- L2: Session-level cache (shared across repositories)
+- L3: Global cache (for expensive operations via decorator)
 """
 from __future__ import annotations
 
 import time
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, Sequence
 
 from database.connection import DatabaseConnection, get_db
 from utils.exceptions import DatabaseError, RecordNotFoundError
 from utils.logger import get_logger
+from utils.cache_manager import SessionCache, invalidate_on_change
 
 T = TypeVar("T")
 
@@ -27,7 +33,7 @@ class BaseRepository(Generic[T]):
     #: Primary key column name.
     pk_column: str = "id"
     
-    # Class-level cache shared across all instances
+    # L1 Cache: Class-level cache shared across all instances
     _cache: dict[str, tuple[Any, float]] = {}
     _cache_ttl: int = 30  # 30 seconds cache TTL
     _cache_enabled: bool = True
@@ -37,13 +43,14 @@ class BaseRepository(Generic[T]):
             raise ValueError(f"{self.__class__.__name__} must define table_name")
         self.db = db or get_db()
         self.logger = get_logger(self.__class__.__module__)
+        self._l2_cache = SessionCache()  # L2 session cache
     
     def _get_cache_key(self, method: str, *args) -> str:
         """Generate cache key from method name and arguments."""
         return f"{self.table_name}:{method}:{args}"
     
     def _get_cached(self, key: str) -> Any | None:
-        """Get value from cache if not expired."""
+        """Get value from L1 cache if not expired."""
         if not self._cache_enabled:
             return None
         if key in self._cache:
@@ -55,27 +62,37 @@ class BaseRepository(Generic[T]):
         return None
     
     def _set_cached(self, key: str, value: Any) -> None:
-        """Set value in cache."""
+        """Set value in L1 cache."""
         if self._cache_enabled:
             self._cache[key] = (value, time.time())
     
+    def _get_l2_cached(self, key: str) -> Any | None:
+        """Get value from L2 (session) cache."""
+        return self._l2_cache.get(key)
+    
+    def _set_l2_cached(self, key: str, value: Any, ttl: int = 60) -> None:
+        """Set value in L2 (session) cache."""
+        self._l2_cache.set(key, value, ttl=ttl)
+    
     def _invalidate_cache(self, pattern: str | None = None) -> None:
-        """Invalidate cache entries matching pattern."""
+        """Invalidate L1 and L2 cache entries matching pattern."""
+        # Invalidate L1 cache
         if pattern is None:
-            # Clear all cache for this table
             keys_to_delete = [k for k in self._cache if k.startswith(f"{self.table_name}:")]
             for key in keys_to_delete:
                 del self._cache[key]
         else:
-            # Clear specific pattern
             keys_to_delete = [k for k in self._cache if pattern in k]
             for key in keys_to_delete:
                 if key in self._cache:
                     del self._cache[key]
+        
+        # Invalidate L2 cache
+        invalidate_on_change(self.table_name)
     
     @classmethod
     def clear_all_cache(cls) -> None:
-        """Clear entire repository cache."""
+        """Clear entire L1 repository cache."""
         cls._cache.clear()
 
     # ------------------------------------------------------------------
@@ -162,3 +179,90 @@ class BaseRepository(Generic[T]):
             sql += f" WHERE {where_clause}"
         row = self.db.fetch_one(sql, params)
         return row["c"] if row else 0
+    
+    # ------------------------------------------------------------------
+    # Batch Operations (Optimization: reduce N+1 queries)
+    # ------------------------------------------------------------------
+    def find_by_ids(self, ids: list[int]) -> list[dict]:
+        """Find multiple records by IDs in a single query."""
+        if not ids:
+            return []
+        
+        placeholders = ", ".join("?" for _ in ids)
+        sql = f"SELECT * FROM {self.table_name} WHERE {self.pk_column} IN ({placeholders})"
+        return self.db.fetch_all(sql, tuple(ids))
+    
+    def find_all_where(
+        self, 
+        where_clause: str, 
+        params: tuple = (), 
+        order_by: str | None = None,
+        limit: int | None = None
+    ) -> list[dict]:
+        """Find all records matching a WHERE clause with optional ordering and limit."""
+        sql = f"SELECT * FROM {self.table_name} WHERE {where_clause}"
+        if order_by:
+            sql += f" ORDER BY {order_by}"
+        if limit:
+            sql += f" LIMIT {limit}"
+        return self.db.fetch_all(sql, params)
+    
+    def insert_batch(self, data_list: list[dict[str, Any]]) -> list[int]:
+        """Insert multiple records in a single batch operation."""
+        if not data_list:
+            return []
+        
+        ids = []
+        columns = list(data_list[0].keys())
+        placeholders = ", ".join("?" for _ in columns)
+        col_list = ", ".join(columns)
+        sql = f"INSERT INTO {self.table_name} ({col_list}) VALUES ({placeholders})"
+        
+        try:
+            with self.db.transaction():
+                values_list = [tuple(data[col] for col in columns) for data in data_list]
+                self.db.executemany(sql, values_list)
+                
+                # Get inserted IDs
+                for _ in data_list:
+                    ids.append(self.db.last_insert_id())
+            
+            self._invalidate_cache()  # Clear cache after batch insert
+            return ids
+        except DatabaseError:
+            self.logger.exception("Batch insert failed on %s", self.table_name)
+            raise
+    
+    def update_batch(self, updates: list[tuple[int, dict[str, Any]]]) -> None:
+        """
+        Update multiple records in a single batch operation.
+        
+        Args:
+            updates: List of (record_id, data_dict) tuples
+        """
+        if not updates:
+            return
+        
+        try:
+            with self.db.transaction():
+                for record_id, data in updates:
+                    if not data:
+                        continue
+                    set_clause = ", ".join(f"{col} = ?" for col in data.keys())
+                    sql = f"UPDATE {self.table_name} SET {set_clause} WHERE {self.pk_column} = ?"
+                    self.db.execute(sql, tuple(data.values()) + (record_id,))
+            
+            self._invalidate_cache()  # Clear cache after batch update
+        except DatabaseError:
+            self.logger.exception("Batch update failed on %s", self.table_name)
+            raise
+    
+    def delete_batch(self, ids: list[int]) -> None:
+        """Delete multiple records by IDs in a single query."""
+        if not ids:
+            return
+        
+        placeholders = ", ".join("?" for _ in ids)
+        sql = f"DELETE FROM {self.table_name} WHERE {self.pk_column} IN ({placeholders})"
+        self.db.execute(sql, tuple(ids))
+        self._invalidate_cache()  # Clear cache after batch delete

@@ -155,6 +155,10 @@ class SQLiteCloudConnection(DatabaseConnection):
 
     def fetch_all(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
         """Fetch all - direct connection."""
+        from utils.performance_monitor import QueryCounter
+        counter = QueryCounter()
+        counter.increment()  # Track this query
+        
         conn = self._get_cached_connection()
         try:
             cursor = conn.execute(sql, params)
@@ -170,6 +174,10 @@ class SQLiteCloudConnection(DatabaseConnection):
 
     def fetch_one(self, sql: str, params: Sequence[Any] = ()) -> dict | None:
         """Fetch one - direct connection."""
+        from utils.performance_monitor import QueryCounter
+        counter = QueryCounter()
+        counter.increment()  # Track this query
+        
         conn = self._get_cached_connection()
         try:
             cursor = conn.execute(sql, params)
@@ -185,6 +193,10 @@ class SQLiteCloudConnection(DatabaseConnection):
 
     def execute(self, sql: str, params: Sequence[Any] = ()):
         """Execute SQL - direct connection."""
+        from utils.performance_monitor import QueryCounter
+        counter = QueryCounter()
+        counter.increment()  # Track this query
+        
         conn = self._get_cached_connection()
         try:
             return conn.execute(sql, params)
@@ -196,6 +208,10 @@ class SQLiteCloudConnection(DatabaseConnection):
 
     def executemany(self, sql: str, seq_of_params: Sequence[Sequence[Any]]):
         """Execute many - direct connection."""
+        from utils.performance_monitor import QueryCounter
+        counter = QueryCounter()
+        counter.increment()  # Track this batch as one query
+        
         conn = self._get_cached_connection()
         try:
             cursor = conn.cursor()
