@@ -1,22 +1,17 @@
-```
-# Compiled Python files
+```gitignore
+# Python compiled files
 *.pyc
 __pycache__/
 
-# Dependencies
-.venv/
-venv/
-
-# Logs and temp files
+# Logs
 *.log
-*.tmp
+logs/
 
-# Environment
+# Database files
+*.db
+
+# Environment files
 .env
 .env.local
 *.env.*
-
-# Editors
-.vscode/
-.idea/
 ```

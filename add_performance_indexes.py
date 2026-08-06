@@ -1,133 +1,90 @@
+#!/usr/bin/env python3
 """
-Add performance indexes to database for optimized query execution.
-
-These indexes are critical for achieving the 10x performance improvement target.
-Run this script once to add all recommended covering indexes.
+Migration script to add performance indexes for purchase invoice operations.
+These indexes significantly speed up:
+1. Stock batch lookups by item_id and warehouse_id
+2. Journal entry balance calculations by account_id and is_posted
+3. Journal entry line queries
 """
-from database.connection import get_db
-from utils.logger import get_logger
 
-logger = get_logger(__name__)
+import sqlite3
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "data" / "erp.db"
+
+INDEXES = [
+    # Journal entries - for faster posted entry filtering
+    "CREATE INDEX IF NOT EXISTS idx_je_is_posted ON journal_entries(is_posted)",
+    "CREATE INDEX IF NOT EXISTS idx_je_company_posted ON journal_entries(company_id, is_posted)",
+    "CREATE INDEX IF NOT EXISTS idx_je_entry_date ON journal_entries(entry_date)",
+    
+    # Journal entry lines - for faster balance calculations
+    "CREATE INDEX IF NOT EXISTS idx_jel_account ON journal_entry_lines(account_id)",
+    "CREATE INDEX IF NOT EXISTS idx_jel_account_je ON journal_entry_lines(account_id, journal_entry_id)",
+    "CREATE INDEX IF NOT EXISTS idx_jel_party ON journal_entry_lines(party_id)",
+    
+    # Stock batches - for faster stock lookups during purchase
+    "CREATE INDEX IF NOT EXISTS idx_batches_item ON stock_batches(item_id)",
+    "CREATE INDEX IF NOT EXISTS idx_batches_item_warehouse ON stock_batches(item_id, warehouse_id, is_active)",
+    "CREATE INDEX IF NOT EXISTS idx_batches_expiry ON stock_batches(expiry_date)",
+    
+    # Purchase invoices - for faster lookups
+    "CREATE INDEX IF NOT EXISTS idx_pi_supplier ON purchase_invoices(supplier_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pi_date ON purchase_invoices(invoice_date)",
+    "CREATE INDEX IF NOT EXISTS idx_pi_company ON purchase_invoices(company_id)",
+    
+    # Purchase invoice items
+    "CREATE INDEX IF NOT EXISTS idx_pii_invoice ON purchase_invoice_items(invoice_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pii_item ON purchase_invoice_items(item_id)",
+]
 
 
-def add_performance_indexes():
-    """Add all performance-optimized indexes."""
-    db = get_db()
+def run_migration():
+    """Add performance indexes to the database."""
+    if not DB_PATH.exists():
+        print(f"❌ Database not found at {DB_PATH}")
+        return False
     
-    indexes = [
-        # Dashboard KPI queries
-        ("idx_accounts_company_type_active", 
-         "accounts", 
-         "company_id, account_type, is_active"),
-        
-        # Date-range journal queries
-        ("idx_je_company_date_posted",
-         "journal_entries",
-         "company_id, entry_date, is_posted"),
-        
-        # Invoice lookups with customer info
-        ("idx_si_customer_date_status",
-         "sales_invoices",
-         "customer_id, invoice_date, status"),
-        
-        # Party ledger queries
-        ("idx_jel_account_je_date",
-         "journal_entry_lines",
-         "account_id, journal_entry_id"),
-        
-        # Item lookups by company
-        ("idx_items_company_code",
-         "items",
-         "company_id, item_code"),
-        
-        # Purchase invoice queries
-        ("idx_pi_supplier_date_status",
-         "purchase_invoices",
-         "supplier_id, invoice_date, status"),
-        
-        # Stock batch queries
-        ("idx_stock_item_qty",
-         "stock_batches",
-         "item_id, quantity_in_stock"),
-        
-        # Payment queries
-        ("idx_payment_date_account",
-         "payments",
-         "payment_date, account_id"),
-        
-        # Sales invoice items
-        ("idx_sii_invoice_item",
-         "sales_invoice_items",
-         "invoice_id, item_id"),
-        
-        # Purchase invoice items
-        ("idx_pii_invoice_item",
-         "purchase_invoice_items",
-         "invoice_id, item_id"),
-        
-        # Production orders
-        ("idx_po_status_date",
-         "production_orders",
-         "status, order_date"),
-        
-        # BOM lookups
-        ("idx_bom_item_active",
-         "bill_of_materials",
-         "item_id, is_active"),
-        
-        # Expense queries
-        ("idx_expense_date_account",
-         "expenses",
-         "expense_date, account_id"),
-        
-        # Banking transactions
-        ("idx_banking_date_account",
-         "banking_transactions",
-         "transaction_date, account_id"),
-        
-        # User lookups
-        ("idx_users_username_active",
-         "users",
-         "username, is_active"),
-    ]
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
     
-    created = 0
-    skipped = 0
-    errors = 0
+    print("📊 Checking existing indexes...")
+    cursor.execute('SELECT name FROM sqlite_master WHERE type="index"')
+    existing = {row[0] for row in cursor.fetchall()}
     
-    for index_name, table_name, columns in indexes:
+    created_count = 0
+    skipped_count = 0
+    
+    for sql in INDEXES:
+        # Extract index name from SQL
+        parts = sql.split(" ")
+        if "idx_" in sql:
+            for part in parts:
+                if part.startswith("idx_"):
+                    index_name = part
+                    break
+        
+        if index_name in existing:
+            print(f"⏭️  Index already exists: {index_name}")
+            skipped_count += 1
+            continue
+        
         try:
-            # Check if index already exists
-            existing = db.fetch_one(
-                "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
-                (index_name,)
-            )
-            
-            if existing:
-                logger.info(f"✓ Index {index_name} already exists")
-                skipped += 1
-                continue
-            
-            # Create index
-            sql = f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns})"
-            db.execute(sql)
-            logger.info(f"✓ Created index: {index_name} on {table_name}({columns})")
-            created += 1
-            
-        except Exception as e:
-            logger.error(f"✗ Failed to create index {index_name}: {e}")
-            errors += 1
+            cursor.execute(sql)
+            print(f"✅ Created index: {index_name}")
+            created_count += 1
+        except sqlite3.Error as e:
+            print(f"❌ Failed to create {index_name}: {e}")
     
-    logger.info(f"\n=== Index Creation Summary ===")
-    logger.info(f"Created: {created}")
-    logger.info(f"Skipped (already exist): {skipped}")
-    logger.info(f"Errors: {errors}")
-    logger.info(f"Total: {len(indexes)}")
+    conn.commit()
+    conn.close()
     
-    return {"created": created, "skipped": skipped, "errors": errors}
+    print(f"\n📈 Migration complete!")
+    print(f"   Created: {created_count} indexes")
+    print(f"   Skipped: {skipped_count} indexes (already existed)")
+    
+    return True
 
 
 if __name__ == "__main__":
-    print("Adding performance indexes to database...")
-    result = add_performance_indexes()
-    print(f"\nCompleted: {result['created']} created, {result['skipped']} skipped, {result['errors']} errors")
+    run_migration()
