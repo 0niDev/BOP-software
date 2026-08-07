@@ -745,10 +745,22 @@ class SalesInvoiceService:
             batch_cache = {}
             
             for item_data in validated_items:
+                # Find the batch that will be used for this item (same logic as create)
+                cache_key = f"{item_data['item_id']}_{existing_invoice.warehouse_id}"
+                if cache_key not in batch_cache:
+                    batch = self.stock_repo.find_by_item_and_warehouse(
+                        item_data['item_id'], 
+                        existing_invoice.warehouse_id
+                    )
+                    batch_cache[cache_key] = batch
+                
+                batch = batch_cache[cache_key]
+                batch_id = batch['id'] if batch else None
+                
                 clean_item_data = {
                     "invoice_id": invoice_id,
                     "item_id": item_data["item_id"],
-                    "batch_id": None,  # Don't set batch_id for updates either - let _reduce_stock handle it,
+                    "batch_id": batch_id,  # ✅ Set the actual batch_id
                     "quantity": item_data["quantity"],
                     "unit_price": item_data["unit_price"],
                     "discount_amount": item_data["discount_amount"],
