@@ -1,43 +1,24 @@
 ```
-# Python cache files
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Logs
+# Logs and temp files
 *.log
-logs/
+*.tmp
 
-# Database files
-*.db
-data/*.db
-
-# Environment files
+# Environment
 .env
 .env.local
 *.env.*
 
+# Editors
+.vscode/
+.idea/
+
 # Dependencies
 .venv/
 venv/
-pip-log.txt
-pipenv.lock
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# Coverage reports
-.coverage
-htmlcov/
-coverage/
-
-# Distribution artifacts
-dist/
-build/
-*.egg-info/
 ```
