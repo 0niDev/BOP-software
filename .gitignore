@@ -1,1 +1,1 @@
-Nothing should be ignored in this case, as only a markdown file (COMPREHENSIVE_UI_TEST_PLAN.md) was added and there are no build artifacts, dependencies, or temporary files in the changes.
+Nothing needs to be added to .gitignore since only a Python source file (`utils/helpers.py`) was modified and no build artifacts, dependencies, or temporary files were included in the changes.
