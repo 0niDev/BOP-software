@@ -1134,3 +1134,64 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-07 23:00:02,203 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 7 suppliers
 2026-08-07 23:00:02,690 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
 2026-08-07 23:00:36,130 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=1
+2026-08-07 18:22:27,947 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00002
+2026-08-07 18:22:27,948 | INFO     | erp.services.party_service | Created party CUST-00002 - Test Customer ABC (id=4)
+2026-08-07 18:22:27,948 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00002
+2026-08-07 18:22:27,948 | INFO     | erp.services.party_service | Created party SUPP-00002 - Test Supplier XYZ (id=5)
+2026-08-07 18:22:27,950 | ERROR    | erp.database.connection | SQL execute failed: no such table: journal_lines | sql=
+                SELECT journal_entry_id, 
+                       SUM(debit) as total_debit, 
+                       SUM(credit) as total_credit
+                FROM journal_lines
+                GROUP BY journal_entry_id
+            
+2026-08-07 18:22:27,951 | INFO     | erp.services.party_service | Deactivated party id=5
+2026-08-07 18:22:27,951 | INFO     | erp.services.party_service | Deactivated party id=4
+2026-08-07 18:23:27,033 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00003
+2026-08-07 18:23:27,045 | INFO     | erp.services.party_service | Created party CUST-00003 - Test Customer ABC (id=6)
+2026-08-07 18:23:27,046 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00003
+2026-08-07 18:23:27,046 | INFO     | erp.services.party_service | Created party SUPP-00003 - Test Supplier XYZ (id=7)
+2026-08-07 18:23:27,047 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 18:23:27,048 | ERROR    | erp.database.connection | Transaction rolled back: 'SQLiteConnection' object has no attribute 'last_insert_rowid'
+2026-08-07 18:23:27,048 | ERROR    | erp.database.connection | Transaction rolled back: 'SQLiteConnection' object has no attribute 'last_insert_rowid'
+2026-08-07 18:23:27,049 | INFO     | erp.services.accounting_service | Posted journal entry #7 (SALES) voucher=SI-00003 amount=750.00
+2026-08-07 18:23:27,050 | INFO     | erp.services.accounting_service | Posted journal entry #8 (JOURNAL) voucher=JV-00003 amount=500.00
+2026-08-07 18:23:27,050 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 500.00 for invoice SI-TEST-1
+2026-08-07 18:23:27,050 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-1 for customer 2 (id=3) - Payment: CREDIT
+2026-08-07 18:23:27,051 | INFO     | erp.services.accounting_service | Posted journal entry #9 (SALES) voucher=SI-00004 amount=400.00
+2026-08-07 18:23:27,051 | INFO     | erp.services.accounting_service | Posted journal entry #10 (JOURNAL) voucher=JV-00004 amount=250.00
+2026-08-07 18:23:27,051 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 250.00 for invoice SI-TEST-2
+2026-08-07 18:23:27,051 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-2 for customer 2 (id=4) - Payment: CASH
+2026-08-07 18:23:27,052 | INFO     | erp.services.accounting_service | Posted journal entry #11 (RECEIPT) voucher=RV-00002 amount=750.00
+2026-08-07 18:23:27,052 | INFO     | erp.services.payment_service | ✅ Updated paid_amount for sales invoice 3: +750.0
+2026-08-07 18:23:27,052 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 18:23:27,052 | INFO     | erp.services.payment_service | ✅ Dashboard cache invalidated after receipt
+2026-08-07 18:23:27,052 | INFO     | erp.services.payment_service | Receipt RV-00002 recorded: Rs. 750.00 from Ali Ahmed
+2026-08-07 18:23:27,053 | ERROR    | erp.database.connection | SQL execute failed: no such table: journal_lines | sql=
+                SELECT journal_entry_id, 
+                       SUM(debit) as total_debit, 
+                       SUM(credit) as total_credit
+                FROM journal_lines
+                GROUP BY journal_entry_id
+            
+2026-08-07 18:23:27,054 | INFO     | erp.services.accounting_service | Posted journal entry #12 (JOURNAL) voucher=JV-00005 amount=400.00
+2026-08-07 18:23:27,054 | INFO     | erp.services.sales_invoice_service | Cancelled sales invoice SI-TEST-2 (id=4)
+2026-08-07 18:23:27,054 | INFO     | erp.services.accounting_service | Posted journal entry #13 (JOURNAL) voucher=JV-00006 amount=750.00
+2026-08-07 18:23:27,064 | INFO     | erp.services.sales_invoice_service | Cancelled sales invoice SI-TEST-1 (id=3)
+2026-08-07 18:23:27,065 | INFO     | erp.services.party_service | Deactivated party id=7
+2026-08-07 18:23:27,065 | INFO     | erp.services.party_service | Deactivated party id=6
+2026-08-07 18:24:18,929 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00004
+2026-08-07 18:24:18,930 | INFO     | erp.services.party_service | Created party CUST-00004 - Test Customer 4 (id=8)
+2026-08-07 18:24:18,930 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00004
+2026-08-07 18:24:18,930 | INFO     | erp.services.party_service | Created party SUPP-00004 - Test Supplier 5 (id=9)
+2026-08-07 18:24:18,931 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 18:24:18,932 | ERROR    | erp.database.connection | Transaction rolled back: 'SQLiteConnection' object has no attribute 'last_insert_rowid'
+2026-08-07 18:24:18,932 | ERROR    | erp.database.connection | Transaction rolled back: 'SQLiteConnection' object has no attribute 'last_insert_rowid'
+2026-08-07 18:24:18,945 | INFO     | erp.services.accounting_service | Posted journal entry #14 (SALES) voucher=SI-00005 amount=18750.00
+2026-08-07 18:24:18,945 | INFO     | erp.services.accounting_service | Posted journal entry #15 (JOURNAL) voucher=JV-00007 amount=12500.00
+2026-08-07 18:24:18,945 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 12,500.00 for invoice SI-TEST-5
+2026-08-07 18:24:18,946 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-5 for customer 2 (id=5) - Payment: CREDIT
+2026-08-07 18:24:18,947 | INFO     | erp.services.accounting_service | Posted journal entry #16 (SALES) voucher=SI-00006 amount=11250.00
+2026-08-07 18:24:18,947 | INFO     | erp.services.accounting_service | Posted journal entry #17 (JOURNAL) voucher=JV-00008 amount=7500.00
+2026-08-07 18:24:18,947 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-6
+2026-08-07 18:24:18,947 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-6 for customer 2 (id=6) - Payment: CASH
