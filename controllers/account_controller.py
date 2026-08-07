@@ -19,9 +19,9 @@ class AccountController:
     def list_accounts(self, active_only: bool = True) -> tuple[list[Account], str | None]:
         logger.debug(f"AccountController.list_accounts() called with active_only={active_only}")
         try:
-            result = self.service.list_accounts(active_only=active_only)
-            logger.debug(f"AccountController.list_accounts() returned {len(result[0])} accounts")
-            return result, None
+            accounts = self.service.list_accounts(active_only=active_only)
+            logger.debug(f"AccountController.list_accounts() returned {len(accounts)} accounts")
+            return accounts, None
         except ERPException as exc:
             logger.error(f"AccountController.list_accounts() ERPException: {exc}")
             return [], str(exc)
