@@ -226,6 +226,13 @@ class SalesItemSelectionDialog(QDialog):
         self.discount_spin.valueChanged.connect(self._calculate_line_total)
         self.tax_spin.valueChanged.connect(self._calculate_line_total)
         
+        # Connect Enter key to accept (add item)
+        self.search_input.returnPressed.connect(self._filter_items_and_select)
+        self.quantity_spin.returnPressed.connect(self.accept)
+        self.unit_price_spin.returnPressed.connect(self.accept)
+        self.discount_spin.returnPressed.connect(self.accept)
+        self.tax_spin.returnPressed.connect(self.accept)
+        
         self.line_total_label = QLabel("Line Total: 0.00")
         self.line_total_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2ecc71;")
         layout.addWidget(self.line_total_label)
@@ -278,6 +285,23 @@ class SalesItemSelectionDialog(QDialog):
         self._populate_combo(filtered)
         if len(filtered) == 1:
             self.item_combo.setCurrentIndex(1)
+
+    def _filter_items_and_select(self) -> None:
+        """Filter items and select the first match when Enter is pressed."""
+        text = self.search_input.text().lower().strip()
+        if not text:
+            self._populate_combo(self.all_items)
+            return
+        filtered = []
+        for item in self.all_items:
+            if (text in item.item_code.lower() or 
+                text in item.item_name.lower() or
+                text in item.unit.lower()):
+                filtered.append(item)
+        self._populate_combo(filtered)
+        if len(filtered) >= 1:
+            self.item_combo.setCurrentIndex(1)
+            self._on_item_selected(1)
 
     def _on_item_selected(self, index: int) -> None:
         item_id = self.item_combo.itemData(index)
@@ -397,10 +421,12 @@ class SalesInvoiceView(QWidget):
         self.customer_search = QLineEdit()
         self.customer_search.setPlaceholderText("🔍 Search customers by name or code...")
         self.customer_search.textChanged.connect(self._filter_customers)
+        self.customer_search.returnPressed.connect(self._on_save_clicked)
         customer_layout.addWidget(self.customer_search)
         
         self.customer_input = QComboBox()
         self.customer_input.addItem("Select Customer", None)
+        self.customer_input.activated.connect(self._on_save_clicked)
         customer_layout.addWidget(self.customer_input)
         
         form_layout.addRow("Customer*:", customer_layout)
@@ -408,6 +434,7 @@ class SalesInvoiceView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setDisplayFormat("yyyy-MM-dd")
+        self.date_input.returnPressed.connect(self._on_save_clicked)
         form_layout.addRow("Invoice Date*:", self.date_input)
 
         self.payment_type_input = QComboBox()
@@ -416,15 +443,18 @@ class SalesInvoiceView(QWidget):
         self.payment_type_input.addItem("Cheque", "CHEQUE")
         self.payment_type_input.addItem("Credit", "CREDIT")
         self.payment_type_input.currentIndexChanged.connect(self._on_payment_type_changed)
+        self.payment_type_input.activated.connect(self._on_save_clicked)
         form_layout.addRow("Payment Type*:", self.payment_type_input)
 
         self.bank_account_input = QComboBox()
         self.bank_account_input.addItem("Select Bank Account", None)
         self.bank_account_input.setVisible(False)
+        self.bank_account_input.activated.connect(self._on_save_clicked)
         form_layout.addRow("Bank Account:", self.bank_account_input)
 
         self.notes_input = QLineEdit()
         self.notes_input.setPlaceholderText("Optional notes")
+        self.notes_input.returnPressed.connect(self._on_save_clicked)
         form_layout.addRow("Notes:", self.notes_input)
 
         # Invoice Items Table
