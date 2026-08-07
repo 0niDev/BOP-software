@@ -79,7 +79,8 @@ class JournalRepository(BaseRepository):
         )
         
         # Get the last inserted ID - must be done immediately after insert
-        entry_id = self.db.fetch_one("SELECT last_insert_rowid()").fetchone()[0]
+        result = self.db.fetch_one("SELECT last_insert_rowid()")
+        entry_id = result["last_insert_rowid()"] if result else None
         
         logger.error(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
         
