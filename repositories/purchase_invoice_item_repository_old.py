@@ -1,18 +1,17 @@
-"""Repository for Purchase Invoice Items - Data access layer."""
+# repositories/purchase_invoice_item_repository.py
+"""Data access for Purchase Invoice Items."""
 from __future__ import annotations
 
-from typing import List, Dict
 from repositories.base_repository import BaseRepository
 
 
 class PurchaseInvoiceItemRepository(BaseRepository):
-    """Repository for purchase_invoice_items table."""
-    
     table_name = "purchase_invoice_items"
 
-    def find_by_invoice_id(self, invoice_id: int) -> List[dict]:
-        """Find all items for a given invoice with item details."""
-        sql = """
+    def find_by_invoice_id(self, invoice_id: int) -> list[dict]:
+        """Finds all items for a given invoice with item details."""
+        return self.db.fetch_all(
+            """
             SELECT 
                 pii.*,
                 i.item_name,
@@ -21,10 +20,11 @@ class PurchaseInvoiceItemRepository(BaseRepository):
             FROM purchase_invoice_items pii
             JOIN items i ON i.id = pii.item_id
             WHERE pii.invoice_id = ?
-        """
-        return self.db.fetch_all(sql, (invoice_id,))
+            """,
+            (invoice_id,)
+        )
 
-    def find_by_invoice_ids(self, invoice_ids: List[int]) -> Dict[int, List[dict]]:
+    def find_by_invoice_ids(self, invoice_ids: list[int]) -> dict[int, list[dict]]:
         """
         Batch fetch items for multiple invoices in a single query.
         Returns a dict mapping invoice_id -> list of items.
@@ -34,7 +34,7 @@ class PurchaseInvoiceItemRepository(BaseRepository):
             return {}
         
         placeholders = ','.join('?' * len(invoice_ids))
-        sql = f"""
+        rows = self.db.fetch_all(f"""
             SELECT 
                 pii.*,
                 i.item_name,
@@ -43,11 +43,10 @@ class PurchaseInvoiceItemRepository(BaseRepository):
             FROM purchase_invoice_items pii
             JOIN items i ON i.id = pii.item_id
             WHERE pii.invoice_id IN ({placeholders})
-        """
-        rows = self.db.fetch_all(sql, invoice_ids)
+        """, invoice_ids)
         
         # Group by invoice_id
-        result: Dict[int, List[dict]] = {}
+        result = {}
         for row in rows:
             inv_id = row['invoice_id']
             if inv_id not in result:
@@ -59,17 +58,17 @@ class PurchaseInvoiceItemRepository(BaseRepository):
     def insert(self, data: dict) -> int:
         """Insert item and return ID."""
         result = super().insert(data)
-        # Invalidate parent invoice cache
         if "invoice_id" in data:
             self._invalidate_cache(f"find_by_invoice_id:{data['invoice_id']}")
             self._invalidate_cache("find_by_invoice_ids")
         return result
 
-    def insert_batch(self, items_data: List[dict]) -> List[int]:
-        """Insert multiple items in a single batch operation."""
+    def insert_batch(self, items_data: list[dict]) -> list[int]:
+        """Insert multiple items in a single batch operation for better performance."""
         if not items_data:
             return []
         
+        # Use executemany for true batch insert
         columns = list(items_data[0].keys())
         placeholders = ','.join(['?' for _ in columns])
         column_names = ','.join(columns)
@@ -93,15 +92,10 @@ class PurchaseInvoiceItemRepository(BaseRepository):
         return ids
 
     def delete_by_invoice_id(self, invoice_id: int) -> None:
-        """Delete all items for an invoice."""
+        """Delete all items for an invoice"""
         self.db.execute(
             "DELETE FROM purchase_invoice_items WHERE invoice_id = ?",
             (invoice_id,)
         )
         self._invalidate_cache(f"find_by_invoice_id:{invoice_id}")
         self._invalidate_cache("find_by_invoice_ids")
-
-    def find_by_id(self, item_id: int) -> dict:
-        """Find item by ID."""
-        sql = "SELECT * FROM purchase_invoice_items WHERE id = ?"
-        return self.db.fetch_one(sql, (item_id,))
