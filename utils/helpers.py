@@ -63,8 +63,8 @@ def fetch_all_items_with_stock(
     
     query = f"""
         SELECT 
-            i.id, i.code, i.name, i.category, i.unit_of_measure,
-            i.description, i.reorder_level, i.is_active,
+            i.id, i.item_code as code, i.item_name as name, i.unit as unit_of_measure,
+            i.generic_name as category, i.notes as description, i.minimum_stock as reorder_level, i.is_active,
             COALESCE(SUM(sb.quantity_in_stock), 0) as stock_qty,
             COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
             COUNT(DISTINCT sb.id) as batch_count
@@ -72,7 +72,7 @@ def fetch_all_items_with_stock(
         LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.quantity_in_stock > 0
         WHERE i.company_id = ? {status_filter}
         GROUP BY i.id
-        ORDER BY i.name
+        ORDER BY i.item_name
     """
     
     logger.debug(f"Fetching items with stock for company {company_id}")
@@ -114,8 +114,8 @@ def fetch_item_by_id_with_stock(
     
     query = """
         SELECT 
-            i.id, i.code, i.name, i.category, i.unit_of_measure,
-            i.description, i.reorder_level, i.is_active,
+            i.id, i.item_code as code, i.item_name as name, i.unit as unit_of_measure,
+            i.generic_name as category, i.notes as description, i.minimum_stock as reorder_level, i.is_active,
             COALESCE(SUM(sb.quantity_in_stock), 0) as stock_qty,
             COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
             COUNT(DISTINCT sb.id) as batch_count
