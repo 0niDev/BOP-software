@@ -225,10 +225,11 @@ class PurchaseItemSelectionDialog(QDialog):
         
         # Connect Enter key to accept (add item)
         self.search_input.returnPressed.connect(self._filter_items_and_select)
-        self.quantity_spin.returnPressed.connect(self.accept)
-        self.unit_cost_spin.returnPressed.connect(self.accept)
-        self.discount_spin.returnPressed.connect(self.accept)
-        self.tax_spin.returnPressed.connect(self.accept)
+        # QDoubleSpinBox doesn't have returnPressed, use editingFinished instead
+        self.quantity_spin.editingFinished.connect(self.accept)
+        self.unit_cost_spin.editingFinished.connect(self.accept)
+        self.discount_spin.editingFinished.connect(self.accept)
+        self.tax_spin.editingFinished.connect(self.accept)
         
         self.line_total_label = QLabel("Line Total: 0.00")
         self.line_total_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2ecc71;")
