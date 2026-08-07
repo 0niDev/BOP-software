@@ -38,15 +38,23 @@ class JournalRepository(BaseRepository):
                 logger.error(f"JournalRepository.insert_entry() line {order} has no account_id")
                 raise ValueError(f"Line {order} has no account_id")
             
-            # Check if account exists
-            account_check = self.db.fetch_one("SELECT id, account_code, account_name FROM accounts WHERE id = ?", (account_id,))
+            # Check if account exists - get FULL details
+            account_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id, is_active, account_type FROM accounts WHERE id = ?", (account_id,))
             if account_check is None:
                 logger.error(f"JournalRepository.insert_entry() line {order}: account_id={account_id} does not exist in accounts table!")
+                
+                # Debug: List ALL accounts in the database
+                all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id")
+                logger.error(f"JournalRepository.insert_entry() ALL accounts in DB ({len(all_accounts)}):")
+                for acc in all_accounts:
+                    logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
+                
                 raise DatabaseError(
                     f"Account ID {account_id} does not exist in the database. "
-                    f"Line data: account_id={account_id}, debit={line.get('debit')}, credit={line.get('credit')}"
+                    f"Line data: account_id={account_id}, debit={line.get('debit')}, credit={line.get('credit')}. "
+                    f"Available account IDs: {[acc['id'] for acc in all_accounts]}"
                 )
-            logger.debug(f"JournalRepository.insert_entry() line {order}: account_id={account_id} validated (code={account_check['account_code']})")
+            logger.debug(f"JournalRepository.insert_entry() line {order}: account_id={account_id} validated (code={account_check['account_code']}, name={account_check['account_name']}, company_id={account_check['company_id']})")
         
         entry_id = self.insert(header)
         logger.debug(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
