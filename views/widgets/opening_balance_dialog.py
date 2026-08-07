@@ -239,21 +239,21 @@ class OpeningBalanceDialog(QDialog):
         total_credit = 0.0
 
         # Collect all entries
-        logger.debug(f"OpeningBalanceDialog._save() iterating over {self.table.rowCount()} rows")
+        logger.error(f"OpeningBalanceDialog._save() STARTING - iterating over {self.table.rowCount()} rows")
         for row in range(self.table.rowCount()):
             acc_id_item = self.table.item(row, 0)
             if acc_id_item is None:
-                logger.debug(f"OpeningBalanceDialog._save() row {row}: no account item, skipping")
+                logger.error(f"OpeningBalanceDialog._save() row {row}: NO account item, skipping")
                 continue
             acc_id = acc_id_item.data(Qt.UserRole)
-            logger.debug(f"OpeningBalanceDialog._save() row {row}: retrieved acc_id={acc_id} from table item")
+            logger.error(f"OpeningBalanceDialog._save() row {row}: retrieved acc_id={acc_id} from table item (type={type(acc_id)})")
             
             spin = self.balance_inputs.get(acc_id)
             if spin and spin.value() != 0:
                 value = spin.value()
                 acc_type_item = self.table.item(row, 1)
                 acc_type = acc_type_item.text() if acc_type_item else "UNKNOWN"
-                logger.debug(f"OpeningBalanceDialog._save() row {row}: acc_id={acc_id}, value={value}, acc_type={acc_type}")
+                logger.error(f"OpeningBalanceDialog._save() row {row}: acc_id={acc_id}, value={value}, acc_type={acc_type}")
                 
                 if acc_type == "ASSET":
                     entries.append({
@@ -262,7 +262,7 @@ class OpeningBalanceDialog(QDialog):
                         "credit": 0,
                     })
                     total_debit += value
-                    logger.debug(f"OpeningBalanceDialog._save() ASSET entry: acc_id={acc_id}, debit={value}")
+                    logger.error(f"OpeningBalanceDialog._save() ASSET entry added: acc_id={acc_id}, debit={value}, total_debit now={total_debit}")
                 elif acc_type in ["LIABILITY", "EQUITY"]:
                     entries.append({
                         "account_id": acc_id,
@@ -270,11 +270,12 @@ class OpeningBalanceDialog(QDialog):
                         "credit": value,
                     })
                     total_credit += value
-                    logger.debug(f"OpeningBalanceDialog._save() {acc_type} entry: acc_id={acc_id}, credit={value}")
+                    logger.error(f"OpeningBalanceDialog._save() {acc_type} entry added: acc_id={acc_id}, credit={value}, total_credit now={total_credit}")
                 else:
-                    logger.warning(f"OpeningBalanceDialog._save() unknown account type '{acc_type}' for acc_id={acc_id}")
+                    logger.error(f"OpeningBalanceDialog._save() UNKNOWN account type '{acc_type}' for acc_id={acc_id}")
 
-        logger.debug(f"OpeningBalanceDialog._save() collected {len(entries)} entries: total_debit={total_debit}, total_credit={total_credit}")
+        logger.error(f"OpeningBalanceDialog._save() COLLECTION COMPLETE - {len(entries)} entries: total_debit={total_debit}, total_credit={total_credit}")
+        logger.error(f"OpeningBalanceDialog._save() ENTRIES DATA: {entries}")
         
         if not entries:
             logger.warning("OpeningBalanceDialog._save() no balances to save")
@@ -311,48 +312,70 @@ class OpeningBalanceDialog(QDialog):
 
         # Post journal entry
         try:
-            logger.debug("OpeningBalanceDialog._save() posting journal entry...")
+            logger.error("OpeningBalanceDialog._save() STARTING journal entry post...")
             
             # Validate all account IDs exist before creating journal lines
-            logger.debug(f"OpeningBalanceDialog._save() validating {len(entries)} account IDs exist in database")
+            logger.error(f"OpeningBalanceDialog._save() VALIDATING {len(entries)} account IDs exist in database for company_id=1")
             for entry in entries:
                 acc_id = entry["account_id"]
-                acc_data = self.db.fetch_one("SELECT id, account_code, account_name, company_id FROM accounts WHERE id = ?", (acc_id,))
+                # Check account exists AND belongs to company_id=1
+                acc_data = self.db.fetch_one(
+                    "SELECT id, account_code, account_name, company_id, is_active FROM accounts WHERE id = ? AND company_id = ?", 
+                    (acc_id, 1)
+                )
+                logger.error(f"OpeningBalanceDialog._save() validation for acc_id={acc_id}: {acc_data}")
+                
                 if acc_data is None:
-                    logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} does not exist in database!")
+                    logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} DOES NOT EXIST or doesn't belong to company_id=1!")
+                    
+                    # Debug: Check if account exists at all
+                    acc_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id FROM accounts WHERE id = ?", (acc_id,))
+                    if acc_check:
+                        logger.error(f"OpeningBalanceDialog._save() Account {acc_id} EXISTS but belongs to company_id={acc_check['company_id']}, NOT company_id=1")
+                    else:
+                        logger.error(f"OpeningBalanceDialog._save() Account {acc_id} DOES NOT EXIST AT ALL in the database")
+                    
+                    # List ALL accounts
+                    all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id")
+                    logger.error(f"OpeningBalanceDialog._save() ALL accounts in DB ({len(all_accounts)}):")
+                    for acc in all_accounts:
+                        logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
+                    
                     QMessageBox.critical(
                         self,
                         "Invalid Account",
-                        f"Account ID {acc_id} does not exist in the database.\n\n"
-                        "This may be due to a database synchronization issue.\n"
+                        f"Account ID {acc_id} is invalid.\n\n"
+                        f"This account may not exist or may belong to a different company.\n"
                         "Please close this dialog and reload the chart of accounts."
                     )
                     return
-                logger.debug(f"OpeningBalanceDialog._save() account_id={acc_id} validated: code={acc_data['account_code']}, name={acc_data['account_name']}, company_id={acc_data['company_id']}")
+                logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} VALIDATED: code={acc_data['account_code']}, name={acc_data['account_name']}, company_id={acc_data['company_id']}, is_active={acc_data['is_active']}")
+            
+            logger.error("OpeningBalanceDialog._save() ALL account validations PASSED")
             
             journal_lines = []
             for entry in entries:
-                logger.debug(f"OpeningBalanceDialog._save() creating JournalLine: account_id={entry['account_id']}, debit={entry['debit']}, credit={entry['credit']}")
+                logger.error(f"OpeningBalanceDialog._save() creating JournalLine: account_id={entry['account_id']}, debit={entry['debit']}, credit={entry['credit']}")
                 journal_line = JournalLine(
                     account_id=entry["account_id"],
                     debit=entry["debit"],
                     credit=entry["credit"],
                     description="Opening balance"
                 )
-                logger.debug(f"OpeningBalanceDialog._save() JournalLine created: {journal_line}")
+                logger.error(f"OpeningBalanceDialog._save() JournalLine created: {journal_line}")
                 journal_lines.append(journal_line)
             
-            logger.debug(f"OpeningBalanceDialog._save() created {len(journal_lines)} journal lines")
+            logger.error(f"OpeningBalanceDialog._save() created {len(journal_lines)} journal lines: {journal_lines}")
 
             import datetime
-            logger.debug(f"OpeningBalanceDialog._save() calling post_journal_entry with voucher_type=OPENING, date={datetime.date.today().isoformat()}, lines={len(journal_lines)}")
+            logger.error(f"OpeningBalanceDialog._save() calling post_journal_entry with voucher_type=OPENING, date={datetime.date.today().isoformat()}, lines={len(journal_lines)}")
             self.accounting.post_journal_entry(
                 voucher_type=VoucherType.OPENING,
                 entry_date=datetime.date.today().isoformat(),
                 lines=journal_lines,
                 narration="Opening balances setup"
             )
-            logger.info("OpeningBalanceDialog._save() journal entry posted successfully")
+            logger.error("OpeningBalanceDialog._save() journal entry posted SUCCESSFULLY")
             
             # Update the accounts.opening_balance field for each account
             db = get_db()

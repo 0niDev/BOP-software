@@ -26,38 +26,48 @@ class JournalRepository(BaseRepository):
             ValueError: If lines list is empty - every journal entry must have at least 2 lines
             DatabaseError: If any account_id in lines doesn't exist in accounts table
         """
+        logger.error(f"JournalRepository.insert_entry() CALLED with header={header}, lines count={len(lines)}")
+        logger.error(f"JournalRepository.insert_entry() lines data: {lines}")
+        
         if not lines:
+            logger.error("JournalRepository.insert_entry() lines list is EMPTY!")
             raise ValueError("Cannot insert journal entry without lines. "
                            "Every journal entry must have at least 2 lines.")
         
         # Validate all account_ids exist before inserting
-        logger.debug(f"JournalRepository.insert_entry() validating {len(lines)} account IDs")
+        logger.error(f"JournalRepository.insert_entry() STARTING validation of {len(lines)} account IDs")
         for order, line in enumerate(lines):
             account_id = line.get("account_id")
+            logger.error(f"JournalRepository.insert_entry() validating line {order}: account_id={account_id}, debit={line.get('debit')}, credit={line.get('credit')}")
+            
             if account_id is None:
-                logger.error(f"JournalRepository.insert_entry() line {order} has no account_id")
+                logger.error(f"JournalRepository.insert_entry() line {order} has NO account_id!")
                 raise ValueError(f"Line {order} has no account_id")
             
             # Check if account exists - get FULL details
             account_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id, is_active, account_type FROM accounts WHERE id = ?", (account_id,))
+            logger.error(f"JournalRepository.insert_entry() line {order}: account_check result={account_check}")
+            
             if account_check is None:
-                logger.error(f"JournalRepository.insert_entry() line {order}: account_id={account_id} does not exist in accounts table!")
+                logger.error(f"JournalRepository.insert_entry() line {order}: account_id={account_id} DOES NOT EXIST in accounts table!")
                 
                 # Debug: List ALL accounts in the database
-                all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id")
+                all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id, is_active FROM accounts ORDER BY id")
                 logger.error(f"JournalRepository.insert_entry() ALL accounts in DB ({len(all_accounts)}):")
                 for acc in all_accounts:
-                    logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
+                    logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}, is_active={acc['is_active']}")
                 
                 raise DatabaseError(
                     f"Account ID {account_id} does not exist in the database. "
                     f"Line data: account_id={account_id}, debit={line.get('debit')}, credit={line.get('credit')}. "
                     f"Available account IDs: {[acc['id'] for acc in all_accounts]}"
                 )
-            logger.debug(f"JournalRepository.insert_entry() line {order}: account_id={account_id} validated (code={account_check['account_code']}, name={account_check['account_name']}, company_id={account_check['company_id']})")
+            logger.error(f"JournalRepository.insert_entry() line {order}: account_id={account_id} EXISTS (code={account_check['account_code']}, name={account_check['account_name']}, company_id={account_check['company_id']}, is_active={account_check['is_active']})")
+        
+        logger.error(f"JournalRepository.insert_entry() ALL account validations PASSED")
         
         entry_id = self.insert(header)
-        logger.debug(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
+        logger.error(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
         for order, line in enumerate(lines):
             line = dict(line)
             line["journal_entry_id"] = entry_id
@@ -68,16 +78,30 @@ class JournalRepository(BaseRepository):
             columns = list(line.keys())
             placeholders = ", ".join("?" for _ in columns)
             col_list = ", ".join(columns)
-            logger.debug(f"JournalRepository.insert_entry() inserting line {order}: account_id={line.get('account_id')}, debit={line.get('debit')}, credit={line.get('credit')}, columns={columns}")
+            logger.error(f"JournalRepository.insert_entry() inserting line {order}: account_id={line.get('account_id')}, debit={line.get('debit')}, credit={line.get('credit')}, columns={columns}, values={list(line.values())}")
             try:
-                self.db.execute(
+                result = self.db.execute(
                     f"INSERT INTO journal_entry_lines ({col_list}) VALUES ({placeholders})",
                     tuple(line.values()),
                 )
-                logger.debug(f"JournalRepository.insert_entry() line {order} inserted successfully")
+                logger.error(f"JournalRepository.insert_entry() line {order} inserted successfully, result={result}")
             except Exception as e:
-                logger.error(f"JournalRepository.insert_entry() failed to insert line {order}: {e}, line data={line}")
+                logger.error(f"JournalRepository.insert_entry() FAILED to insert line {order}: {e}")
+                logger.error(f"JournalRepository.insert_entry() line data that failed: {line}")
+                
+                # Extra debug: check the account one more time right before insert
+                acc_id = line.get('account_id')
+                acc_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id, is_active FROM accounts WHERE id = ?", (acc_id,))
+                logger.error(f"JournalRepository.insert_entry() PRE-INSERT check for account_id={acc_id}: {acc_check}")
+                
+                # List all accounts again
+                all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id")
+                logger.error(f"JournalRepository.insert_entry() ALL accounts at time of failure ({len(all_accounts)}):")
+                for acc in all_accounts:
+                    logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
+                
                 raise
+        logger.error(f"JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id={entry_id}")
         return entry_id
 
     def next_voucher_number(self, company_id: int, document_type: str) -> str:
