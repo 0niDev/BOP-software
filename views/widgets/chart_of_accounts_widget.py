@@ -24,6 +24,9 @@ from views.widgets.opening_balance_dialog import OpeningBalanceDialog
 from controllers.account_controller import AccountController
 from models.account import Account
 from models.enums import AccountType
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AccountDialog(QDialog):
@@ -31,6 +34,8 @@ class AccountDialog(QDialog):
 
     def __init__(self, accounts: list[Account], account: Account | None = None, parent=None):
         super().__init__(parent)
+        logger.debug(f"[AccountDialog] Initializing dialog for account: {account.account_name if account else 'NEW'}")
+        logger.debug(f"[AccountDialog] Total accounts available: {len(accounts)}")
         self.setWindowTitle("Edit Account" if account else "New Account")
         self.setMinimumWidth(380)
         self._existing = account
@@ -52,6 +57,7 @@ class AccountDialog(QDialog):
             idx = self.type_combo.findData(account.account_type)
             self.type_combo.setCurrentIndex(max(idx, 0))
             self.type_combo.setEnabled(False)  # type immutable after creation
+            logger.debug(f"[AccountDialog] Account type set to: {account.account_type}")
         layout.addRow("Account Type*", self.type_combo)
 
         self.parent_combo = QComboBox()
@@ -64,12 +70,14 @@ class AccountDialog(QDialog):
             idx = self.parent_combo.findData(account.parent_account_id)
             if idx >= 0:
                 self.parent_combo.setCurrentIndex(idx)
+                logger.debug(f"[AccountDialog] Parent account set to ID: {account.parent_account_id}")
         layout.addRow("Parent Account", self.parent_combo)
 
         self.opening_balance_input = QDoubleSpinBox()
         self.opening_balance_input.setRange(-1_000_000_000, 1_000_000_000)
         self.opening_balance_input.setDecimals(2)
         self.opening_balance_input.setValue(account.opening_balance if account else 0.0)
+        logger.debug(f"[AccountDialog] Opening balance initialized to: {account.opening_balance if account else 0.0}")
         layout.addRow("Opening Balance", self.opening_balance_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -78,13 +86,15 @@ class AccountDialog(QDialog):
         layout.addRow(buttons)
 
     def values(self) -> dict:
-        return {
+        result = {
             "account_code": self.code_input.text().strip(),
             "account_name": self.name_input.text().strip(),
             "account_type": self.type_combo.currentData(),
             "parent_account_id": self.parent_combo.currentData(),
             "opening_balance": self.opening_balance_input.value(),
         }
+        logger.debug(f"[AccountDialog] values() returning: {result}")
+        return result
 
 
 class ChartOfAccountsWidget(QWidget):
@@ -92,6 +102,7 @@ class ChartOfAccountsWidget(QWidget):
 
     def __init__(self, controller: AccountController | None = None, parent=None):
         super().__init__(parent)
+        logger.debug("[ChartOfAccountsWidget] Initializing widget")
         self.controller = controller or AccountController()
         self._accounts: list[Account] = []
         self._build_ui()
@@ -148,6 +159,8 @@ class ChartOfAccountsWidget(QWidget):
         # Load accounts asynchronously to keep UI responsive
         from PySide6.QtCore import QThread, Signal
         
+        logger.debug("[ChartOfAccountsWidget] refresh() called - starting account load")
+        
         class AccountLoader(QThread):
             finished = Signal(list, str)
             
@@ -156,7 +169,9 @@ class ChartOfAccountsWidget(QWidget):
                 self.controller = controller
                 
             def run(self):
+                logger.debug("[AccountLoader] Starting background load")
                 accounts, error = self.controller.list_accounts(active_only=False)
+                logger.debug(f"[AccountLoader] Load complete: {len(accounts)} accounts, error={error}")
                 self.finished.emit(accounts, error or "")
         
         # Disable UI during load
@@ -167,17 +182,21 @@ class ChartOfAccountsWidget(QWidget):
     
     def _on_load_complete(self, accounts, error):
         """Handle completed account load."""
+        logger.debug(f"[ChartOfAccountsWidget] _on_load_complete: {len(accounts)} accounts, error={error}")
         if error:
             from PySide6.QtWidgets import QMessageBox
+            logger.error(f"[ChartOfAccountsWidget] Error loading accounts: {error}")
             QMessageBox.warning(self, "Error", error)
             self.table.setEnabled(True)
             return
         
         self._accounts = sorted(accounts, key=lambda a: a.account_code)
+        logger.debug(f"[ChartOfAccountsWidget] Sorted {len(self._accounts)} accounts")
         self._populate_table(self._accounts)
         self.table.setEnabled(True)
 
     def _populate_table(self, accounts: list[Account]) -> None:
+        logger.debug(f"[ChartOfAccountsWidget] _populate_table called with {len(accounts)} accounts")
         by_id = {a.id: a for a in self._accounts}
         self.table.setRowCount(len(accounts))
         for row, acc in enumerate(accounts):
@@ -194,12 +213,14 @@ class ChartOfAccountsWidget(QWidget):
                 f"{acc.current_balance:,.2f}",
                 "Active" if acc.is_active else "Inactive",
             ]
+            logger.debug(f"[ChartOfAccountsWidget] Row {row}: Code={acc.account_code}, Opening={acc.opening_balance}, Current={acc.current_balance}")
             for col, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
                 item.setData(Qt.UserRole, acc.id)
                 if col in (4, 5):
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.table.setItem(row, col, item)
+        logger.debug(f"[ChartOfAccountsWidget] _populate_table completed")
 
     def _apply_filter(self, text: str) -> None:
         text = text.strip().lower()
@@ -221,16 +242,20 @@ class ChartOfAccountsWidget(QWidget):
 
     def _on_add(self) -> None:
         """Add new account."""
+        logger.debug("[ChartOfAccountsWidget] _on_add called")
         dialog = AccountDialog(self._accounts, parent=self)
         if dialog.exec() != QDialog.Accepted:
+            logger.debug("[ChartOfAccountsWidget] _on_add: dialog cancelled")
             return
         values = dialog.values()
+        logger.debug(f"[ChartOfAccountsWidget] _on_add: dialog accepted with values: {values}")
         
         # Get account_type as string from dialog
         account_type = values["account_type"]
         if hasattr(account_type, 'value'):
             account_type = account_type.value
         
+        logger.debug(f"[ChartOfAccountsWidget] Creating account with type={account_type}, opening_balance={values['opening_balance']}")
         success, error = self.controller.create_account(
             account_code=values["account_code"],
             account_name=values["account_name"],
@@ -239,20 +264,26 @@ class ChartOfAccountsWidget(QWidget):
             opening_balance=values["opening_balance"],
         )
         if not success:
+            logger.error(f"[ChartOfAccountsWidget] Failed to create account: {error}")
             QMessageBox.warning(self, "Could not create account", error)
             return
+        logger.info(f"[ChartOfAccountsWidget] Account created successfully")
         self.refresh()
 
 
     def _on_edit(self) -> None:
         account = self._selected_account()
         if account is None:
+            logger.debug("[ChartOfAccountsWidget] _on_edit: no account selected")
             QMessageBox.information(self, "No selection", "Select an account to edit.")
             return
+        logger.debug(f"[ChartOfAccountsWidget] _on_edit: editing account {account.account_code} - {account.account_name}")
         dialog = AccountDialog(self._accounts, account=account, parent=self)
         if dialog.exec() != QDialog.Accepted:
+            logger.debug("[ChartOfAccountsWidget] _on_edit: dialog cancelled")
             return
         values = dialog.values()
+        logger.debug(f"[ChartOfAccountsWidget] _on_edit: dialog accepted with values: {values}")
         success, error = self.controller.update_account(
             account_id=account.id,
             account_name=values["account_name"],
@@ -261,8 +292,10 @@ class ChartOfAccountsWidget(QWidget):
             is_active=account.is_active,
         )
         if not success:
+            logger.error(f"[ChartOfAccountsWidget] Failed to update account: {error}")
             QMessageBox.warning(self, "Could not update account", error)
             return
+        logger.info(f"[ChartOfAccountsWidget] Account updated successfully")
         self.refresh()
 
     def _on_deactivate(self) -> None:
@@ -282,5 +315,10 @@ class ChartOfAccountsWidget(QWidget):
         self.refresh()
     def _on_opening_balance(self):
         """Open opening balance dialog."""
+        logger.debug("[ChartOfAccountsWidget] _on_opening_balance called - opening dialog")
         dialog = OpeningBalanceDialog(self)
-        dialog.exec()
+        result = dialog.exec()
+        logger.debug(f"[ChartOfAccountsWidget] Opening balance dialog closed with result: {result}")
+        if result == QDialog.Accepted:
+            logger.info("[ChartOfAccountsWidget] Opening balances updated, refreshing table")
+            self.refresh()

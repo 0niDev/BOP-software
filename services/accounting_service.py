@@ -86,12 +86,18 @@ class AccountingService:
         inserting the sales invoice row), so the document and its
         accounting entry commit or roll back together.
         """
+        logger.debug(f"[AccountingService] post_journal_entry called: voucher_type={voucher_type}, entry_date={entry_date}, lines={len(lines)}, narration={narration}")
+        
         if len(lines) < 2:
+            logger.error("[AccountingService] Validation failed: less than 2 lines")
             raise ValidationError("A journal entry needs at least two lines.")
 
         total_debit = round(sum(l.debit for l in lines), 2)
         total_credit = round(sum(l.credit for l in lines), 2)
+        logger.debug(f"[AccountingService] Calculated totals: debit={total_debit}, credit={total_credit}")
+        
         if abs(total_debit - total_credit) > _ROUNDING_TOLERANCE:
+            logger.error(f"[AccountingService] Validation failed: unbalanced entry (debit={total_debit}, credit={total_credit})")
             raise UnbalancedJournalEntryError(
                 f"Journal entry not balanced: debit={total_debit}, credit={total_credit}"
             )
@@ -99,6 +105,7 @@ class AccountingService:
         voucher_number = voucher_number or self.journal_repo.next_voucher_number(
             company_id, voucher_type.value
         )
+        logger.debug(f"[AccountingService] Using voucher_number: {voucher_number}")
 
         header = {
             "company_id": company_id,
@@ -122,9 +129,10 @@ class AccountingService:
             }
             for l in lines
         ]
+        logger.debug(f"[AccountingService] Inserting journal entry with {len(line_dicts)} lines")
         entry_id = self.journal_repo.insert_entry(header, line_dicts)
         logger.info(
-            "Posted journal entry #%s (%s) voucher=%s amount=%.2f",
+            "[AccountingService] Posted journal entry #%s (%s) voucher=%s amount=%.2f",
             entry_id, voucher_type.value, voucher_number, total_debit,
         )
         return entry_id

@@ -36,26 +36,33 @@ class AccountService:
         account_subtype: str | None = None,
         company_id: int = 1,
     ) -> Account:
+        logger.debug(f"[AccountService] create_account called: code={account_code}, name={account_name}, type={account_type}, parent={parent_account_id}, opening_balance={opening_balance}")
         account_code = account_code.strip()
         account_name = account_name.strip()
         if not account_code:
+            logger.error("[AccountService] Validation failed: empty account code")
             raise ValidationError("Account code is required.")
         if not account_name:
+            logger.error("[AccountService] Validation failed: empty account name")
             raise ValidationError("Account name is required.")
 
         # Convert to enum if string
         if isinstance(account_type, str):
             from models.enums import AccountType
             account_type = AccountType(account_type)
+            logger.debug(f"[AccountService] Converted account_type string to enum: {account_type}")
 
         if parent_account_id is not None:
             parent = self.repo.find_by_id(parent_account_id)
             if parent is None:
+                logger.error(f"[AccountService] Validation failed: parent account {parent_account_id} not found")
                 raise ValidationError("Selected parent account does not exist.")
             if parent["account_type"] != account_type.value:
+                logger.error(f"[AccountService] Validation failed: parent account type mismatch (parent={parent['account_type']}, child={account_type.value})")
                 raise ValidationError(
                     "A sub-account must have the same account type as its parent."
                 )
+            logger.debug(f"[AccountService] Parent account validated: {parent_account_id}")
 
         account = Account(
             account_code=account_code,
@@ -70,10 +77,12 @@ class AccountService:
         with self.db.transaction():
             new_id = self.repo.insert_unique(account.to_insert_dict())
             account.id = new_id
+            logger.debug(f"[AccountService] Account inserted with ID: {new_id}")
             if opening_balance:
+                logger.debug(f"[AccountService] Non-zero opening balance detected, posting journal entry")
                 self._post_opening_balance(account, company_id)
 
-        logger.info("Created account %s - %s (id=%s)", account_code, account_name, new_id)
+        logger.info(f"[AccountService] Created account {account_code} - {account_name} (id={new_id})")
         return account
 
     def _post_opening_balance(self, account: Account, company_id: int) -> None:
@@ -83,18 +92,25 @@ class AccountService:
         from services.accounting_service import AccountingService, JournalLine
         import datetime as _dt
 
+        logger.debug(f"[AccountService] _post_opening_balance called for account {account.account_code} with balance {account.opening_balance}")
+        
         accounting = AccountingService(self.db)
         resolver = SystemAccountResolver(self.db, company_id)
         equity_account_id = resolver.id_for(SystemAccountCodes.RETAINED_EARNINGS)
+        
+        logger.debug(f"[AccountService] Equity account ID resolved to: {equity_account_id}")
 
         # If this account IS the equity account, skip -- avoids a
         # self-referencing entry when seeding equity's own opening balance.
         if account.id == equity_account_id:
+            logger.debug(f"[AccountService] Skipping - this account IS the equity account")
             return
 
         debit_normal = account.account_type.normal_balance_is_debit
         amount = abs(account.opening_balance)
         increases_balance = account.opening_balance > 0
+        
+        logger.debug(f"[AccountService] debit_normal={debit_normal}, amount={amount}, increases_balance={increases_balance}")
 
         if debit_normal:
             this_line = JournalLine(account_id=account.id, debit=amount) if increases_balance \
@@ -106,6 +122,8 @@ class AccountService:
                 else JournalLine(account_id=account.id, debit=amount)
             equity_line = JournalLine(account_id=equity_account_id, debit=amount) if increases_balance \
                 else JournalLine(account_id=equity_account_id, credit=amount)
+        
+        logger.debug(f"[AccountService] Created journal lines: this_line={this_line}, equity_line={equity_line}")
 
         accounting.post_journal_entry(
             voucher_type=VoucherType.OPENING,
@@ -116,6 +134,8 @@ class AccountService:
             source_id=account.id,
             company_id=company_id,
         )
+        
+        logger.info(f"[AccountService] Opening balance journal entry posted for account {account.account_code}")
 
     def update_account(
         self,
@@ -155,12 +175,15 @@ class AccountService:
         return Account.from_row(self.repo.get_by_id(account_id))
 
     def list_accounts(self, company_id: int = 1, active_only: bool = True) -> list[Account]:
+        logger.debug(f"[AccountService] list_accounts called: company_id={company_id}, active_only={active_only}")
         cache_key = self.repo._get_cache_key("list_accounts", company_id, active_only)
         cached = self.repo._get_cached(cache_key)
         if cached is not None:
+            logger.debug(f"[AccountService] Cache hit for {cache_key}")
             return cached
         
         rows = self.repo.find_all_for_company(company_id, active_only)
+        logger.debug(f"[AccountService] Found {len(rows)} accounts from database")
         accounts = [Account.from_row(r) for r in rows]
         
         # Batch fetch all balances in a SINGLE query instead of N+1 queries
@@ -180,6 +203,8 @@ class AccountService:
                 GROUP BY jel.account_id
             """, account_ids)
             
+            logger.debug(f"[AccountService] Fetched balances for {len(balances_data)} accounts")
+            
             # Create a lookup map for balances
             balance_map = {}
             for row in balances_data:
@@ -192,12 +217,14 @@ class AccountService:
                         balance_map[acc_id] = row["total_debit"] - row["total_credit"]
                     else:
                         balance_map[acc_id] = row["total_credit"] - row["total_debit"]
+                    logger.debug(f"[AccountService] Account {acc_id} ({acc_obj.account_code}): balance={balance_map[acc_id]} (debit_normal={debit_normal})")
             
             # Assign balances to accounts
             for acc in accounts:
                 acc.current_balance = balance_map.get(acc.id, 0.0)
         
         self.repo._set_cached(cache_key, accounts)
+        logger.debug(f"[AccountService] list_accounts returning {len(accounts)} accounts")
         return accounts
 
     def list_by_type(self, account_type: AccountType, company_id: int = 1) -> list[Account]:
