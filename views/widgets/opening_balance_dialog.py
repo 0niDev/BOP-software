@@ -314,21 +314,33 @@ class OpeningBalanceDialog(QDialog):
             logger.debug("OpeningBalanceDialog._save() posting journal entry...")
             
             # Validate all account IDs exist before creating journal lines
-            logger.debug(f"OpeningBalanceDialog._save() validating {len(entries)} account IDs exist in database")
+            logger.debug(f"OpeningBalanceDialog._save() validating {len(entries)} account IDs exist in database for company_id=1")
             for entry in entries:
                 acc_id = entry["account_id"]
-                acc_data = self.db.fetch_one("SELECT id, account_code, account_name, company_id FROM accounts WHERE id = ?", (acc_id,))
+                # Check account exists AND belongs to company_id=1
+                acc_data = self.db.fetch_one(
+                    "SELECT id, account_code, account_name, company_id, is_active FROM accounts WHERE id = ? AND company_id = ?", 
+                    (acc_id, 1)
+                )
                 if acc_data is None:
-                    logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} does not exist in database!")
+                    logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} does not exist or doesn't belong to company_id=1!")
+                    
+                    # Debug: Check if account exists at all
+                    acc_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id FROM accounts WHERE id = ?", (acc_id,))
+                    if acc_check:
+                        logger.error(f"OpeningBalanceDialog._save() Account {acc_id} exists but belongs to company_id={acc_check['company_id']}, not company_id=1")
+                    else:
+                        logger.error(f"OpeningBalanceDialog._save() Account {acc_id} does not exist at all in the database")
+                    
                     QMessageBox.critical(
                         self,
                         "Invalid Account",
-                        f"Account ID {acc_id} does not exist in the database.\n\n"
-                        "This may be due to a database synchronization issue.\n"
+                        f"Account ID {acc_id} is invalid.\n\n"
+                        f"This account may not exist or may belong to a different company.\n"
                         "Please close this dialog and reload the chart of accounts."
                     )
                     return
-                logger.debug(f"OpeningBalanceDialog._save() account_id={acc_id} validated: code={acc_data['account_code']}, name={acc_data['account_name']}, company_id={acc_data['company_id']}")
+                logger.debug(f"OpeningBalanceDialog._save() account_id={acc_id} validated: code={acc_data['account_code']}, name={acc_data['account_name']}, company_id={acc_data['company_id']}, is_active={acc_data['is_active']}")
             
             journal_lines = []
             for entry in entries:
