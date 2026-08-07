@@ -49,21 +49,70 @@ class PurchaseInvoiceService:
         self.accounting_service = AccountingService(self.db)
         self.account_service = AccountService(self.db)
 
+    def _get_or_create_batch(
+        self,
+        item_id: int,
+        warehouse_id: int,
+        batch_number: str | None,
+        manufacturing_date: str | None,
+        expiry_date: str | None,
+        purchase_price: float,
+        quantity: float,
+    ) -> int:
+        """Get existing batch or create new one, returns batch_id."""
+        import datetime
+        
+        if not batch_number:
+            batch_number = f"PURCHASE-{item_id}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        if not manufacturing_date:
+            manufacturing_date = datetime.date.today().isoformat()
+        if not expiry_date:
+            expiry_date = (datetime.date.today() + datetime.timedelta(days=730)).isoformat()
+        
+        # Check for existing batch with same batch_number
+        existing = self.db.fetch_one("""
+            SELECT id, quantity_in_stock 
+            FROM stock_batches 
+            WHERE item_id = ? AND warehouse_id = ? AND batch_number = ? AND is_active = 1
+        """, (item_id, warehouse_id, batch_number))
+        
+        if existing:
+            # Update existing batch quantity
+            new_quantity = existing["quantity_in_stock"] + quantity
+            self.db.execute("""
+                UPDATE stock_batches 
+                SET quantity_in_stock = ?, purchase_price = ?
+                WHERE id = ?
+            """, (new_quantity, purchase_price, existing["id"]))
+            logger.info(f"Updated existing batch {batch_number}: {new_quantity}")
+            return existing["id"]
+        else:
+            # Create new batch
+            self.db.execute("""
+                INSERT INTO stock_batches (
+                    item_id, warehouse_id, batch_number, 
+                    manufacturing_date, expiry_date, 
+                    purchase_price, quantity_in_stock, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            """, (item_id, warehouse_id, batch_number, manufacturing_date, 
+                  expiry_date, purchase_price, quantity))
+            
+            batch_id = self.db.last_insert_rowid()
+            logger.info(f"Created new batch {batch_number} with id={batch_id}: {quantity}")
+            return batch_id
+
     def _update_stock(
         self,
         item_id: int,
         warehouse_id: int,
         quantity: float,
         unit_cost: float,
-        batch_number: str | None = None,
-        manufacturing_date: str | None = None,
-        expiry_date: str | None = None,
+        batch_id: int,
         batch_cache: dict | None = None,
         item_cache: dict | None = None,
     ) -> None:
-        """Update stock when purchasing items."""
-        import datetime
-        
+        """Update stock when purchasing items (batch already created)."""
         # Use cached item if available
         if item_cache is not None and item_id in item_cache:
             item = item_cache[item_id]
@@ -76,29 +125,14 @@ class PurchaseInvoiceService:
             logger.warning(f"Item {item_id} not found for stock update")
             return
         
-        logger.info(f"Updating stock for {item['item_code']}: +{quantity}")
+        logger.info(f"Updating stock for {item['item_code']}: +{quantity} (batch_id={batch_id})")
         
-        if not batch_number:
-            batch_number = f"PURCHASE-{item_id}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
-        if not manufacturing_date:
-            manufacturing_date = datetime.date.today().isoformat()
-        if not expiry_date:
-            expiry_date = (datetime.date.today() + datetime.timedelta(days=730)).isoformat()
-        
-        # Use cached batch if available
-        cache_key = f"{item_id}_{warehouse_id}"
-        if batch_cache is not None and cache_key in batch_cache:
-            existing = batch_cache[cache_key]
-        else:
-            existing = self.db.fetch_one("""
-                SELECT id, quantity_in_stock 
-                FROM stock_batches 
-                WHERE item_id = ? AND warehouse_id = ? AND is_active = 1
-                ORDER BY id DESC LIMIT 1
-            """, (item_id, warehouse_id))
-            if batch_cache is not None:
-                batch_cache[cache_key] = existing
+        # Update the batch quantity (batch already exists)
+        existing = self.db.fetch_one("""
+            SELECT quantity_in_stock 
+            FROM stock_batches 
+            WHERE id = ?
+        """, (batch_id,))
         
         if existing:
             new_quantity = existing["quantity_in_stock"] + quantity
@@ -106,21 +140,8 @@ class PurchaseInvoiceService:
                 UPDATE stock_batches 
                 SET quantity_in_stock = ? 
                 WHERE id = ?
-            """, (new_quantity, existing["id"]))
+            """, (new_quantity, batch_id))
             logger.info(f"Updated stock for {item['item_code']}: {new_quantity}")
-            # Update cache
-            if batch_cache is not None:
-                batch_cache[cache_key] = {"id": existing["id"], "quantity_in_stock": new_quantity}
-        else:
-            self.db.execute("""
-                INSERT INTO stock_batches (
-                    item_id, warehouse_id, batch_number, 
-                    manufacturing_date, expiry_date, 
-                    purchase_price, quantity_in_stock, is_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-            """, (item_id, warehouse_id, batch_number, manufacturing_date, 
-                  expiry_date, unit_cost, quantity))
-            logger.info(f"Created new batch for {item['item_code']}: {quantity}")
 
     def create_purchase_invoice(
         self,
@@ -194,7 +215,6 @@ class PurchaseInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
-                "batch_id": None,  # Don't set batch_id for new purchases - it will be created by _update_stock
                 "batch_number": item_data.get("batch_number"),
                 "manufacturing_date": item_data.get("manufacturing_date"),
                 "expiry_date": item_data.get("expiry_date")
@@ -331,18 +351,30 @@ class PurchaseInvoiceService:
             item_cache = {}
             
             for item_data in validated_items:
+                # First create/get the batch and get its ID
+                batch_id = self._get_or_create_batch(
+                    item_id=item_data["item_id"],
+                    warehouse_id=warehouse_id,
+                    batch_number=item_data.get("batch_number"),
+                    manufacturing_date=item_data.get("manufacturing_date"),
+                    expiry_date=item_data.get("expiry_date"),
+                    purchase_price=item_data["unit_cost"],
+                    quantity=item_data["quantity"],
+                )
+                
+                # Now set batch_id for the invoice item
+                item_data["batch_id"] = batch_id
                 item_data["invoice_id"] = invoice.id
                 item = PurchaseInvoiceItem(**item_data)
                 self.item_repo.insert(item.to_dict())
                 
+                # Update stock quantity for the created batch
                 self._update_stock(
                     item_id=item_data["item_id"],
                     warehouse_id=warehouse_id,
                     quantity=item_data["quantity"],
                     unit_cost=item_data["unit_cost"],
-                    batch_number=item_data.get("batch_number"),
-                    manufacturing_date=item_data.get("manufacturing_date"),
-                    expiry_date=item_data.get("expiry_date"),
+                    batch_id=batch_id,
                     batch_cache=batch_cache,
                     item_cache=item_cache,
                 )
@@ -516,7 +548,6 @@ class PurchaseInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
-                "batch_id": None,  # Don't set batch_id for updates either - let _update_stock handle it
                 "batch_number": item_data.get("batch_number"),
                 "manufacturing_date": item_data.get("manufacturing_date"),
                 "expiry_date": item_data.get("expiry_date")
@@ -669,18 +700,30 @@ class PurchaseInvoiceService:
             batch_cache = {}
             
             for item_data in validated_items:
+                # First create/get the batch and get its ID
+                batch_id = self._get_or_create_batch(
+                    item_id=item_data["item_id"],
+                    warehouse_id=1,
+                    batch_number=item_data.get("batch_number"),
+                    manufacturing_date=item_data.get("manufacturing_date"),
+                    expiry_date=item_data.get("expiry_date"),
+                    purchase_price=item_data["unit_cost"],
+                    quantity=item_data["quantity"],
+                )
+                
+                # Now set batch_id for the invoice item
+                item_data["batch_id"] = batch_id
                 item_data["invoice_id"] = invoice_id
                 item = PurchaseInvoiceItem(**item_data)
                 self.item_repo.insert(item.to_dict())
                 
+                # Update stock quantity for the created batch
                 self._update_stock(
                     item_id=item_data["item_id"],
                     warehouse_id=1,
                     quantity=item_data["quantity"],
                     unit_cost=item_data["unit_cost"],
-                    batch_number=item_data.get("batch_number"),
-                    manufacturing_date=item_data.get("manufacturing_date"),
-                    expiry_date=item_data.get("expiry_date"),
+                    batch_id=batch_id,
                     batch_cache=batch_cache,
                 )
             
