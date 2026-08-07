@@ -149,6 +149,9 @@ class DashboardView(QWidget):
     
     def _on_data_loaded(self, data, error):
         """Handle dashboard data loaded from background thread."""
+        # Mark as loaded regardless of error/success
+        self._is_loaded = True
+        
         # Re-enable refresh button
         self.refresh_btn.setEnabled(True)
         self.refresh_btn.setText("Refresh")

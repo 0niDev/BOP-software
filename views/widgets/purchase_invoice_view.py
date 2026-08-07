@@ -170,6 +170,9 @@ class PurchaseItemSelectionDialog(QDialog):
         self.item_combo.addItem("Select Item", None)
         self.item_combo.setEditable(True)
         self.item_combo.setInsertPolicy(QComboBox.NoInsert)
+        # Prevent focus loss from triggering unwanted selections
+        if self.item_combo.lineEdit():
+            self.item_combo.lineEdit().setFocusPolicy(Qt.ClickFocus)
         item_layout.addRow("Item*:", self.item_combo)
         
         item_group.setLayout(item_layout)
@@ -225,11 +228,8 @@ class PurchaseItemSelectionDialog(QDialog):
         
         # Connect Enter key to accept (add item)
         self.search_input.returnPressed.connect(self._filter_items_and_select)
-        # QDoubleSpinBox doesn't have returnPressed, use editingFinished instead
-        self.quantity_spin.editingFinished.connect(self.accept)
-        self.unit_cost_spin.editingFinished.connect(self.accept)
-        self.discount_spin.editingFinished.connect(self.accept)
-        self.tax_spin.editingFinished.connect(self.accept)
+        # Don't auto-accept on editingFinished - only use OK button or Enter in search
+        # This prevents accidental dialog closure when clicking around the form
         
         self.line_total_label = QLabel("Line Total: 0.00")
         self.line_total_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2ecc71;")
@@ -599,10 +599,13 @@ class PurchaseInvoiceView(QWidget):
     
     def _check_refresh_complete(self):
         """Check if both invoice and supplier loads are complete to re-enable refresh button."""
-        # Only call _on_refresh_complete if we're in a refresh operation
-        # This is called after each async load completes
-        if hasattr(self, '_refresh_in_progress') and self._refresh_in_progress:
-            QTimer.singleShot(100, lambda: self._on_refresh_complete())
+        if hasattr(self, '_pending_loads') and self._pending_loads > 0:
+            self._pending_loads -= 1
+            # Only re-enable button when all loads are complete
+            if self._pending_loads > 0:
+                return
+        
+        self._on_refresh_complete()
     
     def _populate_supplier_dropdown(self):
         """Populate supplier dropdown with cached data."""
@@ -675,6 +678,7 @@ class PurchaseInvoiceView(QWidget):
             return
         
         self._refresh_in_progress = True
+        self._pending_loads = 2  # Track both suppliers and invoices loads
         self.refresh_button.setEnabled(False)
         self.refresh_button.setText("⏳ Loading...")
         
