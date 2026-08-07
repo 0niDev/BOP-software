@@ -169,6 +169,10 @@ class OpeningBalanceDialog(QDialog):
             self.balance_inputs[acc['id']] = balance_spin
             self.table.setCellWidget(row, 2, balance_spin)
             logger.debug(f"OpeningBalanceDialog._load_accounts() row {row}: id={acc['id']}, code={acc['account_code']}, type={acc['account_type']}")
+            
+            # CRITICAL DEBUG: Verify the account ID can be retrieved back
+            retrieved_id = self.table.item(row, 0).data(Qt.UserRole)
+            logger.debug(f"OpeningBalanceDialog._load_accounts() VERIFICATION: stored id={acc['id']}, retrieved id={retrieved_id}, match={acc['id'] == retrieved_id}")
 
         self.table.resizeColumnsToContents()
         logger.debug("OpeningBalanceDialog._load_accounts() completed")
@@ -242,6 +246,8 @@ class OpeningBalanceDialog(QDialog):
                 logger.debug(f"OpeningBalanceDialog._save() row {row}: no account item, skipping")
                 continue
             acc_id = acc_id_item.data(Qt.UserRole)
+            logger.debug(f"OpeningBalanceDialog._save() row {row}: retrieved acc_id={acc_id} from table item")
+            
             spin = self.balance_inputs.get(acc_id)
             if spin and spin.value() != 0:
                 value = spin.value()
