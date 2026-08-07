@@ -259,6 +259,7 @@ class PurchaseInvoiceService:
             if bank_account:
                 credit_account_id = bank_account["account_id"]
                 credit_description = f"{payment_type} payment - {bank_account['bank_name']}"
+                # Don't set party_id for bank payments - only for credit purchases
                 logger.info(f"✅ Using specific bank account: {bank_account['bank_name']}")
             else:
                 raise ValidationError("Selected bank account not found.")
@@ -266,6 +267,7 @@ class PurchaseInvoiceService:
         elif payment_type == "CASH":
             credit_account_id = cash_account_id
             credit_description = "Cash payment"
+            # Don't set party_id for cash payments
             
         else:
             # Default to master bank account
@@ -273,9 +275,10 @@ class PurchaseInvoiceService:
                 raise ValidationError("Bank account (1010) not found.")
             credit_account_id = bank_account_dict["id"]
             credit_description = f"{payment_type} payment"
+            # Don't set party_id for default bank payments
 
         # ============================================================
-        # ✅ FIX: Build journal lines with party_id
+        # ✅ FIX: Build journal lines with party_id ONLY when appropriate
         # ============================================================
         journal_lines = [
             JournalLine(
@@ -284,14 +287,28 @@ class PurchaseInvoiceService:
                 credit=0.0,
                 description="Inventory purchase"
             ),
-            JournalLine(
-                account_id=credit_account_id,
-                debit=0.0,
-                credit=float(total_amount),
-                party_id=credit_party_id,  # ✅ This is correct
-                description=credit_description
-            )
         ]
+        
+        # Only add party_id for CREDIT purchases
+        if credit_party_id is not None:
+            journal_lines.append(
+                JournalLine(
+                    account_id=credit_account_id,
+                    debit=0.0,
+                    credit=float(total_amount),
+                    party_id=credit_party_id,
+                    description=credit_description
+                )
+            )
+        else:
+            journal_lines.append(
+                JournalLine(
+                    account_id=credit_account_id,
+                    debit=0.0,
+                    credit=float(total_amount),
+                    description=credit_description
+                )
+            )
         
         if tax_amount > 0 and tax_account_id:
             journal_lines.append(

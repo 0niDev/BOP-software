@@ -223,7 +223,7 @@ class PaymentService:
                 account_id=ar_account["id"],
                 debit=0,
                 credit=amount,
-                party_id=customer_id,
+                party_id=customer_id,  # ✅ ADD THIS - links receipt to customer
                 description=f"Payment from {customer['name']}"
             )
         ]
