@@ -90,7 +90,7 @@ class OpeningBalanceDialog(QDialog):
         logger.debug("OpeningBalanceDialog._load_accounts() called")
         
         # First verify company_id=1 exists
-        company_check = self.db.fetch_one("SELECT id, company_name FROM companies WHERE id = ?", (1,))
+        company_check = self.db.fetch_one("SELECT id, name FROM companies WHERE id = ?", (1,))
         if company_check is None:
             logger.error("OpeningBalanceDialog._load_accounts() company_id=1 does not exist!")
             QMessageBox.critical(
@@ -101,7 +101,7 @@ class OpeningBalanceDialog(QDialog):
             )
             return
         
-        logger.debug(f"OpeningBalanceDialog._load_accounts() company validated: id={company_check['id']}, name={company_check['company_name']}")
+        logger.debug(f"OpeningBalanceDialog._load_accounts() company validated: id={company_check['id']}, name={company_check['name']}")
         
         # Debug: List all available accounts in DB
         all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, account_type, company_id, is_active FROM accounts ORDER BY id")
