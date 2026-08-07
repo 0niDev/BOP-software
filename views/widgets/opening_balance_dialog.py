@@ -88,6 +88,29 @@ class OpeningBalanceDialog(QDialog):
     def _load_accounts(self):
         """Load ALL accounts into table (including those with zero balance)."""
         logger.debug("OpeningBalanceDialog._load_accounts() called")
+        
+        # First verify company_id=1 exists
+        company_check = self.db.fetch_one("SELECT id, company_name FROM companies WHERE id = ?", (1,))
+        if company_check is None:
+            logger.error("OpeningBalanceDialog._load_accounts() company_id=1 does not exist!")
+            QMessageBox.critical(
+                self,
+                "Database Error",
+                "Company ID 1 does not exist in the database.\n\n"
+                "Please check your database setup."
+            )
+            return
+        
+        logger.debug(f"OpeningBalanceDialog._load_accounts() company validated: id={company_check['id']}, name={company_check['company_name']}")
+        
+        # Debug: List all available accounts in DB
+        all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, account_type, company_id, is_active FROM accounts ORDER BY id")
+        logger.debug(f"OpeningBalanceDialog._load_accounts() total accounts in DB: {len(all_accounts)}")
+        for acc in all_accounts[:10]:  # Log first 10 to avoid spam
+            logger.debug(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, type={acc['account_type']}, company_id={acc['company_id']}, is_active={acc['is_active']}")
+        if len(all_accounts) > 10:
+            logger.debug(f"  ... and {len(all_accounts) - 10} more accounts")
+        
         accounts = self.db.fetch_all("""
             SELECT 
                 a.id, 
@@ -98,7 +121,7 @@ class OpeningBalanceDialog(QDialog):
             FROM accounts a
             LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
             LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-            WHERE a.company_id = 1
+            WHERE a.company_id = ?
             AND a.account_type IN ('ASSET', 'LIABILITY', 'EQUITY')
             AND a.is_active = 1
             GROUP BY a.id, a.account_code, a.account_name, a.account_type
@@ -110,8 +133,17 @@ class OpeningBalanceDialog(QDialog):
                     ELSE 4
                 END,
                 a.account_code
-        """)
-        logger.debug(f"OpeningBalanceDialog._load_accounts() fetched {len(accounts)} accounts")
+        """, (1,))
+        logger.debug(f"OpeningBalanceDialog._load_accounts() fetched {len(accounts)} active accounts for company_id=1")
+        
+        if len(accounts) == 0:
+            logger.warning("OpeningBalanceDialog._load_accounts() no accounts found for company_id=1!")
+            QMessageBox.warning(
+                self,
+                "No Accounts Found",
+                "No active accounts found for the current company.\n\n"
+                "Please create accounts first before setting opening balances."
+            )
 
         self.table.setRowCount(len(accounts))
         self.balance_inputs = {}
@@ -274,6 +306,24 @@ class OpeningBalanceDialog(QDialog):
         # Post journal entry
         try:
             logger.debug("OpeningBalanceDialog._save() posting journal entry...")
+            
+            # Validate all account IDs exist before creating journal lines
+            logger.debug(f"OpeningBalanceDialog._save() validating {len(entries)} account IDs exist in database")
+            for entry in entries:
+                acc_id = entry["account_id"]
+                acc_data = self.db.fetch_one("SELECT id, account_code, account_name, company_id FROM accounts WHERE id = ?", (acc_id,))
+                if acc_data is None:
+                    logger.error(f"OpeningBalanceDialog._save() account_id={acc_id} does not exist in database!")
+                    QMessageBox.critical(
+                        self,
+                        "Invalid Account",
+                        f"Account ID {acc_id} does not exist in the database.\n\n"
+                        "This may be due to a database synchronization issue.\n"
+                        "Please close this dialog and reload the chart of accounts."
+                    )
+                    return
+                logger.debug(f"OpeningBalanceDialog._save() account_id={acc_id} validated: code={acc_data['account_code']}, name={acc_data['account_name']}, company_id={acc_data['company_id']}")
+            
             journal_lines = []
             for entry in entries:
                 logger.debug(f"OpeningBalanceDialog._save() creating JournalLine: account_id={entry['account_id']}, debit={entry['debit']}, credit={entry['credit']}")
