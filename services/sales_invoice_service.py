@@ -21,6 +21,7 @@ from repositories.stock_batch_repository import StockBatchRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError, InsufficientStockError
 from utils.logger import get_logger
+from utils.activity_logger import log_sales_invoice_created, log_sales_invoice_updated, log_sales_invoice_deleted
 
 logger = get_logger(__name__)
 
@@ -435,6 +436,16 @@ class SalesInvoiceService:
         logger.info("Created sales invoice %s for customer %s (id=%s) - Payment: %s", 
                    invoice_number, customer_id, invoice.id, payment_type)
         
+        # Log activity
+        log_sales_invoice_created(
+            invoice_id=invoice.id,
+            invoice_number=invoice_number,
+            customer_name=customer.name,
+            total_amount=float(total_amount),
+            items_count=len(validated_items),
+            payment_type=payment_type,
+        )
+        
         invoice.items = [SalesInvoiceItem.from_row(row) for row in self.item_repo.find_by_invoice_id(invoice.id)]
         return invoice
 
@@ -822,6 +833,15 @@ class SalesInvoiceService:
         
         logger.info("Updated sales invoice %s (id=%s) - Payment: %s", 
                    invoice_number, invoice_id, payment_type)
+        
+        # Log activity
+        log_sales_invoice_updated(
+            invoice_id=invoice_id,
+            invoice_number=invoice_number,
+            customer_name=customer.name,
+            total_amount=float(total_amount),
+            changes={"payment_type": payment_type, "status": status},
+        )
 
     def delete_sales_invoice(self, invoice_id: int) -> None:
         """Deletes sales invoice with journal reversal and stock restoration."""
@@ -909,3 +929,10 @@ class SalesInvoiceService:
                 logger.info(f"✅ Removed bank deposit for cancelled invoice {invoice.invoice_number}")
         
         logger.info("Cancelled sales invoice %s (id=%s)", invoice.invoice_number, invoice_id)
+        
+        # Log activity
+        log_sales_invoice_deleted(
+            invoice_id=invoice_id,
+            invoice_number=invoice.invoice_number,
+            customer_name=customer.name if (customer := self.party_repo.get_by_id(invoice.customer_id)) else "Unknown",
+        )

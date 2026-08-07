@@ -21,6 +21,7 @@ from services.accounting_service import AccountingService
 from services.account_service import AccountService
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_purchase_invoice_created, log_purchase_invoice_updated, log_purchase_invoice_deleted
 
 logger = get_logger(__name__)
 
@@ -362,6 +363,16 @@ class PurchaseInvoiceService:
 
         logger.info("Created purchase invoice %s for supplier %s (id=%s)", 
                 invoice_number, supplier_id, invoice.id)
+        
+        # Log activity
+        log_purchase_invoice_created(
+            invoice_id=invoice.id,
+            invoice_number=invoice_number,
+            supplier_name=supplier.name,
+            total_amount=float(total_amount),
+            items_count=len(validated_items),
+            payment_type=payment_type,
+        )
         return invoice
 
 
