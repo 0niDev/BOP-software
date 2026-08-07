@@ -541,6 +541,7 @@ class SalesInvoiceView(QWidget):
     
     def _on_invoices_loaded(self, invoices, error):
         """Handle invoices loaded from background thread."""
+        logger.debug(f"Invoices loaded - error: {bool(error)}, count: {len(invoices) if invoices else 0}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
         if error:
             QMessageBox.warning(self, "Load Error", error)
             self._refresh_done()
@@ -553,11 +554,18 @@ class SalesInvoiceView(QWidget):
     
     def _refresh_done(self):
         """Called when each refresh operation completes."""
+        current_pending = getattr(self, '_pending_loads', 0)
+        logger.debug(f"_refresh_done called - pending_loads: {current_pending}")
+        
         if hasattr(self, '_pending_loads') and self._pending_loads > 0:
             self._pending_loads -= 1
+            logger.debug(f"Decremented pending_loads to: {self._pending_loads}")
             # Only re-enable button when all loads are complete
             if self._pending_loads > 0:
+                logger.debug(f"Still waiting for {self._pending_loads} load(s) to complete")
                 return
+        
+        logger.debug("All loads complete, calling _on_refresh_complete")
         self._on_refresh_complete()
     
     def _load_invoices(self):
@@ -606,6 +614,7 @@ class SalesInvoiceView(QWidget):
     
     def _on_customers_loaded(self, parties, error):
         """Handle customers loaded from background thread."""
+        logger.debug(f"Customers loaded - error: {bool(error)}, count: {len(parties) if parties else 0}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
         if error:
             logger.error(f"Error loading customers: {error}")
             self._refresh_done()
@@ -681,6 +690,8 @@ class SalesInvoiceView(QWidget):
     
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click with debouncing to prevent spam."""
+        logger.debug(f"_on_refresh_clicked - is_refreshing: {self._is_refreshing}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        
         # If already refreshing, just restart the timer (debounce)
         if self._refresh_timer.isActive():
             self._refresh_timer.stop()
@@ -694,11 +705,14 @@ class SalesInvoiceView(QWidget):
     
     def _do_refresh(self) -> None:
         """Actually perform the refresh operation (called after debounce)."""
+        logger.debug(f"_do_refresh called - is_refreshing: {self._is_refreshing}")
+        
         if self._is_refreshing:
             return
         
         self._is_refreshing = True
         self._pending_loads = 2  # Track both customers and invoices loads
+        logger.debug(f"Set pending_loads to {self._pending_loads}")
         
         # Load all data asynchronously
         self._load_customers_async()
