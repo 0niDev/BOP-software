@@ -17,6 +17,7 @@ from repositories.party_repository import PartyRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_banking_transaction
 
 logger = get_logger(__name__)
 
@@ -233,6 +234,16 @@ class BankingService:
             txn.id = self.txn_repo.insert(txn.to_dict())
 
         logger.info("Bank %s: Rs. %.2f", txn_type, amount)
+        
+        # Log activity
+        log_banking_transaction(
+            transaction_id=txn.id,
+            transaction_type=txn_type,
+            amount=amount,
+            bank_name=bank_account["account_title"],
+            description=reference_no or "",
+        )
+        
         return txn
     # ======================================================================
     # Cheques

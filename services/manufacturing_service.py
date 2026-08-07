@@ -20,6 +20,7 @@ from repositories.stock_batch_repository import StockBatchRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError, InsufficientStockError
 from utils.logger import get_logger
+from utils.activity_logger import log_manufacturing_order_created
 
 logger = get_logger(__name__)
 
@@ -261,6 +262,15 @@ class ManufacturingService:
             order.id = self.order_repo.insert_unique(order.to_dict())
 
         logger.info("Created production order %s (id=%s)", order_number, order.id)
+        
+        # Log activity
+        log_manufacturing_order_created(
+            order_id=order.id,
+            order_number=order_number,
+            product_name=finished_item["item_name"],
+            quantity=planned_quantity,
+        )
+        
         return order
 
     def get_production_order(self, order_id: int) -> ProductionOrder | None:

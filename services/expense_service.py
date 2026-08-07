@@ -13,6 +13,7 @@ from repositories.account_repository import AccountRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_expense_created
 
 logger = get_logger(__name__)
 
@@ -202,6 +203,15 @@ class ExpenseService:
             )
 
         logger.info("Created expense %s: %s - Rs.%.2f", voucher_number, category.name, amount)
+        
+        # Log activity
+        log_expense_created(
+            expense_id=expense.id,
+            expense_type=category.name,
+            amount=amount,
+            description=description or "",
+        )
+        
         return expense
 
     def get_expense(self, expense_id: int) -> Expense:
