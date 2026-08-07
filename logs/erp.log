@@ -477,3 +477,259 @@ Traceback (most recent call last):
 utils.exceptions.DatabaseError: UNIQUE constraint failed: journal_entries.company_id, journal_entries.voucher_number
 2026-08-04 00:22:23,336 | INFO     | erp.services.accounting_service | Posted journal entry #6 (OPENING) voucher=OPENING-00002 amount=150.00
 2026-08-04 00:22:23,337 | INFO     | erp.services.account_service | Updated account id=1
+2026-08-07 02:40:34,171 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 02:40:34,179 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 02:40:34,179 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 02:40:34,179 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 02:40:34,179 | INFO     | erp.__main__ | Starting application...
+2026-08-07 02:40:36,207 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 02:40:46,832 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 02:40:47,143 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 02:40:47,143 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:40:47,156 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 02:40:52,218 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:40:52,425 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 02:40:55,365 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:40:55,961 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 02:40:57,399 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:40:58,736 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 02:41:00,790 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 02:41:02,788 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 02:41:02,788 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 02:41:10,766 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 02:41:13,059 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 02:41:15,194 | INFO     | erp.views.widgets.item_view | Loaded 33 items
+2026-08-07 02:42:10,495 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 02:42:15,514 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 02:42:15,530 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 02:42:15,531 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 02:42:15,532 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 02:42:16,330 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 02:42:16,353 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 02:42:16,354 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 02:44:54,891 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 02:44:54,891 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 02:44:54,891 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 02:44:54,891 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 02:44:54,891 | INFO     | erp.__main__ | Starting application...
+2026-08-07 02:44:56,625 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 02:45:13,434 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 02:45:13,740 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 02:45:13,751 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:45:13,763 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 02:45:17,808 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 02:45:19,794 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 02:45:21,695 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 02:45:23,702 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 02:45:25,780 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 02:45:25,780 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 02:45:29,547 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 02:45:31,541 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 02:45:33,561 | INFO     | erp.views.widgets.item_view | Loaded 33 items
+2026-08-07 02:45:35,750 | INFO     | erp.views.widgets.item_view | Loaded stocks for 33 items (batch query)
+2026-08-07 02:45:35,752 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 02:45:47,427 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 02:45:52,431 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 02:45:52,441 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 02:45:52,442 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 02:45:52,443 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 02:45:52,444 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 02:45:52,449 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 02:45:52,450 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 02:50:17,351 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 02:50:17,357 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 02:50:17,357 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 02:50:17,357 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 02:50:17,357 | INFO     | erp.__main__ | Starting application...
+2026-08-07 02:50:19,377 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 02:50:28,108 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 02:50:28,399 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 02:50:28,399 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:50:28,425 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 02:50:32,479 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 02:50:34,437 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 02:50:36,508 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 02:50:38,540 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 02:50:40,478 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 02:50:40,478 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 02:50:52,270 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 02:50:54,295 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 02:50:56,387 | INFO     | erp.views.widgets.item_view | Loaded 33 items
+2026-08-07 02:50:58,392 | INFO     | erp.views.widgets.item_view | Loaded stocks for 33 items (batch query)
+2026-08-07 02:50:58,392 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 02:51:05,961 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 0 customers
+2026-08-07 02:51:06,463 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 0 invoices
+2026-08-07 02:51:11,366 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 suppliers
+2026-08-07 02:51:11,870 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 invoices
+2026-08-07 02:52:11,902 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:52:15,923 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 02:52:17,984 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 02:52:23,861 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00040
+2026-08-07 02:52:32,111 | INFO     | erp.services.item_service | Created item ITEM-00040 - 1 (id=0)
+2026-08-07 02:52:36,124 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00041
+2026-08-07 02:52:44,369 | INFO     | erp.services.item_service | Created item ITEM-00041 - 2 (id=0)
+2026-08-07 02:52:49,396 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00042
+2026-08-07 02:52:58,319 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00043
+2026-08-07 02:53:00,300 | INFO     | erp.services.item_service | Created item ITEM-00042 - 3 (id=0)
+2026-08-07 02:53:03,086 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00044
+2026-08-07 02:53:05,895 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00045
+2026-08-07 02:53:08,764 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00046
+2026-08-07 02:53:11,243 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00047
+2026-08-07 02:53:31,372 | INFO     | erp.services.item_service | Created item ITEM-00043 - 4 (id=0)
+2026-08-07 02:53:35,438 | INFO     | erp.services.item_service | Created item ITEM-00044 - 5 (id=0)
+2026-08-07 02:53:36,450 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00048
+2026-08-07 02:53:40,191 | INFO     | erp.services.item_service | Created item ITEM-00045 - 6 (id=0)
+2026-08-07 02:53:44,444 | INFO     | erp.services.item_service | Created item ITEM-00047 - 8 (id=0)
+2026-08-07 02:53:44,907 | INFO     | erp.services.item_service | Created item ITEM-00046 - 7 (id=0)
+2026-08-07 02:53:50,572 | INFO     | erp.services.item_service | Created item ITEM-00048 - 9 (id=0)
+2026-08-07 02:54:00,402 | INFO     | erp.views.widgets.item_view | Loaded 42 items
+2026-08-07 02:54:02,493 | INFO     | erp.views.widgets.item_view | Loaded stocks for 42 items (batch query)
+2026-08-07 02:54:02,493 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 02:54:26,693 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:54:28,411 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 02:54:28,411 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-07 02:54:32,587 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 02:54:34,631 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 02:54:36,625 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 02:54:38,607 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 02:54:40,601 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 02:54:40,601 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 02:54:43,578 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 02:54:48,584 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 02:54:48,607 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 02:54:48,610 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 02:54:48,611 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 02:54:48,614 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 02:54:48,620 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 02:54:48,620 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 02:59:37,261 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 02:59:37,262 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 02:59:37,264 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 02:59:37,268 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 02:59:37,269 | INFO     | erp.__main__ | Starting application...
+2026-08-07 02:59:39,316 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 02:59:45,996 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 02:59:46,424 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 02:59:46,425 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 02:59:46,442 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 02:59:50,427 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 02:59:52,416 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 02:59:54,482 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 02:59:57,253 | INFO     | erp.views.widgets.party_view | Loaded 0 parties
+2026-08-07 02:59:57,735 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 03:00:00,090 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 03:00:00,090 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 03:00:04,795 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 03:00:06,795 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 03:00:08,925 | INFO     | erp.views.widgets.item_view | Loaded 42 items
+2026-08-07 03:00:08,930 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: 'CacheManager' object has no attribute 'get'
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 56, in fetch_all_items_with_stock
+    cached = cache_mgr.get(cache_key)
+AttributeError: 'CacheManager' object has no attribute 'get'
+2026-08-07 03:00:08,930 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 03:00:16,633 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00049
+2026-08-07 03:00:24,718 | INFO     | erp.services.item_service | Created item ITEM-00049 - 1 (id=0)
+2026-08-07 03:00:31,069 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00050
+2026-08-07 03:00:38,975 | INFO     | erp.services.item_service | Created item ITEM-00050 - daw (id=0)
+2026-08-07 03:00:43,788 | INFO     | erp.views.widgets.item_view | Loaded 44 items
+2026-08-07 03:00:43,788 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: 'CacheManager' object has no attribute 'get'
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 56, in fetch_all_items_with_stock
+    cached = cache_mgr.get(cache_key)
+AttributeError: 'CacheManager' object has no attribute 'get'
+2026-08-07 03:00:43,793 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 03:00:53,556 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 0 customers
+2026-08-07 03:00:56,351 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 0 invoices
+2026-08-07 03:00:56,869 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 suppliers
+2026-08-07 03:00:58,853 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 invoices
+2026-08-07 03:01:01,239 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 03:01:06,266 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 03:04:01,250 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 03:04:01,250 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 03:04:01,250 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 03:04:01,250 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 03:04:01,250 | INFO     | erp.__main__ | Starting application...
+2026-08-07 03:04:03,123 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 03:04:11,209 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 03:04:11,491 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 03:04:11,501 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 03:04:11,510 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 03:04:15,579 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 03:04:17,695 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 03:04:19,771 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 03:04:22,642 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 03:04:23,115 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 03:04:26,132 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 03:04:26,143 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 03:04:26,651 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 03:04:29,158 | INFO     | erp.views.widgets.item_view | Loaded 44 items
+2026-08-07 03:04:29,169 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: 'CacheManager' object has no attribute 'get'
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 56, in fetch_all_items_with_stock
+    cached = cache_mgr.get(cache_key)
+AttributeError: 'CacheManager' object has no attribute 'get'
+2026-08-07 03:04:29,173 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 03:04:45,910 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 03:04:51,038 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 03:04:51,956 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 03:04:52,030 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 03:04:52,035 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 03:04:52,055 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 03:04:52,109 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 03:04:52,126 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 05:44:02,324 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 05:44:02,325 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 05:44:02,325 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 05:44:02,325 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 05:44:02,328 | INFO     | erp.__main__ | Starting application...
+2026-08-07 05:44:04,125 | ERROR    | erp.database.connection | SQLite Cloud fetch_one failed: no such table: users | sql=SELECT 1 FROM users LIMIT 1
+2026-08-07 05:44:04,135 | INFO     | erp.database.migrations.migrator | Running schema migration...
+2026-08-07 05:46:43,248 | INFO     | erp.database.migrations.migrator | Schema migration complete.
+2026-08-07 05:48:16,710 | WARNING  | erp.database.migrations.migrator | Seeded default user 'admin' with password 'admin123'. Change this password immediately after first login.
+2026-08-07 05:48:17,513 | INFO     | erp.database.migrations.migrator | Default data seeding complete.
+2026-08-07 05:53:37,164 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 05:53:37,517 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 05:53:37,517 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 05:53:37,525 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 05:53:42,331 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 05:53:42,824 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 05:53:45,916 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 05:53:46,385 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 05:53:49,298 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 05:53:49,765 | INFO     | erp.views.widgets.item_view | Loaded 0 items
+2026-08-07 05:53:49,765 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 05:53:52,886 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 05:53:55,695 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 05:53:55,695 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 05:54:56,844 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 05:55:01,847 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 05:55:04,147 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 05:55:17,263 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00002
+2026-08-07 05:55:26,395 | INFO     | erp.services.item_service | Created item ITEM-00002 - 1 (id=0)
+2026-08-07 05:55:26,907 | INFO     | erp.views.widgets.item_view | Loaded 1 items
+2026-08-07 05:55:26,913 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: 'CacheManager' object has no attribute 'get'
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 56, in fetch_all_items_with_stock
+    cached = cache_mgr.get(cache_key)
+AttributeError: 'CacheManager' object has no attribute 'get'
+2026-08-07 05:55:26,917 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 05:55:35,888 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 05:55:44,999 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 05:55:47,008 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 05:55:55,214 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 05:56:00,222 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 05:56:00,251 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 05:56:00,253 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 05:56:00,262 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 05:56:00,265 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 05:56:00,268 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 05:56:00,270 | INFO     | erp.__main__ | ✅ Database connections closed

@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 import os
 os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/cool-depot.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/auth.sqlitecloud?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 from views.main_window import MainWindow   # ← ADD THIS LINE
