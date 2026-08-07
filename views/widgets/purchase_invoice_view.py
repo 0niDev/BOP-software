@@ -366,6 +366,8 @@ class PurchaseInvoiceView(QWidget):
         self._suppliers_cache = []
         self._invoice_load_thread = None
         self._supplier_load_thread = None
+        self._refresh_in_progress = False
+        self._pending_refresh = False
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -534,11 +536,13 @@ class PurchaseInvoiceView(QWidget):
         """Handle invoices loaded from background thread."""
         if error:
             QMessageBox.warning(self, "Load Error", error)
+            self._check_refresh_complete()
             return
         
         logger.info(f"Loaded {len(invoices)} invoices")
         self._invoices_cache = invoices
         self._populate_invoice_table()
+        self._check_refresh_complete()
     
     def _populate_invoice_table(self):
         """Populate invoice table with cached data."""
@@ -584,12 +588,21 @@ class PurchaseInvoiceView(QWidget):
         """Handle suppliers loaded from background thread."""
         if error:
             logger.error(f"Error loading suppliers: {error}")
+            self._check_refresh_complete()
             return
         
         logger.info(f"Loaded {len(parties)} suppliers")
         self._suppliers_cache = parties
         self._all_suppliers = parties
         self._populate_supplier_dropdown()
+        self._check_refresh_complete()
+    
+    def _check_refresh_complete(self):
+        """Check if both invoice and supplier loads are complete to re-enable refresh button."""
+        # Only call _on_refresh_complete if we're in a refresh operation
+        # This is called after each async load completes
+        if hasattr(self, '_refresh_in_progress') and self._refresh_in_progress:
+            QTimer.singleShot(100, lambda: self._on_refresh_complete())
     
     def _populate_supplier_dropdown(self):
         """Populate supplier dropdown with cached data."""
@@ -654,22 +667,37 @@ class PurchaseInvoiceView(QWidget):
         self._load_invoices()
     
     def _on_refresh_clicked(self) -> None:
-        """Refresh invoices, suppliers, and items in the background."""
-        # Disable button temporarily to prevent multiple clicks
+        """Refresh invoices, suppliers, and items in the background with debouncing."""
+        if self._refresh_in_progress:
+            # If refresh is already in progress, mark a pending refresh
+            self._pending_refresh = True
+            logger.debug("Refresh already in progress, marking pending refresh")
+            return
+        
+        self._refresh_in_progress = True
         self.refresh_button.setEnabled(False)
         self.refresh_button.setText("⏳ Loading...")
+        
+        logger.debug("Starting refresh for purchase invoice view")
         
         # Load all data asynchronously
         self._load_suppliers_async()
         self._load_invoices_async()
-        
-        # Re-enable button after a short delay (data loads in background)
-        QTimer.singleShot(500, lambda: self._on_refresh_complete())
     
     def _on_refresh_complete(self):
         """Re-enable refresh button after loading completes."""
+        self._refresh_in_progress = False
+        
+        # Check if a refresh was requested while this one was running
+        if self._pending_refresh:
+            logger.debug("Pending refresh detected, triggering new refresh")
+            self._pending_refresh = False
+            QTimer.singleShot(300, lambda: self._on_refresh_clicked())
+            return
+        
         self.refresh_button.setEnabled(True)
         self.refresh_button.setText("🔄 Refresh")
+        logger.debug("Refresh complete for purchase invoice view")
 
     def _on_table_clicked(self, index) -> None:
         row = index.row()
