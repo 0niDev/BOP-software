@@ -5,3 +5,18 @@
 2026-08-07 22:43:13 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00004] | Details: {'name=3 credit_limit=0.0'}
 2026-08-07 22:43:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00005] | Details: {'name=3 credit_limit=0.0'}
 2026-08-07 22:43:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00006] | Details: {'name=6 credit_limit=0.0'}
+2026-08-07 18:22:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:4) [CUST-00002] | Details: {'name=Test Customer ABC credit_limit=50000.0'}
+2026-08-07 18:22:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:5) [SUPP-00002] | Details: {'name=Test Supplier XYZ credit_limit=100000.0'}
+2026-08-07 18:22:27 | PARTY           | DELETE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:5) [SUPP-00002] | Details: {'name=Test Supplier XYZ'}
+2026-08-07 18:22:27 | PARTY           | DELETE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:4) [CUST-00002] | Details: {'name=Test Customer ABC'}
+2026-08-07 18:23:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:6) [CUST-00003] | Details: {'name=Test Customer ABC credit_limit=50000.0'}
+2026-08-07 18:23:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:7) [SUPP-00003] | Details: {'name=Test Supplier XYZ credit_limit=100000.0'}
+2026-08-07 18:23:27 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:3) [SI-TEST-1] | Details: {'customer=Ali Ahmed total=750.0 items=1 payment=CREDIT'}
+2026-08-07 18:23:27 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:4) [SI-TEST-2] | Details: {'customer=Ali Ahmed total=400.0 items=1 payment=CASH'}
+2026-08-07 18:23:27 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (RECEIPT)(ID:1) [#1] | Details: {'amount=750.0 party=Ali Ahmed'}
+2026-08-07 18:23:27 | PARTY           | DELETE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:7) [SUPP-00003] | Details: {'name=Test Supplier XYZ'}
+2026-08-07 18:23:27 | PARTY           | DELETE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:6) [CUST-00003] | Details: {'name=Test Customer ABC'}
+2026-08-07 18:24:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:8) [CUST-00004] | Details: {'name=Test Customer 4 credit_limit=50000.0'}
+2026-08-07 18:24:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:9) [SUPP-00004] | Details: {'name=Test Supplier 5 credit_limit=100000.0'}
+2026-08-07 18:24:18 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:5) [SI-TEST-5] | Details: {'customer=Ali Ahmed total=18750.0 items=1 payment=CREDIT'}
+2026-08-07 18:24:18 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:6) [SI-TEST-6] | Details: {'customer=Ali Ahmed total=11250.0 items=1 payment=CASH'}
