@@ -1368,3 +1368,7 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-07 19:20:58,666 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
 2026-08-07 19:20:58,666 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
 2026-08-07 19:20:58,667 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:29:58,414 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=
+        INSERT INTO sales_invoice_items (invoice_id, item_id, batch_id, quantity, unit_price, discount_amount, tax_amount, line_total)
+        VALUES (100, 2, 2, 5.0, 100.0, 0.0, 0.0, 500.0)
+    
