@@ -162,6 +162,15 @@ class ChartOfAccountsWidget(QWidget):
         logger.debug("ChartOfAccountsWidget.refresh() called")
         from PySide6.QtCore import QThread, Signal
         
+        # Clean up any existing loader thread
+        if hasattr(self, '_loader') and self._loader is not None:
+            logger.debug("ChartOfAccountsWidget.refresh(): cleaning up existing loader thread")
+            if self._loader.isRunning():
+                logger.debug("ChartOfAccountsWidget.refresh(): waiting for existing loader to finish")
+                self._loader.wait(1000)  # Wait up to 1 second for thread to finish
+            self._loader.deleteLater()
+            logger.debug("ChartOfAccountsWidget.refresh(): existing loader cleaned up")
+        
         class AccountLoader(QThread):
             finished = Signal(list, str)
             
@@ -181,6 +190,7 @@ class ChartOfAccountsWidget(QWidget):
         self.table.setEnabled(False)
         self._loader = AccountLoader(self.controller)
         self._loader.finished.connect(self._on_load_complete)
+        self._loader.finished.connect(self._loader.deleteLater)  # Auto-cleanup when done
         self._loader.start()
         logger.debug("AccountLoader started")
     
