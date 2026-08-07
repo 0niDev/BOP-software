@@ -58,6 +58,7 @@ class PurchaseInvoiceService:
         expiry_date: str | None,
         purchase_price: float,
         quantity: float,
+        conn=None,
     ) -> int:
         """Get existing batch or create new one, returns batch_id."""
         import datetime
@@ -70,8 +71,11 @@ class PurchaseInvoiceService:
         if not expiry_date:
             expiry_date = (datetime.date.today() + datetime.timedelta(days=730)).isoformat()
         
+        # Use provided connection or get from pool
+        db_conn = conn if conn else self.db
+        
         # Check for existing batch with same batch_number
-        existing = self.db.fetch_one("""
+        existing = db_conn.fetch_one("""
             SELECT id, quantity_in_stock 
             FROM stock_batches 
             WHERE item_id = ? AND warehouse_id = ? AND batch_number = ? AND is_active = 1
@@ -80,7 +84,7 @@ class PurchaseInvoiceService:
         if existing:
             # Update existing batch quantity
             new_quantity = existing["quantity_in_stock"] + quantity
-            self.db.execute("""
+            db_conn.execute("""
                 UPDATE stock_batches 
                 SET quantity_in_stock = ?, purchase_price = ?
                 WHERE id = ?
@@ -89,7 +93,7 @@ class PurchaseInvoiceService:
             return existing["id"]
         else:
             # Create new batch
-            self.db.execute("""
+            db_conn.execute("""
                 INSERT INTO stock_batches (
                     item_id, warehouse_id, batch_number, 
                     manufacturing_date, expiry_date, 
@@ -98,7 +102,12 @@ class PurchaseInvoiceService:
             """, (item_id, warehouse_id, batch_number, manufacturing_date, 
                   expiry_date, purchase_price, quantity))
             
-            batch_id = self.db.last_insert_rowid()
+            # Get last insert ID using the same connection
+            if hasattr(db_conn, 'last_insert_id'):
+                batch_id = db_conn.last_insert_id()
+            else:
+                cursor = db_conn.execute("SELECT last_insert_rowid()")
+                batch_id = cursor.fetchone()[0]
             logger.info(f"Created new batch {batch_number} with id={batch_id}: {quantity}")
             return batch_id
 
@@ -343,7 +352,7 @@ class PurchaseInvoiceService:
         # ============================================================
         # Save everything in one transaction
         # ============================================================
-        with self.db.transaction():
+        with self.db.transaction() as conn:
             invoice.id = self.invoice_repo.insert_unique(invoice.to_dict())
             
             # Create caches to avoid redundant database lookups
@@ -360,6 +369,7 @@ class PurchaseInvoiceService:
                     expiry_date=item_data.get("expiry_date"),
                     purchase_price=item_data["unit_cost"],
                     quantity=item_data["quantity"],
+                    conn=conn,
                 )
                 
                 # Now set batch_id for the invoice item
