@@ -416,12 +416,12 @@ class PurchaseInvoiceView(QWidget):
         self.supplier_search = QLineEdit()
         self.supplier_search.setPlaceholderText("🔍 Search suppliers by name or code...")
         self.supplier_search.textChanged.connect(self._filter_suppliers)
-        self.supplier_search.returnPressed.connect(self._on_save_clicked)
+        # Removed auto-save on supplier search to allow adding items first
         supplier_layout.addWidget(self.supplier_search)
         
         self.supplier_input = QComboBox()
         self.supplier_input.addItem("Select Supplier", None)
-        self.supplier_input.activated.connect(self._on_save_clicked)
+        # Removed auto-save on supplier selection to allow adding items first
         supplier_layout.addWidget(self.supplier_input)
         
         form_layout.addRow("Supplier*:", supplier_layout)
@@ -429,7 +429,7 @@ class PurchaseInvoiceView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setDisplayFormat("yyyy-MM-dd")
-        self.date_input.editingFinished.connect(self._on_save_clicked)
+        # Removed auto-save on date change to allow adding items first
         form_layout.addRow("Invoice Date*:", self.date_input)
 
         self.payment_type_input = QComboBox()
@@ -438,18 +438,18 @@ class PurchaseInvoiceView(QWidget):
         self.payment_type_input.addItem("Cheque", "CHEQUE")
         self.payment_type_input.addItem("Credit", "CREDIT")
         self.payment_type_input.currentIndexChanged.connect(self._on_payment_type_changed)
-        self.payment_type_input.activated.connect(self._on_save_clicked)
+        # Removed auto-save on payment type change to allow adding items first
         form_layout.addRow("Payment Type*:", self.payment_type_input)
 
         self.bank_account_input = QComboBox()
         self.bank_account_input.addItem("Select Bank Account", None)
         self.bank_account_input.setVisible(False)
-        self.bank_account_input.activated.connect(self._on_save_clicked)
+        # Removed auto-save on bank account selection to allow adding items first
         form_layout.addRow("Bank Account:", self.bank_account_input)
 
         self.notes_input = QLineEdit()
         self.notes_input.setPlaceholderText("Optional notes")
-        self.notes_input.returnPressed.connect(self._on_save_clicked)
+        # Removed auto-save on notes to allow adding items first
         form_layout.addRow("Notes:", self.notes_input)
 
         items_group = QGroupBox("Invoice Items")
