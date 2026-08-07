@@ -30,6 +30,9 @@ class JournalRepository(BaseRepository):
             line = dict(line)
             line["journal_entry_id"] = entry_id
             line.setdefault("line_order", order)
+            # Only include party_id if it's not None (to avoid FOREIGN KEY constraint failure)
+            if line.get("party_id") is None:
+                line.pop("party_id", None)
             columns = list(line.keys())
             placeholders = ", ".join("?" for _ in columns)
             col_list = ", ".join(columns)
