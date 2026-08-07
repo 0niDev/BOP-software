@@ -66,41 +66,61 @@ class JournalRepository(BaseRepository):
         
         logger.error(f"JournalRepository.insert_entry() ALL account validations PASSED")
         
-        entry_id = self.insert(header)
-        logger.error(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
-        for order, line in enumerate(lines):
-            line = dict(line)
-            line["journal_entry_id"] = entry_id
-            line.setdefault("line_order", order)
-            # Only include party_id if it's not None (to avoid FOREIGN KEY constraint failure)
-            if line.get("party_id") is None:
-                line.pop("party_id", None)
-            columns = list(line.keys())
-            placeholders = ", ".join("?" for _ in columns)
-            col_list = ", ".join(columns)
-            logger.error(f"JournalRepository.insert_entry() inserting line {order}: account_id={line.get('account_id')}, debit={line.get('debit')}, credit={line.get('credit')}, columns={columns}, values={list(line.values())}")
-            try:
-                result = self.db.execute(
-                    f"INSERT INTO journal_entry_lines ({col_list}) VALUES ({placeholders})",
-                    tuple(line.values()),
-                )
-                logger.error(f"JournalRepository.insert_entry() line {order} inserted successfully, result={result}")
-            except Exception as e:
-                logger.error(f"JournalRepository.insert_entry() FAILED to insert line {order}: {e}")
-                logger.error(f"JournalRepository.insert_entry() line data that failed: {line}")
-                
-                # Extra debug: check the account one more time right before insert
-                acc_id = line.get('account_id')
-                acc_check = self.db.fetch_one("SELECT id, account_code, account_name, company_id, is_active FROM accounts WHERE id = ?", (acc_id,))
-                logger.error(f"JournalRepository.insert_entry() PRE-INSERT check for account_id={acc_id}: {acc_check}")
-                
-                # List all accounts again
-                all_accounts = self.db.fetch_all("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id")
-                logger.error(f"JournalRepository.insert_entry() ALL accounts at time of failure ({len(all_accounts)}):")
-                for acc in all_accounts:
-                    logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
-                
-                raise
+        # Build column names and placeholders for header insert
+        columns = list(header.keys())
+        values = [header[col] for col in columns]
+        placeholders = ', '.join(['?'] * len(values))
+        col_names = ', '.join(columns)
+        
+        # Use transaction to ensure same connection for insert and getting ID
+        with self.db.transaction() as txn:
+            txn.execute(
+                f"INSERT INTO journal_entries ({col_names}) VALUES ({placeholders})",
+                values
+            )
+            
+            # Get the last inserted ID - must be done immediately after insert on same connection
+            entry_id = txn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            
+            logger.error(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
+            
+            if not entry_id or entry_id <= 0:
+                logger.error(f"JournalRepository.insert_entry() FAILED to get valid entry_id, got {entry_id}")
+                raise DatabaseError("Failed to get generated journal entry ID")
+            
+            for order, line in enumerate(lines):
+                line = dict(line)
+                line["journal_entry_id"] = entry_id
+                line.setdefault("line_order", order)
+                # Only include party_id if it's not None (to avoid FOREIGN KEY constraint failure)
+                if line.get("party_id") is None:
+                    line.pop("party_id", None)
+                columns = list(line.keys())
+                placeholders = ", ".join("?" for _ in columns)
+                col_list = ", ".join(columns)
+                logger.error(f"JournalRepository.insert_entry() inserting line {order}: account_id={line.get('account_id')}, debit={line.get('debit')}, credit={line.get('credit')}, columns={columns}, values={list(line.values())}")
+                try:
+                    result = txn.execute(
+                        f"INSERT INTO journal_entry_lines ({col_list}) VALUES ({placeholders})",
+                        tuple(line.values()),
+                    )
+                    logger.error(f"JournalRepository.insert_entry() line {order} inserted successfully, result={result}")
+                except Exception as e:
+                    logger.error(f"JournalRepository.insert_entry() FAILED to insert line {order}: {e}")
+                    logger.error(f"JournalRepository.insert_entry() line data that failed: {line}")
+                    
+                    # Extra debug: check the account one more time right before insert
+                    acc_id = line.get('account_id')
+                    acc_check = txn.execute("SELECT id, account_code, account_name, company_id, is_active FROM accounts WHERE id = ?", (acc_id,)).fetchone()
+                    logger.error(f"JournalRepository.insert_entry() PRE-INSERT check for account_id={acc_id}: {acc_check}")
+                    
+                    # List all accounts again
+                    all_accounts = txn.execute("SELECT id, account_code, account_name, company_id FROM accounts ORDER BY id").fetchall()
+                    logger.error(f"JournalRepository.insert_entry() ALL accounts at time of failure ({len(all_accounts)}):")
+                    for acc in all_accounts:
+                        logger.error(f"  Account: id={acc['id']}, code={acc['account_code']}, name={acc['account_name']}, company_id={acc['company_id']}")
+                    
+                    raise
         logger.error(f"JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id={entry_id}")
         return entry_id
 
