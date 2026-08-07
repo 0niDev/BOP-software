@@ -10,6 +10,7 @@ from repositories.account_repository import AccountRepository
 from repositories.journal_repository import JournalRepository
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_party_created, log_party_updated, log_party_deleted
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,14 @@ class PartyService:
             party.id = new_id
 
         logger.info("Created party %s - %s (id=%s)", code, name, new_id)
+        log_party_created(
+            party_id=new_id,
+            party_code=code,
+            party_name=name,
+            party_type=party_type.value,
+            credit_limit=credit_limit,
+            company_id=company_id,
+        )
         return party
 
     def update_party(
@@ -118,14 +127,32 @@ class PartyService:
 
         self.repo.update(party_id, update_data)
         logger.info("Updated party id=%s", party_id)
+        
+        # Get party details for logging
+        party = self.repo.get_by_id(party_id)
+        if party:
+            log_party_updated(
+                party_id=party_id,
+                party_code=party.get("code", ""),
+                party_name=name,
+                party_type=update_data.get("party_type", party.get("party_type", "")),
+                changes=update_data,
+            )
 
     def deactivate_party(self, party_id: int) -> None:
         """Deactivates party if safe"""
         party = self.repo.get_by_id(party_id)
         if self._has_open_transactions(party_id):
             raise ValidationError("Cannot deactivate party with open transactions.")
-        self.repo.deactivate(party_id)
-        logger.info("Deactivated party id=%s", party_id)
+        if party:
+            self.repo.deactivate(party_id)
+            logger.info("Deactivated party id=%s", party_id)
+            log_party_deleted(
+                party_id=party_id,
+                party_code=party.get("code", ""),
+                party_name=party.get("name", ""),
+                party_type=party.get("party_type", ""),
+            )
 
     def get_party(self, party_id: int) -> Party:
         """Gets party by ID"""

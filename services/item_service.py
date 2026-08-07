@@ -9,6 +9,7 @@ from repositories.tax_rate_repository import TaxRateRepository
 from repositories.journal_repository import JournalRepository
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_item_created, log_item_updated, log_item_deleted
 
 logger = get_logger(__name__)
 
@@ -102,6 +103,12 @@ class ItemService:
             item.id = new_id
 
         logger.info("Created item %s - %s (id=%s)", item_code, item_name, new_id)
+        log_item_created(
+            item_id=new_id,
+            item_code=item_code,
+            item_name=item_name,
+            company_id=company_id,
+        )
         return item
 
     def update_item(
@@ -163,11 +170,32 @@ class ItemService:
             },
         )
         logger.info("Updated item id=%s", item_id)
+        log_item_updated(
+            item_id=item_id,
+            item_code="",  # We don't have the code here, could fetch it
+            item_name=item_name.strip(),
+            changes={
+                "name": item_name.strip(),
+                "unit": unit,
+                "purchase_price": purchase_price,
+                "selling_price": selling_price,
+                "minimum_stock": minimum_stock,
+                "maximum_stock": maximum_stock,
+            },
+        )
 
     def deactivate_item(self, item_id: int) -> None:
         """Deactivates item if safe"""
-        self.repo.deactivate(item_id)
-        logger.info("Deactivated item id=%s", item_id)
+        # Get item details before deactivation for logging
+        item = self.repo.get_by_id(item_id)
+        if item:
+            self.repo.deactivate(item_id)
+            logger.info("Deactivated item id=%s", item_id)
+            log_item_deleted(
+                item_id=item_id,
+                item_code=item.get("item_code", ""),
+                item_name=item.get("item_name", ""),
+            )
 
     def get_item(self, item_id: int) -> Item | None:
         """Gets item by ID"""
