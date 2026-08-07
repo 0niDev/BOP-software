@@ -112,16 +112,19 @@ class AccountingService:
             "is_posted": 1,
             "created_by": created_by,
         }
-        line_dicts = [
-            {
+        line_dicts = []
+        for l in lines:
+            line_dict = {
                 "account_id": l.account_id,
-                "party_id": l.party_id,
                 "debit": round(l.debit, 2),
                 "credit": round(l.credit, 2),
                 "description": l.description,
             }
-            for l in lines
-        ]
+            # Only include party_id if it's not None (to avoid FOREIGN KEY constraint failure)
+            if l.party_id is not None:
+                line_dict["party_id"] = l.party_id
+            line_dicts.append(line_dict)
+        
         entry_id = self.journal_repo.insert_entry(header, line_dicts)
         logger.info(
             "Posted journal entry #%s (%s) voucher=%s amount=%.2f",
