@@ -79,6 +79,9 @@ def init_services():
 def get_account_balance(account_code):
     """Get balance for an account by code."""
     from repositories.account_repository import AccountRepository
+    # Clear cache to get fresh balance after each transaction
+    AccountRepository._cache.clear()
+    dashboard_service.invalidate_cache()  # Also clear dashboard cache
     repo = AccountRepository(db)
     account = repo.find_by_code(account_code)
     if account:
@@ -90,6 +93,8 @@ def get_account_balance(account_code):
 
 def get_inventory_value():
     """Get total inventory value."""
+    # Clear dashboard cache to get fresh inventory value
+    dashboard_service.invalidate_cache()
     inv = dashboard_service._get_balances(1)
     return float(inv.get('inventory', 0))
 
