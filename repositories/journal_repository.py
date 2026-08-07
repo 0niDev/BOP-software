@@ -6,6 +6,7 @@ expenses) writes to via the AccountingService.
 from __future__ import annotations
 
 from utils.logger import get_logger
+from utils.exceptions import DatabaseError
 from repositories.base_repository import BaseRepository
 
 logger = get_logger(__name__)
@@ -23,10 +24,29 @@ class JournalRepository(BaseRepository):
         
         Raises:
             ValueError: If lines list is empty - every journal entry must have at least 2 lines
+            DatabaseError: If any account_id in lines doesn't exist in accounts table
         """
         if not lines:
             raise ValueError("Cannot insert journal entry without lines. "
                            "Every journal entry must have at least 2 lines.")
+        
+        # Validate all account_ids exist before inserting
+        logger.debug(f"JournalRepository.insert_entry() validating {len(lines)} account IDs")
+        for order, line in enumerate(lines):
+            account_id = line.get("account_id")
+            if account_id is None:
+                logger.error(f"JournalRepository.insert_entry() line {order} has no account_id")
+                raise ValueError(f"Line {order} has no account_id")
+            
+            # Check if account exists
+            account_check = self.db.fetch_one("SELECT id, account_code, account_name FROM accounts WHERE id = ?", (account_id,))
+            if account_check is None:
+                logger.error(f"JournalRepository.insert_entry() line {order}: account_id={account_id} does not exist in accounts table!")
+                raise DatabaseError(
+                    f"Account ID {account_id} does not exist in the database. "
+                    f"Line data: account_id={account_id}, debit={line.get('debit')}, credit={line.get('credit')}"
+                )
+            logger.debug(f"JournalRepository.insert_entry() line {order}: account_id={account_id} validated (code={account_check['account_code']})")
         
         entry_id = self.insert(header)
         logger.debug(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
