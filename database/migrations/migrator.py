@@ -70,13 +70,13 @@ DEFAULT_NUMBERING = [
         ("PAYMENT", "PV-"),
         ("RECEIPT", "RV-"),
         ("JOURNAL_VOUCHER", "JV-"),
+        ("OPENING", "OB-"),
         ("PRODUCTION_ORDER", "PO-"),
         ("EXPENSE_VOUCHER", "EV-"),
         ("CUSTOMER", "CUST-"),          # Parties
         ("SUPPLIER", "SUPP-"),          # Parties
         ("ITEM", "ITEM-"),              # Items
         ("BOM", "BOM-"),                # ← NEW: BOM auto-generation
-        ("PRODUCTION_ORDER", "PO-"),    # Production Orders (already exists)
 ]
 
 

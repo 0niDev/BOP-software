@@ -1420,3 +1420,5 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-07 19:40:01,490 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
 2026-08-07 19:40:01,490 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
 2026-08-07 19:40:01,490 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 20:58:45,001 | INFO     | erp.services.accounting_service | Posted journal entry #55 (OPENING) voucher=OPENING-00003 amount=100.00
+2026-08-07 20:59:01,082 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=INSERT INTO journal_entry_lines (account_id, debit, credit, description, journal_entry_id, line_order) VALUES (?, ?, ?, ?, ?, ?)

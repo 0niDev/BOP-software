@@ -1,1 +1,43 @@
-Nothing should be ignored in this case, as the modified files are only Python source code files (.py) without any build artifacts, dependencies, or temporary files in the changes.
+```
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+logs/
+
+# Database files
+*.db
+data/*.db
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Dependencies
+.venv/
+venv/
+pip-log.txt
+pipenv.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# Distribution artifacts
+dist/
+build/
+*.egg-info/
+```
