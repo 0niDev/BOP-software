@@ -162,13 +162,22 @@ class ChartOfAccountsWidget(QWidget):
         logger.debug("ChartOfAccountsWidget.refresh() called")
         from PySide6.QtCore import QThread, Signal
         
-        # Clean up any existing loader thread
+        # Clean up any existing loader thread safely
         if hasattr(self, '_loader') and self._loader is not None:
             logger.debug("ChartOfAccountsWidget.refresh(): cleaning up existing loader thread")
-            if self._loader.isRunning():
-                logger.debug("ChartOfAccountsWidget.refresh(): waiting for existing loader to finish")
-                self._loader.wait(1000)  # Wait up to 1 second for thread to finish
-            self._loader.deleteLater()
+            try:
+                import sip
+                # Check if C++ object still exists before calling methods
+                if not sip.isdeleted(self._loader):
+                    if self._loader.isRunning():
+                        logger.debug("ChartOfAccountsWidget.refresh(): waiting for existing loader to finish")
+                        self._loader.wait(1000)  # Wait up to 1 second for thread to finish
+                    logger.debug("ChartOfAccountsWidget.refresh(): deleting existing loader")
+                    self._loader.deleteLater()
+            except RuntimeError:
+                # Object already deleted, ignore
+                logger.debug("ChartOfAccountsWidget.refresh(): existing loader already deleted")
+            self._loader = None
             logger.debug("ChartOfAccountsWidget.refresh(): existing loader cleaned up")
         
         class AccountLoader(QThread):
