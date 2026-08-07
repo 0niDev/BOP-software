@@ -121,7 +121,7 @@ class PurchaseInvoiceService:
         batch_cache: dict | None = None,
         item_cache: dict | None = None,
     ) -> None:
-        """Update stock when purchasing items (batch already created)."""
+        """Log stock update - actual update already done in _get_or_create_batch."""
         # Use cached item if available
         if item_cache is not None and item_id in item_cache:
             item = item_cache[item_id]
@@ -134,23 +134,8 @@ class PurchaseInvoiceService:
             logger.warning(f"Item {item_id} not found for stock update")
             return
         
-        logger.info(f"Updating stock for {item['item_code']}: +{quantity} (batch_id={batch_id})")
-        
-        # Update the batch quantity (batch already exists)
-        existing = self.db.fetch_one("""
-            SELECT quantity_in_stock 
-            FROM stock_batches 
-            WHERE id = ?
-        """, (batch_id,))
-        
-        if existing:
-            new_quantity = existing["quantity_in_stock"] + quantity
-            self.db.execute("""
-                UPDATE stock_batches 
-                SET quantity_in_stock = ? 
-                WHERE id = ?
-            """, (new_quantity, batch_id))
-            logger.info(f"Updated stock for {item['item_code']}: {new_quantity}")
+        logger.info(f"Stock updated for {item['item_code']}: +{quantity} (batch_id={batch_id})")
+        # Note: Actual stock update already performed in _get_or_create_batch
 
     def create_purchase_invoice(
         self,
