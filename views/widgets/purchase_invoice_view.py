@@ -428,7 +428,7 @@ class PurchaseInvoiceView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setDisplayFormat("yyyy-MM-dd")
-        self.date_input.returnPressed.connect(self._on_save_clicked)
+        self.date_input.editingFinished.connect(self._on_save_clicked)
         form_layout.addRow("Invoice Date*:", self.date_input)
 
         self.payment_type_input = QComboBox()
