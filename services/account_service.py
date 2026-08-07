@@ -36,26 +36,33 @@ class AccountService:
         account_subtype: str | None = None,
         company_id: int = 1,
     ) -> Account:
+        logger.debug(f"AccountService.create_account() called: code={account_code}, name={account_name}, type={account_type}, parent_id={parent_account_id}, opening_balance={opening_balance}")
         account_code = account_code.strip()
         account_name = account_name.strip()
         if not account_code:
+            logger.error("AccountService.create_account() validation failed: account_code is empty")
             raise ValidationError("Account code is required.")
         if not account_name:
+            logger.error("AccountService.create_account() validation failed: account_name is empty")
             raise ValidationError("Account name is required.")
 
         # Convert to enum if string
         if isinstance(account_type, str):
             from models.enums import AccountType
             account_type = AccountType(account_type)
+            logger.debug(f"AccountService.create_account() converted account_type string to enum: {account_type}")
 
         if parent_account_id is not None:
             parent = self.repo.find_by_id(parent_account_id)
             if parent is None:
+                logger.error(f"AccountService.create_account() validation failed: parent account {parent_account_id} not found")
                 raise ValidationError("Selected parent account does not exist.")
             if parent["account_type"] != account_type.value:
+                logger.error(f"AccountService.create_account() validation failed: parent type mismatch - parent type={parent['account_type']}, new type={account_type.value}")
                 raise ValidationError(
                     "A sub-account must have the same account type as its parent."
                 )
+            logger.debug(f"AccountService.create_account() parent account validated: id={parent_account_id}")
 
         account = Account(
             account_code=account_code,
@@ -66,12 +73,17 @@ class AccountService:
             account_subtype=account_subtype,
             company_id=company_id,
         )
+        logger.debug(f"AccountService.create_account() Account object created: {account}")
 
         with self.db.transaction():
             new_id = self.repo.insert_unique(account.to_insert_dict())
             account.id = new_id
+            logger.info(f"AccountService.create_account() inserted account with id={new_id}")
             if opening_balance:
+                logger.info(f"AccountService.create_account() posting opening balance for account id={new_id}, amount={opening_balance}")
                 self._post_opening_balance(account, company_id)
+            else:
+                logger.debug(f"AccountService.create_account() no opening balance to post (opening_balance={opening_balance})")
 
         logger.info("Created account %s - %s (id=%s)", account_code, account_name, new_id)
         return account
@@ -83,18 +95,22 @@ class AccountService:
         from services.accounting_service import AccountingService, JournalLine
         import datetime as _dt
 
+        logger.debug(f"AccountService._post_opening_balance() called for account id={account.id}, code={account.account_code}, opening_balance={account.opening_balance}")
         accounting = AccountingService(self.db)
         resolver = SystemAccountResolver(self.db, company_id)
         equity_account_id = resolver.id_for(SystemAccountCodes.RETAINED_EARNINGS)
+        logger.debug(f"AccountService._post_opening_balance() resolved equity_account_id={equity_account_id}")
 
         # If this account IS the equity account, skip -- avoids a
         # self-referencing entry when seeding equity's own opening balance.
         if account.id == equity_account_id:
+            logger.warning(f"AccountService._post_opening_balance() skipping - account {account.id} IS the equity account")
             return
 
         debit_normal = account.account_type.normal_balance_is_debit
         amount = abs(account.opening_balance)
         increases_balance = account.opening_balance > 0
+        logger.debug(f"AccountService._post_opening_balance() debit_normal={debit_normal}, amount={amount}, increases_balance={increases_balance}")
 
         if debit_normal:
             this_line = JournalLine(account_id=account.id, debit=amount) if increases_balance \
@@ -107,6 +123,7 @@ class AccountService:
             equity_line = JournalLine(account_id=equity_account_id, debit=amount) if increases_balance \
                 else JournalLine(account_id=equity_account_id, credit=amount)
 
+        logger.debug(f"AccountService._post_opening_balance() posting journal entry with lines: this_line={this_line}, equity_line={equity_line}")
         accounting.post_journal_entry(
             voucher_type=VoucherType.OPENING,
             entry_date=_dt.date.today().isoformat(),
@@ -116,6 +133,7 @@ class AccountService:
             source_id=account.id,
             company_id=company_id,
         )
+        logger.info(f"AccountService._post_opening_balance() journal entry posted successfully for account {account.id}")
 
     def update_account(
         self,
@@ -125,13 +143,20 @@ class AccountService:
         parent_account_id: int | None,
         is_active: bool = True,
     ) -> None:
+        logger.debug(f"AccountService.update_account() called: account_id={account_id}, account_name={account_name}, opening_balance={opening_balance}, parent_account_id={parent_account_id}")
         existing = self.repo.get_by_id(account_id)
+        if existing is None:
+            logger.error(f"AccountService.update_account() account {account_id} not found")
+            raise ValidationError("Account not found.")
         if existing["is_system_account"] and not is_active:
+            logger.error(f"AccountService.update_account() cannot deactivate system account {account_id}")
             raise ValidationError("System accounts cannot be deactivated.")
         if not account_name.strip():
+            logger.error(f"AccountService.update_account() account_name is empty")
             raise ValidationError("Account name is required.")
         
         old_opening = existing["opening_balance"]
+        logger.debug(f"AccountService.update_account() old_opening={old_opening}, new_opening={opening_balance}, diff={abs(opening_balance - old_opening)}")
         
         self.repo.update(
             account_id,
@@ -142,10 +167,14 @@ class AccountService:
                 "is_active": int(is_active),
             },
         )
+        logger.info(f"AccountService.update_account() updated account id={account_id} in database")
         
         # If opening balance changed, create an adjusting journal entry
         if abs(opening_balance - old_opening) > 0.01:
+            logger.info(f"AccountService.update_account() opening balance changed, creating adjusting entry for account {account_id}")
             self._adjust_opening_balance(account_id, opening_balance, old_opening, existing["company_id"])
+        else:
+            logger.debug(f"AccountService.update_account() opening balance unchanged (diff={abs(opening_balance - old_opening)}), skipping adjustment")
         
         logger.info("Updated account id=%s", account_id)
 
@@ -156,16 +185,20 @@ class AccountService:
         from models.enums import AccountType
         import datetime as _dt
         
+        logger.debug(f"AccountService._adjust_opening_balance() called: account_id={account_id}, old_balance={old_balance}, new_balance={new_balance}")
         accounting = AccountingService(self.db)
         resolver = SystemAccountResolver(self.db, company_id)
         equity_account_id = resolver.id_for(SystemAccountCodes.RETAINED_EARNINGS)
+        logger.debug(f"AccountService._adjust_opening_balance() resolved equity_account_id={equity_account_id}")
         
         adjustment = new_balance - old_balance
         if abs(adjustment) < 0.01:
+            logger.debug(f"AccountService._adjust_opening_balance() adjustment too small ({adjustment}), skipping")
             return
         
         account = self.repo.get_by_id(account_id)
         if not account:
+            logger.error(f"AccountService._adjust_opening_balance() account {account_id} not found")
             raise ValidationError("Account not found.")
         
         # Convert account_type string to enum if needed
@@ -175,6 +208,7 @@ class AccountService:
         
         debit_normal = account_type.normal_balance_is_debit
         amount = abs(adjustment)
+        logger.debug(f"AccountService._adjust_opening_balance() account_type={account_type}, debit_normal={debit_normal}, adjustment={adjustment}, amount={amount}")
         
         # Determine direction of adjustment
         if adjustment > 0:
@@ -194,6 +228,7 @@ class AccountService:
                 this_line = JournalLine(account_id=account_id, debit=amount)
                 equity_line = JournalLine(account_id=equity_account_id, credit=amount)
         
+        logger.debug(f"AccountService._adjust_opening_balance() posting adjusting journal entry: this_line={this_line}, equity_line={equity_line}")
         accounting.post_journal_entry(
             voucher_type=VoucherType.OPENING,
             entry_date=_dt.date.today().isoformat(),
@@ -203,6 +238,7 @@ class AccountService:
             source_id=account_id,
             company_id=company_id,
         )
+        logger.info(f"AccountService._adjust_opening_balance() adjusting entry posted successfully for account {account_id}")
 
     def deactivate_account(self, account_id: int) -> None:
         account = self.repo.get_by_id(account_id)
