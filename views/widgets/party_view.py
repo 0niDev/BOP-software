@@ -133,20 +133,24 @@ class PartyView(QWidget):
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Full party name")
+        self.name_input.returnPressed.connect(self._on_save_clicked)
         form_layout.addRow("Name*:", self.name_input)
 
         self.type_input = QComboBox()
         self.type_input.addItem("Customer", PartyType.CUSTOMER)
         self.type_input.addItem("Supplier", PartyType.SUPPLIER)
         self.type_input.addItem("Both", PartyType.BOTH)
+        self.type_input.activated.connect(self._on_save_clicked)
         form_layout.addRow("Type*:", self.type_input)
 
         self.credit_input = QLineEdit()
         self.credit_input.setPlaceholderText("0.0")
+        self.credit_input.returnPressed.connect(self._on_save_clicked)
         form_layout.addRow("Credit Limit:", self.credit_input)
 
         self.account_input = QLineEdit()
         self.account_input.setPlaceholderText("e.g., 1100 for A/R")
+        self.account_input.returnPressed.connect(self._on_save_clicked)
         form_layout.addRow("Account Code:", self.account_input)
 
         button_layout = QHBoxLayout()
