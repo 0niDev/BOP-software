@@ -20,12 +20,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from decimal import Decimal
 from datetime import datetime, date
 
-from utils.cache_manager import CacheManager, cached_global
+from utils.cache_manager import CacheManager, cached_global, SessionCache
 from utils.logger import get_logger
 from repositories.base_repository import BaseRepository
 
 logger = get_logger(__name__)
-cache_mgr = CacheManager()
+cache_mgr = SessionCache()
 
 
 # =============================================================================
