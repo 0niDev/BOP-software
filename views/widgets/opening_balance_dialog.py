@@ -28,11 +28,14 @@ class OpeningBalanceDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        logger.debug("[OpeningBalanceDialog] Initializing dialog")
         self.setWindowTitle("Set Opening Balances")
         self.setModal(True)
         self.resize(600, 500)
         self.db = get_db()
+        logger.debug("[OpeningBalanceDialog] Database connection obtained")
         self.accounting = AccountingService(self.db)
+        logger.debug("[OpeningBalanceDialog] AccountingService initialized")
         self.balance_inputs = {}
         self._setup_ui()
         self._load_accounts()
@@ -83,6 +86,7 @@ class OpeningBalanceDialog(QDialog):
 
     def _load_accounts(self):
         """Load ALL accounts into table (including those with zero balance)."""
+        logger.debug("[OpeningBalanceDialog] _load_accounts called")
         accounts = self.db.fetch_all("""
             SELECT 
                 a.id, 
@@ -106,6 +110,8 @@ class OpeningBalanceDialog(QDialog):
                 END,
                 a.account_code
         """)
+        
+        logger.debug(f"[OpeningBalanceDialog] Loaded {len(accounts)} accounts from database")
 
         self.table.setRowCount(len(accounts))
         self.balance_inputs = {}
@@ -130,11 +136,14 @@ class OpeningBalanceDialog(QDialog):
             # Store reference
             self.balance_inputs[acc['id']] = balance_spin
             self.table.setCellWidget(row, 2, balance_spin)
+            logger.debug(f"[OpeningBalanceDialog] Row {row}: {acc['account_code']} - {acc['account_name']}, Type={acc['account_type']}")
 
         self.table.resizeColumnsToContents()
+        logger.debug(f"[OpeningBalanceDialog] _load_accounts completed, {len(self.balance_inputs)} balance inputs created")
 
     def _calculate_equity(self):
         """Auto-calculate equity balance based on entered values."""
+        logger.debug("[OpeningBalanceDialog] _calculate_equity called")
         total_debit = 0.0
         total_credit = 0.0
         equity_widget = None
@@ -147,6 +156,8 @@ class OpeningBalanceDialog(QDialog):
                 value = spin.value()
                 acc_type = self.table.item(row, 1).text()
                 
+                logger.debug(f"[OpeningBalanceDialog] Row {row}: acc_id={acc_id}, type={acc_type}, value={value}")
+                
                 if acc_type == "ASSET":
                     total_debit += value
                 elif acc_type == "LIABILITY":
@@ -158,10 +169,14 @@ class OpeningBalanceDialog(QDialog):
         # Assets = Liabilities + Equity
         # So Equity = Assets - Liabilities
         equity_needed = total_debit - total_credit
+        
+        logger.debug(f"[OpeningBalanceDialog] Calculated: total_debit={total_debit}, total_credit={total_credit}, equity_needed={equity_needed}")
 
         # Set equity value
         if equity_widget is not None:
             equity_widget.setValue(equity_needed)
+            
+            logger.info(f"[OpeningBalanceDialog] Equity calculated and set to {equity_needed}")
             
             # Show summary
             QMessageBox.information(
@@ -173,6 +188,7 @@ class OpeningBalanceDialog(QDialog):
                 f"Equity needed:    Rs. {equity_needed:,.2f}"
             )
         else:
+            logger.error("[OpeningBalanceDialog] No EQUITY account found in table")
             QMessageBox.warning(
                 self, 
                 "No Equity Account",
@@ -182,6 +198,7 @@ class OpeningBalanceDialog(QDialog):
 
     def _save(self):
         """Save opening balances as journal entry."""
+        logger.debug("[OpeningBalanceDialog] _save called")
         entries = []
         total_debit = 0.0
         total_credit = 0.0
@@ -193,6 +210,8 @@ class OpeningBalanceDialog(QDialog):
             if spin and spin.value() != 0:
                 value = spin.value()
                 acc_type = self.table.item(row, 1).text()
+                
+                logger.debug(f"[OpeningBalanceDialog] Collecting entry: acc_id={acc_id}, type={acc_type}, value={value}")
                 
                 if acc_type == "ASSET":
                     entries.append({
@@ -209,12 +228,16 @@ class OpeningBalanceDialog(QDialog):
                     })
                     total_credit += value
 
+        logger.debug(f"[OpeningBalanceDialog] Collected {len(entries)} entries: total_debit={total_debit}, total_credit={total_credit}")
+
         if not entries:
+            logger.warning("[OpeningBalanceDialog] No balances to save")
             QMessageBox.warning(self, "Error", "No balances to save! Please enter some values.")
             return
 
         # Check if balanced
         if abs(total_debit - total_credit) > 0.01:
+            logger.error(f"[OpeningBalanceDialog] Books not balanced: debit={total_debit}, credit={total_credit}, diff={abs(total_debit - total_credit)}")
             QMessageBox.warning(
                 self,
                 "Not Balanced",
@@ -235,10 +258,12 @@ class OpeningBalanceDialog(QDialog):
         )
 
         if reply != QMessageBox.Yes:
+            logger.debug("[OpeningBalanceDialog] User cancelled the save operation")
             return
 
         # Post journal entry
         try:
+            logger.info(f"[OpeningBalanceDialog] Posting journal entry with {len(entries)} lines")
             journal_lines = []
             for entry in entries:
                 journal_lines.append(
@@ -249,14 +274,18 @@ class OpeningBalanceDialog(QDialog):
                         description="Opening balance"
                     )
                 )
+                logger.debug(f"[OpeningBalanceDialog] Journal line: acc_id={entry['account_id']}, debit={entry['debit']}, credit={entry['credit']}")
 
             import datetime
+            logger.debug(f"[OpeningBalanceDialog] Calling post_journal_entry with date={datetime.date.today().isoformat()}")
             self.accounting.post_journal_entry(
                 voucher_type=VoucherType.OPENING,
                 entry_date=datetime.date.today().isoformat(),
                 lines=journal_lines,
                 narration="Opening balances setup"
             )
+            
+            logger.info(f"[OpeningBalanceDialog] Opening balance posted successfully!")
 
             QMessageBox.information(
                 self,
@@ -266,4 +295,5 @@ class OpeningBalanceDialog(QDialog):
             self.accept()
 
         except Exception as e:
+            logger.exception(f"[OpeningBalanceDialog] Failed to post opening balance: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to post opening balance:\n{str(e)}")
