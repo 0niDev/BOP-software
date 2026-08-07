@@ -1,5 +1,5 @@
 ```
-# Python
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
@@ -12,28 +12,28 @@ logs/
 # Database
 *.db
 
-# Dependencies
-.venv/
-venv/
-env/
+# Temporary files
+*.tmp
+*.swp
+*.swo
 
-# Environment variables
+# Environment files
 .env
 .env.local
 *.env.*
 
-# IDE
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# IDE specific
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Build artifacts
-build/
-dist/
-*.o
-*.obj
-*.so
-*.dll
-*.exe
+# OS specific
+.DS_Store
+Thumbs.db
 ```

@@ -1218,3 +1218,105 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-07 18:31:37,807 | INFO     | erp.services.accounting_service | Posted journal entry #23 (JOURNAL) voucher=JV-00010 amount=7500.00
 2026-08-07 18:31:37,807 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-8
 2026-08-07 18:31:37,807 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-8 for customer 2 (id=8) - Payment: CASH
+2026-08-07 19:02:56,149 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00006
+2026-08-07 19:02:56,149 | INFO     | erp.services.party_service | Created party CUST-00006 - Test Customer 8 (id=12)
+2026-08-07 19:02:56,150 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00006
+2026-08-07 19:02:56,150 | INFO     | erp.services.party_service | Created party SUPP-00006 - Test Supplier 9 (id=13)
+2026-08-07 19:02:56,151 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 19:02:56,152 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-3-20260807190256 with id=4: 10.0
+2026-08-07 19:02:56,152 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +10.0 (batch_id=4)
+2026-08-07 19:02:56,152 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 20.0
+2026-08-07 19:02:56,152 | INFO     | erp.services.accounting_service | Posted journal entry #24 (PURCHASE) voucher=PI-00004 amount=25000.00
+2026-08-07 19:02:56,153 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-4 for supplier 3 (id=4)
+2026-08-07 19:02:56,153 | INFO     | erp.services.purchase_invoice_service | Updated existing batch PURCHASE-3-20260807190256: 25.0
+2026-08-07 19:02:56,154 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +5.0 (batch_id=4)
+2026-08-07 19:02:56,154 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 30.0
+2026-08-07 19:02:56,154 | INFO     | erp.services.accounting_service | Posted journal entry #25 (PURCHASE) voucher=PI-00005 amount=12500.00
+2026-08-07 19:02:56,154 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-5 for supplier 3 (id=5)
+2026-08-07 19:02:56,166 | INFO     | erp.services.accounting_service | Posted journal entry #26 (SALES) voucher=SI-00009 amount=18750.00
+2026-08-07 19:02:56,167 | INFO     | erp.services.accounting_service | Posted journal entry #27 (JOURNAL) voucher=JV-00011 amount=12500.00
+2026-08-07 19:02:56,167 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 12,500.00 for invoice SI-TEST-9
+2026-08-07 19:02:56,167 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-9 for customer 2 (id=9) - Payment: CREDIT
+2026-08-07 19:02:56,168 | INFO     | erp.services.accounting_service | Posted journal entry #28 (SALES) voucher=SI-00010 amount=11250.00
+2026-08-07 19:02:56,169 | INFO     | erp.services.accounting_service | Posted journal entry #29 (JOURNAL) voucher=JV-00012 amount=7500.00
+2026-08-07 19:02:56,169 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-10
+2026-08-07 19:02:56,169 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-10 for customer 2 (id=10) - Payment: CASH
+2026-08-07 19:03:08,674 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00007
+2026-08-07 19:03:08,675 | INFO     | erp.services.party_service | Created party CUST-00007 - Test Customer 10 (id=14)
+2026-08-07 19:03:08,686 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00007
+2026-08-07 19:03:08,686 | INFO     | erp.services.party_service | Created party SUPP-00007 - Test Supplier 11 (id=15)
+2026-08-07 19:03:08,688 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 19:03:08,689 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-3-20260807190308 with id=5: 10.0
+2026-08-07 19:03:08,689 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +10.0 (batch_id=5)
+2026-08-07 19:03:08,689 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 20.0
+2026-08-07 19:03:08,689 | INFO     | erp.services.accounting_service | Posted journal entry #30 (PURCHASE) voucher=PI-00006 amount=25000.00
+2026-08-07 19:03:08,689 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-6 for supplier 3 (id=6)
+2026-08-07 19:03:08,690 | INFO     | erp.services.purchase_invoice_service | Updated existing batch PURCHASE-3-20260807190308: 25.0
+2026-08-07 19:03:08,691 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +5.0 (batch_id=5)
+2026-08-07 19:03:08,691 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 30.0
+2026-08-07 19:03:08,691 | INFO     | erp.services.accounting_service | Posted journal entry #31 (PURCHASE) voucher=PI-00007 amount=12500.00
+2026-08-07 19:03:08,691 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-7 for supplier 3 (id=7)
+2026-08-07 19:03:08,693 | INFO     | erp.services.accounting_service | Posted journal entry #32 (SALES) voucher=SI-00011 amount=18750.00
+2026-08-07 19:03:08,693 | INFO     | erp.services.accounting_service | Posted journal entry #33 (JOURNAL) voucher=JV-00013 amount=12500.00
+2026-08-07 19:03:08,693 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 12,500.00 for invoice SI-TEST-11
+2026-08-07 19:03:08,693 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-11 for customer 2 (id=11) - Payment: CREDIT
+2026-08-07 19:03:08,706 | INFO     | erp.services.accounting_service | Posted journal entry #34 (SALES) voucher=SI-00012 amount=11250.00
+2026-08-07 19:03:08,706 | INFO     | erp.services.accounting_service | Posted journal entry #35 (JOURNAL) voucher=JV-00014 amount=7500.00
+2026-08-07 19:03:08,706 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-12
+2026-08-07 19:03:08,707 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-12 for customer 2 (id=12) - Payment: CASH
+2026-08-07 19:03:22,089 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=9
+2026-08-07 19:03:22,090 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-3-20260807190322 with id=6: 10.0
+2026-08-07 19:03:22,090 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +10.0 (batch_id=6)
+2026-08-07 19:03:22,090 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 20.0
+2026-08-07 19:03:22,091 | INFO     | erp.services.accounting_service | Posted journal entry #36 (PURCHASE) voucher=PI-00008 amount=25000.00
+2026-08-07 19:03:22,091 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-8 for supplier 9 (id=8)
+2026-08-07 19:03:49,137 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,147 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,148 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,148 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,148 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,149 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00008
+2026-08-07 19:03:49,149 | INFO     | erp.services.party_service | Created party CUST-00008 - Test Customer 12 (id=16)
+2026-08-07 19:03:49,150 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00008
+2026-08-07 19:03:49,150 | INFO     | erp.services.party_service | Created party SUPP-00008 - Test Supplier 13 (id=17)
+2026-08-07 19:03:49,150 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,151 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,151 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,151 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 19:03:49,152 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-3-20260807190349 with id=7: 10.0
+2026-08-07 19:03:49,152 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +10.0 (batch_id=7)
+2026-08-07 19:03:49,152 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 20.0
+2026-08-07 19:03:49,153 | INFO     | erp.services.accounting_service | Posted journal entry #37 (PURCHASE) voucher=PI-00009 amount=25000.00
+2026-08-07 19:03:49,153 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-9 for supplier 3 (id=9)
+2026-08-07 19:03:49,153 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,153 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,153 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,154 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,166 | INFO     | erp.services.purchase_invoice_service | Updated existing batch PURCHASE-3-20260807190349: 25.0
+2026-08-07 19:03:49,166 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +5.0 (batch_id=7)
+2026-08-07 19:03:49,166 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 30.0
+2026-08-07 19:03:49,167 | INFO     | erp.services.accounting_service | Posted journal entry #38 (PURCHASE) voucher=PI-00010 amount=12500.00
+2026-08-07 19:03:49,167 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-10 for supplier 3 (id=10)
+2026-08-07 19:03:49,167 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,167 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,168 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,168 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,169 | INFO     | erp.services.accounting_service | Posted journal entry #39 (SALES) voucher=SI-00013 amount=18750.00
+2026-08-07 19:03:49,170 | INFO     | erp.services.accounting_service | Posted journal entry #40 (JOURNAL) voucher=JV-00015 amount=12500.00
+2026-08-07 19:03:49,170 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 12,500.00 for invoice SI-TEST-13
+2026-08-07 19:03:49,170 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-13 for customer 2 (id=13) - Payment: CREDIT
+2026-08-07 19:03:49,170 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,170 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,171 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,171 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,172 | INFO     | erp.services.accounting_service | Posted journal entry #41 (SALES) voucher=SI-00014 amount=11250.00
+2026-08-07 19:03:49,172 | INFO     | erp.services.accounting_service | Posted journal entry #42 (JOURNAL) voucher=JV-00016 amount=7500.00
+2026-08-07 19:03:49,172 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-14
+2026-08-07 19:03:49,172 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-14 for customer 2 (id=14) - Payment: CASH
+2026-08-07 19:03:49,172 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,173 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,173 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,173 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,173 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,173 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-07 19:03:49,186 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
