@@ -1,0 +1,7 @@
+2026-08-07 22:42:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER) [SUPP-00002] | Details: {'name=1 credit_limit=0.0'}
+2026-08-07 22:42:33 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER) [SUPP-00003] | Details: {'name=1 credit_limit=0.0'}
+2026-08-07 22:42:42 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00003] | Details: {'name=2 credit_limit=0.0'}
+2026-08-07 22:42:43 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00002] | Details: {'name=2 credit_limit=0.0'}
+2026-08-07 22:43:13 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00004] | Details: {'name=3 credit_limit=0.0'}
+2026-08-07 22:43:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00005] | Details: {'name=3 credit_limit=0.0'}
+2026-08-07 22:43:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER) [CUST-00006] | Details: {'name=6 credit_limit=0.0'}

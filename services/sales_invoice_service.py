@@ -336,7 +336,7 @@ class SalesInvoiceService:
                 clean_item_data = {
                     "invoice_id": invoice.id,
                     "item_id": item_data["item_id"],
-                    "batch_id": None  # Don't set batch_id for new sales - it will be created by _reduce_stock,
+                    "batch_id": None,  # Don't set batch_id for new sales - it will be created by _reduce_stock,
                     "quantity": item_data["quantity"],
                     "unit_price": item_data["unit_price"],
                     "discount_amount": item_data["discount_amount"],
@@ -734,7 +734,7 @@ class SalesInvoiceService:
                 clean_item_data = {
                     "invoice_id": invoice_id,
                     "item_id": item_data["item_id"],
-                    "batch_id": None  # Don't set batch_id for updates either - let _reduce_stock handle it,
+                    "batch_id": None,  # Don't set batch_id for updates either - let _reduce_stock handle it,
                     "quantity": item_data["quantity"],
                     "unit_price": item_data["unit_price"],
                     "discount_amount": item_data["discount_amount"],

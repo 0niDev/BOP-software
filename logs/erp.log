@@ -733,3 +733,404 @@ AttributeError: 'CacheManager' object has no attribute 'get'
 2026-08-07 05:56:00,265 | INFO     | erp.database.connection | SQLite Cloud connections closed
 2026-08-07 05:56:00,268 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
 2026-08-07 05:56:00,270 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 19:46:39,076 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 19:46:39,078 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 19:46:39,078 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 19:46:39,078 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 19:46:39,078 | INFO     | erp.__main__ | Starting application...
+2026-08-07 19:46:41,274 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 19:46:47,844 | WARNING  | erp.authentication.auth_service | Failed login attempt for username=acc
+2026-08-07 19:46:55,777 | WARNING  | erp.authentication.auth_service | Failed login attempt for username=admin
+2026-08-07 19:47:39,147 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 19:47:39,724 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 19:47:39,726 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 19:47:39,737 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 19:47:44,179 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 19:47:47,079 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 19:47:50,712 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 19:47:53,560 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 19:47:55,622 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 19:47:55,627 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 19:48:30,588 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 19:48:30,873 | INFO     | erp.views.widgets.party_view | Loaded 0 parties
+2026-08-07 19:50:17,040 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 19:50:22,048 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 19:50:22,087 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 19:50:22,087 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 19:50:22,087 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 19:50:22,087 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 19:50:22,108 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 19:50:22,109 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 19:51:08,604 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 19:51:08,604 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 19:51:08,604 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 19:51:08,604 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 19:51:08,604 | INFO     | erp.__main__ | Starting application...
+2026-08-07 19:51:10,511 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 19:51:28,074 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 19:51:28,493 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 19:51:28,494 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 19:51:28,500 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 19:51:32,890 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 19:51:34,997 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 19:51:37,165 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 19:51:39,131 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-07 19:51:41,426 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 19:51:41,426 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 19:51:44,207 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 19:51:46,345 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 19:51:48,456 | INFO     | erp.views.widgets.item_view | Loaded 1 items
+2026-08-07 19:51:49,966 | ERROR    | erp.database.connection | SQLite Cloud fetch_all failed: no such column: i.code | sql=
+        SELECT 
+            i.id, i.code, i.name, i.category, i.unit_of_measure,
+            i.description, i.reorder_level, i.is_active,
+            COALESCE(SUM(sb.quantity_in_stock), 0) as stock_qty,
+            COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
+            COUNT(DISTINCT sb.id) as batch_count
+        FROM items i
+        LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.quantity_in_stock > 0
+        WHERE i.company_id = ? AND i.is_active = 1
+        GROUP BY i.id
+        ORDER BY i.name
+    
+2026-08-07 19:51:49,966 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: no such column: i.code
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 79, in fetch_all_items_with_stock
+    items = db.fetch_all(query, (company_id,))
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 171, in fetch_all
+    cursor = conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: no such column: i.code
+2026-08-07 19:51:49,970 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 19:52:37,485 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00003
+2026-08-07 19:52:46,121 | INFO     | erp.services.item_service | Created item ITEM-00003 - Test Product Alpha (id=0)
+2026-08-07 19:53:20,080 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00004
+2026-08-07 19:53:21,780 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00005
+2026-08-07 19:53:24,655 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00006
+2026-08-07 19:53:28,745 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00007
+2026-08-07 19:53:31,536 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00008
+2026-08-07 19:53:57,662 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-07 19:53:59,128 | INFO     | erp.services.item_service | Created item ITEM-00004 - 1 (id=0)
+2026-08-07 19:54:03,051 | ERROR    | erp.database.connection | SQLite Cloud fetch_all failed: no such column: i.code | sql=
+        SELECT 
+            i.id, i.code, i.name, i.category, i.unit_of_measure,
+            i.description, i.reorder_level, i.is_active,
+            COALESCE(SUM(sb.quantity_in_stock), 0) as stock_qty,
+            COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
+            COUNT(DISTINCT sb.id) as batch_count
+        FROM items i
+        LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.quantity_in_stock > 0
+        WHERE i.company_id = ? AND i.is_active = 1
+        GROUP BY i.id
+        ORDER BY i.name
+    
+2026-08-07 19:54:03,294 | INFO     | erp.services.item_service | Created item ITEM-00005 - 2 (id=0)
+2026-08-07 19:54:05,529 | INFO     | erp.services.item_service | Created item ITEM-00007 - 4 (id=0)
+2026-08-07 19:54:05,529 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: no such column: i.code
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 79, in fetch_all_items_with_stock
+    items = db.fetch_all(query, (company_id,))
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 171, in fetch_all
+    cursor = conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: no such column: i.code
+2026-08-07 19:54:05,545 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 19:54:06,576 | INFO     | erp.services.item_service | Created item ITEM-00006 - 3 (id=0)
+2026-08-07 19:54:09,194 | INFO     | erp.services.item_service | Created item ITEM-00008 - 5 (id=0)
+2026-08-07 19:54:43,484 | INFO     | erp.services.item_service | Updated item id=1
+2026-08-07 19:55:01,732 | INFO     | erp.views.widgets.item_view | Loaded 7 items
+2026-08-07 19:55:03,213 | ERROR    | erp.database.connection | SQLite Cloud fetch_all failed: no such column: i.code | sql=
+        SELECT 
+            i.id, i.code, i.name, i.category, i.unit_of_measure,
+            i.description, i.reorder_level, i.is_active,
+            COALESCE(SUM(sb.quantity_in_stock), 0) as stock_qty,
+            COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
+            COUNT(DISTINCT sb.id) as batch_count
+        FROM items i
+        LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.quantity_in_stock > 0
+        WHERE i.company_id = ? AND i.is_active = 1
+        GROUP BY i.id
+        ORDER BY i.name
+    
+2026-08-07 19:55:04,021 | ERROR    | erp.views.widgets.item_view | Error in stock load thread: no such column: i.code
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\views\widgets\item_view.py", line 63, in run
+    items = fetch_all_items_with_stock(
+  File "F:\software\v1 corrected\BOP-software\utils\helpers.py", line 79, in fetch_all_items_with_stock
+    items = db.fetch_all(query, (company_id,))
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 171, in fetch_all
+    cursor = conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudOperationalError: no such column: i.code
+2026-08-07 19:55:04,783 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 22:21:10,128 | INFO     | erp.services.item_service | Updated item id=2
+2026-08-07 22:26:52,167 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 0 customers
+2026-08-07 22:26:52,575 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 22:26:57,598 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 22:26:57,844 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 22:26:57,846 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 22:26:57,850 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 22:26:57,862 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 22:26:57,960 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 22:26:57,962 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 22:27:15,865 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:27:15,866 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:27:15,868 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:27:15,872 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:27:15,875 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:27:18,207 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:37:40,549 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 22:37:45,553 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 22:37:45,568 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 22:37:45,569 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 22:37:45,570 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 22:37:45,573 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 22:37:45,576 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 22:37:45,578 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 22:38:04,218 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:38:04,220 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:38:04,222 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:38:04,225 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:38:04,226 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:38:06,214 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:38:13,541 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 22:38:13,856 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:38:13,856 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 22:38:13,875 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 22:38:17,888 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 22:38:19,973 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:38:22,044 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 22:38:24,083 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:38:26,137 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:38:26,138 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 22:38:39,427 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:38:39,429 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-07 22:38:43,465 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 22:38:45,452 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:38:47,417 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 22:38:49,457 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:38:51,490 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:38:51,506 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 22:39:09,910 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 22:39:14,912 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 22:39:14,921 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 22:39:14,922 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 22:39:14,922 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 22:39:14,924 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 22:39:14,928 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 22:39:14,928 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 22:40:42,437 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:40:42,439 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:40:42,439 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:40:42,442 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:40:42,442 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:40:44,232 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:40:54,914 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 22:40:55,236 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:40:55,236 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 22:40:55,257 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 22:40:59,203 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 22:41:01,240 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:41:03,408 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 22:41:05,595 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:41:07,656 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:41:07,659 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 22:41:38,231 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=INSERT INTO journal_entry_lines (account_id, party_id, debit, credit, description, journal_entry_id, line_order) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-07 22:41:52,810 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=INSERT INTO journal_entry_lines (account_id, party_id, debit, credit, description, journal_entry_id, line_order) VALUES (?, ?, ?, ?, ?, ?, ?)
+2026-08-07 22:42:00,638 | INFO     | erp.views.widgets.party_view | Loaded 0 parties
+2026-08-07 22:42:04,200 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00002
+2026-08-07 22:42:08,018 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00003
+2026-08-07 22:42:15,449 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00002
+2026-08-07 22:42:15,931 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00003
+2026-08-07 22:42:24,338 | INFO     | erp.services.party_service | Created party SUPP-00002 - 1 (id=0)
+2026-08-07 22:42:29,055 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 22:42:33,979 | INFO     | erp.services.party_service | Created party SUPP-00003 - 1 (id=0)
+2026-08-07 22:42:35,442 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 22:42:41,996 | INFO     | erp.views.widgets.party_view | Loaded 4 parties
+2026-08-07 22:42:42,484 | INFO     | erp.views.widgets.item_view | Loaded 7 items
+2026-08-07 22:42:42,978 | INFO     | erp.services.party_service | Created party CUST-00003 - 2 (id=0)
+2026-08-07 22:42:43,489 | INFO     | erp.services.party_service | Created party CUST-00002 - 2 (id=0)
+2026-08-07 22:42:47,624 | INFO     | erp.utils.helpers | Fetched 7 items with stock data
+2026-08-07 22:42:47,628 | INFO     | erp.views.widgets.item_view | Loaded stocks for 7 items using helper
+2026-08-07 22:42:47,628 | INFO     | erp.views.widgets.item_view | Loaded stock for 0 items: {}
+2026-08-07 22:42:50,370 | INFO     | erp.views.widgets.party_view | Loaded 4 parties
+2026-08-07 22:43:02,203 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00004
+2026-08-07 22:43:08,778 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00005
+2026-08-07 22:43:13,572 | INFO     | erp.services.party_service | Created party CUST-00004 - 3 (id=0)
+2026-08-07 22:43:17,137 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00006
+2026-08-07 22:43:20,703 | INFO     | erp.views.widgets.party_view | Loaded 6 parties
+2026-08-07 22:43:24,552 | INFO     | erp.services.party_service | Created party CUST-00005 - 3 (id=0)
+2026-08-07 22:43:28,345 | INFO     | erp.views.widgets.party_view | Loaded 7 parties
+2026-08-07 22:43:31,300 | INFO     | erp.services.party_service | Created party CUST-00006 - 6 (id=0)
+2026-08-07 22:43:33,476 | INFO     | erp.views.widgets.party_view | Loaded 7 parties
+2026-08-07 22:43:40,396 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-07 22:43:42,431 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-07 22:43:48,316 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 7 suppliers
+2026-08-07 22:43:48,797 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 invoices
+2026-08-07 22:45:55,313 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 22:46:00,318 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 22:46:00,332 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 22:46:00,334 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 22:46:00,335 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 22:46:00,336 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 22:46:00,339 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 22:46:00,339 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 22:46:07,102 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:46:07,114 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:46:07,114 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:46:07,114 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:46:07,114 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:46:08,966 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:46:17,974 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 22:46:18,277 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:46:18,277 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 22:46:18,298 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 22:46:22,360 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-07 22:46:24,343 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:46:28,140 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-07 22:46:28,625 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 7 suppliers
+2026-08-07 22:46:29,111 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 0 invoices
+2026-08-07 22:46:32,481 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:46:35,321 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:46:35,325 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 22:47:11,138 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=1
+2026-08-07 22:47:20,112 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=INSERT INTO purchase_invoice_items (invoice_id, item_id, batch_id, batch_number, manufacturing_date, expiry_date, quantity, unit_cost, discount_amount, tax_amount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+2026-08-07 22:47:20,113 | ERROR    | erp.repositories.purchase_invoice_item_repository | Insert failed on purchase_invoice_items
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 217, in execute
+    return conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: FOREIGN KEY constraint failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\repositories\base_repository.py", line 222, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 225, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
+2026-08-07 22:47:20,423 | ERROR    | erp.database.connection | Transaction rolled back: FOREIGN KEY constraint failed
+2026-08-07 22:50:23,790 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-07 22:50:28,792 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-07 22:50:28,806 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-07 22:50:28,808 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-07 22:50:28,808 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-07 22:50:28,811 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-07 22:50:28,813 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-07 22:50:28,815 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-07 22:50:50,875 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:50:50,875 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:50:50,877 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:50:50,877 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:50:50,877 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:50:52,711 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:50:59,614 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 22:50:59,936 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:50:59,936 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 22:50:59,959 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 22:51:03,939 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=10000.0
+2026-08-07 22:51:06,010 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:51:08,047 | INFO     | erp.services.dashboard_service | ✅ Fetched 1 recent transactions
+2026-08-07 22:51:10,179 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:51:12,136 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:51:12,136 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 22:51:15,188 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 7 suppliers
+2026-08-07 22:51:20,014 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 1 invoices
+2026-08-07 22:51:58,834 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=1
+2026-08-07 22:52:08,354 | ERROR    | erp.database.connection | SQL execute failed: FOREIGN KEY constraint failed | sql=INSERT INTO purchase_invoice_items (invoice_id, item_id, batch_id, batch_number, manufacturing_date, expiry_date, quantity, unit_cost, discount_amount, tax_amount, line_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+2026-08-07 22:52:09,151 | ERROR    | erp.repositories.purchase_invoice_item_repository | Insert failed on purchase_invoice_items
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 217, in execute
+    return conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 595, in _internal_socket_read
+    return self._internal_parse_buffer(connection, buffer, len(buffer))
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 736, in _internal_parse_buffer
+    raise get_sqlitecloud_error_with_extended_code(
+sqlitecloud.exceptions.SQLiteCloudIntegrityError: FOREIGN KEY constraint failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\repositories\base_repository.py", line 222, in insert
+    self.db.execute(sql, tuple(data.values()))
+  File "F:\software\v1 corrected\BOP-software\database\connection.py", line 225, in execute
+    raise DatabaseError(str(exc)) from exc
+utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
+2026-08-07 22:52:09,400 | ERROR    | erp.database.connection | Transaction rolled back: FOREIGN KEY constraint failed
+2026-08-07 22:52:09,903 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=1
+2026-08-07 22:59:30,908 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-07 22:59:30,909 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-07 22:59:30,910 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-07 22:59:30,914 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-07 22:59:30,916 | INFO     | erp.__main__ | Starting application...
+2026-08-07 22:59:32,888 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-07 22:59:39,472 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-07 22:59:39,880 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-07 22:59:39,882 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-07 22:59:39,894 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-07 22:59:43,951 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=20000.0
+2026-08-07 22:59:46,012 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-07 22:59:47,963 | INFO     | erp.services.dashboard_service | ✅ Fetched 2 recent transactions
+2026-08-07 22:59:49,973 | INFO     | erp.services.dashboard_service | ✅ Found 1 low stock items
+2026-08-07 22:59:51,961 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-07 22:59:51,961 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-07 23:00:02,203 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 7 suppliers
+2026-08-07 23:00:02,690 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-07 23:00:36,130 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=1
