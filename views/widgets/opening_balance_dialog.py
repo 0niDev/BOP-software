@@ -203,12 +203,19 @@ class OpeningBalanceDialog(QDialog):
         total_credit = 0.0
 
         # Collect all entries
+        logger.debug(f"OpeningBalanceDialog._save() iterating over {self.table.rowCount()} rows")
         for row in range(self.table.rowCount()):
-            acc_id = self.table.item(row, 0).data(Qt.UserRole)
+            acc_id_item = self.table.item(row, 0)
+            if acc_id_item is None:
+                logger.debug(f"OpeningBalanceDialog._save() row {row}: no account item, skipping")
+                continue
+            acc_id = acc_id_item.data(Qt.UserRole)
             spin = self.balance_inputs.get(acc_id)
             if spin and spin.value() != 0:
                 value = spin.value()
-                acc_type = self.table.item(row, 1).text()
+                acc_type_item = self.table.item(row, 1)
+                acc_type = acc_type_item.text() if acc_type_item else "UNKNOWN"
+                logger.debug(f"OpeningBalanceDialog._save() row {row}: acc_id={acc_id}, value={value}, acc_type={acc_type}")
                 
                 if acc_type == "ASSET":
                     entries.append({
@@ -226,7 +233,11 @@ class OpeningBalanceDialog(QDialog):
                     })
                     total_credit += value
                     logger.debug(f"OpeningBalanceDialog._save() {acc_type} entry: acc_id={acc_id}, credit={value}")
+                else:
+                    logger.warning(f"OpeningBalanceDialog._save() unknown account type '{acc_type}' for acc_id={acc_id}")
 
+        logger.debug(f"OpeningBalanceDialog._save() collected {len(entries)} entries: total_debit={total_debit}, total_credit={total_credit}")
+        
         if not entries:
             logger.warning("OpeningBalanceDialog._save() no balances to save")
             QMessageBox.warning(self, "Error", "No balances to save! Please enter some values.")
@@ -265,16 +276,20 @@ class OpeningBalanceDialog(QDialog):
             logger.debug("OpeningBalanceDialog._save() posting journal entry...")
             journal_lines = []
             for entry in entries:
-                journal_lines.append(
-                    JournalLine(
-                        account_id=entry["account_id"],
-                        debit=entry["debit"],
-                        credit=entry["credit"],
-                        description="Opening balance"
-                    )
+                logger.debug(f"OpeningBalanceDialog._save() creating JournalLine: account_id={entry['account_id']}, debit={entry['debit']}, credit={entry['credit']}")
+                journal_line = JournalLine(
+                    account_id=entry["account_id"],
+                    debit=entry["debit"],
+                    credit=entry["credit"],
+                    description="Opening balance"
                 )
+                logger.debug(f"OpeningBalanceDialog._save() JournalLine created: {journal_line}")
+                journal_lines.append(journal_line)
+            
+            logger.debug(f"OpeningBalanceDialog._save() created {len(journal_lines)} journal lines")
 
             import datetime
+            logger.debug(f"OpeningBalanceDialog._save() calling post_journal_entry with voucher_type=OPENING, date={datetime.date.today().isoformat()}, lines={len(journal_lines)}")
             self.accounting.post_journal_entry(
                 voucher_type=VoucherType.OPENING,
                 entry_date=datetime.date.today().isoformat(),
@@ -285,6 +300,7 @@ class OpeningBalanceDialog(QDialog):
             
             # Update the accounts.opening_balance field for each account
             db = get_db()
+            logger.debug(f"OpeningBalanceDialog._save() updating opening_balance for {len(entries)} accounts")
             for entry in entries:
                 acc_id = entry["account_id"]
                 amount = entry["debit"] if entry["debit"] > 0 else entry["credit"]
@@ -299,11 +315,18 @@ class OpeningBalanceDialog(QDialog):
                     else:
                         signed_amount = amount  # Positive for liabilities/equity
                     
-                    logger.debug(f"OpeningBalanceDialog._save() updating account {acc_id} opening_balance to {signed_amount}")
-                    db.execute(
-                        "UPDATE accounts SET opening_balance = ? WHERE id = ?",
-                        (signed_amount, acc_id)
-                    )
+                    logger.debug(f"OpeningBalanceDialog._save() updating account {acc_id} (type={acc_type}) opening_balance to {signed_amount}")
+                    try:
+                        db.execute(
+                            "UPDATE accounts SET opening_balance = ? WHERE id = ?",
+                            (signed_amount, acc_id)
+                        )
+                        logger.debug(f"OpeningBalanceDialog._save() successfully updated account {acc_id}")
+                    except Exception as e:
+                        logger.error(f"OpeningBalanceDialog._save() failed to update account {acc_id}: {e}")
+                        raise
+                else:
+                    logger.error(f"OpeningBalanceDialog._save() account {acc_id} not found in database")
 
             QMessageBox.information(
                 self,
