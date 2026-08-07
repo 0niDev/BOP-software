@@ -120,11 +120,13 @@ class AccountingService:
                 "credit": round(l.credit, 2),
                 "description": l.description,
             }
+            logger.debug(f"AccountingService.post_journal_entry() processing line: account_id={l.account_id}, debit={line_dict['debit']}, credit={line_dict['credit']}, party_id={l.party_id}")
             # Only include party_id if it's not None (to avoid FOREIGN KEY constraint failure)
             if l.party_id is not None:
                 line_dict["party_id"] = l.party_id
             line_dicts.append(line_dict)
         
+        logger.debug(f"AccountingService.post_journal_entry() calling insert_entry with {len(line_dicts)} lines")
         entry_id = self.journal_repo.insert_entry(header, line_dicts)
         logger.info(
             "Posted journal entry #%s (%s) voucher=%s amount=%.2f",

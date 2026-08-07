@@ -5,7 +5,10 @@ expenses) writes to via the AccountingService.
 """
 from __future__ import annotations
 
+from utils.logger import get_logger
 from repositories.base_repository import BaseRepository
+
+logger = get_logger(__name__)
 
 
 class JournalRepository(BaseRepository):
@@ -26,6 +29,7 @@ class JournalRepository(BaseRepository):
                            "Every journal entry must have at least 2 lines.")
         
         entry_id = self.insert(header)
+        logger.debug(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
         for order, line in enumerate(lines):
             line = dict(line)
             line["journal_entry_id"] = entry_id
@@ -36,10 +40,16 @@ class JournalRepository(BaseRepository):
             columns = list(line.keys())
             placeholders = ", ".join("?" for _ in columns)
             col_list = ", ".join(columns)
-            self.db.execute(
-                f"INSERT INTO journal_entry_lines ({col_list}) VALUES ({placeholders})",
-                tuple(line.values()),
-            )
+            logger.debug(f"JournalRepository.insert_entry() inserting line {order}: account_id={line.get('account_id')}, debit={line.get('debit')}, credit={line.get('credit')}, columns={columns}")
+            try:
+                self.db.execute(
+                    f"INSERT INTO journal_entry_lines ({col_list}) VALUES ({placeholders})",
+                    tuple(line.values()),
+                )
+                logger.debug(f"JournalRepository.insert_entry() line {order} inserted successfully")
+            except Exception as e:
+                logger.error(f"JournalRepository.insert_entry() failed to insert line {order}: {e}, line data={line}")
+                raise
         return entry_id
 
     def next_voucher_number(self, company_id: int, document_type: str) -> str:
