@@ -203,7 +203,7 @@ class SalesInvoiceService:
             
             validated_items.append({
                 "item_id": item_id,
-                "batch_id": batch_id,
+                "batch_id": None,  # Will be set later from actual stock batch
                 "quantity": float(quantity),
                 "unit_price": float(unit_price),
                 "discount_amount": float(discount),
@@ -560,7 +560,7 @@ class SalesInvoiceService:
             unit_price = Decimal(str(item_data.get("unit_price", 0)))
             discount = Decimal(str(item_data.get("discount_amount", 0)))
             tax = Decimal(str(item_data.get("tax_amount", 0)))
-            batch_id = item_data.get("batch_id")
+            batch_id = None  # Will be set later from actual stock batch
             
             if not item_id or quantity <= 0:
                 raise ValidationError(f"Invalid quantity for item {item_id}")
@@ -595,7 +595,7 @@ class SalesInvoiceService:
             
             validated_items.append({
                 "item_id": item_id,
-                "batch_id": batch_id,
+                "batch_id": None,  # Will be set later from actual stock batch
                 "quantity": float(quantity),
                 "unit_price": float(unit_price),
                 "discount_amount": float(discount),

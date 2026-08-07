@@ -1,13 +1,12 @@
 ```
+# Compiled Python files
+*.pyc
+__pycache__/
+
 # Logs
 *.log
 logs/
 
-# Database
-*.db
-
-# Environment
-.env
-.env.local
-*.env.*
+# Database (if it's a generated/build artifact)
+data/erp.db
 ```

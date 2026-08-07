@@ -51,3 +51,9 @@
 2026-08-07 19:20:58 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:12) [PI-TEST-12] | Details: {'supplier=Naveed Traders total=12500.0 items=1 payment=CASH'}
 2026-08-07 19:20:58 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:15) [SI-TEST-15] | Details: {'customer=Ali Ahmed total=18750.0 items=1 payment=CREDIT'}
 2026-08-07 19:20:58 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:16) [SI-TEST-16] | Details: {'customer=Ali Ahmed total=11250.0 items=1 payment=CASH'}
+2026-08-07 19:40:01 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:20) [CUST-00010] | Details: {'name=Test Customer 16 credit_limit=50000.0'}
+2026-08-07 19:40:01 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:21) [SUPP-00010] | Details: {'name=Test Supplier 17 credit_limit=100000.0'}
+2026-08-07 19:40:01 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:13) [PI-TEST-13] | Details: {'supplier=Naveed Traders total=25000.0 items=1 payment=CREDIT'}
+2026-08-07 19:40:01 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:14) [PI-TEST-14] | Details: {'supplier=Naveed Traders total=12500.0 items=1 payment=CASH'}
+2026-08-07 19:40:01 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:17) [SI-TEST-17] | Details: {'customer=Ali Ahmed total=18750.0 items=1 payment=CREDIT'}
+2026-08-07 19:40:01 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:18) [SI-TEST-18] | Details: {'customer=Ali Ahmed total=11250.0 items=1 payment=CASH'}
