@@ -147,6 +147,7 @@ class SQLiteCloudConnection(DatabaseConnection):
         self._config = config or get_config().database
         self._connection_string = self._get_connection_string()
         init_pool(self._connection_string)
+        self._transaction_conn = None  # Hold connection during transaction
         logger.info("✅ SQLiteCloudConnection initialized (direct mode)")
 
     def _get_connection_string(self) -> str:
@@ -159,10 +160,15 @@ class SQLiteCloudConnection(DatabaseConnection):
         return connection_string
 
     def _get_cached_connection(self):
+        # If we're in a transaction, reuse the same connection
+        if self._transaction_conn is not None:
+            return self._transaction_conn
         return get_pool().get_connection()
 
     def _return_connection(self, conn):
-        get_pool().return_connection(conn)
+        # Don't return connection to pool if we're in a transaction
+        if self._transaction_conn is None:
+            get_pool().return_connection(conn)
 
     def fetch_all(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
         """Fetch all - direct connection."""
@@ -265,8 +271,10 @@ class SQLiteCloudConnection(DatabaseConnection):
         conn = self._get_cached_connection()
         try:
             conn.execute("BEGIN")
-            # Yield the raw connection so it can be used for inserts within the transaction
-            yield conn
+            # Hold the connection for the duration of the transaction
+            self._transaction_conn = conn
+            # Yield self (the wrapper) so fetch_one, execute, etc. work within transactions
+            yield self
             conn.execute("COMMIT")
         except sqlitecloud.Error as exc:
             try:
@@ -283,6 +291,7 @@ class SQLiteCloudConnection(DatabaseConnection):
             logger.error("Transaction rolled back: %s", exc)
             raise
         finally:
+            self._transaction_conn = None
             self._return_connection(conn)
 
     def close(self) -> None:
