@@ -1,12 +1,13 @@
 ```
-# Compiled Python files
-*.pyc
-__pycache__/
-
 # Logs
 *.log
 logs/
 
 # Database
-data/erp.db
+*.db
+
+# Environment
+.env
+.env.local
+*.env.*
 ```
