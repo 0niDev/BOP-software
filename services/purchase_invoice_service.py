@@ -516,7 +516,7 @@ class PurchaseInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
-                "batch_id": None  # Don't set batch_id for updates either - let _update_stock handle it,
+                "batch_id": None,  # Don't set batch_id for updates either - let _update_stock handle it
                 "batch_number": item_data.get("batch_number"),
                 "manufacturing_date": item_data.get("manufacturing_date"),
                 "expiry_date": item_data.get("expiry_date")
