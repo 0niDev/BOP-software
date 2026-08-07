@@ -11,6 +11,7 @@ from repositories.party_repository import PartyRepository
 from repositories.account_repository import AccountRepository
 from utils.exceptions import ValidationError
 from utils.logger import get_logger
+from utils.activity_logger import log_payment_created
 
 logger = get_logger(__name__)
 
@@ -143,6 +144,15 @@ class PaymentService:
                 logger.warning(f"Could not invalidate dashboard cache: {e}")
             
             logger.info(f"Payment {voucher_number} recorded: Rs. {amount:,.2f} to {supplier['name']}")
+            
+            # Log activity
+            log_payment_created(
+                payment_id=payment_id,
+                payment_type="PAYMENT",
+                amount=amount,
+                party_name=supplier['name'],
+            )
+            
             return payment_id
 
     def receive_payment(
@@ -262,4 +272,13 @@ class PaymentService:
                 logger.warning(f"Could not invalidate dashboard cache: {e}")
             
             logger.info(f"Receipt {voucher_number} recorded: Rs. {amount:,.2f} from {customer['name']}")
+            
+            # Log activity
+            log_payment_created(
+                payment_id=receipt_id,
+                payment_type="RECEIPT",
+                amount=amount,
+                party_name=customer['name'],
+            )
+            
             return receipt_id
