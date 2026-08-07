@@ -369,6 +369,11 @@ class SalesInvoiceView(QWidget):
         self._customers_cache = []
         self._invoice_load_thread = None
         self._customer_load_thread = None
+        self._refresh_timer = QTimer(self)  # Debounce timer for refresh
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(300)  # 300ms debounce
+        self._refresh_timer.timeout.connect(self._do_refresh)
+        self._is_refreshing = False
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -538,11 +543,22 @@ class SalesInvoiceView(QWidget):
         """Handle invoices loaded from background thread."""
         if error:
             QMessageBox.warning(self, "Load Error", error)
+            self._refresh_done()
             return
         
         logger.info(f"Loaded {len(invoices)} invoices")
         self._invoices_cache = invoices
         self._populate_invoice_table()
+        self._refresh_done()
+    
+    def _refresh_done(self):
+        """Called when each refresh operation completes."""
+        if hasattr(self, '_pending_loads') and self._pending_loads > 0:
+            self._pending_loads -= 1
+            # Only re-enable button when all loads are complete
+            if self._pending_loads > 0:
+                return
+        self._on_refresh_complete()
     
     def _load_invoices(self):
         """Synchronous wrapper for backward compatibility."""
@@ -592,12 +608,14 @@ class SalesInvoiceView(QWidget):
         """Handle customers loaded from background thread."""
         if error:
             logger.error(f"Error loading customers: {error}")
+            self._refresh_done()
             return
         
         logger.info(f"Loaded {len(parties)} customers")
         self._customers_cache = parties
         self._all_customers = parties
         self._populate_customer_dropdown()
+        self._refresh_done()
     
     def _populate_customer_dropdown(self):
         """Populate customer dropdown with cached data."""
@@ -662,20 +680,33 @@ class SalesInvoiceView(QWidget):
         self._load_invoices()
     
     def _on_refresh_clicked(self) -> None:
-        """Refresh invoices, customers, and items in the background."""
-        # Disable button temporarily to prevent multiple clicks
+        """Handle refresh button click with debouncing to prevent spam."""
+        # If already refreshing, just restart the timer (debounce)
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+        
+        # Start debounce timer - actual refresh happens after 300ms of no clicks
+        self._refresh_timer.start()
+        
+        # Show loading state immediately
         self.refresh_button.setEnabled(False)
         self.refresh_button.setText("⏳ Loading...")
+    
+    def _do_refresh(self) -> None:
+        """Actually perform the refresh operation (called after debounce)."""
+        if self._is_refreshing:
+            return
+        
+        self._is_refreshing = True
+        self._pending_loads = 2  # Track both customers and invoices loads
         
         # Load all data asynchronously
         self._load_customers_async()
         self._load_invoices_async()
-        
-        # Re-enable button after a short delay (data loads in background)
-        QTimer.singleShot(500, lambda: self._on_refresh_complete())
     
     def _on_refresh_complete(self):
         """Re-enable refresh button after loading completes."""
+        self._is_refreshing = False
         self.refresh_button.setEnabled(True)
         self.refresh_button.setText("🔄 Refresh")
 
