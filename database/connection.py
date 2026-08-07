@@ -265,7 +265,8 @@ class SQLiteCloudConnection(DatabaseConnection):
         conn = self._get_cached_connection()
         try:
             conn.execute("BEGIN")
-            yield self
+            # Yield the raw connection so it can be used for inserts within the transaction
+            yield conn
             conn.execute("COMMIT")
         except sqlitecloud.Error as exc:
             try:

@@ -1195,3 +1195,26 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-07 18:24:18,947 | INFO     | erp.services.accounting_service | Posted journal entry #17 (JOURNAL) voucher=JV-00008 amount=7500.00
 2026-08-07 18:24:18,947 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-6
 2026-08-07 18:24:18,947 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-6 for customer 2 (id=6) - Payment: CASH
+2026-08-07 18:31:37,790 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00005
+2026-08-07 18:31:37,790 | INFO     | erp.services.party_service | Created party CUST-00005 - Test Customer 6 (id=10)
+2026-08-07 18:31:37,790 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00005
+2026-08-07 18:31:37,791 | INFO     | erp.services.party_service | Created party SUPP-00005 - Test Supplier 7 (id=11)
+2026-08-07 18:31:37,792 | INFO     | erp.services.purchase_invoice_service | 🔧 CREDIT purchase - party_id=3
+2026-08-07 18:31:37,792 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-3-20260807183137 with id=3: 10.0
+2026-08-07 18:31:37,792 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +10.0 (batch_id=3)
+2026-08-07 18:31:37,792 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 20.0
+2026-08-07 18:31:37,793 | INFO     | erp.services.accounting_service | Posted journal entry #18 (PURCHASE) voucher=PI-00002 amount=25000.00
+2026-08-07 18:31:37,793 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-2 for supplier 3 (id=2)
+2026-08-07 18:31:37,794 | INFO     | erp.services.purchase_invoice_service | Updated existing batch PURCHASE-3-20260807183137: 25.0
+2026-08-07 18:31:37,794 | INFO     | erp.services.purchase_invoice_service | Updating stock for RAW-001: +5.0 (batch_id=3)
+2026-08-07 18:31:37,794 | INFO     | erp.services.purchase_invoice_service | Updated stock for RAW-001: 30.0
+2026-08-07 18:31:37,794 | INFO     | erp.services.accounting_service | Posted journal entry #19 (PURCHASE) voucher=PI-00003 amount=12500.00
+2026-08-07 18:31:37,794 | INFO     | erp.services.purchase_invoice_service | Created purchase invoice PI-TEST-3 for supplier 3 (id=3)
+2026-08-07 18:31:37,805 | INFO     | erp.services.accounting_service | Posted journal entry #20 (SALES) voucher=SI-00007 amount=18750.00
+2026-08-07 18:31:37,805 | INFO     | erp.services.accounting_service | Posted journal entry #21 (JOURNAL) voucher=JV-00009 amount=12500.00
+2026-08-07 18:31:37,805 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 12,500.00 for invoice SI-TEST-7
+2026-08-07 18:31:37,805 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-7 for customer 2 (id=7) - Payment: CREDIT
+2026-08-07 18:31:37,807 | INFO     | erp.services.accounting_service | Posted journal entry #22 (SALES) voucher=SI-00008 amount=11250.00
+2026-08-07 18:31:37,807 | INFO     | erp.services.accounting_service | Posted journal entry #23 (JOURNAL) voucher=JV-00010 amount=7500.00
+2026-08-07 18:31:37,807 | INFO     | erp.services.sales_invoice_service | ✅ Posted COGS: Rs. 7,500.00 for invoice SI-TEST-8
+2026-08-07 18:31:37,807 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-TEST-8 for customer 2 (id=8) - Payment: CASH
