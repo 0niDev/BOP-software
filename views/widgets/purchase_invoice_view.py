@@ -534,6 +534,7 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_invoices_loaded(self, invoices, error):
         """Handle invoices loaded from background thread."""
+        logger.debug(f"Invoices loaded - error: {bool(error)}, count: {len(invoices) if invoices else 0}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
         if error:
             QMessageBox.warning(self, "Load Error", error)
             self._check_refresh_complete()
@@ -586,6 +587,7 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_suppliers_loaded(self, parties, error):
         """Handle suppliers loaded from background thread."""
+        logger.debug(f"Suppliers loaded - error: {bool(error)}, count: {len(parties) if parties else 0}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
         if error:
             logger.error(f"Error loading suppliers: {error}")
             self._check_refresh_complete()
@@ -599,12 +601,18 @@ class PurchaseInvoiceView(QWidget):
     
     def _check_refresh_complete(self):
         """Check if both invoice and supplier loads are complete to re-enable refresh button."""
+        current_pending = getattr(self, '_pending_loads', 0)
+        logger.debug(f"_check_refresh_complete called - pending_loads: {current_pending}")
+        
         if hasattr(self, '_pending_loads') and self._pending_loads > 0:
             self._pending_loads -= 1
+            logger.debug(f"Decremented pending_loads to: {self._pending_loads}")
             # Only re-enable button when all loads are complete
             if self._pending_loads > 0:
+                logger.debug(f"Still waiting for {self._pending_loads} load(s) to complete")
                 return
         
+        logger.debug("All loads complete, calling _on_refresh_complete")
         self._on_refresh_complete()
     
     def _populate_supplier_dropdown(self):
@@ -671,6 +679,8 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_refresh_clicked(self) -> None:
         """Refresh invoices, suppliers, and items in the background with debouncing."""
+        logger.debug(f"_on_refresh_clicked - refresh_in_progress: {self._refresh_in_progress}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        
         if self._refresh_in_progress:
             # If refresh is already in progress, mark a pending refresh
             self._pending_refresh = True
@@ -679,6 +689,7 @@ class PurchaseInvoiceView(QWidget):
         
         self._refresh_in_progress = True
         self._pending_loads = 2  # Track both suppliers and invoices loads
+        logger.debug(f"Set pending_loads to {self._pending_loads}")
         self.refresh_button.setEnabled(False)
         self.refresh_button.setText("⏳ Loading...")
         
