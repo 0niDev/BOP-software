@@ -77,6 +77,9 @@ def fetch_all_items_with_stock(
     
     logger.debug(f"Fetching items with stock for company {company_id}")
     logger.debug(f"Query: {query}")
+    
+    # Clear cache to force fresh data
+    cache_mgr.clear()
     items = db.fetch_all(query, (company_id,))
     
     logger.debug(f"fetch_all_items_with_stock: Retrieved {len(items)} items from database")
