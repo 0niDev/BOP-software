@@ -369,12 +369,23 @@ class OpeningBalanceDialog(QDialog):
 
             import datetime
             logger.error(f"OpeningBalanceDialog._save() calling post_journal_entry with voucher_type=OPENING, date={datetime.date.today().isoformat()}, lines={len(journal_lines)}")
-            self.accounting.post_journal_entry(
-                voucher_type=VoucherType.OPENING,
-                entry_date=datetime.date.today().isoformat(),
-                lines=journal_lines,
-                narration="Opening balances setup"
-            )
+            
+            # Wrap journal entry posting in a transaction
+            db = get_db()
+            try:
+                with db.transaction():
+                    logger.error("OpeningBalanceDialog._save() STARTING transaction for journal entry")
+                    self.accounting.post_journal_entry(
+                        voucher_type=VoucherType.OPENING,
+                        entry_date=datetime.date.today().isoformat(),
+                        lines=journal_lines,
+                        narration="Opening balances setup"
+                    )
+                    logger.error("OpeningBalanceDialog._save() journal entry posted SUCCESSFULLY within transaction")
+            except Exception as e:
+                logger.error(f"OpeningBalanceDialog._save() FAILED to post journal entry: {e}")
+                raise
+            
             logger.error("OpeningBalanceDialog._save() journal entry posted SUCCESSFULLY")
             
             # Update the accounts.opening_balance field for each account
