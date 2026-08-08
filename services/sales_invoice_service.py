@@ -469,9 +469,13 @@ class SalesInvoiceService:
             raise ValidationError(f"Sales invoice {invoice_id} not found.")
         
         # Get customer for narration
-        customer = self.party_repo.get_by_id(customer_id)
-        if not customer:
+        customer_dict = self.party_repo.get_by_id(customer_id)
+        if not customer_dict:
             raise ValidationError(f"Customer {customer_id} not found.")
+        
+        # Convert to Party object for consistent access
+        from models.party import Party
+        customer = Party.from_row(customer_dict)
         
         # Check if invoice number is being changed and validate uniqueness
         if existing_invoice.invoice_number != invoice_number:
