@@ -248,7 +248,7 @@ class MainWindow(QMainWindow):
             self._loading_overlay.setObjectName("loadingOverlay")
             self._loading_overlay.setStyleSheet("""
                 QWidget#loadingOverlay {
-                    background-color: rgba(0, 0, 0, 180);
+                    background-color: rgba(0, 0, 0, 200);
                 }
             """)
             
@@ -256,24 +256,25 @@ class MainWindow(QMainWindow):
             overlay_layout = QVBoxLayout(self._loading_overlay)
             overlay_layout.setAlignment(Qt.AlignCenter)
             
-            # Loading label
+            # Loading label - larger and more prominent
             loading_label = QLabel(message)
             loading_label.setStyleSheet("""
                 color: #ffffff;
-                font-size: 18px;
+                font-size: 22px;
                 font-weight: bold;
-                padding: 20px;
+                padding: 30px;
             """)
             loading_label.setAlignment(Qt.AlignCenter)
             overlay_layout.addWidget(loading_label)
             
-            # Progress bar (indeterminate)
+            # Progress bar (indeterminate) - larger
             progress_bar = QProgressBar()
             progress_bar.setRange(0, 0)  # Indeterminate mode
-            progress_bar.setFixedWidth(300)
+            progress_bar.setFixedWidth(400)
+            progress_bar.setFixedHeight(20)
             progress_bar.setStyleSheet("""
                 QProgressBar {
-                    background-color: rgba(255, 255, 255, 50);
+                    background-color: rgba(255, 255, 255, 60);
                     border-radius: 10px;
                     padding: 3px;
                 }
@@ -289,15 +290,8 @@ class MainWindow(QMainWindow):
             self._loading_overlay.raise_()
             self._loading_overlay.show()
             
-            # Fade in animation
-            opacity_effect = QGraphicsOpacityEffect(self._loading_overlay)
-            self._loading_overlay.setGraphicsEffect(opacity_effect)
-            fade_in = QPropertyAnimation(opacity_effect, b"opacity")
-            fade_in.setDuration(200)
-            fade_in.setStartValue(0.0)
-            fade_in.setEndValue(1.0)
-            fade_in.setEasingCurve(QEasingCurve.InOutQuad)
-            fade_in.start()
+            # NO fade-in animation - show instantly for immediate feedback
+            # Overlay is now immediately visible and interactive-blocking
         else:
             # Update message if overlay already exists
             label = self._loading_overlay.findChild(QLabel)
@@ -308,19 +302,9 @@ class MainWindow(QMainWindow):
     def hide_loading_overlay(self) -> None:
         """Hide the loading overlay."""
         if self._loading_overlay:
-            # Fade out animation
-            opacity_effect = self._loading_overlay.graphicsEffect()
-            if opacity_effect:
-                fade_out = QPropertyAnimation(opacity_effect, b"opacity")
-                fade_out.setDuration(200)
-                fade_out.setStartValue(1.0)
-                fade_out.setEndValue(0.0)
-                fade_out.setEasingCurve(QEasingCurve.InOutQuad)
-                fade_out.finished.connect(self._on_overlay_hidden)
-                fade_out.start()
-            else:
-                self._loading_overlay.deleteLater()
-                self._loading_overlay = None
+            # NO fade-out animation - hide instantly for immediate feedback
+            self._loading_overlay.deleteLater()
+            self._loading_overlay = None
     
     def _on_overlay_hidden(self):
         """Called when overlay fade-out animation completes."""
