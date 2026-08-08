@@ -321,6 +321,8 @@ class SQLiteCloudConnection(DatabaseConnection):
                 conn = self._get_cached_connection()
                 cursor = conn.execute(sql, params)
                 if return_cursor:
+                    # Don't commit or return connection to pool - caller will handle it
+                    # This is needed for operations like INSERT followed by last_insert_rowid()
                     return cursor
                 else:
                     # For INSERT/UPDATE/DELETE, commit and return rowcount
@@ -358,7 +360,9 @@ class SQLiteCloudConnection(DatabaseConnection):
                     logger.error("SQL execute failed: %s | sql=%s", exc, sql)
                     raise DatabaseError(str(exc)) from exc
             finally:
-                if conn:
+                # Only return connection to pool if not returning cursor
+                # (caller must handle cursor/connection cleanup when return_cursor=True)
+                if conn and not return_cursor:
                     self._return_connection(conn)
         
         # Should never reach here, but just in case
