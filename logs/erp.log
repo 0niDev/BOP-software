@@ -2487,3 +2487,35 @@ utils.exceptions.DatabaseError: FOREIGN KEY constraint failed
 2026-08-08 04:20:46,128 | INFO     | erp.database.connection | SQLite Cloud connections closed
 2026-08-08 04:20:46,134 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
 2026-08-08 04:20:46,134 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-08 14:09:29,395 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-08 14:09:29,395 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-08 14:09:29,397 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-08 14:09:29,401 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-08 14:09:29,402 | INFO     | erp.__main__ | Starting application...
+2026-08-08 14:09:33,325 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-08 14:09:44,451 | WARNING  | erp.authentication.auth_service | Failed login attempt for username=admin
+2026-08-08 14:09:51,628 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-08 14:09:52,221 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-08 14:09:52,223 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-08 14:09:52,235 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-08 14:09:56,278 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-08 14:09:58,342 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-08 14:10:00,383 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-08 14:10:02,407 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-08 14:10:04,592 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-08 14:10:04,592 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-08 14:10:26,651 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-08 14:10:31,666 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-08 14:10:31,724 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-08 14:10:32,599 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-08 14:10:32,600 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-08 14:10:32,601 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-08 14:10:32,605 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-08 14:10:32,606 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-08 14:11:08,701 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-08 14:11:08,703 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-08 14:11:08,706 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-08 14:11:08,727 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-08 14:11:08,731 | INFO     | erp.__main__ | Starting application...
+2026-08-08 14:11:10,120 | ERROR    | erp.database.connection | SQLite Cloud fetch_one failed: no such table: users | sql=SELECT 1 FROM users LIMIT 1
+2026-08-08 14:11:10,121 | INFO     | erp.database.migrations.migrator | Running schema migration...
