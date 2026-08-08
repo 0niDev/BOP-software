@@ -3,7 +3,7 @@ Main application window with role-based navigation.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QSizePolicy,
+    QProgressBar,
+    QGraphicsOpacityEffect,
 )
 
 from config.app_config import get_config
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
         self.auth_controller = auth_controller
         self._pages: dict[str, QWidget] = {}
         self._nav_items = self._get_filtered_nav_items()
+        self._loading_overlay = None  # Overlay for invoice creation
         
         # Build UI fast - no data loading
         self._build_ui()
@@ -236,6 +239,94 @@ class MainWindow(QMainWindow):
         self._pages[key] = page
         self.stack.addWidget(page)
         return page
+
+    def show_loading_overlay(self, message: str = "Processing...") -> None:
+        """Show a loading overlay to block user interaction during critical operations."""
+        if self._loading_overlay is None:
+            # Create overlay widget
+            self._loading_overlay = QWidget(self)
+            self._loading_overlay.setObjectName("loadingOverlay")
+            self._loading_overlay.setStyleSheet("""
+                QWidget#loadingOverlay {
+                    background-color: rgba(0, 0, 0, 180);
+                }
+            """)
+            
+            # Layout for overlay
+            overlay_layout = QVBoxLayout(self._loading_overlay)
+            overlay_layout.setAlignment(Qt.AlignCenter)
+            
+            # Loading label
+            loading_label = QLabel(message)
+            loading_label.setStyleSheet("""
+                color: #ffffff;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 20px;
+            """)
+            loading_label.setAlignment(Qt.AlignCenter)
+            overlay_layout.addWidget(loading_label)
+            
+            # Progress bar (indeterminate)
+            progress_bar = QProgressBar()
+            progress_bar.setRange(0, 0)  # Indeterminate mode
+            progress_bar.setFixedWidth(300)
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    background-color: rgba(255, 255, 255, 50);
+                    border-radius: 10px;
+                    padding: 3px;
+                }
+                QProgressBar::chunk {
+                    background-color: #3498db;
+                    border-radius: 7px;
+                }
+            """)
+            overlay_layout.addWidget(progress_bar)
+            
+            # Set geometry to cover entire window
+            self._loading_overlay.setGeometry(self.rect())
+            self._loading_overlay.raise_()
+            self._loading_overlay.show()
+            
+            # Fade in animation
+            opacity_effect = QGraphicsOpacityEffect(self._loading_overlay)
+            self._loading_overlay.setGraphicsEffect(opacity_effect)
+            fade_in = QPropertyAnimation(opacity_effect, b"opacity")
+            fade_in.setDuration(200)
+            fade_in.setStartValue(0.0)
+            fade_in.setEndValue(1.0)
+            fade_in.setEasingCurve(QEasingCurve.InOutQuad)
+            fade_in.start()
+        else:
+            # Update message if overlay already exists
+            label = self._loading_overlay.findChild(QLabel)
+            if label:
+                label.setText(message)
+            self._loading_overlay.raise_()
+
+    def hide_loading_overlay(self) -> None:
+        """Hide the loading overlay."""
+        if self._loading_overlay:
+            # Fade out animation
+            opacity_effect = self._loading_overlay.graphicsEffect()
+            if opacity_effect:
+                fade_out = QPropertyAnimation(opacity_effect, b"opacity")
+                fade_out.setDuration(200)
+                fade_out.setStartValue(1.0)
+                fade_out.setEndValue(0.0)
+                fade_out.setEasingCurve(QEasingCurve.InOutQuad)
+                fade_out.finished.connect(self._loading_overlay.deleteLater)
+                fade_out.start()
+            else:
+                self._loading_overlay.deleteLater()
+            self._loading_overlay = None
+
+    def resizeEvent(self, event):
+        """Handle window resize to adjust overlay."""
+        super().resizeEvent(event)
+        if self._loading_overlay:
+            self._loading_overlay.setGeometry(self.rect())
 
 
     def _on_logout(self) -> None:
