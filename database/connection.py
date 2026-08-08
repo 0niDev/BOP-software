@@ -59,10 +59,37 @@ class ConnectionPool:
             
             if not self._connection_string:
                 raise RuntimeError("Connection string not set")
-            conn = sqlitecloud.connect(self._connection_string)
-            # Optimize connection settings for network latency
-            conn.execute("PRAGMA busy_timeout = 5000")
-            return conn
+            
+            # Retry logic for transient connection errors
+            retry_count = 0
+            max_retries = 3
+            last_error = None
+            
+            while retry_count < max_retries:
+                try:
+                    conn = sqlitecloud.connect(self._connection_string)
+                    # Optimize connection settings for network latency
+                    conn.execute("PRAGMA busy_timeout = 5000")
+                    return conn
+                except sqlitecloud.Error as e:
+                    last_error = e
+                    error_msg = str(e)
+                    
+                    # Don't retry on permanent errors like "database does not exist"
+                    if "does not exist" in error_msg:
+                        logger.error(f"Database does not exist: {error_msg}")
+                        raise
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed to connect after {max_retries} retries: {last_error}")
+                        raise
+                    
+                    logger.warning(f"Connection attempt {retry_count} failed ({last_error}), retrying in 2 seconds...")
+                    time.sleep(2)
+            
+            # Should never reach here, but just in case
+            raise last_error
     
     def return_connection(self, conn) -> None:
         if conn is None:
