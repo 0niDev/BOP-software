@@ -316,10 +316,16 @@ class MainWindow(QMainWindow):
                 fade_out.setStartValue(1.0)
                 fade_out.setEndValue(0.0)
                 fade_out.setEasingCurve(QEasingCurve.InOutQuad)
-                fade_out.finished.connect(self._loading_overlay.deleteLater)
+                fade_out.finished.connect(self._on_overlay_hidden)
                 fade_out.start()
             else:
                 self._loading_overlay.deleteLater()
+                self._loading_overlay = None
+    
+    def _on_overlay_hidden(self):
+        """Called when overlay fade-out animation completes."""
+        if self._loading_overlay:
+            self._loading_overlay.deleteLater()
             self._loading_overlay = None
 
     def resizeEvent(self, event):
