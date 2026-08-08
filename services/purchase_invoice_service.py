@@ -200,14 +200,17 @@ class PurchaseInvoiceService:
             item_dict = self.item_master_repo.get_by_id(item_id)
             if not item_dict:
                 raise ValidationError(f"Item {item_id} does not exist.")
-            item = Item.from_row(item_dict)
             
-            if not item.is_active:
-                raise ValidationError(f"Item {item.item_name} is not active.")
+            # Access dictionary keys directly since get_by_id returns a dict
+            item_name = item_dict['item_name']
+            is_active = item_dict['is_active']
+            
+            if not is_active:
+                raise ValidationError(f"Item {item_name} is not active.")
             
             line_total = (quantity * unit_cost) - discount + tax
             if line_total < 0:
-                raise ValidationError(f"Line total cannot be negative for item {item.item_name}")
+                raise ValidationError(f"Line total cannot be negative for item {item_name}")
             
             validated_items.append({
                 "item_id": item_id,
