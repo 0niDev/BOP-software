@@ -11,6 +11,7 @@ class PurchaseInvoice:
     supplier_id: int
     invoice_date: str
     payment_type: str = "CREDIT"
+    bank_account_id: int | None = None
     subtotal: float = 0.0
     discount_amount: float = 0.0
     tax_amount: float = 0.0
@@ -48,7 +49,7 @@ class PurchaseInvoice:
         )
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "company_id": self.company_id,
             "warehouse_id": self.warehouse_id,
             "invoice_number": self.invoice_number,
@@ -63,4 +64,8 @@ class PurchaseInvoice:
             "status": self.status,
             "notes": self.notes,
             "created_by": self.created_by,
-        }   
+        }
+        # Only include bank_account_id if it's set (for CASH/BANK/CHEQUE payments)
+        if self.bank_account_id is not None:
+            data["bank_account_id"] = self.bank_account_id
+        return data

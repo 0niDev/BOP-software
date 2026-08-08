@@ -54,7 +54,7 @@ class SalesInvoice:
 
     def to_dict(self) -> dict:
         """Converts to dict for repository insert."""
-        return {
+        data = {
             "company_id": self.company_id,
             "warehouse_id": self.warehouse_id,
             "invoice_number": self.invoice_number,
@@ -70,6 +70,10 @@ class SalesInvoice:
             "notes": self.notes,
             "created_by": self.created_by,
         }
+        # Only include bank_account_id if it's set (for CASH/BANK/CHEQUE payments)
+        if self.bank_account_id is not None:
+            data["bank_account_id"] = self.bank_account_id
+        return data
 
 
 @dataclass
