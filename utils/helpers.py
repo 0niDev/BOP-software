@@ -69,14 +69,19 @@ def fetch_all_items_with_stock(
             COALESCE(MIN(sb.expiry_date), NULL) as earliest_expiry,
             COUNT(DISTINCT sb.id) as batch_count
         FROM items i
-        LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.quantity_in_stock > 0
+        LEFT JOIN stock_batches sb ON i.id = sb.item_id AND sb.is_active = 1
         WHERE i.company_id = ? {status_filter}
         GROUP BY i.id
         ORDER BY i.item_name
     """
     
     logger.debug(f"Fetching items with stock for company {company_id}")
+    logger.debug(f"Query: {query}")
     items = db.fetch_all(query, (company_id,))
+    
+    logger.debug(f"fetch_all_items_with_stock: Retrieved {len(items)} items from database")
+    for item in items:
+        logger.debug(f"  Item {item['id']}: {item['name']} - stock_qty={item.get('stock_qty', 0)}, batch_count={item.get('batch_count', 0)}")
     
     # Ensure all items have proper types
     for item in items:
