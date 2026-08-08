@@ -18,12 +18,17 @@ class BalanceSheetReport(Report):
         company_id = 1
 
         # ONE QUERY - gets all accounts with balances
+        # For ASSET/EXPENSE accounts: balance = debit - credit (debit is positive)
+        # For LIABILITY/EQUITY/REVENUE accounts: balance = credit - debit (credit is positive)
         rows = self.db.fetch_all("""
             SELECT 
                 a.account_code,
                 a.account_name,
                 a.account_type,
-                COALESCE(SUM(jel.debit - jel.credit), 0) as balance
+                CASE 
+                    WHEN a.account_type IN ('ASSET', 'EXPENSE') THEN COALESCE(SUM(jel.debit - jel.credit), 0)
+                    ELSE COALESCE(SUM(jel.credit - jel.debit), 0)
+                END as balance
             FROM accounts a
             LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
             LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.is_posted = 1
