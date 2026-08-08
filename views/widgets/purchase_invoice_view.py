@@ -863,6 +863,12 @@ class PurchaseInvoiceView(QWidget):
                 
         notes = self.notes_input.text().strip() or None
         
+        # Show loading overlay IMMEDIATELY to prevent any interaction (Fix #3: Loading overlay)
+        # This must happen BEFORE any validation or processing
+        if self._main_window:
+            operation_type = "Creating" if self._selected_invoice_id is None else "Updating"
+            self._main_window.show_loading_overlay(f"{operation_type} Purchase Invoice...")
+        
         items = []
         for row in range(self.items_table.rowCount()):
             item_name_item = self.items_table.item(row, 0)
@@ -889,23 +895,24 @@ class PurchaseInvoiceView(QWidget):
         if not items:
             QMessageBox.warning(self, "Input Error", "Please add at least one item to the invoice.")
             self._save_in_progress = False
+            # Hide overlay if validation fails
+            if self._main_window:
+                try:
+                    self._main_window.hide_loading_overlay()
+                except Exception as e:
+                    logger.error(f"Error hiding overlay: {e}")
             return
-        
-        # Store current form data before clearing
-        current_invoice_number = invoice_number
-        current_supplier_id = supplier_id
-        current_items = items.copy()
-        
-        # Show loading overlay to prevent user interaction during save (Fix #3: Loading overlay)
-        if self._main_window:
-            operation_type = "Creating" if self._selected_invoice_id is None else "Updating"
-            self._main_window.show_loading_overlay(f"{operation_type} Purchase Invoice...")
         
         # Disable save button briefly to prevent double-click on same data
         self.save_button.setEnabled(False)
         self.save_button.setText("Saving...")
         
-        # Clear form immediately so user can start new invoice
+        # Store current form data before clearing (must happen AFTER validation, BEFORE thread)
+        current_invoice_number = invoice_number
+        current_supplier_id = supplier_id
+        current_items = items.copy()
+        
+        # Clear form immediately so user can start new invoice (in background)
         QTimer.singleShot(0, self._clear_form)
         
         if self._selected_invoice_id is None:
@@ -950,9 +957,10 @@ class PurchaseInvoiceView(QWidget):
         self.save_button.setEnabled(True)
         self.save_button.setText("Save")
         
-        # Hide loading overlay (Fix #3: Loading overlay) - ALWAYS hide it
+        # Hide loading overlay IMMEDIATELY (Fix #3: Loading overlay) - MUST happen before any other UI updates
         if self._main_window:
             try:
+                # Use direct call without animation to ensure it disappears immediately
                 self._main_window.hide_loading_overlay()
             except Exception as e:
                 logger.error(f"Error hiding overlay: {e}")
