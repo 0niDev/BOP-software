@@ -47,14 +47,14 @@ class ItemLoadThread(QThread):
 class StockLoadThread(QThread):
     """Background thread for loading stock for multiple items."""
     
-    stocks_loaded = Signal(dict)  # item_id -> stock
+    stocks_loaded = Signal(object)  # item_id -> stock
     
     def __init__(self, controller, item_ids):
         super().__init__()
         self.controller = controller
-        self.item_ids = item_ids
-        # Ensure thread cleans up properly after finishing
-        self.finished.connect(self.deleteLater)
+        self.item_ids = list(item_ids)  # Make a copy of the list
+        # Do NOT use deleteLater - it destroys the object before the signal is delivered
+        # The parent will manage cleanup via _cleanup_stock_thread
     
     def run(self):
         try:
@@ -95,9 +95,8 @@ class StockLoadThread(QThread):
                     logger.debug(f"StockLoadThread: Item {item_id} not in results, setting stock to 0.0")
             
             logger.info(f"Loaded stocks for {len(stocks)} items using helper: {stocks}")
-            # Make a copy of the dict to ensure it persists after thread finishes
-            stocks_copy = dict(stocks)
-            self.stocks_loaded.emit(stocks_copy)
+            # Emit directly - the dict is already a new object
+            self.stocks_loaded.emit(stocks)
             
         except Exception as e:
             logger.exception(f"Error in stock load thread: {e}")
