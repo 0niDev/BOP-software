@@ -1,12 +1,12 @@
 ```
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Backup files
+backups/
 
 # Logs
 *.log
+<<<<<<< HEAD
+```
+=======
 
 # Environment
 .env
@@ -19,3 +19,4 @@ venv/
 ```logs/
 __pycache__/
 *.pyc
+>>>>>>> main
