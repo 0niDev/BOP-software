@@ -478,7 +478,7 @@ class SalesInvoiceService:
         
         # Get the existing journal entry to reverse it
         journal_entry = self.db.fetch_one("""
-            SELECT id, voucher_number, is_posted FROM journal_headers 
+            SELECT id, voucher_number, is_posted FROM journal_entries 
             WHERE source_table = 'sales_invoices' AND source_id = ?
         """, (invoice_id,))
         
@@ -486,7 +486,7 @@ class SalesInvoiceService:
             # Reverse the journal entry by creating a reversing entry
             journal_lines = self.db.fetch_all("""
                 SELECT account_id, debit, credit, description, party_id 
-                FROM journal_lines WHERE journal_entry_id = ?
+                FROM journal_entry_lines WHERE journal_entry_id = ?
             """, (journal_entry['id'],))
             
             # Create reversing lines (swap debit/credit)
