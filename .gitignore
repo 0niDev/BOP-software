@@ -16,12 +16,7 @@ env/
 # Logs
 *.log
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# IDE
+# Editor
 .vscode/
 .idea/
 *.swp
@@ -29,15 +24,11 @@ htmlcov/
 *.tmp
 
 # Build artifacts
-dist/
 build/
-*.so
-*.dylib
-*.dll
-*.exe
-*.out
-
-# Testing
-.pytest_cache/
+dist/
+*.egg-info/
+.coverage
+htmlcov/
 .mypy_cache/
+.pytest_cache/
 ```

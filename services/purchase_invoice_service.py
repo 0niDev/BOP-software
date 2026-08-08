@@ -521,6 +521,7 @@ class PurchaseInvoiceService:
         # Restore stock for existing invoice items
         existing_items = self.item_repo.find_by_invoice_id(invoice_id)
         batch_cache = {}
+        item_cache = {}
         for item in existing_items:
             # Get or create batch for restoration (using negative quantity to reverse)
             batch_id = self._get_or_create_batch(
@@ -540,7 +541,8 @@ class PurchaseInvoiceService:
                     quantity=-item['quantity'],  # Negative to reverse
                     unit_cost=item['unit_cost'],
                     batch_id=batch_id,
-                    batch_cache=batch_cache
+                    batch_cache=batch_cache,
+                    item_cache=item_cache,
                 )
         logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
         
@@ -610,41 +612,59 @@ class PurchaseInvoiceService:
         self.invoice_repo.update(invoice_id, invoice_data)
         logger.info(f"Updated invoice header for {invoice_number}")
         
-        # Insert new invoice items
+        # Insert new invoice items AND add stock for new items
         items_data = []
-        for item_data in validated_items:
-            cache_key = f"{item_data['item_id']}_{warehouse_id}"
-            if cache_key not in batch_cache:
-                batch = self.stock_repo.find_by_item_and_warehouse(
-                    item_data['item_id'],
-                    warehouse_id
+        batch_cache = {}
+        item_cache = {}
+        
+        with self.db.transaction() as conn:
+            for item_data in validated_items:
+                # First create/get the batch and get its ID
+                batch_id = self._get_or_create_batch(
+                    item_id=item_data["item_id"],
+                    warehouse_id=warehouse_id,
+                    batch_number=item_data.get("batch_number"),
+                    manufacturing_date=item_data.get("manufacturing_date"),
+                    expiry_date=item_data.get("expiry_date"),
+                    purchase_price=item_data["unit_cost"],
+                    quantity=item_data["quantity"],
+                    conn=conn,
                 )
-                batch_cache[cache_key] = batch
-            
-            batch = batch_cache[cache_key]
-            batch_id = batch['id'] if batch else None
-            
-            clean_item_data = {
-                "invoice_id": invoice_id,
-                "item_id": item_data["item_id"],
-                "batch_id": batch_id,
-                "quantity": item_data["quantity"],
-                "unit_cost": item_data["unit_cost"],
-                "discount_amount": item_data["discount_amount"],
-                "tax_amount": item_data["tax_amount"],
-                "line_total": item_data["line_total"],
-                "batch_number": item_data.get("batch_number"),
-                "manufacturing_date": item_data.get("manufacturing_date"),
-                "expiry_date": item_data.get("expiry_date"),
-            }
-            items_data.append(clean_item_data)
+                
+                # Set batch_id for the invoice item
+                item_data["batch_id"] = batch_id
+                
+                clean_item_data = {
+                    "invoice_id": invoice_id,
+                    "item_id": item_data["item_id"],
+                    "batch_id": batch_id,
+                    "quantity": item_data["quantity"],
+                    "unit_cost": item_data["unit_cost"],
+                    "discount_amount": item_data["discount_amount"],
+                    "tax_amount": item_data["tax_amount"],
+                    "line_total": item_data["line_total"],
+                    "batch_number": item_data.get("batch_number"),
+                    "manufacturing_date": item_data.get("manufacturing_date"),
+                    "expiry_date": item_data.get("expiry_date"),
+                }
+                items_data.append(clean_item_data)
+                
+                # Insert the invoice item
+                item = PurchaseInvoiceItem(**clean_item_data)
+                self.item_repo.insert(item.to_dict())
+                
+                # Update stock quantity for the created batch
+                self._update_stock(
+                    item_id=item_data["item_id"],
+                    warehouse_id=warehouse_id,
+                    quantity=item_data["quantity"],
+                    unit_cost=item_data["unit_cost"],
+                    batch_id=batch_id,
+                    batch_cache=batch_cache,
+                    item_cache=item_cache,
+                )
         
-        for item_data in items_data:
-            item = PurchaseInvoiceItem(**item_data)
-            self.item_repo.insert(item.to_dict())
-        
-        # Add stock for new items
-        self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
+        logger.info(f"Added stock for new items in invoice {invoice_number}")
         
         # Create new journal entry
         account_codes_needed = ["1200"]  # Inventory
