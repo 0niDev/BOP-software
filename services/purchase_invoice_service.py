@@ -644,7 +644,15 @@ class PurchaseInvoiceService:
             self.item_repo.insert(item.to_dict())
         
         # Add stock for new items
-        self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
+        for item_data in items_data:
+            self._update_stock(
+                item_id=item_data["item_id"],
+                warehouse_id=warehouse_id,
+                quantity=item_data["quantity"],
+                unit_cost=item_data["unit_cost"],
+                batch_id=item_data["batch_id"],
+                batch_cache={}
+            )
         
         # Create new journal entry
         account_codes_needed = ["1200"]  # Inventory
