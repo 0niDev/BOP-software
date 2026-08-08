@@ -198,100 +198,261 @@ class SQLiteCloudConnection(DatabaseConnection):
             get_pool().return_connection(conn)
 
     def fetch_all(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
-        """Fetch all - direct connection."""
-        conn = self._get_cached_connection()
-        try:
-            cursor = conn.execute(sql, params)
-            rows = cursor.fetchall()
-            if not rows:
-                return []
-            if isinstance(rows[0], tuple):
-                columns = [desc[0] for desc in cursor.description]
-                return [dict(zip(columns, row)) for row in rows]
-            return rows
-        except sqlitecloud.Error as exc:
-            logger.error(f"SQLite Cloud fetch_all failed: {exc} | sql={sql}")
-            # Close problematic connection and re-raise
+        """Fetch all - direct connection with retry logic (Fix #2: Improve connection handling)."""
+        conn = None
+        retry_count = 0
+        max_retries = 3
+        last_error = None
+        
+        while retry_count < max_retries:
             try:
-                conn.close()
-            except Exception:
-                pass
-            raise
-        finally:
-            self._return_connection(conn)
+                conn = self._get_cached_connection()
+                cursor = conn.execute(sql, params)
+                rows = cursor.fetchall()
+                if not rows:
+                    return []
+                if isinstance(rows[0], tuple):
+                    columns = [desc[0] for desc in cursor.description]
+                    return [dict(zip(columns, row)) for row in rows]
+                return rows
+            except sqlitecloud.Error as exc:
+                error_msg = str(exc)
+                last_error = exc
+                
+                # Check if this is a connection-related error that can be retried
+                if any(keyword in error_msg.lower() for keyword in ['socket', 'ssl', 'connection', 'read', 'wrong version']):
+                    logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
+                    
+                    # Close problematic connection
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        conn = None
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed after {max_retries} retries: {last_error} | sql={sql}")
+                        raise
+                    
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    wait_time = 0.5 * (2 ** retry_count)  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    # Non-retriable error
+                    logger.error(f"SQLite Cloud fetch_all failed: {exc} | sql={sql}")
+                    raise
+            finally:
+                if conn:
+                    self._return_connection(conn)
+        
+        # Should never reach here, but just in case
+        raise last_error
 
     def fetch_one(self, sql: str, params: Sequence[Any] = ()) -> dict | None:
-        """Fetch one - direct connection."""
-        conn = self._get_cached_connection()
-        try:
-            cursor = conn.execute(sql, params)
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            if isinstance(row, tuple):
-                columns = [desc[0] for desc in cursor.description]
-                return dict(zip(columns, row))
-            return row
-        except sqlitecloud.Error as exc:
-            logger.error(f"SQLite Cloud fetch_one failed: {exc} | sql={sql}")
-            # Close problematic connection and re-raise
+        """Fetch one - direct connection with retry logic (Fix #2: Improve connection handling)."""
+        conn = None
+        retry_count = 0
+        max_retries = 3
+        last_error = None
+        
+        while retry_count < max_retries:
             try:
-                conn.close()
-            except Exception:
-                pass
-            raise
-        finally:
-            self._return_connection(conn)
+                conn = self._get_cached_connection()
+                cursor = conn.execute(sql, params)
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                if isinstance(row, tuple):
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, row))
+                return row
+            except sqlitecloud.Error as exc:
+                error_msg = str(exc)
+                last_error = exc
+                
+                # Check if this is a connection-related error that can be retried
+                if any(keyword in error_msg.lower() for keyword in ['socket', 'ssl', 'connection', 'read', 'wrong version']):
+                    logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
+                    
+                    # Close problematic connection
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        conn = None
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed after {max_retries} retries: {last_error} | sql={sql}")
+                        raise
+                    
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    wait_time = 0.5 * (2 ** retry_count)  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    # Non-retriable error
+                    logger.error(f"SQLite Cloud fetch_one failed: {exc} | sql={sql}")
+                    raise
+            finally:
+                if conn:
+                    self._return_connection(conn)
+        
+        # Should never reach here, but just in case
+        raise last_error
 
     def execute(self, sql: str, params: Sequence[Any] = ()):
-        """Execute SQL - direct connection."""
-        conn = self._get_cached_connection()
-        try:
-            return conn.execute(sql, params)
-        except sqlitecloud.Error as exc:
-            logger.error("SQL execute failed: %s | sql=%s", exc, sql)
-            # Close problematic connection and re-raise
+        """Execute SQL - direct connection with retry logic (Fix #2: Improve connection handling)."""
+        conn = None
+        retry_count = 0
+        max_retries = 3
+        last_error = None
+        
+        while retry_count < max_retries:
             try:
-                conn.close()
-            except Exception:
-                pass
-            raise DatabaseError(str(exc)) from exc
-        finally:
-            self._return_connection(conn)
+                conn = self._get_cached_connection()
+                return conn.execute(sql, params)
+            except sqlitecloud.Error as exc:
+                error_msg = str(exc)
+                last_error = exc
+                
+                # Check if this is a connection-related error that can be retried
+                if any(keyword in error_msg.lower() for keyword in ['socket', 'ssl', 'connection', 'read', 'wrong version']):
+                    logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
+                    
+                    # Close problematic connection
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        conn = None
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed after {max_retries} retries: {last_error} | sql={sql}")
+                        raise DatabaseError(str(last_error)) from last_error
+                    
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    wait_time = 0.5 * (2 ** retry_count)  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    # Non-retriable error
+                    logger.error("SQL execute failed: %s | sql=%s", exc, sql)
+                    raise DatabaseError(str(exc)) from exc
+            finally:
+                if conn:
+                    self._return_connection(conn)
+        
+        # Should never reach here, but just in case
+        raise DatabaseError(str(last_error)) from last_error
 
     def executemany(self, sql: str, seq_of_params: Sequence[Sequence[Any]]):
-        """Execute many - direct connection."""
-        conn = self._get_cached_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.executemany(sql, seq_of_params)
-            return cursor
-        except sqlitecloud.Error as exc:
-            logger.error("SQL executemany failed: %s | sql=%s", exc, sql)
-            # Close problematic connection and re-raise
+        """Execute many - direct connection with retry logic (Fix #2: Improve connection handling)."""
+        conn = None
+        retry_count = 0
+        max_retries = 3
+        last_error = None
+        
+        while retry_count < max_retries:
             try:
-                conn.close()
-            except Exception:
-                pass
-            raise DatabaseError(str(exc)) from exc
-        finally:
-            self._return_connection(conn)
+                conn = self._get_cached_connection()
+                cursor = conn.cursor()
+                cursor.executemany(sql, seq_of_params)
+                return cursor
+            except sqlitecloud.Error as exc:
+                error_msg = str(exc)
+                last_error = exc
+                
+                # Check if this is a connection-related error that can be retried
+                if any(keyword in error_msg.lower() for keyword in ['socket', 'ssl', 'connection', 'read', 'wrong version']):
+                    logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
+                    
+                    # Close problematic connection
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        conn = None
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed after {max_retries} retries: {last_error} | sql={sql}")
+                        raise DatabaseError(str(last_error)) from last_error
+                    
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    wait_time = 0.5 * (2 ** retry_count)  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    # Non-retriable error
+                    logger.error("SQL executemany failed: %s | sql=%s", exc, sql)
+                    raise DatabaseError(str(exc)) from exc
+            finally:
+                if conn:
+                    self._return_connection(conn)
+        
+        # Should never reach here, but just in case
+        raise DatabaseError(str(last_error)) from last_error
 
     def last_insert_id(self) -> int:
-        conn = self._get_cached_connection()
-        try:
-            cursor = conn.execute("SELECT last_insert_rowid()")
-            return cursor.fetchone()[0]
-        except sqlitecloud.Error as exc:
-            logger.error("SQL last_insert_id failed: %s", exc)
-            # Close problematic connection and re-raise
+        """Get last insert ID with retry logic (Fix #2: Improve connection handling)."""
+        conn = None
+        retry_count = 0
+        max_retries = 3
+        last_error = None
+        
+        while retry_count < max_retries:
             try:
-                conn.close()
-            except Exception:
-                pass
-            raise DatabaseError(str(exc)) from exc
-        finally:
-            self._return_connection(conn)
+                conn = self._get_cached_connection()
+                cursor = conn.execute("SELECT last_insert_rowid()")
+                return cursor.fetchone()[0]
+            except sqlitecloud.Error as exc:
+                error_msg = str(exc)
+                last_error = exc
+                
+                # Check if this is a connection-related error that can be retried
+                if any(keyword in error_msg.lower() for keyword in ['socket', 'ssl', 'connection', 'read', 'wrong version']):
+                    logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc}")
+                    
+                    # Close problematic connection
+                    if conn:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        conn = None
+                    
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f"Failed after {max_retries} retries: {last_error}")
+                        raise DatabaseError(str(last_error)) from last_error
+                    
+                    # Wait before retrying (exponential backoff)
+                    import time
+                    wait_time = 0.5 * (2 ** retry_count)  # 1s, 2s, 4s
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    # Non-retriable error
+                    logger.error("SQL last_insert_id failed: %s", exc)
+                    raise DatabaseError(str(exc)) from exc
+            finally:
+                if conn:
+                    self._return_connection(conn)
+        
+        # Should never reach here, but just in case
+        raise DatabaseError(str(last_error)) from last_error
 
     @contextmanager
     def transaction(self) -> Iterator["SQLiteCloudConnection"]:
