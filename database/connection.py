@@ -325,8 +325,8 @@ class SQLiteCloudConnection(DatabaseConnection):
                     # This is needed for operations like INSERT followed by last_insert_rowid()
                     return cursor
                 else:
-                    # For INSERT/UPDATE/DELETE, commit and return rowcount
-                    conn.commit()
+                    # Don't auto-commit - let explicit transaction() context manager handle commits
+                    # This prevents "cannot commit - no transaction is active" errors
                     return cursor.rowcount
             except sqlitecloud.Error as exc:
                 error_msg = str(exc)
