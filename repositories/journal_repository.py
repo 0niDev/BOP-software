@@ -75,7 +75,8 @@ class JournalRepository(BaseRepository):
         # Insert header - caller is responsible for wrapping in transaction if needed
         self.db.execute(
             f"INSERT INTO journal_entries ({col_names}) VALUES ({placeholders})",
-            values
+            values,
+            return_cursor=True
         )
         
         # Get the last inserted ID - must be done immediately after insert
