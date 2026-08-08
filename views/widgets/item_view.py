@@ -60,6 +60,7 @@ class StockLoadThread(QThread):
             from utils.helpers import fetch_all_items_with_stock
             
             logger.debug(f"StockLoadThread: Fetching stock for item_ids={self.item_ids}")
+            logger.debug(f"StockLoadThread: item_ids types={[type(x) for x in self.item_ids]}")
             
             # Fetch all items with stock in one optimized query
             items = fetch_all_items_with_stock(
@@ -74,14 +75,19 @@ class StockLoadThread(QThread):
             
             # Build stock map for requested item IDs only
             stocks = {}
+            # Convert item_ids to set of ints for faster lookup
+            requested_ids = set(int(x) for x in self.item_ids)
+            logger.debug(f"StockLoadThread: requested_ids={requested_ids}")
+            
             for item in items:
-                if item['id'] in self.item_ids:
+                item_id = int(item['id'])
+                if item_id in requested_ids:
                     stock_val = float(item.get('stock_qty', 0) or 0)
-                    stocks[item['id']] = stock_val
-                    logger.debug(f"StockLoadThread: Added item {item['id']} to stocks map with value {stock_val}")
+                    stocks[item_id] = stock_val
+                    logger.debug(f"StockLoadThread: Added item {item_id} to stocks map with value {stock_val}")
             
             # Ensure all requested item_ids have an entry (even if 0)
-            for item_id in self.item_ids:
+            for item_id in requested_ids:
                 if item_id not in stocks:
                     stocks[item_id] = 0.0
                     logger.debug(f"StockLoadThread: Item {item_id} not in results, setting stock to 0.0")
