@@ -53,6 +53,8 @@ class StockLoadThread(QThread):
         super().__init__()
         self.controller = controller
         self.item_ids = item_ids
+        # Ensure thread cleans up properly after finishing
+        self.finished.connect(self.deleteLater)
     
     def run(self):
         try:
@@ -465,6 +467,7 @@ class ItemView(QWidget):
         # Cancel previous thread if still running
         if self._load_thread and self._load_thread.isRunning():
             self._load_thread.terminate()
+            self._load_thread.wait()  # Wait for thread to finish before creating new one
         
         # Reset flags for fresh load
         self._stocks_loaded = False
@@ -500,10 +503,17 @@ class ItemView(QWidget):
         """Load stock quantities asynchronously."""
         if self._stock_thread and self._stock_thread.isRunning():
             self._stock_thread.terminate()
+            self._stock_thread.wait()  # Wait for thread to finish before creating new one
         
         self._stock_thread = StockLoadThread(self.controller, item_ids)
         self._stock_thread.stocks_loaded.connect(self._on_stocks_loaded)
+        self._stock_thread.finished.connect(lambda: self._cleanup_stock_thread(self._stock_thread))
         self._stock_thread.start()
+    
+    def _cleanup_stock_thread(self, thread):
+        """Clean up stock thread reference when finished."""
+        if self._stock_thread == thread:
+            self._stock_thread = None
     
     def _on_stocks_loaded(self, stocks):
         """Handle stocks loaded from background thread."""
