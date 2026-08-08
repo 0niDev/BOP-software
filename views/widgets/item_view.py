@@ -507,6 +507,8 @@ class ItemView(QWidget):
     
     def _on_stocks_loaded(self, stocks):
         """Handle stocks loaded from background thread."""
+        logger.info(f"StockLoadThread callback: received stocks={stocks}")
+        logger.info(f"StockLoadThread callback: stocks keys types={[type(k) for k in stocks.keys()]}")
         self._stocks_cache = stocks
         self._stocks_loaded = True
         self._populate_table()
@@ -560,12 +562,15 @@ class ItemView(QWidget):
 
         for row, item in enumerate(items):
             # Debug: Log item.id type and value
-            logger.debug(f"Row {row}: item.id={item.id} (type={type(item.id)}), looking up in stock_map keys={list(stock_map.keys())}")
+            item_id_int = int(item.id)
+            logger.info(f"Row {row}: item.id={item.id} (type={type(item.id)}), item_id_int={item_id_int}")
+            logger.info(f"Row {row}: stock_map keys={list(stock_map.keys())}")
+            logger.info(f"Row {row}: stock_map key types={[type(k) for k in stock_map.keys()]}")
             
             # Try both int and string lookup to handle type mismatches
-            current_stock = stock_map.get(item.id, stock_map.get(str(item.id), stock_map.get(int(item.id), 0.0)))
+            current_stock = stock_map.get(item_id_int, stock_map.get(item.id, stock_map.get(str(item.id), 0.0)))
             
-            logger.debug(f"Row {row}: current_stock={current_stock}")
+            logger.info(f"Row {row}: current_stock={current_stock} (type={type(current_stock)})")
 
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))

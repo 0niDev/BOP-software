@@ -83,9 +83,9 @@ def fetch_all_items_with_stock(
     for item in items:
         logger.debug(f"  Item {item['id']}: {item['name']} - stock_qty={item.get('stock_qty', 0)}, batch_count={item.get('batch_count', 0)}")
     
-    # Ensure all items have proper types
+    # Ensure all items have proper types (keep stock_qty as float for precision)
     for item in items:
-        item['stock_qty'] = int(item.get('stock_qty') or 0)
+        item['stock_qty'] = float(item.get('stock_qty') or 0)
         item['batch_count'] = int(item.get('batch_count') or 0)
     
     # Cache for 30 seconds
