@@ -937,7 +937,7 @@ class SalesInvoiceView(QWidget):
             self._save_thread = InvoiceSaveThread(
                 self.invoice_controller,
                 is_create=False,
-                invoice_id=self._selected_item_id,
+                invoice_id=self._selected_invoice_id,
                 invoice_number=current_invoice_number,
                 customer_id=current_customer_id,
                 invoice_date=invoice_date,
