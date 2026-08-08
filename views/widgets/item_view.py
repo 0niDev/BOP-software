@@ -559,7 +559,13 @@ class ItemView(QWidget):
         ])
 
         for row, item in enumerate(items):
-            current_stock = stock_map.get(item.id, 0.0)
+            # Debug: Log item.id type and value
+            logger.debug(f"Row {row}: item.id={item.id} (type={type(item.id)}), looking up in stock_map keys={list(stock_map.keys())}")
+            
+            # Try both int and string lookup to handle type mismatches
+            current_stock = stock_map.get(item.id, stock_map.get(str(item.id), stock_map.get(int(item.id), 0.0)))
+            
+            logger.debug(f"Row {row}: current_stock={current_stock}")
 
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))
