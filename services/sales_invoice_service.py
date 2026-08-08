@@ -752,10 +752,10 @@ class SalesInvoiceService:
         log_sales_invoice_updated(
             invoice_id=invoice_id,
             invoice_number=invoice_number,
-            customer_name=customer.name,
+            customer_name=customer.name if hasattr(customer, 'name') else customer.get('name', 'Unknown'),
             total_amount=float(total_amount),
-            items_count=len(validated_items),
-            payment_type=payment_type,
+            user_id=None,
+            company_id=company_id,
         )
         
         # Return updated invoice
