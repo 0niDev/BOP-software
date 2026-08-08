@@ -371,6 +371,9 @@ class PurchaseInvoiceView(QWidget):
         self._save_in_progress = False  # Track if save operation is active
         self._build_ui()
         # Don't load immediately - wait for showEvent
+        
+        # Get main window reference for overlay
+        self._main_window = None
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -511,6 +514,16 @@ class PurchaseInvoiceView(QWidget):
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
         super().showEvent(event)
+        # Get main window reference for overlay
+        if self._main_window is None:
+            from views.main_window import MainWindow
+            parent_window = self.window()
+            while parent_window:
+                if isinstance(parent_window, MainWindow):
+                    self._main_window = parent_window
+                    break
+                parent_window = parent_window.parent() if hasattr(parent_window, 'parent') else None
+        
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._load_suppliers_async()
             self._load_invoices_async()
@@ -883,6 +896,11 @@ class PurchaseInvoiceView(QWidget):
         current_supplier_id = supplier_id
         current_items = items.copy()
         
+        # Show loading overlay to prevent user interaction during save (Fix #3: Loading overlay)
+        if self._main_window:
+            operation_type = "Creating" if self._selected_invoice_id is None else "Updating"
+            self._main_window.show_loading_overlay(f"{operation_type} Purchase Invoice...")
+        
         # Disable save button briefly to prevent double-click on same data
         self.save_button.setEnabled(False)
         self.save_button.setText("Saving...")
@@ -925,6 +943,10 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_save_completed(self, success: bool, error: str, invoice: object | None):
         """Handle completion of background save operation."""
+        # Hide loading overlay (Fix #3: Loading overlay)
+        if self._main_window:
+            QTimer.singleShot(0, self._main_window.hide_loading_overlay)
+        
         # Reset save in progress flag (Fix #1: Disable refresh during active operations)
         self._save_in_progress = False
         

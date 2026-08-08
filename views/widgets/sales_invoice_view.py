@@ -374,8 +374,12 @@ class SalesInvoiceView(QWidget):
         self._refresh_timer.setInterval(300)  # 300ms debounce
         self._refresh_timer.timeout.connect(self._do_refresh)
         self._is_refreshing = False
+        self._save_in_progress = False  # Track if save operation is active
         self._build_ui()
         # Don't load immediately - wait for showEvent
+        
+        # Get main window reference for overlay
+        self._main_window = None
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -521,6 +525,16 @@ class SalesInvoiceView(QWidget):
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
         super().showEvent(event)
+        # Get main window reference for overlay
+        if self._main_window is None:
+            from views.main_window import MainWindow
+            parent_window = self.window()
+            while parent_window:
+                if isinstance(parent_window, MainWindow):
+                    self._main_window = parent_window
+                    break
+                parent_window = parent_window.parent() if hasattr(parent_window, 'parent') else None
+        
         if not hasattr(self, '_is_loaded') or not self._is_loaded:
             self._load_customers_async()
             self._load_invoices_async()
@@ -690,7 +704,17 @@ class SalesInvoiceView(QWidget):
     
     def _on_refresh_clicked(self) -> None:
         """Handle refresh button click with debouncing to prevent spam."""
-        logger.debug(f"_on_refresh_clicked - is_refreshing: {self._is_refreshing}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        logger.debug(f"_on_refresh_clicked - is_refreshing: {self._is_refreshing}, save_in_progress: {self._save_in_progress}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        
+        # Prevent refresh during active save operations (Fix #1: Disable refresh during active operations)
+        if self._save_in_progress:
+            logger.warning("Refresh blocked: Save operation in progress")
+            QMessageBox.information(
+                self, 
+                "Please Wait", 
+                "Cannot refresh while an invoice is being saved. Please wait for the save operation to complete."
+            )
+            return
         
         # If already refreshing, just restart the timer (debounce)
         if self._refresh_timer.isActive():
@@ -871,6 +895,11 @@ class SalesInvoiceView(QWidget):
         current_customer_id = customer_id
         current_items = items.copy()
         
+        # Show loading overlay to prevent user interaction during save (Fix #3: Loading overlay)
+        if self._main_window:
+            operation_type = "Creating" if self._selected_invoice_id is None else "Updating"
+            self._main_window.show_loading_overlay(f"{operation_type} Sales Invoice...")
+        
         # Disable save button briefly to prevent double-click on same data
         self.save_button.setEnabled(False)
         self.save_button.setText("Saving...")
@@ -893,9 +922,6 @@ class SalesInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
-            # Re-enable save button immediately so user can submit another invoice
-            self.save_button.setEnabled(True)
-            self.save_button.setText("Save")
         else:
             # Update invoice in background thread
             self._save_thread = InvoiceSaveThread(
@@ -913,12 +939,15 @@ class SalesInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
-            # Re-enable save button immediately so user can submit another invoice
             self.save_button.setEnabled(True)
             self.save_button.setText("Save")
     
     def _on_save_completed(self, success: bool, error: str, invoice: SalesInvoice | None):
         """Handle completion of background save operation."""
+        # Hide loading overlay (Fix #3: Loading overlay)
+        if self._main_window:
+            QTimer.singleShot(0, self._main_window.hide_loading_overlay)
+        
         # Re-enable save button (it may have been re-enabled by clear_form already)
         self.save_button.setEnabled(True)
         self.save_button.setText("Save")
