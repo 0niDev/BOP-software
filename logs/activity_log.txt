@@ -1,0 +1,482 @@
+========================================================================================================================
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+ERP SYSTEM ACTIVITY LOG
+Tracks all user activities including: Items, Sales, Purchases, Parties, Payments, Stock, Expenses
+Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Details
+=
+

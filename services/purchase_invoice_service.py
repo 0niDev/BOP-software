@@ -465,14 +465,321 @@ class PurchaseInvoiceService:
         payment_type: str,
         items: List[dict],
         notes: Optional[str] = None,
-        status: str = "PENDING",
+        status: str = "CONFIRMED",
         company_id: int = 1,
         warehouse_id: int = 1,
         bank_account_id: Optional[int] = None,
     ) -> PurchaseInvoice:
         """Update an existing purchase invoice."""
-        # TODO: Implement update logic
-        raise NotImplementedError("Update purchase invoice not yet implemented")
+        from decimal import Decimal
+        
+        # Get existing invoice
+        existing_invoice = self.invoice_repo.get_by_id(invoice_id)
+        if not existing_invoice:
+            raise ValidationError(f"Purchase invoice {invoice_id} not found.")
+        
+        # Convert dict to PurchaseInvoice object if needed
+        if isinstance(existing_invoice, dict):
+            existing_invoice = PurchaseInvoice(**existing_invoice)
+        
+        # Get supplier for logging
+        supplier_dict = self.party_repo.get_by_id(supplier_id)
+        if not supplier_dict:
+            raise ValidationError(f"Supplier {supplier_id} not found.")
+        supplier = Party(**supplier_dict) if isinstance(supplier_dict, dict) else supplier_dict
+        
+        # Reverse existing journal entry
+        existing_journal = self.accounting_service.get_journal_entry(
+            source_table="purchase_invoices",
+            source_id=invoice_id
+        )
+        
+        if existing_journal:
+            journal_lines = existing_journal.get('lines', [])
+            
+            # Create reversing lines (swap debit/credit)
+            reverse_lines = []
+            for line in journal_lines:
+                reverse_lines.append(JournalLine(
+                    account_id=line['account_id'],
+                    debit=line['credit'],  # Swap
+                    credit=line['debit'],  # Swap
+                    party_id=line.get('party_id'),
+                    description=f"Reversal of {line['description']}"
+                ))
+            
+            self.accounting_service.post_journal_entry(
+                voucher_type=VoucherType.PURCHASE,
+                entry_date=invoice_date,
+                lines=reverse_lines,
+                source_table="purchase_invoices",
+                source_id=invoice_id,
+                narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} for update"
+            )
+            logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
+        
+        # Restore stock for existing invoice items
+        existing_items = self.item_repo.find_by_invoice_id(invoice_id)
+        batch_cache = {}
+        for item in existing_items:
+            # Add stock back (positive update)
+            self._update_stock(
+                item_id=item['item_id'],
+                warehouse_id=warehouse_id,
+                quantity=item['quantity'],
+                positive=True,
+                batch_cache=batch_cache
+            )
+        logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
+        
+        # Delete existing invoice items
+        self.db.execute("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", (invoice_id,))
+        
+        # Now create new entries with updated data (similar to create logic)
+        validated_items = []
+        subtotal = Decimal(0)
+        discount_amount = Decimal(0)
+        tax_amount = Decimal(0)
+        
+        for item_data in items:
+            item_id = item_data.get("item_id")
+            quantity = Decimal(str(item_data.get("quantity", 0)))
+            unit_cost = Decimal(str(item_data.get("unit_cost", 0)))
+            discount = Decimal(str(item_data.get("discount_amount", 0)))
+            tax = Decimal(str(item_data.get("tax_amount", 0)))
+            
+            if quantity <= 0:
+                continue
+            
+            item = self.item_master_repo.get_by_id(item_id)
+            if not item:
+                raise ValidationError(f"Item {item_id} not found.")
+            
+            line_total = (quantity * unit_cost) - discount + tax
+            if line_total < 0:
+                raise ValidationError(f"Line total cannot be negative for item {item['item_name']}")
+            
+            validated_items.append({
+                "item_id": item_id,
+                "batch_id": None,
+                "quantity": float(quantity),
+                "unit_cost": float(unit_cost),
+                "discount_amount": float(discount),
+                "tax_amount": float(tax),
+                "line_total": float(line_total),
+                "batch_number": item_data.get("batch_number"),
+                "manufacturing_date": item_data.get("manufacturing_date"),
+                "expiry_date": item_data.get("expiry_date"),
+            })
+            
+            subtotal += quantity * unit_cost
+            discount_amount += discount
+            tax_amount += tax
+        
+        total_amount = subtotal - discount_amount + tax_amount
+        
+        # Update invoice header
+        invoice_data = {
+            "invoice_number": invoice_number,
+            "supplier_id": supplier_id,
+            "invoice_date": invoice_date,
+            "payment_type": payment_type,
+            "bank_account_id": bank_account_id,
+            "subtotal": float(subtotal),
+            "discount_amount": float(discount_amount),
+            "tax_amount": float(tax_amount),
+            "total_amount": float(total_amount),
+            "notes": notes,
+            "status": status,
+            "company_id": company_id,
+            "warehouse_id": warehouse_id,
+        }
+        
+        self.invoice_repo.update(invoice_id, invoice_data)
+        logger.info(f"Updated invoice header for {invoice_number}")
+        
+        # Insert new invoice items
+        items_data = []
+        for item_data in validated_items:
+            cache_key = f"{item_data['item_id']}_{warehouse_id}"
+            if cache_key not in batch_cache:
+                batch = self.stock_repo.find_by_item_and_warehouse(
+                    item_data['item_id'],
+                    warehouse_id
+                )
+                batch_cache[cache_key] = batch
+            
+            batch = batch_cache[cache_key]
+            batch_id = batch['id'] if batch else None
+            
+            clean_item_data = {
+                "invoice_id": invoice_id,
+                "item_id": item_data["item_id"],
+                "batch_id": batch_id,
+                "quantity": item_data["quantity"],
+                "unit_cost": item_data["unit_cost"],
+                "discount_amount": item_data["discount_amount"],
+                "tax_amount": item_data["tax_amount"],
+                "line_total": item_data["line_total"],
+                "batch_number": item_data.get("batch_number"),
+                "manufacturing_date": item_data.get("manufacturing_date"),
+                "expiry_date": item_data.get("expiry_date"),
+            }
+            items_data.append(clean_item_data)
+        
+        for item_data in items_data:
+            item = PurchaseInvoiceItem(**item_data)
+            self.item_repo.insert(item.to_dict())
+        
+        # Add stock for new items
+        self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
+        
+        # Create new journal entry
+        account_codes_needed = ["1200"]  # Inventory
+        if payment_type == "CREDIT":
+            account_codes_needed.append("2000")  # Accounts Payable
+        elif payment_type == "CASH":
+            account_codes_needed.append("1000")  # Cash
+        elif payment_type in ["BANK", "CHEQUE"]:
+            account_codes_needed.append("1010")  # Bank
+        
+        account_cache = {}
+        for code in set(account_codes_needed):
+            account_dict = self.account_repo.find_by_code(code)
+            if account_dict:
+                account_cache[code] = account_dict
+        
+        inventory_account_dict = account_cache.get("1200")
+        if not inventory_account_dict:
+            raise ValidationError("Inventory account (1200) not found.")
+        inventory_account_id = inventory_account_dict["id"]
+        
+        credit_account_id = None
+        credit_description = ""
+        credit_party_id = None
+        
+        if payment_type == "CREDIT":
+            ap_account_dict = account_cache.get("2000")
+            if not ap_account_dict:
+                raise ValidationError("Accounts Payable account (2000) not found.")
+            credit_account_id = ap_account_dict["id"]
+            credit_description = f"Supplier credit - {supplier.name}"
+            credit_party_id = supplier_id
+        elif payment_type == "CASH":
+            cash_account_dict = account_cache.get("1000")
+            if not cash_account_dict:
+                raise ValidationError("Cash account (1000) not found.")
+            credit_account_id = cash_account_dict["id"]
+            credit_description = "Cash payment"
+        elif payment_type in ["BANK", "CHEQUE"]:
+            if bank_account_id:
+                bank_account = self.db.fetch_one("""
+                    SELECT id, bank_name, account_id FROM bank_accounts WHERE id = ?
+                """, (bank_account_id,))
+                if bank_account:
+                    credit_account_id = bank_account["account_id"]
+                    bank_name = bank_account.get("bank_name", "Selected Bank")
+                    credit_description = f"{payment_type} payment - {bank_name}"
+                else:
+                    raise ValidationError("Selected bank account not found.")
+            else:
+                bank_account_dict = account_cache.get("1010")
+                if not bank_account_dict:
+                    raise ValidationError("Bank account (1010) not found.")
+                credit_account_id = bank_account_dict["id"]
+                credit_description = f"{payment_type} payment"
+        
+        if credit_account_id is None:
+            raise ValidationError(f"Could not determine credit account for payment type: {payment_type}")
+        
+        journal_lines = [
+            JournalLine(
+                account_id=inventory_account_id,
+                debit=float(total_amount),
+                credit=0.0,
+                description="Inventory purchase"
+            ),
+        ]
+        
+        # Only add party_id for CREDIT purchases
+        if credit_party_id is not None:
+            journal_lines.append(
+                JournalLine(
+                    account_id=credit_account_id,
+                    debit=0.0,
+                    credit=float(total_amount),
+                    party_id=credit_party_id,
+                    description=credit_description
+                )
+            )
+        else:
+            journal_lines.append(
+                JournalLine(
+                    account_id=credit_account_id,
+                    debit=0.0,
+                    credit=float(total_amount),
+                    description=credit_description
+                )
+            )
+        
+        tax_account_dict = account_cache.get("2100")
+        tax_account_id = tax_account_dict["id"] if tax_account_dict else None
+        
+        if tax_amount > 0 and tax_account_id:
+            journal_lines.append(
+                JournalLine(
+                    account_id=tax_account_id,
+                    debit=0.0,
+                    credit=float(tax_amount),
+                    description="Purchase tax"
+                )
+            )
+        
+        self.accounting_service.post_journal_entry(
+            voucher_type=VoucherType.PURCHASE,
+            entry_date=invoice_date,
+            lines=journal_lines,
+            source_table="purchase_invoices",
+            source_id=invoice_id,
+            narration=f"Updated purchase invoice {invoice_number} from {supplier.name}"
+        )
+        
+        # Record bank transaction if payment is BANK or CHEQUE
+        if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
+            self.db.execute("""
+                INSERT INTO bank_transactions (
+                    bank_account_id,
+                    transaction_type,
+                    amount,
+                    transaction_date,
+                    reference_no,
+                    notes,
+                    created_at
+                ) VALUES (?, 'WITHDRAWAL', ?, ?, ?, ?, datetime('now'))
+            """, (
+                bank_account_id,
+                float(total_amount),
+                invoice_date,
+                invoice_number,
+                f"Updated purchase invoice {invoice_number} - {payment_type} payment"
+            ))
+            logger.info(f"Recorded bank withdrawal for updated invoice {invoice_number}")
+        
+        logger.info("Updated purchase invoice %s for supplier %s (id=%s)", 
+                invoice_number, supplier_id, invoice_id)
+        
+        # Log activity
+        log_purchase_invoice_updated(
+            invoice_id=invoice_id,
+            invoice_number=invoice_number,
+            supplier_name=supplier.name if hasattr(supplier, 'name') else supplier.get('name', 'Unknown'),
+            total_amount=float(total_amount),
+            user_id=None,
+            company_id=company_id,
+        )
+        
+        # Return updated invoice
+        return self.get_purchase_invoice(invoice_id)
 
     def delete_purchase_invoice(self, invoice_id: int) -> bool:
         """Delete a purchase invoice."""
