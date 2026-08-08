@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Set up environment for testing
 os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/cool-depot.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
 
 def print_section(title):
     """Print a formatted section header."""
@@ -45,9 +45,18 @@ print_section("TEST 1: Auto-backup Database Existence Check")
 
 try:
     from database.auto_backup import auto_backup
+    import os
+    
+    # Temporarily set a non-existent database URL for this test
+    original_url = os.environ.get('SQLITE_CLOUD_URL')
+    os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/nonexistent-test-db.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
     
     print("Running auto_backup() with non-existent database...")
     result = auto_backup()
+    
+    # Restore original URL
+    if original_url:
+        os.environ['SQLITE_CLOUD_URL'] = original_url
     
     # Should return False gracefully, not crash
     passed = result == False
@@ -58,6 +67,12 @@ try:
     ))
     
 except Exception as e:
+    # Restore original URL on error
+    import os
+    original_url = os.environ.get('SQLITE_CLOUD_URL')
+    if original_url and 'nonexistent' in original_url:
+        os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+    
     test_results.append(print_result(
         "Auto-backup handles missing database gracefully",
         False,

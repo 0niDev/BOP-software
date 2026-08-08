@@ -12,13 +12,19 @@ import time
 
 # Set environment variable
 os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/cool-depot.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
 
 DB_URL = os.environ.get('SQLITE_CLOUD_URL')
 
 
 def auto_backup():
     """Create automatic backup as SQLite .db file."""
+    # Re-read DB_URL from environment to allow dynamic changes
+    db_url = os.environ.get('SQLITE_CLOUD_URL')
+    if not db_url:
+        print("❌ Auto-backup failed: SQLITE_CLOUD_URL environment variable not set")
+        return False
+    
     backup_dir = "backups"
     max_backups = 30
     
@@ -27,13 +33,11 @@ def auto_backup():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_file = os.path.join(backup_dir, f"erp_backup_{timestamp}.db")
     
-    # Check if DB_URL is set
-    if not DB_URL:
-        print("❌ Auto-backup failed: SQLITE_CLOUD_URL environment variable not set")
-        return False
-    
     try:
         print(f"🔄 Creating .db backup at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Create local SQLite connection
+        local_conn = sqlite3.connect(backup_file)
         
         # Connect to cloud database with retry logic and better error handling
         cloud_conn = None
@@ -42,7 +46,7 @@ def auto_backup():
         
         while retry_count < max_retries:
             try:
-                cloud_conn = sqlitecloud.connect(DB_URL)
+                cloud_conn = sqlitecloud.connect(db_url)
                 break
             except sqlitecloud.Error as e:
                 error_msg = str(e)
@@ -53,10 +57,12 @@ def auto_backup():
                     print(f"❌ Auto-backup failed: Database does not exist on SQLite Cloud server")
                     print(f"   Error: {error_msg}")
                     print(f"   Please ensure the database is created on SQLite Cloud first.")
+                    local_conn.close()
                     return False
                 
                 if retry_count >= max_retries:
                     print(f"❌ Auto-backup failed after {max_retries} retries: {e}")
+                    local_conn.close()
                     raise
                 print(f"⚠️ Connection attempt {retry_count} failed ({e}), retrying in 2 seconds...")
                 time.sleep(2)
