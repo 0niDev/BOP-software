@@ -944,13 +944,19 @@ class SalesInvoiceView(QWidget):
     
     def _on_save_completed(self, success: bool, error: str, invoice: SalesInvoice | None):
         """Handle completion of background save operation."""
-        # Hide loading overlay (Fix #3: Loading overlay)
-        if self._main_window:
-            QTimer.singleShot(0, self._main_window.hide_loading_overlay)
+        # Reset save in progress flag (Fix #1: Disable refresh during active operations)
+        self._save_in_progress = False
         
-        # Re-enable save button (it may have been re-enabled by clear_form already)
+        # Re-enable save button
         self.save_button.setEnabled(True)
         self.save_button.setText("Save")
+        
+        # Hide loading overlay (Fix #3: Loading overlay) - ALWAYS hide it
+        if self._main_window:
+            try:
+                self._main_window.hide_loading_overlay()
+            except Exception as e:
+                logger.error(f"Error hiding overlay: {e}")
         
         if success:
             if invoice:
