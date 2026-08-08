@@ -95,7 +95,9 @@ class StockLoadThread(QThread):
                     logger.debug(f"StockLoadThread: Item {item_id} not in results, setting stock to 0.0")
             
             logger.info(f"Loaded stocks for {len(stocks)} items using helper: {stocks}")
-            self.stocks_loaded.emit(stocks)
+            # Make a copy of the dict to ensure it persists after thread finishes
+            stocks_copy = dict(stocks)
+            self.stocks_loaded.emit(stocks_copy)
             
         except Exception as e:
             logger.exception(f"Error in stock load thread: {e}")
