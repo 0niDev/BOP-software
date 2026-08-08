@@ -89,11 +89,9 @@ class JournalRepository(BaseRepository):
             logger.error(f"JournalRepository.insert_entry() FAILED to get valid entry_id, got {entry_id}")
             raise DatabaseError("Failed to get generated journal entry ID")
         
-        # Commit the transaction after getting the ID
-        conn.commit()
-        
-        # Return connection to pool now that we're done with it
-        self.db._return_connection(conn)
+        # DON'T commit or return connection here - caller (AccountingService) 
+        # has wrapped this in db.transaction() and will handle commit/rollback
+        # Just continue with inserting lines using the same transaction context
         
         for order, line in enumerate(lines):
             line = dict(line)
