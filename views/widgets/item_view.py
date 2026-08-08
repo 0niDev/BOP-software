@@ -59,6 +59,8 @@ class StockLoadThread(QThread):
             # Use centralized helper function for consistency
             from utils.helpers import fetch_all_items_with_stock
             
+            logger.debug(f"StockLoadThread: Fetching stock for item_ids={self.item_ids}")
+            
             # Fetch all items with stock in one optimized query
             items = fetch_all_items_with_stock(
                 db=self.controller.service.repo.db,
@@ -66,18 +68,25 @@ class StockLoadThread(QThread):
                 include_inactive=False
             )
             
+            logger.debug(f"StockLoadThread: fetch_all_items_with_stock returned {len(items)} items")
+            for item in items:
+                logger.debug(f"  Item {item['id']}: {item['name']} - stock_qty={item.get('stock_qty', 0)}")
+            
             # Build stock map for requested item IDs only
             stocks = {}
             for item in items:
                 if item['id'] in self.item_ids:
-                    stocks[item['id']] = float(item.get('stock_qty', 0))
+                    stock_val = float(item.get('stock_qty', 0) or 0)
+                    stocks[item['id']] = stock_val
+                    logger.debug(f"StockLoadThread: Added item {item['id']} to stocks map with value {stock_val}")
             
             # Ensure all requested item_ids have an entry (even if 0)
             for item_id in self.item_ids:
                 if item_id not in stocks:
                     stocks[item_id] = 0.0
+                    logger.debug(f"StockLoadThread: Item {item_id} not in results, setting stock to 0.0")
             
-            logger.info(f"Loaded stocks for {len(stocks)} items using helper")
+            logger.info(f"Loaded stocks for {len(stocks)} items using helper: {stocks}")
             self.stocks_loaded.emit(stocks)
             
         except Exception as e:
