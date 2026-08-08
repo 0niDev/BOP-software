@@ -1,0 +1,7 @@
+2026-08-08 20:41:06,205 | ERROR    | erp.database.connection | SQL execute failed: no such table: parties | sql=SELECT * FROM parties WHERE id = ?
+2026-08-08 20:41:11,804 | INFO     | erp.__main__ | Initializing database...
+2026-08-08 20:41:11,804 | INFO     | erp.database.migrations.migrator | Running schema migration...
+2026-08-08 20:41:11,822 | INFO     | erp.database.migrations.migrator | Schema migration complete.
+2026-08-08 20:41:12,143 | WARNING  | erp.database.migrations.migrator | Seeded default user 'admin' with password 'admin123'. Change this password immediately after first login.
+2026-08-08 20:41:12,144 | INFO     | erp.database.migrations.migrator | Default data seeding complete.
+2026-08-08 20:41:12,144 | INFO     | erp.__main__ | Database initialization complete!

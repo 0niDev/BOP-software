@@ -21,6 +21,8 @@ class Party:
     email: Optional[str] = None
     is_active: bool = True
     created_at: Optional[str] = None
+    opening_balance: float = 0.0
+    customer_category: Optional[str] = None
 
     @staticmethod
     def from_row(row: dict) -> "Party":
@@ -38,6 +40,8 @@ class Party:
             email=row.get("email"),
             is_active=bool(row["is_active"]),
             created_at=row.get("created_at"),
+            opening_balance=row.get("opening_balance", 0.0),
+            customer_category=row.get("customer_category"),
         )
 
     def to_dict(self) -> dict:
@@ -53,4 +57,6 @@ class Party:
             "address": self.address,
             "email": self.email,
             "is_active": int(self.is_active),
+            "opening_balance": self.opening_balance,
+            "customer_category": self.customer_category,
         }
