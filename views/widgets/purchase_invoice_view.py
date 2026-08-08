@@ -368,6 +368,7 @@ class PurchaseInvoiceView(QWidget):
         self._supplier_load_thread = None
         self._refresh_in_progress = False
         self._pending_refresh = False
+        self._save_in_progress = False  # Track if save operation is active
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -679,7 +680,17 @@ class PurchaseInvoiceView(QWidget):
     
     def _on_refresh_clicked(self) -> None:
         """Refresh invoices, suppliers, and items in the background with debouncing."""
-        logger.debug(f"_on_refresh_clicked - refresh_in_progress: {self._refresh_in_progress}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        logger.debug(f"_on_refresh_clicked - refresh_in_progress: {self._refresh_in_progress}, save_in_progress: {self._save_in_progress}, pending_loads: {getattr(self, '_pending_loads', 'NOT_SET')}")
+        
+        # Prevent refresh during active save operations (Fix #1: Disable refresh during active operations)
+        if self._save_in_progress:
+            logger.warning("Refresh blocked: Save operation in progress")
+            QMessageBox.information(
+                self, 
+                "Please Wait", 
+                "Cannot refresh while an invoice is being saved. Please wait for the save operation to complete."
+            )
+            return
         
         if self._refresh_in_progress:
             # If refresh is already in progress, mark a pending refresh
@@ -801,6 +812,12 @@ class PurchaseInvoiceView(QWidget):
             self._update_remove_button_state()
 
     def _on_save_clicked(self):
+        # Prevent multiple concurrent saves (Fix #1: Disable refresh during active operations)
+        if self._save_in_progress:
+            logger.warning("Save blocked: Another save operation in progress")
+            return
+        
+        self._save_in_progress = True
 
         invoice_number = self.invoice_number_input.text().strip()
         if not invoice_number:
@@ -813,12 +830,14 @@ class PurchaseInvoiceView(QWidget):
         supplier_id = self.supplier_input.currentData()
         if supplier_id is None:
             QMessageBox.warning(self, "Input Error", "Please select a supplier.")
+            self._save_in_progress = False
             return
             
         invoice_date = self.date_input.date().toString("yyyy-MM-dd")
         payment_type = self.payment_type_input.currentData()
         if payment_type is None:
             QMessageBox.warning(self, "Input Error", "Please select a payment type.")
+            self._save_in_progress = False
             return
         
         bank_account_id = None
@@ -826,8 +845,9 @@ class PurchaseInvoiceView(QWidget):
             bank_account_id = self.bank_account_input.currentData()
             if bank_account_id is None:
                 QMessageBox.warning(self, "Input Error", "Please select a bank account.")
+                self._save_in_progress = False
                 return
-            
+                
         notes = self.notes_input.text().strip() or None
         
         items = []
@@ -855,6 +875,7 @@ class PurchaseInvoiceView(QWidget):
         
         if not items:
             QMessageBox.warning(self, "Input Error", "Please add at least one item to the invoice.")
+            self._save_in_progress = False
             return
         
         # Store current form data before clearing
@@ -884,9 +905,6 @@ class PurchaseInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
-            # Re-enable save button immediately so user can submit another invoice
-            self.save_button.setEnabled(True)
-            self.save_button.setText("Save")
         else:
             # Update invoice in background thread
             self._save_thread = InvoiceSaveThread(
@@ -904,12 +922,12 @@ class PurchaseInvoiceView(QWidget):
             )
             self._save_thread.saved.connect(self._on_save_completed)
             self._save_thread.start()
-            # Re-enable save button immediately so user can submit another invoice
-            self.save_button.setEnabled(True)
-            self.save_button.setText("Save")
     
     def _on_save_completed(self, success: bool, error: str, invoice: object | None):
         """Handle completion of background save operation."""
+        # Reset save in progress flag (Fix #1: Disable refresh during active operations)
+        self._save_in_progress = False
+        
         # Re-enable save button (it may have been re-enabled by clear_form already)
         self.save_button.setEnabled(True)
         self.save_button.setText("Save")
