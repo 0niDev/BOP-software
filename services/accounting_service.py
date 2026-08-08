@@ -133,6 +133,26 @@ class AccountingService:
             entry_id, voucher_type.value, voucher_number, total_debit,
         )
         return entry_id
+    
+    def get_journal_entry(self, source_table: str, source_id: int) -> dict | None:
+        """Get a journal entry by source table and ID, including its lines."""
+        entry = self.journal_repo.find_by_source(source_table, source_id)
+        if not entry:
+            return None
+        
+        # Fetch the lines
+        lines = self.db.fetch_all(
+            """
+            SELECT account_id, debit, credit, description, party_id 
+            FROM journal_entry_lines 
+            WHERE journal_entry_id = ?
+            ORDER BY line_order
+            """,
+            (entry['id'],)
+        )
+        
+        entry['lines'] = lines
+        return entry
 
     def get_account_balance(self, account_id: int) -> float:
         return self.account_repo.get_current_balance(account_id)
