@@ -174,10 +174,14 @@ class SalesInvoiceService:
 
             if not item_dict:
                 raise ValidationError(f"Item {item_id} does not exist.")
-            item = Item.from_row(item_dict)
+            
+            # Access dictionary keys directly since get_by_id returns a dict
+            item_name = item_dict['item_name']
+            item_code = item_dict['item_code']
+            is_active = item_dict['is_active']
 
-            if not item.is_active:
-                raise ValidationError(f"Item {item.item_name} is not active.")
+            if not is_active:
+                raise ValidationError(f"Item {item_name} is not active.")
 
             # Use cached stock check
             stock_key = f"{item_id}_{warehouse_id}"
@@ -189,17 +193,17 @@ class SalesInvoiceService:
 
             available_stock = stock_batch["quantity_in_stock"] if stock_batch else 0
 
-            logger.debug(f"Stock check for {item.item_code}: Available: {available_stock}, Required: {quantity}")
+            logger.debug(f"Stock check for {item_code}: Available: {available_stock}, Required: {quantity}")
 
             if available_stock < quantity:
                 raise InsufficientStockError(
-                    f"Insufficient stock for {item.item_name}. "
+                    f"Insufficient stock for {item_name}. "
                     f"Available: {available_stock}, Required: {quantity}"
                 )
 
             line_total = (quantity * unit_price) - discount + tax
             if line_total < 0:
-                raise ValidationError(f"Line total cannot be negative for item {item.item_name}")
+                raise ValidationError(f"Line total cannot be negative for item {item_name}")
 
             validated_items.append({
                 "item_id": item_id,
@@ -209,8 +213,8 @@ class SalesInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
-                "item_name": item.item_name,
-                "item_code": item.item_code,
+                "item_name": item_name,
+                "item_code": item_code,
             })
 
             subtotal += quantity * unit_price
@@ -549,7 +553,7 @@ class SalesInvoiceService:
             
             line_total = (quantity * unit_price) - discount + tax
             if line_total < 0:
-                raise ValidationError(f"Line total cannot be negative for item {item.item_name}")
+                raise ValidationError(f"Line total cannot be negative for item {item['item_name']}")
             
             validated_items.append({
                 "item_id": item_id,
@@ -559,8 +563,8 @@ class SalesInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
-                "item_name": item.item_name,
-                "item_code": item.item_code,
+                "item_name": item['item_name'],
+                "item_code": item['item_code'],
             })
             
             subtotal += quantity * unit_price
