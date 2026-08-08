@@ -72,22 +72,28 @@ class JournalRepository(BaseRepository):
         placeholders = ', '.join(['?'] * len(values))
         col_names = ', '.join(columns)
         
-        # Insert header - caller is responsible for wrapping in transaction if needed
-        self.db.execute(
+        # Insert header - get cursor to keep connection alive for last_insert_rowid()
+        cursor = self.db.execute(
             f"INSERT INTO journal_entries ({col_names}) VALUES ({placeholders})",
             values,
             return_cursor=True
         )
         
-        # Get the last inserted ID - must be done immediately after insert
-        result = self.db.fetch_one("SELECT last_insert_rowid()")
-        entry_id = result["last_insert_rowid()"] if result else None
+        # Get the last inserted ID from the same connection
+        conn = cursor.connection
+        entry_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         
         logger.error(f"JournalRepository.insert_entry() inserted header with entry_id={entry_id}")
         
         if not entry_id or entry_id <= 0:
             logger.error(f"JournalRepository.insert_entry() FAILED to get valid entry_id, got {entry_id}")
             raise DatabaseError("Failed to get generated journal entry ID")
+        
+        # Commit the transaction after getting the ID
+        conn.commit()
+        
+        # Return connection to pool now that we're done with it
+        self.db._return_connection(conn)
         
         for order, line in enumerate(lines):
             line = dict(line)
