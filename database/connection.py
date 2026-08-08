@@ -309,7 +309,7 @@ class SQLiteCloudConnection(DatabaseConnection):
         # Should never reach here, but just in case
         raise DatabaseError(str(last_error)) from last_error
 
-    def execute(self, sql: str, params: Sequence[Any] = ()):
+    def execute(self, sql: str, params: Sequence[Any] = (), return_cursor: bool = False):
         """Execute SQL - direct connection with retry logic (Fix #2: Improve connection handling)."""
         conn = None
         retry_count = 0
@@ -319,7 +319,13 @@ class SQLiteCloudConnection(DatabaseConnection):
         while retry_count < max_retries:
             try:
                 conn = self._get_cached_connection()
-                return conn.execute(sql, params)
+                cursor = conn.execute(sql, params)
+                if return_cursor:
+                    return cursor
+                else:
+                    # For INSERT/UPDATE/DELETE, commit and return rowcount
+                    conn.commit()
+                    return cursor.rowcount
             except sqlitecloud.Error as exc:
                 error_msg = str(exc)
                 last_error = exc
