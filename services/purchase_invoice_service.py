@@ -522,14 +522,26 @@ class PurchaseInvoiceService:
         existing_items = self.item_repo.find_by_invoice_id(invoice_id)
         batch_cache = {}
         for item in existing_items:
-            # Add stock back (positive update)
-            self._update_stock(
+            # Get or create batch for restoration (using negative quantity to reverse)
+            batch_id = self._get_or_create_batch(
                 item_id=item['item_id'],
                 warehouse_id=warehouse_id,
-                quantity=item['quantity'],
-                positive=True,
-                batch_cache=batch_cache
+                batch_number=item.get('batch_number'),
+                manufacturing_date=item.get('manufacturing_date'),
+                expiry_date=item.get('expiry_date'),
+                purchase_price=item['unit_cost'],
+                quantity=-item['quantity'],  # Negative to reverse the stock
             )
+            item_data = self.item_master_repo.get_by_id(item['item_id'])
+            if item_data:
+                self._update_stock(
+                    item_id=item['item_id'],
+                    warehouse_id=warehouse_id,
+                    quantity=-item['quantity'],  # Negative to reverse
+                    unit_cost=item['unit_cost'],
+                    batch_id=batch_id,
+                    batch_cache=batch_cache
+                )
         logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
         
         # Delete existing invoice items
