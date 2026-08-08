@@ -4,4 +4,19 @@ backups/
 
 # Logs
 *.log
+<<<<<<< HEAD
 ```
+=======
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Dependencies
+venv/
+.venv/
+```logs/
+__pycache__/
+*.pyc
+>>>>>>> main
