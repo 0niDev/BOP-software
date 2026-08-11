@@ -59,6 +59,43 @@ class DashboardService:
         self._cache_time.clear()
         logger.info("Dashboard cache cleared")
 
+    def _get_monthly_trend(self, company_id: int = 1, months: int = 6) -> list[dict]:
+        """Return monthly revenue/expense/profit for the last N months."""
+        rows = self.db.fetch_all("""
+            WITH RECURSIVE months(month_start) AS (
+                SELECT date('now', 'start of month', '-%(n)d months')
+                UNION ALL
+                SELECT date(month_start, '+1 month')
+                FROM months
+                WHERE month_start < date('now', 'start of month')
+            )
+            SELECT
+                m.month_start as month,
+                COALESCE(SUM(CASE WHEN a.account_type = 'REVENUE' THEN jel.credit ELSE 0 END), 0) as revenue,
+                COALESCE(SUM(CASE WHEN a.account_type = 'EXPENSE' THEN jel.debit ELSE 0 END), 0) as expenses
+            FROM months m
+            LEFT JOIN journal_entries je
+                ON je.is_posted = 1 AND je.company_id = ?
+                AND date(je.entry_date) >= m.month_start
+                AND date(je.entry_date) < date(m.month_start, '+1 month')
+            LEFT JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+            LEFT JOIN accounts a ON a.id = jel.account_id
+            GROUP BY m.month_start
+            ORDER BY m.month_start ASC
+        """ % {"n": max(0, months - 1)}, (company_id,))
+
+        trend = []
+        for r in rows or []:
+            revenue = float(r.get("revenue") or 0)
+            expenses = float(r.get("expenses") or 0)
+            trend.append({
+                "month": r.get("month", ""),
+                "revenue": revenue,
+                "expenses": expenses,
+                "profit": revenue - expenses,
+            })
+        return trend
+
     def get_dashboard_data(self, company_id: int = 1, force_refresh: bool = False) -> dict:
         """Get dashboard data with minimal queries - OPTIMIZED."""
         
@@ -311,6 +348,7 @@ class DashboardService:
                     "count": 0,
                     "alerts": [],
                 },
+                "monthly_trend": self._get_monthly_trend(company_id),
             }
             
             # ============================================================
@@ -367,6 +405,7 @@ class DashboardService:
                 "recent_transactions": [],
                 "inventory": {"total_items": 0, "low_stock_count": 0, "low_stock_items": [], "expiring_count": 0, "expiring_items": []},
                 "alerts": {"count": 1, "alerts": [{"type": "danger", "title": "Error", "message": str(e)}]},
+                "monthly_trend": [],
             }
 
     def load_heavy_data(self, company_id: int = 1) -> dict:

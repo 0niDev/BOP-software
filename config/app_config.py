@@ -78,7 +78,7 @@ class BackupConfig:
 
 @dataclass(frozen=True)
 class AppConfig:
-    app_name: str = "BOP nutraceuticals accounts software"
+    app_name: str = "BOP Nutraceuticals"
     app_version: str = "1.0.0"
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)

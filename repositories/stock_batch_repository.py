@@ -62,6 +62,8 @@ class StockBatchRepository(BaseRepository):
         expiry_date: str | None,
         purchase_price: float,
         quantity_in_stock: float,
+        raw_unit_cost: float = 0.0,
+        packing_unit_cost: float = 0.0,
     ) -> int:
         """Create a new stock batch."""
         data = {
@@ -71,10 +73,45 @@ class StockBatchRepository(BaseRepository):
             "manufacturing_date": manufacturing_date,
             "expiry_date": expiry_date,
             "purchase_price": purchase_price,
+            "raw_unit_cost": raw_unit_cost,
+            "packing_unit_cost": packing_unit_cost,
             "quantity_in_stock": quantity_in_stock,
             "is_active": 1,
         }
         return self.insert(data)
+
+    def add_to_batch(
+        self,
+        batch_id: int,
+        quantity: float,
+        unit_cost: float,
+        raw_unit_cost: float = 0.0,
+        packing_unit_cost: float = 0.0,
+    ) -> None:
+        """Add quantity to an existing batch, recomputing weighted-average unit costs."""
+        batch = self.get_by_id(batch_id)
+        old_qty = batch.get("quantity_in_stock", 0)
+        new_qty = old_qty + quantity
+        if new_qty <= 0:
+            self.update_quantity(batch_id, quantity, use_cache=False)
+            return
+
+        new_purchase = (old_qty * batch.get("purchase_price", 0) + quantity * unit_cost) / new_qty
+        new_raw = (old_qty * batch.get("raw_unit_cost", 0) + quantity * raw_unit_cost) / new_qty
+        new_packing = (old_qty * batch.get("packing_unit_cost", 0) + quantity * packing_unit_cost) / new_qty
+
+        self.db.execute(
+            """
+            UPDATE stock_batches
+            SET quantity_in_stock = quantity_in_stock + ?,
+                purchase_price = ?,
+                raw_unit_cost = ?,
+                packing_unit_cost = ?
+            WHERE id = ?
+            """,
+            (quantity, round(new_purchase, 6), round(new_raw, 6), round(new_packing, 6), batch_id),
+        )
+        self._invalidate_cache(pattern=f"stock_batches:find_by_item_and_warehouse")
 
     def update_quantity(self, batch_id: int, quantity_change: float, use_cache: bool = True) -> None:
         """Update batch quantity (positive or negative)."""

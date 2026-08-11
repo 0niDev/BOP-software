@@ -30,7 +30,7 @@ class BaseRepository(Generic[T]):
     
     # L1 Cache - Instance level (fastest)
     _cache: dict[str, tuple[Any, float]] = {}
-    _cache_ttl: int = 30  # 30 seconds cache TTL
+    _cache_ttl: int = 120  # 120 seconds cache TTL (raised from 30 to reduce hosted-DB round trips)
     _cache_enabled: bool = True
     
     # L2 Cache - Session level (shared across repositories)

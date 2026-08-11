@@ -45,7 +45,7 @@ class BackupView(QWidget):
         
         self.locations_text = QLabel("Loading backup locations...")
         self.locations_text.setWordWrap(True)
-        self.locations_text.setStyleSheet("padding: 10px; background: #f8f9fa; border-radius: 4px;")
+        self.locations_text.setStyleSheet("padding: 10px; background: #242424; border-radius: 4px;")
         locations_layout.addWidget(self.locations_text)
         
         layout.addWidget(locations_group)
@@ -89,7 +89,7 @@ class BackupView(QWidget):
 
         # Status label
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet("color: #888; padding: 5px;")
+        self.status_label.setStyleSheet("color: #9b9b9b; padding: 5px;")
         layout.addWidget(self.status_label)
 
     def _load_backup_status(self):

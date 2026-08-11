@@ -128,7 +128,7 @@ class PartyView(QWidget):
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("Auto-generated on save")
         self.code_input.setReadOnly(True)  # ← ADD THIS
-        self.code_input.setStyleSheet("background: #f0f0f0; color: #666;")
+        self.code_input.setStyleSheet("background: #242424; color: #adb5bd;")
         form_layout.addRow("Code:", self.code_input)  # ← No more "*" required
 
         self.name_input = QLineEdit()

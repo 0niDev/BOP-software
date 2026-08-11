@@ -117,7 +117,7 @@ class BOMDialog(QDialog):
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Auto-generated on save")
         self.name_input.setReadOnly(True)
-        self.name_input.setStyleSheet("background: #f0f0f0; color: #666;")
+        self.name_input.setStyleSheet("background: #242424; color: #adb5bd;")
         form_layout.addRow("BOM Name:", self.name_input)
         
         self.finished_item_combo = QComboBox()
@@ -411,7 +411,7 @@ class ManufacturingView(QWidget):
         self.bom_table.setItem(0, 0, loading_item)
         
         self.order_table.setRowCount(1)
-        self.order_table.setColumnCount(1)
+        self.order_table.setColumnCount(9)
         self.order_table.setHorizontalHeaderLabels(["Loading..."])
         loading_item2 = QTableWidgetItem("Loading Production Orders...")
         loading_item2.setTextAlignment(Qt.AlignCenter)
@@ -697,9 +697,9 @@ class ManufacturingView(QWidget):
         if not orders:
             logger.warning("DEBUG: No orders to populate")
             self.order_table.setRowCount(0)
-            self.order_table.setColumnCount(7)
+            self.order_table.setColumnCount(9)
             self.order_table.setHorizontalHeaderLabels([
-                "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch"
+                "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch", "Raw Cost", "Packing Cost"
             ])
             return
         
@@ -707,9 +707,9 @@ class ManufacturingView(QWidget):
         
         try:
             self.order_table.setRowCount(0)
-            self.order_table.setColumnCount(7)
+            self.order_table.setColumnCount(9)
             self.order_table.setHorizontalHeaderLabels([
-                "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch"
+                "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch", "Raw Cost", "Packing Cost"
             ])
             
             for row, order in enumerate(orders):
@@ -812,6 +812,18 @@ class ManufacturingView(QWidget):
                 batch_num_str = batch_num if batch_num else "-"
                 logger.debug(f"DEBUG: Setting output_batch_number: {batch_num_str}")
                 self.order_table.setItem(row, 6, QTableWidgetItem(batch_num_str))
+                
+                # Raw Material Cost
+                raw_cost = getattr(order, 'raw_material_cost', None)
+                self.order_table.setItem(row, 7, QTableWidgetItem(
+                    f"{raw_cost:.2f}" if raw_cost is not None else "-"
+                ))
+                
+                # Packing Material Cost
+                packing_cost = getattr(order, 'packing_material_cost', None)
+                self.order_table.setItem(row, 8, QTableWidgetItem(
+                    f"{packing_cost:.2f}" if packing_cost is not None else "-"
+                ))
                 
                 logger.debug(f"DEBUG: Finished processing order #{row}")
             
@@ -944,9 +956,9 @@ class ManufacturingView(QWidget):
         logger.debug(f"DEBUG: Loaded {len(orders)} orders")
         
         self.order_table.setRowCount(len(orders))
-        self.order_table.setColumnCount(7)
+        self.order_table.setColumnCount(9)
         self.order_table.setHorizontalHeaderLabels([
-            "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch"
+            "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch", "Raw Cost", "Packing Cost"
         ])
         
         for row, order in enumerate(orders):
@@ -977,6 +989,8 @@ class ManufacturingView(QWidget):
             self.order_table.setItem(row, 4, QTableWidgetItem(order.status.replace("_", " ").title()))
             self.order_table.setItem(row, 5, QTableWidgetItem(order.manufacturing_date))
             self.order_table.setItem(row, 6, QTableWidgetItem(order.output_batch_number or "-"))
+            self.order_table.setItem(row, 7, QTableWidgetItem(f"{order.raw_material_cost:.2f}" if order.raw_material_cost else "-"))
+            self.order_table.setItem(row, 8, QTableWidgetItem(f"{order.packing_material_cost:.2f}" if order.packing_material_cost else "-"))
         
         logger.debug("DEBUG: _load_orders completed")
         logger.debug("=" * 60)

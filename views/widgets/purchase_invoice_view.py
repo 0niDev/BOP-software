@@ -484,22 +484,26 @@ class PurchaseInvoiceView(QWidget):
 
         button_layout = QHBoxLayout()
         self.save_button = QPushButton("Save")
+        self.save_button.setObjectName("accent")
         self.save_button.clicked.connect(self._on_save_clicked)
         self.clear_button = QPushButton("Clear")
+        self.clear_button.setObjectName("secondary")
         self.clear_button.clicked.connect(self._on_clear_clicked)
 
         self.edit_button = QPushButton("Edit")
+        self.edit_button.setObjectName("primary")
         self.edit_button.clicked.connect(self._on_edit_clicked)
         self.edit_button.setEnabled(False)
 
         self.delete_button = QPushButton("Delete")
+        self.delete_button.setObjectName("danger")
         self.delete_button.clicked.connect(self._on_delete_clicked)
         self.delete_button.setEnabled(False)
 
         self.pay_button = QPushButton("Pay Supplier")
         self.pay_button.clicked.connect(self._on_pay_supplier)
         self.pay_button.setEnabled(False)
-        self.pay_button.setStyleSheet("background: #2ecc71; color: white; font-weight: bold;")
+        self.pay_button.setObjectName("success")
 
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.clear_button)
@@ -1093,7 +1097,7 @@ class PurchaseInvoiceView(QWidget):
             f"Paid: Rs. {invoice.paid_amount:,.2f}\n"
             f"Remaining: Rs. {remaining:,.2f}"
         )
-        info_label.setStyleSheet("background: #f8f9fa; padding: 10px; border-radius: 4px;")
+        info_label.setStyleSheet("background: #242424; padding: 10px; border-radius: 4px;")
         form_layout.addRow(info_label)
         
         amount_input = QDoubleSpinBox()

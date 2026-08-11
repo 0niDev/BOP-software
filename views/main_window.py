@@ -117,9 +117,10 @@ class MainWindow(QMainWindow):
         brand = QLabel("BOP Nutraceuticals")
         brand.setWordWrap(True)
         brand.setAlignment(Qt.AlignCenter)
+        brand.setObjectName("brand")
         brand.setStyleSheet("""
-            font-weight: bold;
-            font-size: 14px;
+            font-weight: 700;
+            font-size: 15px;
             padding: 16px 8px;
             color: #ffffff;
             background: rgba(255, 255, 255, 0.05);
@@ -134,13 +135,6 @@ class MainWindow(QMainWindow):
         self.nav_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.nav_list.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
-        self.nav_list.setStyleSheet("""
-            QListWidget::item {
-                padding: 8px 16px;
-                margin: 1px 4px;
-            }
-        """)
-
         # Add filtered navigation items
         for label, key, _ in self._nav_items:
             item = QListWidgetItem(label)
@@ -152,7 +146,7 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(self.nav_list, 1)
 
         # User info at bottom of sidebar
-        user_info = QLabel(f"👤 {self.user.full_name}\n{self.user.role_name}")
+        user_info = QLabel(f"{self.user.full_name}\n{self.user.role_name}")
         user_info.setWordWrap(True)
         user_info.setAlignment(Qt.AlignCenter)
         user_info.setStyleSheet("""
@@ -232,7 +226,7 @@ class MainWindow(QMainWindow):
             layout = QVBoxLayout(placeholder)
             layout.setAlignment(Qt.AlignCenter)
             label = QLabel(f"'{key.replace('_', ' ').title()}' module")
-            label.setStyleSheet("color: #888; font-size: 13px;")
+            label.setStyleSheet("color: #9b9b9b; font-size: 13px;")
             layout.addWidget(label)
             page = placeholder
 

@@ -19,6 +19,8 @@ class ProductionOrder:
     output_batch_number: Optional[str] = None
     expiry_date: Optional[str] = None
     production_cost: float = 0.0
+    raw_material_cost: float = 0.0
+    packing_material_cost: float = 0.0
     status: str = "DRAFT"  # DRAFT, IN_PROGRESS, COMPLETED, CANCELLED
     notes: Optional[str] = None
     id: Optional[int] = None
@@ -43,6 +45,8 @@ class ProductionOrder:
             manufacturing_date=row["manufacturing_date"],
             expiry_date=row.get("expiry_date"),
             production_cost=row["production_cost"],
+            raw_material_cost=row.get("raw_material_cost", row.get("production_cost", 0)),
+            packing_material_cost=row.get("packing_material_cost", 0),
             status=row["status"],
             notes=row.get("notes"),
             created_by=row.get("created_by"),
@@ -65,6 +69,8 @@ class ProductionOrder:
             "manufacturing_date": self.manufacturing_date,
             "expiry_date": self.expiry_date,
             "production_cost": self.production_cost,
+            "raw_material_cost": self.raw_material_cost,
+            "packing_material_cost": self.packing_material_cost,
             "status": self.status,
             "notes": self.notes,
             "created_by": self.created_by,

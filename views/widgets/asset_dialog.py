@@ -100,7 +100,7 @@ class AssetDialog(QDialog):
             "💡 This will create a Fixed Asset account and post a journal entry.\n"
             "The asset will appear on your Balance Sheet."
         )
-        self.info_label.setStyleSheet("color: #666; font-size: 11px; padding: 8px; background: #f8f9fa; border-radius: 4px;")
+        self.info_label.setStyleSheet("color: #adb5bd; font-size: 11px; padding: 8px; background: #242424; border-radius: 4px;")
         self.info_label.setWordWrap(True)
         layout.addWidget(self.info_label)
 

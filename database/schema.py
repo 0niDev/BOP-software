@@ -244,6 +244,8 @@ SCHEMA_STATEMENTS: list[str] = [
         manufacturing_date  TEXT,
         expiry_date         TEXT,
         purchase_price      REAL NOT NULL DEFAULT 0,
+        raw_unit_cost       REAL NOT NULL DEFAULT 0,
+        packing_unit_cost   REAL NOT NULL DEFAULT 0,
         quantity_in_stock   REAL NOT NULL DEFAULT 0,
         received_date       TEXT NOT NULL DEFAULT (date('now')),
         is_active           INTEGER NOT NULL DEFAULT 1,
@@ -513,6 +515,8 @@ SCHEMA_STATEMENTS: list[str] = [
         manufacturing_date  TEXT NOT NULL,
         expiry_date         TEXT,
         production_cost     REAL NOT NULL DEFAULT 0,
+        raw_material_cost   REAL NOT NULL DEFAULT 0,
+        packing_material_cost REAL NOT NULL DEFAULT 0,
         status              TEXT NOT NULL DEFAULT 'DRAFT'
                             CHECK (status IN ('DRAFT','IN_PROGRESS','COMPLETED','CANCELLED')),
         notes               TEXT,

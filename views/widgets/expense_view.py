@@ -586,7 +586,7 @@ class ExpenseView(QWidget):
             )
 
             if success:
-                self._load_categories()
+                self._load_expenses()
                 QMessageBox.information(self, "Success", "Category created successfully!")
             else:
                 QMessageBox.warning(self, "Creation Failed", error)
@@ -618,7 +618,7 @@ class ExpenseView(QWidget):
             )
 
             if success:
-                self._load_categories()
+                self._load_expenses()
                 QMessageBox.information(self, "Success", "Category updated successfully!")
             else:
                 QMessageBox.warning(self, "Update Failed", error)
@@ -645,7 +645,7 @@ class ExpenseView(QWidget):
         if reply == QMessageBox.Yes:
             success, error = self.controller.delete_category(category.id)
             if success:
-                self._load_categories()
+                self._load_expenses()
                 self.edit_cat_btn.setEnabled(False)
                 self.delete_cat_btn.setEnabled(False)
                 self._selected_category_id = None

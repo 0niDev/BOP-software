@@ -61,6 +61,9 @@ def cleanup():
 atexit.register(cleanup)
 
 
+# ============================================================
+#   BLACK THEME - Global QSS stylesheet
+# ============================================================
 APP_STYLESHEET = """
 /* ============================================================
    GLOBAL STYLES
@@ -68,11 +71,25 @@ APP_STYLESHEET = """
 QWidget {
     font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
     font-size: 16px;
-    color: #1a1a2e;
+    color: #e0e0e0;
 }
 
 QMainWindow {
-    background: #f0f2f5;
+    background: #0c0c0c;
+}
+
+QScrollArea, QStackedWidget {
+    background: #0c0c0c;
+}
+
+QScrollArea > QWidget > QWidget {
+    background: #0c0c0c;
+}
+
+QWidget:tooltip {
+    background: #222222;
+    color: #e0e0e0;
+    border: 1px solid #3a3a3a;
 }
 
 /* ============================================================
@@ -80,9 +97,9 @@ QMainWindow {
    ============================================================ */
 #sidebar {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #1a1a2e,
-        stop:1 #16213e);
-    border-right: 1px solid #0f3460;
+        stop:0 #000000,
+        stop:1 #151515);
+    border-right: 1px solid #2a2a2a;
 }
 
 #sidebar QLabel {
@@ -113,8 +130,8 @@ QMainWindow {
 
 #sidebar QListWidget::item:selected {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #e94560,
-        stop:1 #ff6b6b);
+        stop:0 #8B1A2B,
+        stop:1 #A83248);
     color: #ffffff;
 }
 
@@ -134,7 +151,7 @@ QMainWindow {
 }
 
 #sidebar QPushButton:pressed {
-    background: rgba(233, 69, 96, 0.3);
+    background: rgba(139, 26, 43, 0.35);
 }
 
 /* ============================================================
@@ -142,33 +159,34 @@ QMainWindow {
    ============================================================ */
 #loginCard {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #ffffff,
-        stop:1 #f8f9fa);
-    border: none;
+        stop:0 #1c1c1c,
+        stop:1 #141414);
+    border: 1px solid #2a2a2a;
     border-radius: 16px;
 }
 
 #loginCard QLabel {
-    color: #1a1a2e;
+    color: #e0e0e0;
 }
 
 #loginCard QLineEdit {
-    background: #f8f9fa;
-    border: 2px solid #e9ecef;
+    background: #222222;
+    border: 1px solid #3a3a3a;
     border-radius: 10px;
     padding: 12px 16px;
     font-size: 13px;
+    color: #e0e0e0;
 }
 
 #loginCard QLineEdit:focus {
-    border-color: #e94560;
-    background: #ffffff;
+    border-color: #8B1A2B;
+    background: #262626;
 }
 
 #loginCard QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #e94560,
-        stop:1 #ff6b6b);
+        stop:0 #8B1A2B,
+        stop:1 #A83248);
     color: #ffffff;
     border: none;
     border-radius: 10px;
@@ -179,17 +197,17 @@ QMainWindow {
 
 #loginCard QPushButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #c73652,
-        stop:1 #e94560);
+        stop:0 #701320,
+        stop:1 #8B1A2B);
 }
 
 /* ============================================================
    BUTTONS
    ============================================================ */
 QPushButton {
-    background: #e94560;
-    color: #ffffff;
-    border: none;
+    background: #2b2b2b;
+    color: #e0e0e0;
+    border: 1px solid #3a3a3a;
     border-radius: 8px;
     padding: 8px 18px;
     font-weight: 500;
@@ -197,88 +215,136 @@ QPushButton {
 }
 
 QPushButton:hover {
-    background: #c73652;
+    background: #363636;
+    border-color: #4a4a4a;
 }
 
 QPushButton:pressed {
-    background: #a82d45;
+    background: #242424;
 }
 
 QPushButton:disabled {
-    background: #ced4da;
+    background: #1f1f1f;
     color: #6c757d;
+    border-color: #2a2a2a;
+}
+
+QPushButton#primary {
+    background: #3498db;
+    border-color: #3498db;
+    color: #ffffff;
+}
+
+QPushButton#primary:hover {
+    background: #2980b9;
+    border-color: #2980b9;
+}
+
+QPushButton#accent {
+    background: #8B1A2B;
+    border-color: #8B1A2B;
+    color: #ffffff;
+}
+
+QPushButton#accent:hover {
+    background: #701320;
+    border-color: #701320;
 }
 
 QPushButton#secondary {
-    background: #e9ecef;
-    color: #1a1a2e;
+    background: transparent;
+    color: #adb5bd;
+    border: 1px solid #3a3a3a;
 }
 
 QPushButton#secondary:hover {
-    background: #dee2e6;
+    background: #2b2b2b;
+    color: #e0e0e0;
 }
 
 QPushButton#success {
-    background: #2ecc71;
+    background: #27ae60;
+    border-color: #27ae60;
+    color: #ffffff;
 }
 
 QPushButton#success:hover {
-    background: #27ae60;
+    background: #219653;
+    border-color: #219653;
 }
 
 QPushButton#danger {
     background: #e74c3c;
+    border-color: #e74c3c;
+    color: #ffffff;
 }
 
 QPushButton#danger:hover {
     background: #c0392b;
+    border-color: #c0392b;
 }
 
 /* ============================================================
    TABLES
    ============================================================ */
 QTableWidget {
-    background: #ffffff;
-    border: 1px solid #e9ecef;
+    background: #161616;
+    border: 1px solid #2a2a2a;
     border-radius: 12px;
-    gridline-color: #f1f3f5;
-    selection-background-color: #e94560;
+    gridline-color: #262626;
+    selection-background-color: #8B1A2B;
     selection-color: #ffffff;
-    alternate-background-color: #f8f9fa;
+    alternate-background-color: #1b1b1b;
+    color: #e0e0e0;
 }
 
 QTableWidget::item {
     padding: 8px 12px;
+    color: #e0e0e0;
 }
 
 QTableWidget::item:selected {
-    background: #e94560;
+    background: #8B1A2B;
     color: #ffffff;
 }
 
 QHeaderView::section {
-    background: #f8f9fa;
-    color: #495057;
+    background: #1f1f1f;
+    color: #adb5bd;
     padding: 10px 12px;
     border: none;
-    border-bottom: 2px solid #e9ecef;
+    border-bottom: 2px solid #2a2a2a;
     font-weight: 600;
     font-size: 12px;
+}
+
+QTableCornerButton::section {
+    background: #1f1f1f;
+    border: none;
 }
 
 /* ============================================================
    INPUTS
    ============================================================ */
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit {
-    background: #ffffff;
-    border: 2px solid #e9ecef;
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {
+    background: #222222;
+    border: 1px solid #3a3a3a;
     border-radius: 8px;
     padding: 8px 12px;
     min-height: 20px;
+    color: #e0e0e0;
+    selection-background-color: #8B1A2B;
+    selection-color: #ffffff;
 }
 
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus {
-    border-color: #e94560;
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+QDateEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border-color: #8B1A2B;
+}
+
+QLineEdit:disabled, QComboBox:disabled {
+    background: #1a1a1a;
+    color: #6c757d;
 }
 
 QComboBox::drop-down {
@@ -290,26 +356,46 @@ QComboBox::down-arrow {
     image: none;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
-    border-top: 5px solid #6c757d;
+    border-top: 5px solid #adb5bd;
     margin-right: 8px;
+}
+
+QComboBox QAbstractItemView {
+    background: #222222;
+    color: #e0e0e0;
+    border: 1px solid #3a3a3a;
+    selection-background-color: #8B1A2B;
+    selection-color: #ffffff;
+}
+
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+    background: #2b2b2b;
+    border: none;
+}
+
+QCalendarWidget QWidget {
+    alternate-background-color: #222222;
+    background: #1a1a1a;
+    color: #e0e0e0;
 }
 
 /* ============================================================
    GROUP BOXES
    ============================================================ */
 QGroupBox {
-    background: #ffffff;
-    border: 1px solid #e9ecef;
+    background: #161616;
+    border: 1px solid #2a2a2a;
     border-radius: 12px;
     margin-top: 12px;
     padding-top: 8px;
+    color: #e0e0e0;
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
     left: 16px;
     padding: 0 8px;
-    color: #1a1a2e;
+    color: #adb5bd;
     font-weight: 600;
     font-size: 13px;
 }
@@ -318,15 +404,15 @@ QGroupBox::title {
    TABS
    ============================================================ */
 QTabWidget::pane {
-    background: #ffffff;
-    border: 1px solid #e9ecef;
+    background: #161616;
+    border: 1px solid #2a2a2a;
     border-radius: 12px;
     padding: 8px;
 }
 
 QTabBar::tab {
-    background: #f8f9fa;
-    color: #495057;
+    background: #1f1f1f;
+    color: #adb5bd;
     padding: 10px 20px;
     border: none;
     border-radius: 8px 8px 0 0;
@@ -335,31 +421,32 @@ QTabBar::tab {
 }
 
 QTabBar::tab:selected {
-    background: #e94560;
+    background: #8B1A2B;
     color: #ffffff;
 }
 
 QTabBar::tab:hover:!selected {
-    background: #e9ecef;
+    background: #2b2b2b;
+    color: #e0e0e0;
 }
 
 /* ============================================================
    SCROLLBARS
    ============================================================ */
 QScrollBar:vertical {
-    background: #f8f9fa;
+    background: #1a1a1a;
     width: 10px;
     border-radius: 5px;
 }
 
 QScrollBar::handle:vertical {
-    background: #ced4da;
+    background: #3a3a3a;
     border-radius: 5px;
     min-height: 30px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #adb5bd;
+    background: #4a4a4a;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -367,19 +454,19 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 }
 
 QScrollBar:horizontal {
-    background: #f8f9fa;
+    background: #1a1a1a;
     height: 10px;
     border-radius: 5px;
 }
 
 QScrollBar::handle:horizontal {
-    background: #ced4da;
+    background: #3a3a3a;
     border-radius: 5px;
     min-width: 30px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background: #adb5bd;
+    background: #4a4a4a;
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
@@ -390,58 +477,67 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
    STATUS BAR
    ============================================================ */
 QStatusBar {
-    background: #ffffff;
-    border-top: 1px solid #e9ecef;
-    color: #6c757d;
+    background: #141414;
+    border-top: 1px solid #2a2a2a;
+    color: #adb5bd;
     padding: 4px 12px;
+}
+
+QStatusBar QLabel {
+    color: #adb5bd;
+}
+
+QStatusBar::item {
+    border: none;
 }
 
 /* ============================================================
    TOOLBAR
    ============================================================ */
 QToolBar {
-    background: #ffffff;
+    background: #141414;
     border: none;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid #2a2a2a;
     padding: 4px 8px;
     spacing: 4px;
 }
 
 QToolBar QPushButton {
     background: transparent;
-    color: #495057;
+    color: #adb5bd;
     padding: 6px 12px;
     border-radius: 6px;
 }
 
 QToolBar QPushButton:hover {
-    background: #f8f9fa;
+    background: #2b2b2b;
+    color: #ffffff;
 }
 
 QToolBar QPushButton:pressed {
-    background: #e9ecef;
+    background: #333333;
 }
 
 /* ============================================================
    DIALOGS
    ============================================================ */
 QDialog {
-    background: #f8f9fa;
+    background: #121212;
 }
 
-QDialog QPushButton {
-    min-width: 80px;
+QDialog QLabel {
+    color: #e0e0e0;
 }
 
 /* ============================================================
    MESSAGE BOXES
    ============================================================ */
 QMessageBox {
-    background: #ffffff;
+    background: #1a1a1a;
 }
 
-QMessageBox QPushButton {
-    min-width: 80px;
+QMessageBox QLabel {
+    color: #e0e0e0;
 }
 
 /* ============================================================
@@ -449,89 +545,123 @@ QMessageBox QPushButton {
    ============================================================ */
 QFrame#kpi-card {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #ffffff,
-        stop:1 #fafafa);
-    border: 1px solid #e9ecef;
-    border-radius: 16px;
-    padding: 20px;
+        stop:0 #1f1f1f,
+        stop:1 #1a1a1a);
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    padding: 16px 18px;
 }
 
 QFrame#kpi-card:hover {
-    border-color: #e94560;
+    border-color: #8B1A2B;
 }
 
-.kpi-title {
-    color: #6c757d;
-    font-size: 12px;
-    font-weight: 500;
+QLabel#kpi-title {
+    color: #adb5bd;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
 }
 
-.kpi-value {
-    font-size: 28px;
+QLabel#kpi-value {
+    font-size: 24px;
     font-weight: bold;
-    margin-top: 4px;
+    color: #e0e0e0;
+}
+
+QLabel#kpi-sub {
+    color: #6c757d;
+    font-size: 11px;
 }
 
 /* ============================================================
    SECTION FRAMES
    ============================================================ */
 QFrame#section-frame {
-    background: #ffffff;
-    border: 1px solid #e9ecef;
+    background: #161616;
+    border: 1px solid #2a2a2a;
     border-radius: 12px;
     padding: 16px;
 }
 
-.section-title {
-    font-size: 14px;
+QLabel#section-title {
+    font-size: 13px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: #e0e0e0;
     padding-bottom: 8px;
-    border-bottom: 2px solid #f1f3f5;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+QFrame#sub-card {
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 10px 14px;
 }
 
 /* ============================================================
    ALERTS
    ============================================================ */
-.alert-success {
-    background: #d4edda;
-    color: #155724;
+QFrame#alert-success {
+    background: #123a24;
     border-left: 4px solid #28a745;
-    padding: 10px 14px;
     border-radius: 8px;
+    padding: 8px 12px;
 }
 
-.alert-warning {
-    background: #fff3cd;
-    color: #856404;
+QFrame#alert-warning {
+    background: #3a3114;
     border-left: 4px solid #ffc107;
-    padding: 10px 14px;
     border-radius: 8px;
+    padding: 8px 12px;
 }
 
-.alert-danger {
-    background: #f8d7da;
-    color: #721c24;
+QFrame#alert-danger {
+    background: #3a1a1a;
     border-left: 4px solid #dc3545;
-    padding: 10px 14px;
     border-radius: 8px;
-}
-#sidebar QListWidget {
-    background: transparent;
-    color: #a8b2d1;
-    border: none;
-    outline: none;
-    font-size: 13px;
-    padding: 4px 0;
+    padding: 8px 12px;
 }
 
-#sidebar QListWidget::item {
-    padding: 10px 16px;
-    border-radius: 8px;
-    margin: 2px 8px;
-    min-height: 36px;  /* ← ADD THIS - ensures consistent item height */
+QFrame#alert-success QLabel,
+QFrame#alert-warning QLabel,
+QFrame#alert-danger QLabel {
+    background: transparent;
+    border: none;
+}
+
+QFrame#alert-success QLabel#alert-title {
+    color: #7ee2a8;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QFrame#alert-warning QLabel#alert-title {
+    color: #f5c26b;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QFrame#alert-danger QLabel#alert-title {
+    color: #f08a8a;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QFrame#alert-success QLabel#alert-msg,
+QFrame#alert-warning QLabel#alert-msg,
+QFrame#alert-danger QLabel#alert-msg {
+    color: #adb5bd;
+    font-size: 11px;
+}
+
+/* ============================================================
+   CHART THEME (QtCharts)
+   ============================================================ */
+QChartView {
+    background: transparent;
+    border: none;
 }
 """
 
@@ -570,14 +700,28 @@ class Application:
     def _initialize_database(self) -> None:
         try:
             db = get_db()
+            # Eagerly open a few pooled connections in the background so the
+            # first UI queries don't pay the TCP/TLS handshake latency.
+            try:
+                import threading
+                from database.connection import get_pool
+                threading.Thread(target=lambda: get_pool().warm_up(count=3), daemon=True).start()
+            except Exception:
+                pass
             # Check if users table exists
             try:
                 db.fetch_one("SELECT 1 FROM users LIMIT 1")
                 logger.info("✅ Database already initialized, skipping migrations")
+                # Idempotent column migration - runs on existing databases too
+                from database.migrations.add_material_cost_columns import run_column_migration
+                run_column_migration(db)
                 return
             except Exception:
                 pass
             run_migrations(db)
+            # Idempotent column migration - ensures new cost columns/accounts exist
+            from database.migrations.add_material_cost_columns import run_column_migration
+            run_column_migration(db)
         except Exception:
             logger.exception("Fatal error initializing database")
             raise

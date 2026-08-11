@@ -149,7 +149,7 @@ class UsersView(QWidget):
         
         self.add_btn = QPushButton("+ New User")
         self.add_btn.clicked.connect(self._on_add_user)
-        self.add_btn.setStyleSheet("background: #2ecc71; color: white; font-weight: bold;")
+        self.add_btn.setObjectName("success")
         controls_layout.addWidget(self.add_btn)
         
         layout.addLayout(controls_layout)

@@ -119,7 +119,7 @@ class AssetDialog(QDialog):
             "Current Asset = Due within 1 year | Non-Current = Due after 1 year\n"
             "The asset will appear on your Balance Sheet."
         )
-        info.setStyleSheet("color: #666; font-size: 11px; padding: 8px; background: #f8f9fa; border-radius: 4px;")
+        info.setStyleSheet("color: #adb5bd; font-size: 11px; padding: 8px; background: #242424; border-radius: 4px;")
         info.setWordWrap(True)
         layout.addWidget(info)
 
@@ -312,7 +312,7 @@ class AssetView(QWidget):
 
         self.add_btn = QPushButton("+ Add Asset")
         self.add_btn.clicked.connect(self._on_add_asset)
-        self.add_btn.setStyleSheet("background: #2ecc71; color: white; font-weight: bold;")
+        self.add_btn.setObjectName("success")
         header.addWidget(self.add_btn)
 
         layout.addLayout(header)

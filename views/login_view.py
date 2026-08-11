@@ -55,6 +55,7 @@ class LoginView(QWidget):
     def _build_ui(self) -> None:
         self.setWindowTitle(get_config().app_name)
         self.setMinimumSize(420, 460)
+        self.setStyleSheet("LoginView { background: #0c0c0c; }")
 
         outer = QVBoxLayout(self)
         outer.setAlignment(Qt.AlignCenter)
@@ -76,7 +77,7 @@ class LoginView(QWidget):
 
         subtitle = QLabel("Sign in to continue")
         subtitle.setAlignment(Qt.AlignCenter)
-        subtitle.setStyleSheet("color: #666;")
+        subtitle.setStyleSheet("color: #adb5bd;")
         card_layout.addWidget(subtitle)
         card_layout.addSpacing(10)
 
@@ -91,13 +92,15 @@ class LoginView(QWidget):
         card_layout.addWidget(self.password_input)
 
         self.error_label = QLabel("")
-        self.error_label.setStyleSheet("color: #c0392b;")
+        self.error_label.setStyleSheet("color: #e74c3c;")
         self.error_label.setWordWrap(True)
         self.error_label.hide()
         card_layout.addWidget(self.error_label)
 
         self.login_button = QPushButton("Login")
+        self.login_button.setObjectName("accent")
         self.login_button.setDefault(True)
+        self.login_button.setCursor(Qt.PointingHandCursor)
         self.login_button.clicked.connect(self._on_login_clicked)
         card_layout.addWidget(self.login_button)
 

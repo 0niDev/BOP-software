@@ -375,6 +375,7 @@ class ManufacturingService:
         ratio = actual_quantity / bom.output_quantity
         required_materials = []
         total_raw_cost = Decimal('0')
+        total_packing_cost = Decimal('0')
 
         for component in bom.components:
             required_qty = component.quantity_required * ratio
@@ -403,25 +404,39 @@ class ManufacturingService:
 
             unit_cost = stock_batch["purchase_price"] if stock_batch else 0
 
+            component_item = self.item_repo.get_by_id(component.component_item_id)
+            is_packing = component_item["item_type"] == "PACKING_MATERIAL"
+
             required_materials.append({
                 "component_item_id": component.component_item_id,
                 "batch_id": stock_batch["id"] if stock_batch else None,
                 "quantity_consumed": float(total_required),
                 "unit_cost": unit_cost,
                 "total_cost": float(total_required) * unit_cost,
+                "is_packing": is_packing,
             })
 
-            total_raw_cost += Decimal(str(float(total_required) * unit_cost))
+            material_cost = Decimal(str(float(total_required) * unit_cost))
+            if is_packing:
+                total_packing_cost += material_cost
+            else:
+                total_raw_cost += material_cost
+
+        total_cost = total_raw_cost + total_packing_cost
 
         # Get accounts for journal entry
         inventory_raw_account = self.account_repo.find_by_code("1200")
         if not inventory_raw_account:
             raise ValidationError("Inventory Raw Materials account (1200) not found.")
-        
+
+        inventory_packing_account = self.account_repo.find_by_code("1210")
+        if not inventory_packing_account:
+            raise ValidationError("Inventory Packing Materials account (1210) not found.")
+
         inventory_finished_account = self.account_repo.find_by_code("1220")
         if not inventory_finished_account:
             raise ValidationError("Inventory Finished Goods account (1220) not found.")
-        
+
         wastage_account = self.account_repo.find_by_code("5200")
         if not wastage_account:
             raise ValidationError("Manufacturing Wastage account (5200) not found.")
@@ -430,17 +445,26 @@ class ManufacturingService:
         journal_lines = [
             JournalLine(
                 account_id=inventory_finished_account["id"],
-                debit=float(total_raw_cost),
+                debit=float(total_cost),
                 credit=0.0,
                 description=f"Production output - {order.order_number}"
             ),
-            JournalLine(
+        ]
+
+        if total_raw_cost > 0:
+            journal_lines.append(JournalLine(
                 account_id=inventory_raw_account["id"],
                 debit=0.0,
                 credit=float(total_raw_cost),
                 description=f"Raw materials consumed - {order.order_number}"
-            )
-        ]
+            ))
+        if total_packing_cost > 0:
+            journal_lines.append(JournalLine(
+                account_id=inventory_packing_account["id"],
+                debit=0.0,
+                credit=float(total_packing_cost),
+                description=f"Packing materials consumed - {order.order_number}"
+            ))
 
         # Save everything in a single transaction
         with self.db.transaction():
@@ -451,7 +475,9 @@ class ManufacturingService:
                     "actual_quantity": actual_quantity,
                     "wastage_quantity": wastage_quantity,
                     "output_batch_number": output_batch_number,
-                    "production_cost": float(total_raw_cost),
+                    "production_cost": float(total_cost),
+                    "raw_material_cost": float(total_raw_cost),
+                    "packing_material_cost": float(total_packing_cost),
                     "status": "COMPLETED",
                     "completed_at": datetime.now().isoformat(),
                 }
@@ -480,10 +506,19 @@ class ManufacturingService:
                     bom.finished_item_id,
                     order.warehouse_id
                 )
-                
+
+                raw_unit_cost = float(total_raw_cost) / actual_quantity if actual_quantity > 0 else 0
+                packing_unit_cost = float(total_packing_cost) / actual_quantity if actual_quantity > 0 else 0
+
                 if existing_batch:
                     new_qty = existing_batch["quantity_in_stock"] + actual_quantity
-                    self.stock_repo.update_quantity(existing_batch["id"], actual_quantity)
+                    self.stock_repo.add_to_batch(
+                        existing_batch["id"],
+                        actual_quantity,
+                        unit_cost=float(total_cost) / actual_quantity,
+                        raw_unit_cost=raw_unit_cost,
+                        packing_unit_cost=packing_unit_cost,
+                    )
                     logger.info(f"Updated existing batch for finished item: +{actual_quantity} (now {new_qty})")
                 else:
                     self.stock_repo.create_batch(
@@ -492,8 +527,10 @@ class ManufacturingService:
                         batch_number=output_batch_number,
                         manufacturing_date=order.manufacturing_date,
                         expiry_date=order.expiry_date,
-                        purchase_price=float(total_raw_cost) / actual_quantity,
+                        purchase_price=float(total_cost) / actual_quantity,
                         quantity_in_stock=actual_quantity,
+                        raw_unit_cost=raw_unit_cost,
+                        packing_unit_cost=packing_unit_cost,
                     )
                     logger.info(f"Created new batch for finished item: {actual_quantity}")
 
@@ -507,5 +544,5 @@ class ManufacturingService:
                 narration=f"Production order {order.order_number} completed"
             )
 
-        logger.info("Completed production order %s (id=%s), cost=%.2f", 
-                   order.order_number, order_id, total_raw_cost)
+        logger.info("Completed production order %s (id=%s), cost=%.2f (raw=%.2f, packing=%.2f)",
+                   order.order_number, order_id, total_cost, total_raw_cost, total_packing_cost)

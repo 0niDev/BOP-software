@@ -204,6 +204,7 @@ class PurchaseInvoiceService:
             # Access dictionary keys directly since get_by_id returns a dict
             item_name = item_dict['item_name']
             is_active = item_dict['is_active']
+            item_type = item_dict.get('item_type', 'RAW_MATERIAL')
             
             if not is_active:
                 raise ValidationError(f"Item {item_name} is not active.")
@@ -219,6 +220,7 @@ class PurchaseInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
+                "item_type": item_type,
                 "batch_number": item_data.get("batch_number"),
                 "manufacturing_date": item_data.get("manufacturing_date"),
                 "expiry_date": item_data.get("expiry_date")
@@ -246,11 +248,6 @@ class PurchaseInvoiceService:
         )
 
         # Get accounts
-        inventory_account_dict = self.account_repo.find_by_code("1200")
-        if not inventory_account_dict:
-            raise ValidationError("Inventory account (1200) not found.")
-        inventory_account_id = inventory_account_dict["id"]
-
         ap_account_dict = self.account_repo.find_by_code("2000")
         if not ap_account_dict:
             raise ValidationError("Accounts Payable account (2000) not found.")
@@ -264,6 +261,14 @@ class PurchaseInvoiceService:
         tax_account_dict = self.account_repo.find_by_code("2100")
         tax_account_id = tax_account_dict["id"] if tax_account_dict else None
         bank_account_dict = self.account_repo.find_by_code("1010")
+
+        # Resolve per-type inventory accounts (raw -> 1200, packing -> 1210, finished -> 1220)
+        inventory_account_ids = {}
+        for code in ("1200", "1210", "1220"):
+            acc = self.account_repo.find_by_code(code)
+            if not acc:
+                raise ValidationError(f"Inventory account ({code}) not found.")
+            inventory_account_ids[code] = acc["id"]
 
         # Determine credit account AND party_id
         credit_party_id = None  # Default: no party_id
@@ -299,15 +304,25 @@ class PurchaseInvoiceService:
             credit_description = f"{payment_type} payment"
             # Don't set party_id for default bank payments
 
-        # Build journal lines with party_id ONLY when appropriate
-        journal_lines = [
-            JournalLine(
-                account_id=inventory_account_id,
-                debit=float(total_amount),
+        # Build journal lines with party_id ONLY when appropriate.
+        # Inventory debit is split by item type: raw -> 1200, packing -> 1210, finished -> 1220.
+        inventory_lines = []
+        type_totals: dict[str, float] = {}
+        type_codes = {"RAW_MATERIAL": "1200", "PACKING_MATERIAL": "1210", "FINISHED_GOOD": "1220"}
+        for item_data in validated_items:
+            itype = item_data.get("item_type", "RAW_MATERIAL")
+            type_totals[itype] = type_totals.get(itype, 0.0) + item_data["line_total"]
+
+        for itype, amount in type_totals.items():
+            code = type_codes.get(itype, "1200")
+            inventory_lines.append(JournalLine(
+                account_id=inventory_account_ids[code],
+                debit=round(float(amount), 2),
                 credit=0.0,
-                description="Inventory purchase"
-            ),
-        ]
+                description=f"Inventory purchase - {itype.replace('_', ' ').title()}"
+            ))
+
+        journal_lines = inventory_lines
         
         # Only add party_id for CREDIT purchases
         if credit_party_id is not None:
@@ -569,6 +584,8 @@ class PurchaseInvoiceService:
             if not item:
                 raise ValidationError(f"Item {item_id} not found.")
             
+            item_type = item.get('item_type', 'RAW_MATERIAL')
+            
             line_total = (quantity * unit_cost) - discount + tax
             if line_total < 0:
                 raise ValidationError(f"Line total cannot be negative for item {item['item_name']}")
@@ -581,6 +598,7 @@ class PurchaseInvoiceService:
                 "discount_amount": float(discount),
                 "tax_amount": float(tax),
                 "line_total": float(line_total),
+                "item_type": item_type,
                 "batch_number": item_data.get("batch_number"),
                 "manufacturing_date": item_data.get("manufacturing_date"),
                 "expiry_date": item_data.get("expiry_date"),
@@ -667,7 +685,7 @@ class PurchaseInvoiceService:
         logger.info(f"Added stock for new items in invoice {invoice_number}")
         
         # Create new journal entry
-        account_codes_needed = ["1200"]  # Inventory
+        account_codes_needed = ["1200", "1210", "1220"]  # Inventory by type
         if payment_type == "CREDIT":
             account_codes_needed.append("2000")  # Accounts Payable
         elif payment_type == "CASH":
@@ -681,10 +699,9 @@ class PurchaseInvoiceService:
             if account_dict:
                 account_cache[code] = account_dict
         
-        inventory_account_dict = account_cache.get("1200")
-        if not inventory_account_dict:
-            raise ValidationError("Inventory account (1200) not found.")
-        inventory_account_id = inventory_account_dict["id"]
+        for code in ("1200", "1210", "1220"):
+            if code not in account_cache:
+                raise ValidationError(f"Inventory account ({code}) not found.")
         
         credit_account_id = None
         credit_description = ""
@@ -724,15 +741,25 @@ class PurchaseInvoiceService:
         if credit_account_id is None:
             raise ValidationError(f"Could not determine credit account for payment type: {payment_type}")
         
-        journal_lines = [
-            JournalLine(
-                account_id=inventory_account_id,
-                debit=float(total_amount),
+        # Inventory debit is split by item type: raw -> 1200, packing -> 1210, finished -> 1220.
+        inventory_lines = []
+        type_totals: dict[str, float] = {}
+        type_codes = {"RAW_MATERIAL": "1200", "PACKING_MATERIAL": "1210", "FINISHED_GOOD": "1220"}
+        for item_data in validated_items:
+            itype = item_data.get("item_type", "RAW_MATERIAL")
+            type_totals[itype] = type_totals.get(itype, 0.0) + item_data["line_total"]
+
+        for itype, amount in type_totals.items():
+            code = type_codes.get(itype, "1200")
+            inventory_lines.append(JournalLine(
+                account_id=account_cache[code]["id"],
+                debit=round(float(amount), 2),
                 credit=0.0,
-                description="Inventory purchase"
-            ),
-        ]
-        
+                description=f"Inventory purchase - {itype.replace('_', ' ').title()}"
+            ))
+
+        journal_lines = inventory_lines
+
         # Only add party_id for CREDIT purchases
         if credit_party_id is not None:
             journal_lines.append(

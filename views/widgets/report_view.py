@@ -288,7 +288,7 @@ class ReportView(QWidget):
         <html>
         <head>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; background: #ffffff; color: #212529; }}
             .header {{ text-align: center; border-bottom: 2pt solid #1a1a2e; padding-bottom: 8pt; margin-bottom: 12pt; }}
             .header h1 {{ font-size: 16pt; margin: 0; color: #1a1a2e; }}
             .header .period {{ font-size: 10pt; color: #6c757d; margin-top: 2pt; }}
@@ -544,7 +544,7 @@ class ReportView(QWidget):
         <html>
         <head>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; background: #ffffff; color: #212529; }}
             .header {{ text-align: center; border-bottom: 2pt solid #1a1a2e; padding-bottom: 8pt; margin-bottom: 12pt; }}
             .header h1 {{ font-size: 16pt; margin: 0; color: #1a1a2e; }}
             .header .subtitle {{ font-size: 10pt; color: #6c757d; margin-top: 2pt; }}
@@ -579,10 +579,30 @@ class ReportView(QWidget):
 
         # COST OF SALES
         html += '<tr class="section-title"><td colspan="2"><b>COST OF SALES</b></td></tr>'
+
+        # Split raw vs packing for display
+        cogs_raw_total = 0.0
+        cogs_packing_total = 0.0
+        cogs_other_total = 0.0
         if cost_of_sales:
             for item in cost_of_sales:
                 amount = item.get('amount', 0)
+                code = str(item.get('code', ''))
+                if code == '5000':
+                    cogs_raw_total += amount
+                elif code == '5001':
+                    cogs_packing_total += amount
+                else:
+                    cogs_other_total += amount
                 html += f'<tr><td class="indent">{item["code"]} - {item["name"]}</td><td class="right">(Rs. {amount:,.2f})</td></tr>'
+
+        # Sub-total block: raw vs packing cost of sales
+        if cogs_raw_total or cogs_packing_total:
+            if cogs_raw_total:
+                html += f'<tr class="sub-head"><td class="indent">Raw Material Cost</td><td class="right">(Rs. {cogs_raw_total:,.2f})</td></tr>'
+            if cogs_packing_total:
+                html += f'<tr class="sub-head"><td class="indent">Packing Material Cost</td><td class="right">(Rs. {cogs_packing_total:,.2f})</td></tr>'
+
         html += f'<tr class="total-row"><td><b>Total Cost of Sales</b></td><td class="right"><b>(Rs. {total_cogs:,.2f})</b></td></tr>'
 
         # GROSS PROFIT
@@ -707,7 +727,7 @@ class ReportView(QWidget):
         <html>
         <head>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; background: #ffffff; color: #212529; }}
             .header {{ text-align: center; border-bottom: 2pt solid #1a1a2e; padding-bottom: 8pt; margin-bottom: 12pt; }}
             .header h1 {{ font-size: 16pt; margin: 0; color: #1a1a2e; }}
             .header .as-at {{ font-size: 10pt; color: #6c757d; margin-top: 2pt; }}
@@ -867,7 +887,7 @@ class ReportView(QWidget):
         <html>
         <head>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; background: #ffffff; color: #212529; }}
             .header {{ text-align: center; border-bottom: 2pt solid #1a1a2e; padding-bottom: 8pt; margin-bottom: 12pt; }}
             .header h1 {{ font-size: 16pt; margin: 0; color: #1a1a2e; }}
             .info {{ font-size: 10pt; padding: 8pt 12pt; background: #f8f9fa; border: 1pt solid #dee2e6; border-radius: 4pt; margin-bottom: 12pt; }}
@@ -1004,7 +1024,7 @@ class ReportView(QWidget):
         <html>
         <head>
         <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 17pt; padding: 15pt; margin: 0; background: #ffffff; color: #212529; }}
             .header {{ text-align: center; border-bottom: 2pt solid #1a1a2e; padding-bottom: 8pt; margin-bottom: 12pt; }}
             .header h1 {{ font-size: 16pt; margin: 0; color: #1a1a2e; }}
             .header .subtitle {{ font-size: 10pt; color: #6c757d; margin-top: 2pt; }}

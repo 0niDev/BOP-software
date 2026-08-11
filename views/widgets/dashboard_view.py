@@ -1,17 +1,28 @@
 """Dashboard widget - main home screen."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QMargins, Qt, QThread, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
     QFrame,
+    QSizePolicy,
+)
+
+from PySide6.QtCharts import (
+    QChart,
+    QChartView,
+    QPieSeries,
+    QBarSeries,
+    QBarSet,
+    QBarCategoryAxis,
+    QValueAxis,
 )
 
 from controllers.dashboard_controller import DashboardController
@@ -77,18 +88,21 @@ class DashboardView(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         
         title = QLabel("Dashboard")
-        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        title.setObjectName("section-title")
+        title.setStyleSheet("font-size: 20px; border-bottom: none; padding-bottom: 0;")
         header_layout.addWidget(title)
         header_layout.addStretch()
         
-        self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(lambda: self._load_data(force=True))
-        self.refresh_btn.setFixedWidth(100)
-        header_layout.addWidget(self.refresh_btn)
-        
         self.last_updated_label = QLabel("Last updated: --")
-        self.last_updated_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.last_updated_label.setObjectName("kpi-sub")
         header_layout.addWidget(self.last_updated_label)
+        header_layout.addSpacing(12)
+        
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setObjectName("secondary")
+        self.refresh_btn.setCursor(Qt.PointingHandCursor)
+        self.refresh_btn.clicked.connect(lambda: self._load_data(force=True))
+        header_layout.addWidget(self.refresh_btn)
         
         main_layout.addWidget(header_widget)
 
@@ -182,16 +196,19 @@ class DashboardView(QWidget):
         # 1. KPI Cards
         self._add_kpi_cards(data)
         
-        # 2. Today's Summary
+        # 2. Charts
+        self._add_charts(data)
+        
+        # 3. Today's Summary
         self._add_today_summary(data)
         
-        # 3. Recent Transactions
+        # 4. Recent Transactions
         self._add_recent_transactions(data)
         
-        # 4. Alerts
+        # 5. Alerts
         self._add_alerts(data)
         
-        # 5. Low Stock and Expiring (side by side)
+        # 6. Low Stock and Expiring (side by side)
         self._add_low_stock_expiring(data)
         
         # Add stretch at the end
@@ -206,6 +223,8 @@ class DashboardView(QWidget):
         # Create a grid for KPI cards
         grid = QGridLayout()
         grid.setSpacing(10)
+        for c in range(3):
+            grid.setColumnStretch(c, 1)
         
         kpi_data = [
             ("Cash in Hand", f"Rs. {balances.get('cash', 0):,.0f}", "#2ecc71"),
@@ -221,24 +240,19 @@ class DashboardView(QWidget):
         col = 0
         for title, value, color in kpi_data:
             card = QFrame()
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background: white;
-                    border: 1px solid #e9ecef;
-                    border-radius: 12px;
-                    padding: 15px;
-                }}
-            """)
+            card.setObjectName("kpi-card")
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             
             layout = QVBoxLayout(card)
-            layout.setSpacing(2)
+            layout.setSpacing(6)
             
             title_label = QLabel(title)
-            title_label.setStyleSheet("color: #6c757d; font-size: 12px; font-weight: 500;")
+            title_label.setObjectName("kpi-title")
             layout.addWidget(title_label)
             
             value_label = QLabel(value)
-            value_label.setStyleSheet(f"color: {color}; font-size: 22px; font-weight: bold;")
+            value_label.setObjectName("kpi-value")
+            value_label.setStyleSheet(f"color: {color};")
             layout.addWidget(value_label)
             
             grid.addWidget(card, row, col)
@@ -250,30 +264,142 @@ class DashboardView(QWidget):
         # Add grid to content
         self.content_layout.addLayout(grid)
 
+    def _add_charts(self, data):
+        """Add charts row: asset allocation donut + revenue vs expense trend."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setSpacing(12)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        balances = data.get("balances", {})
+        trend = data.get("monthly_trend", [])
+
+        # -- Asset allocation donut --
+        donut_frame = QFrame()
+        donut_frame.setObjectName("section-frame")
+        donut_layout = QVBoxLayout(donut_frame)
+        donut_layout.setSpacing(8)
+
+        donut_title = QLabel("Asset Allocation")
+        donut_title.setObjectName("section-title")
+        donut_layout.addWidget(donut_title)
+
+        series = QPieSeries()
+        series.setHoleSize(0.55)
+        series.setPieSize(0.72)
+        slices = [
+            ("Cash", balances.get("cash", 0), "#2ecc71"),
+            ("Bank", balances.get("bank", 0), "#3498db"),
+            ("Inventory", balances.get("inventory", 0), "#9b59b6"),
+        ]
+        for label, value, color in slices:
+            sl = series.append(f"{label}", max(float(value or 0), 0.0001))
+            sl.setColor(QColor(color))
+            sl.setLabelVisible(True)
+            sl.setLabelColor(QColor("#adb5bd"))
+            sl.setLabelFont(self.font())
+
+        chart = QChart()
+        chart.addSeries(series)
+        chart.setBackgroundVisible(False)
+        chart.setMargins(QMargins(0, 0, 0, 0))
+        chart.legend().setVisible(True)
+        chart.legend().setAlignment(Qt.AlignBottom)
+        chart.legend().setLabelColor(QColor("#adb5bd"))
+        chart.legend().setFont(self.font())
+
+        view = QChartView(chart)
+        view.setRenderHint(QPainter.Antialiasing)
+        view.setMinimumHeight(260)
+        donut_layout.addWidget(view)
+
+        row_layout.addWidget(donut_frame, 1)
+
+        # -- Revenue vs expenses trend --
+        trend_frame = QFrame()
+        trend_frame.setObjectName("section-frame")
+        trend_layout = QVBoxLayout(trend_frame)
+        trend_layout.setSpacing(8)
+
+        trend_title = QLabel("Revenue vs Expenses (6 Months)")
+        trend_title.setObjectName("section-title")
+        trend_layout.addWidget(trend_title)
+
+        if trend:
+            months = []
+            revenue_set = QBarSet("Revenue")
+            expense_set = QBarSet("Expenses")
+            revenue_set.setColor(QColor("#2ecc71"))
+            expense_set.setColor(QColor("#e74c3c"))
+
+            for entry in trend:
+                month_str = str(entry.get("month", ""))
+                months.append(month_str[5:7] + "/" + month_str[:4] if len(month_str) >= 7 else month_str)
+                revenue_set.append(float(entry.get("revenue", 0)))
+                expense_set.append(float(entry.get("expenses", 0)))
+
+            bar_series = QBarSeries()
+            bar_series.append(revenue_set)
+            bar_series.append(expense_set)
+            bar_series.setBarWidth(0.55)
+
+            bar_chart = QChart()
+            bar_chart.addSeries(bar_series)
+            bar_chart.setBackgroundVisible(False)
+            bar_chart.setMargins(QMargins(0, 0, 0, 0))
+
+            axis_x = QBarCategoryAxis()
+            axis_x.append(months)
+            axis_x.setLabelsColor(QColor("#adb5bd"))
+            axis_x.setLabelsFont(self.font())
+
+            axis_y = QValueAxis()
+            axis_y.setLabelFormat("%.0f")
+            axis_y.setLabelsColor(QColor("#adb5bd"))
+            axis_y.setLabelsFont(self.font())
+            axis_y.setGridLineColor(QColor("#2a2a2a"))
+            axis_y.setLineVisible(False)
+
+            bar_chart.addAxis(axis_x, Qt.AlignBottom)
+            bar_chart.addAxis(axis_y, Qt.AlignLeft)
+            bar_series.attachAxis(axis_x)
+            bar_series.attachAxis(axis_y)
+            bar_chart.legend().setVisible(True)
+            bar_chart.legend().setAlignment(Qt.AlignBottom)
+            bar_chart.legend().setLabelColor(QColor("#adb5bd"))
+            bar_chart.legend().setFont(self.font())
+
+            bar_view = QChartView(bar_chart)
+            bar_view.setRenderHint(QPainter.Antialiasing)
+            bar_view.setMinimumHeight(260)
+            trend_layout.addWidget(bar_view)
+        else:
+            empty = QLabel("No monthly data available.")
+            empty.setObjectName("kpi-sub")
+            empty.setAlignment(Qt.AlignCenter)
+            trend_layout.addWidget(empty)
+
+        row_layout.addWidget(trend_frame, 1)
+
+        self.content_layout.addWidget(row)
+
     def _add_today_summary(self, data):
         """Add today's summary section."""
         today = data.get("today", {})
         
         frame = QFrame()
-        frame.setStyleSheet("""
-            QFrame {
-                background: white;
-                border: 1px solid #e9ecef;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """)
+        frame.setObjectName("section-frame")
         
         layout = QVBoxLayout(frame)
         layout.setSpacing(10)
         
         title = QLabel("Today's Summary")
-        title.setStyleSheet("font-size: 14px; font-weight: 600; color: #1a1a2e;")
+        title.setObjectName("section-title")
         layout.addWidget(title)
         
         # Stats row
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(20)
+        stats_layout.setSpacing(12)
         
         stats = [
             ("Sales", today.get("sales_total", 0), today.get("sales_count", 0), "#2ecc71"),
@@ -282,27 +408,23 @@ class DashboardView(QWidget):
         
         for label, total, count, color in stats:
             stat_frame = QFrame()
-            stat_frame.setStyleSheet(f"""
-                QFrame {{
-                    background: #f8f9fa;
-                    border-radius: 8px;
-                    padding: 10px 15px;
-                }}
-            """)
+            stat_frame.setObjectName("sub-card")
+            stat_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             
             stat_layout = QVBoxLayout(stat_frame)
             stat_layout.setSpacing(2)
             
             label_widget = QLabel(label)
-            label_widget.setStyleSheet("color: #666; font-size: 12px;")
+            label_widget.setObjectName("kpi-title")
             stat_layout.addWidget(label_widget)
             
             amount = QLabel(f"Rs. {total:,.0f}")
-            amount.setStyleSheet(f"color: {color}; font-size: 18px; font-weight: bold;")
+            amount.setObjectName("kpi-value")
+            amount.setStyleSheet(f"font-size: 20px; color: {color};")
             stat_layout.addWidget(amount)
             
             count_widget = QLabel(f"{count} transactions")
-            count_widget.setStyleSheet("color: #888; font-size: 11px;")
+            count_widget.setObjectName("kpi-sub")
             stat_layout.addWidget(count_widget)
             
             stats_layout.addWidget(stat_frame)
@@ -317,31 +439,26 @@ class DashboardView(QWidget):
         transactions = data.get("recent_transactions", [])
         
         frame = QFrame()
-        frame.setStyleSheet("""
-            QFrame {
-                background: white;
-                border: 1px solid #e9ecef;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """)
+        frame.setObjectName("section-frame")
         
         layout = QVBoxLayout(frame)
         layout.setSpacing(10)
         
         title = QLabel("Recent Transactions")
-        title.setStyleSheet("font-size: 14px; font-weight: 600; color: #1a1a2e;")
+        title.setObjectName("section-title")
         layout.addWidget(title)
         
         if not transactions:
             text = QLabel("No recent transactions.")
-            text.setStyleSheet("color: #888; padding: 10px;")
+            text.setObjectName("kpi-sub")
+            text.setStyleSheet("padding: 10px;")
             layout.addWidget(text)
         else:
             for txn in transactions[:10]:
                 txn_widget = QWidget()
                 txn_layout = QHBoxLayout(txn_widget)
-                txn_layout.setContentsMargins(0, 4, 0, 4)
+                txn_layout.setContentsMargins(0, 2, 0, 2)
+                txn_layout.setSpacing(12)
                 
                 type_colors = {
                     "Sales": "#2ecc71",
@@ -353,27 +470,28 @@ class DashboardView(QWidget):
                 color = type_colors.get(txn["type"], "#888")
                 
                 type_label = QLabel(txn["type"])
-                type_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+                type_label.setStyleSheet(f"color: {color}; font-weight: 600;")
                 type_label.setFixedWidth(100)
                 txn_layout.addWidget(type_label)
                 
                 party_label = QLabel(txn.get("party_name", "Unknown"))
-                party_label.setStyleSheet("color: #333;")
+                party_label.setStyleSheet("color: #e8e8e8;")
                 party_label.setMinimumWidth(120)
                 txn_layout.addWidget(party_label)
                 
                 amount_label = QLabel(f"Rs. {txn['amount']:,.2f}")
-                amount_label.setStyleSheet("color: #333; font-weight: 500;")
+                amount_label.setStyleSheet("color: #e8e8e8; font-weight: 500;")
                 amount_label.setMinimumWidth(100)
                 txn_layout.addWidget(amount_label)
                 
                 date_label = QLabel(txn["date"])
-                date_label.setStyleSheet("color: #888; font-size: 11px;")
+                date_label.setObjectName("kpi-sub")
                 txn_layout.addWidget(date_label)
+                txn_layout.addStretch()
                 
                 line = QFrame()
                 line.setFrameShape(QFrame.HLine)
-                line.setStyleSheet("background: #eee;")
+                line.setStyleSheet("background: #242424;")
                 layout.addWidget(line)
                 layout.addWidget(txn_widget)
         
@@ -385,20 +503,13 @@ class DashboardView(QWidget):
         alert_list = alerts.get("alerts", [])
         
         frame = QFrame()
-        frame.setStyleSheet("""
-            QFrame {
-                background: white;
-                border: 1px solid #e9ecef;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """)
+        frame.setObjectName("section-frame")
         
         layout = QVBoxLayout(frame)
         layout.setSpacing(10)
         
         title = QLabel("Alerts")
-        title.setStyleSheet("font-size: 14px; font-weight: 600; color: #1a1a2e;")
+        title.setObjectName("section-title")
         layout.addWidget(title)
         
         if not alert_list:
@@ -407,32 +518,24 @@ class DashboardView(QWidget):
             layout.addWidget(text)
         else:
             for alert in alert_list[:5]:
-                color = {
-                    "danger": "#e74c3c",
-                    "warning": "#f39c12",
-                    "success": "#2ecc71",
-                }.get(alert.get("type", "success"), "#2ecc71")
+                alert_type = alert.get("type", "success")
+                if alert_type not in ("danger", "warning", "success"):
+                    alert_type = "success"
                 
                 alert_widget = QFrame()
-                alert_widget.setStyleSheet(f"""
-                    QFrame {{
-                        background: #f8f9fa;
-                        border-left: 4px solid {color};
-                        border-radius: 4px;
-                        padding: 8px 12px;
-                        margin: 2px 0;
-                    }}
-                """)
+                alert_widget.setObjectName(f"alert-{alert_type}")
                 
                 alert_layout = QVBoxLayout(alert_widget)
                 alert_layout.setSpacing(2)
+                alert_layout.setContentsMargins(12, 8, 12, 8)
                 
                 title_label = QLabel(alert['title'])
-                title_label.setStyleSheet("font-weight: 600; color: #333; font-size: 12px;")
+                title_label.setObjectName("alert-title")
                 alert_layout.addWidget(title_label)
                 
                 msg_label = QLabel(alert['message'])
-                msg_label.setStyleSheet("color: #666; font-size: 11px;")
+                msg_label.setObjectName("alert-msg")
+                msg_label.setWordWrap(True)
                 alert_layout.addWidget(msg_label)
                 
                 layout.addWidget(alert_widget)
@@ -446,33 +549,21 @@ class DashboardView(QWidget):
         expiring = inventory.get("expiring_items", [])
         
         frame = QFrame()
-        frame.setStyleSheet("""
-            QFrame {
-                background: white;
-                border: 1px solid #e9ecef;
-                border-radius: 12px;
-                padding: 15px;
-            }
-        """)
+        frame.setObjectName("section-frame")
         
         layout = QVBoxLayout(frame)
         layout.setSpacing(10)
         
         cols_layout = QHBoxLayout()
-        cols_layout.setSpacing(20)
+        cols_layout.setSpacing(12)
         
         # Left: Low Stock
         left_frame = QFrame()
-        left_frame.setStyleSheet("""
-            QFrame {
-                background: #f8f9fa;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
+        left_frame.setObjectName("sub-card")
         left_layout = QVBoxLayout(left_frame)
+        left_layout.setSpacing(4)
         
-        left_title = QLabel("⚠️ Low Stock Items")
+        left_title = QLabel("Low Stock Items")
         left_title.setStyleSheet("font-weight: 600; color: #e74c3c;")
         left_layout.addWidget(left_title)
         
@@ -486,20 +577,15 @@ class DashboardView(QWidget):
                 item_label.setStyleSheet("padding: 2px 0; font-size: 12px;")
                 left_layout.addWidget(item_label)
         
-        cols_layout.addWidget(left_frame)
+        cols_layout.addWidget(left_frame, 1)
         
         # Right: Expiring Soon
         right_frame = QFrame()
-        right_frame.setStyleSheet("""
-            QFrame {
-                background: #f8f9fa;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
+        right_frame.setObjectName("sub-card")
         right_layout = QVBoxLayout(right_frame)
+        right_layout.setSpacing(4)
         
-        right_title = QLabel("📅 Expiring Soon")
+        right_title = QLabel("Expiring Soon")
         right_title.setStyleSheet("font-weight: 600; color: #f39c12;")
         right_layout.addWidget(right_title)
         
@@ -513,7 +599,7 @@ class DashboardView(QWidget):
                 item_label.setStyleSheet("padding: 2px 0; font-size: 12px;")
                 right_layout.addWidget(item_label)
         
-        cols_layout.addWidget(right_frame)
+        cols_layout.addWidget(right_frame, 1)
         
         layout.addLayout(cols_layout)
         self.content_layout.addWidget(frame)
@@ -534,7 +620,7 @@ class DashboardView(QWidget):
                 self._clear_layout(item.layout())
         
         # Show welcome message
-        label = QLabel("Welcome to Pharma ERP!\n\nStart by adding:\n• Chart of Accounts\n• Parties (Customers & Suppliers)\n• Items (Inventory)\n• Purchase Invoices\n• Sales Invoices")
+        label = QLabel("Welcome to BOP Nutraceuticals!\n\nStart by adding:\n• Chart of Accounts\n• Parties (Customers & Suppliers)\n• Items (Inventory)\n• Purchase Invoices\n• Sales Invoices")
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("font-size: 16px; color: #666; padding: 50px;")
+        label.setStyleSheet("font-size: 16px; color: #adb5bd; padding: 50px;")
         self.content_layout.addWidget(label)

@@ -1,7 +1,927 @@
-2026-08-08 20:41:06,205 | ERROR    | erp.database.connection | SQL execute failed: no such table: parties | sql=SELECT * FROM parties WHERE id = ?
-2026-08-08 20:41:11,804 | INFO     | erp.__main__ | Initializing database...
-2026-08-08 20:41:11,804 | INFO     | erp.database.migrations.migrator | Running schema migration...
-2026-08-08 20:41:11,822 | INFO     | erp.database.migrations.migrator | Schema migration complete.
-2026-08-08 20:41:12,143 | WARNING  | erp.database.migrations.migrator | Seeded default user 'admin' with password 'admin123'. Change this password immediately after first login.
-2026-08-08 20:41:12,144 | INFO     | erp.database.migrations.migrator | Default data seeding complete.
-2026-08-08 20:41:12,144 | INFO     | erp.__main__ | Database initialization complete!
+2026-08-09 02:14:18,745 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-09 02:14:18,745 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-09 02:14:18,745 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-09 02:14:18,751 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-09 02:14:18,751 | INFO     | erp.__main__ | Starting application...
+2026-08-09 02:14:20,595 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-09 02:14:28,206 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-09 02:14:28,519 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-09 02:14:28,521 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-09 02:14:28,535 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-09 02:14:33,191 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=200.0, Purchases=0
+2026-08-09 02:14:35,223 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-09 02:14:37,168 | INFO     | erp.services.dashboard_service | ✅ Fetched 5 recent transactions
+2026-08-09 02:14:39,190 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-09 02:14:41,322 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-09 02:14:41,322 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-09 02:15:20,844 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 suppliers
+2026-08-09 02:15:23,909 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-09 02:16:11,052 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'PI-00010', 'voucher_type': 'PURCHASE', 'entry_date': '2026-08-08', 'reference_no': None, 'narration': 'Reversal of purchase invoice PI-00002 for update', 'source_table': 'purchase_invoices', 'source_id': 1, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-09 02:16:11,054 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 4, 'debit': 0.0, 'credit': 100.0, 'description': 'Reversal of Inventory purchase'}, {'account_id': 8, 'debit': 100.0, 'credit': 0.0, 'description': 'Reversal of Supplier credit - supplier', 'party_id': 2}]
+2026-08-09 02:16:11,055 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-09 02:16:11,057 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=4, debit=0.0, credit=100.0
+2026-08-09 02:16:13,205 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 4, 'account_code': '1200', 'account_name': 'Inventory - Raw Materials', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-09 02:16:13,205 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=4 EXISTS (code=1200, name=Inventory - Raw Materials, company_id=1, is_active=1)
+2026-08-09 02:16:13,206 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=8, debit=100.0, credit=0.0
+2026-08-09 02:16:15,310 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 8, 'account_code': '2000', 'account_name': 'Accounts Payable', 'company_id': 1, 'is_active': 1, 'account_type': 'LIABILITY'}
+2026-08-09 02:16:15,312 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=8 EXISTS (code=2000, name=Accounts Payable, company_id=1, is_active=1)
+2026-08-09 02:16:15,313 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-09 02:16:17,053 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=21
+2026-08-09 02:16:17,055 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=4, debit=0.0, credit=100.0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[4, 0.0, 100.0, 'Reversal of Inventory purchase', 21, 0]
+2026-08-09 02:16:18,846 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-09 02:16:18,848 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=8, debit=100.0, credit=0.0, columns=['account_id', 'debit', 'credit', 'description', 'party_id', 'journal_entry_id', 'line_order'], values=[8, 100.0, 0.0, 'Reversal of Supplier credit - supplier', 2, 21, 1]
+2026-08-09 02:16:21,116 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-09 02:16:21,118 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=21
+2026-08-09 02:16:21,119 | INFO     | erp.services.accounting_service | Posted journal entry #21 (PURCHASE) voucher=PI-00010 amount=100.00
+2026-08-09 02:16:21,121 | INFO     | erp.services.purchase_invoice_service | Reversed journal entry for invoice PI-00002
+2026-08-09 02:16:29,883 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-1-20260809021623 with id=0: -50.0
+2026-08-09 02:16:32,091 | INFO     | erp.services.purchase_invoice_service | Stock updated for ITEM-00002: +-50.0 (batch_id=0)
+2026-08-09 02:16:32,092 | INFO     | erp.services.purchase_invoice_service | Restored stock for existing invoice PI-00002
+2026-08-09 02:16:36,381 | INFO     | erp.services.purchase_invoice_service | Updated invoice header for PI-00002
+2026-08-09 02:16:39,125 | INFO     | erp.services.purchase_invoice_service | Created new batch PURCHASE-1-20260809021638 with id=8: 25.0
+2026-08-09 02:16:39,854 | INFO     | erp.services.purchase_invoice_service | Stock updated for ITEM-00002: +25.0 (batch_id=8)
+2026-08-09 02:16:40,718 | INFO     | erp.services.purchase_invoice_service | Added stock for new items in invoice PI-00002
+2026-08-09 02:16:47,301 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'PI-00011', 'voucher_type': 'PURCHASE', 'entry_date': '2026-08-08', 'reference_no': None, 'narration': 'Updated purchase invoice PI-00002 from supplier', 'source_table': 'purchase_invoices', 'source_id': 1, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-09 02:16:47,304 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 4, 'debit': 100.0, 'credit': 0.0, 'description': 'Inventory purchase'}, {'account_id': 8, 'debit': 0.0, 'credit': 100.0, 'description': 'Supplier credit - supplier', 'party_id': 2}]
+2026-08-09 02:16:47,306 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-09 02:16:47,307 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=4, debit=100.0, credit=0.0
+2026-08-09 02:16:49,275 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 4, 'account_code': '1200', 'account_name': 'Inventory - Raw Materials', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-09 02:16:49,276 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=4 EXISTS (code=1200, name=Inventory - Raw Materials, company_id=1, is_active=1)
+2026-08-09 02:16:49,278 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=8, debit=0.0, credit=100.0
+2026-08-09 02:16:51,408 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 8, 'account_code': '2000', 'account_name': 'Accounts Payable', 'company_id': 1, 'is_active': 1, 'account_type': 'LIABILITY'}
+2026-08-09 02:16:51,408 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=8 EXISTS (code=2000, name=Accounts Payable, company_id=1, is_active=1)
+2026-08-09 02:16:51,409 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-09 02:16:53,456 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=22
+2026-08-09 02:16:53,459 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=4, debit=100.0, credit=0.0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[4, 100.0, 0.0, 'Inventory purchase', 22, 0]
+2026-08-09 02:16:55,544 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-09 02:16:55,545 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=8, debit=0.0, credit=100.0, columns=['account_id', 'debit', 'credit', 'description', 'party_id', 'journal_entry_id', 'line_order'], values=[8, 0.0, 100.0, 'Supplier credit - supplier', 2, 22, 1]
+2026-08-09 02:16:57,726 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-09 02:16:57,726 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=22
+2026-08-09 02:16:57,728 | INFO     | erp.services.accounting_service | Posted journal entry #22 (PURCHASE) voucher=PI-00011 amount=100.00
+2026-08-09 02:16:57,728 | INFO     | erp.services.purchase_invoice_service | Updated purchase invoice PI-00002 for supplier 2 (id=1)
+2026-08-09 02:17:10,776 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-09 02:17:28,994 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-09 02:17:31,064 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11'}
+2026-08-09 02:17:33,308 | INFO     | erp.views.widgets.item_view | Loaded 3 items
+2026-08-09 02:17:35,596 | INFO     | erp.utils.helpers | Fetched 3 items with stock data
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | Loaded stocks for 3 items using helper: {2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | Loaded stock for 3 items: {2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-09 02:17:35,596 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 3, 1]
+2026-08-09 02:17:35,611 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 02:17:35,611 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-09 02:17:35,613 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-09 02:17:35,614 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 3, 1]
+2026-08-09 02:17:35,614 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 02:17:35,614 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-09 02:17:35,615 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-09 02:17:35,617 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 3, 1]
+2026-08-09 02:17:35,617 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 02:17:35,618 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-09 02:17:57,524 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-09 02:18:02,540 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-09 02:18:02,540 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-09 02:18:03,294 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-09 02:18:03,294 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-09 02:18:03,295 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-09 02:18:03,299 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-09 02:18:03,299 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-09 12:17:47,772 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-09 12:17:47,772 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-09 12:17:47,772 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-09 12:17:47,778 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-09 12:17:47,778 | INFO     | erp.__main__ | Starting application...
+2026-08-09 12:17:50,248 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-09 13:08:53,942 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-09 13:08:58,956 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-09 13:08:59,057 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-09 13:09:01,391 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-09 13:09:01,399 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-09 13:09:01,402 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-09 13:09:01,414 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-09 13:09:01,416 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-09 13:09:09,589 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-09 13:09:09,591 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-09 13:09:09,596 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-09 13:09:09,612 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-09 13:09:09,613 | INFO     | erp.__main__ | Starting application...
+2026-08-09 13:09:11,834 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-09 13:09:36,810 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-09 13:09:37,742 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-09 13:09:37,742 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-09 13:09:37,767 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-09 13:09:42,900 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-09 13:09:45,324 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-09 13:09:47,775 | INFO     | erp.services.dashboard_service | ✅ Fetched 0 recent transactions
+2026-08-09 13:09:50,741 | INFO     | erp.services.dashboard_service | ✅ Found 0 low stock items
+2026-08-09 13:09:53,203 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-09 13:09:53,205 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-09 13:10:00,544 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-09 13:10:07,333 | INFO     | erp.views.widgets.item_view | Total stock batches: 0
+2026-08-09 13:10:10,001 | INFO     | erp.views.widgets.item_view | Sample stock: None
+2026-08-09 13:10:12,550 | INFO     | erp.views.widgets.item_view | Loaded 33 items
+2026-08-09 13:10:15,008 | INFO     | erp.utils.helpers | Fetched 33 items with stock data
+2026-08-09 13:10:15,008 | INFO     | erp.views.widgets.item_view | Loaded stocks for 33 items using helper: {32: 0.0, 18: 0.0, 17: 0.0, 2: 0.0, 11: 0.0, 15: 0.0, 6: 0.0, 7: 0.0, 16: 0.0, 13: 0.0, 12: 0.0, 22: 0.0, 21: 0.0, 26: 0.0, 25: 0.0, 28: 0.0, 4: 0.0, 5: 0.0, 10: 0.0, 3: 0.0, 8: 0.0, 24: 0.0, 9: 0.0, 14: 0.0, 34: 0.0, 33: 0.0, 20: 0.0, 19: 0.0, 30: 0.0, 29: 0.0, 1: 0.0, 23: 0.0, 35: 0.0}
+2026-08-09 13:10:15,020 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={32: 0.0, 18: 0.0, 17: 0.0, 2: 0.0, 11: 0.0, 15: 0.0, 6: 0.0, 7: 0.0, 16: 0.0, 13: 0.0, 12: 0.0, 22: 0.0, 21: 0.0, 26: 0.0, 25: 0.0, 28: 0.0, 4: 0.0, 5: 0.0, 10: 0.0, 3: 0.0, 8: 0.0, 24: 0.0, 9: 0.0, 14: 0.0, 34: 0.0, 33: 0.0, 20: 0.0, 19: 0.0, 30: 0.0, 29: 0.0, 1: 0.0, 23: 0.0, 35: 0.0}
+2026-08-09 13:10:15,021 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,024 | INFO     | erp.views.widgets.item_view | Loaded stock for 33 items: {32: 0.0, 18: 0.0, 17: 0.0, 2: 0.0, 11: 0.0, 15: 0.0, 6: 0.0, 7: 0.0, 16: 0.0, 13: 0.0, 12: 0.0, 22: 0.0, 21: 0.0, 26: 0.0, 25: 0.0, 28: 0.0, 4: 0.0, 5: 0.0, 10: 0.0, 3: 0.0, 8: 0.0, 24: 0.0, 9: 0.0, 14: 0.0, 34: 0.0, 33: 0.0, 20: 0.0, 19: 0.0, 30: 0.0, 29: 0.0, 1: 0.0, 23: 0.0, 35: 0.0}
+2026-08-09 13:10:15,039 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-09 13:10:15,042 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,044 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,044 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,050 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-09 13:10:15,051 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,055 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,059 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,062 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-09 13:10:15,065 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,068 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,068 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,068 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-09 13:10:15,074 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,076 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,078 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,082 | INFO     | erp.views.widgets.item_view | Row 4: item.id=5 (type=<class 'int'>), item_id_int=5
+2026-08-09 13:10:15,085 | INFO     | erp.views.widgets.item_view | Row 4: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,085 | INFO     | erp.views.widgets.item_view | Row 4: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,091 | INFO     | erp.views.widgets.item_view | Row 4: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,093 | INFO     | erp.views.widgets.item_view | Row 5: item.id=6 (type=<class 'int'>), item_id_int=6
+2026-08-09 13:10:15,095 | INFO     | erp.views.widgets.item_view | Row 5: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,097 | INFO     | erp.views.widgets.item_view | Row 5: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,100 | INFO     | erp.views.widgets.item_view | Row 5: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,101 | INFO     | erp.views.widgets.item_view | Row 6: item.id=7 (type=<class 'int'>), item_id_int=7
+2026-08-09 13:10:15,105 | INFO     | erp.views.widgets.item_view | Row 6: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,107 | INFO     | erp.views.widgets.item_view | Row 6: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,107 | INFO     | erp.views.widgets.item_view | Row 6: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,112 | INFO     | erp.views.widgets.item_view | Row 7: item.id=8 (type=<class 'int'>), item_id_int=8
+2026-08-09 13:10:15,114 | INFO     | erp.views.widgets.item_view | Row 7: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,118 | INFO     | erp.views.widgets.item_view | Row 7: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,119 | INFO     | erp.views.widgets.item_view | Row 7: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,122 | INFO     | erp.views.widgets.item_view | Row 8: item.id=9 (type=<class 'int'>), item_id_int=9
+2026-08-09 13:10:15,125 | INFO     | erp.views.widgets.item_view | Row 8: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,128 | INFO     | erp.views.widgets.item_view | Row 8: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,130 | INFO     | erp.views.widgets.item_view | Row 8: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,133 | INFO     | erp.views.widgets.item_view | Row 9: item.id=10 (type=<class 'int'>), item_id_int=10
+2026-08-09 13:10:15,137 | INFO     | erp.views.widgets.item_view | Row 9: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,139 | INFO     | erp.views.widgets.item_view | Row 9: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,141 | INFO     | erp.views.widgets.item_view | Row 9: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,143 | INFO     | erp.views.widgets.item_view | Row 10: item.id=11 (type=<class 'int'>), item_id_int=11
+2026-08-09 13:10:15,145 | INFO     | erp.views.widgets.item_view | Row 10: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,147 | INFO     | erp.views.widgets.item_view | Row 10: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,150 | INFO     | erp.views.widgets.item_view | Row 10: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,152 | INFO     | erp.views.widgets.item_view | Row 11: item.id=12 (type=<class 'int'>), item_id_int=12
+2026-08-09 13:10:15,153 | INFO     | erp.views.widgets.item_view | Row 11: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,158 | INFO     | erp.views.widgets.item_view | Row 11: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,159 | INFO     | erp.views.widgets.item_view | Row 11: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,161 | INFO     | erp.views.widgets.item_view | Row 12: item.id=13 (type=<class 'int'>), item_id_int=13
+2026-08-09 13:10:15,165 | INFO     | erp.views.widgets.item_view | Row 12: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,168 | INFO     | erp.views.widgets.item_view | Row 12: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,168 | INFO     | erp.views.widgets.item_view | Row 12: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,168 | INFO     | erp.views.widgets.item_view | Row 13: item.id=14 (type=<class 'int'>), item_id_int=14
+2026-08-09 13:10:15,173 | INFO     | erp.views.widgets.item_view | Row 13: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,176 | INFO     | erp.views.widgets.item_view | Row 13: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,176 | INFO     | erp.views.widgets.item_view | Row 13: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,176 | INFO     | erp.views.widgets.item_view | Row 14: item.id=15 (type=<class 'int'>), item_id_int=15
+2026-08-09 13:10:15,183 | INFO     | erp.views.widgets.item_view | Row 14: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,185 | INFO     | erp.views.widgets.item_view | Row 14: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,186 | INFO     | erp.views.widgets.item_view | Row 14: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,189 | INFO     | erp.views.widgets.item_view | Row 15: item.id=16 (type=<class 'int'>), item_id_int=16
+2026-08-09 13:10:15,191 | INFO     | erp.views.widgets.item_view | Row 15: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,194 | INFO     | erp.views.widgets.item_view | Row 15: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,194 | INFO     | erp.views.widgets.item_view | Row 15: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,197 | INFO     | erp.views.widgets.item_view | Row 16: item.id=17 (type=<class 'int'>), item_id_int=17
+2026-08-09 13:10:15,200 | INFO     | erp.views.widgets.item_view | Row 16: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,201 | INFO     | erp.views.widgets.item_view | Row 16: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,201 | INFO     | erp.views.widgets.item_view | Row 16: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,207 | INFO     | erp.views.widgets.item_view | Row 17: item.id=18 (type=<class 'int'>), item_id_int=18
+2026-08-09 13:10:15,210 | INFO     | erp.views.widgets.item_view | Row 17: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,210 | INFO     | erp.views.widgets.item_view | Row 17: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,214 | INFO     | erp.views.widgets.item_view | Row 17: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,216 | INFO     | erp.views.widgets.item_view | Row 18: item.id=19 (type=<class 'int'>), item_id_int=19
+2026-08-09 13:10:15,216 | INFO     | erp.views.widgets.item_view | Row 18: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,221 | INFO     | erp.views.widgets.item_view | Row 18: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,221 | INFO     | erp.views.widgets.item_view | Row 18: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,223 | INFO     | erp.views.widgets.item_view | Row 19: item.id=20 (type=<class 'int'>), item_id_int=20
+2026-08-09 13:10:15,223 | INFO     | erp.views.widgets.item_view | Row 19: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,229 | INFO     | erp.views.widgets.item_view | Row 19: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,229 | INFO     | erp.views.widgets.item_view | Row 19: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,233 | INFO     | erp.views.widgets.item_view | Row 20: item.id=21 (type=<class 'int'>), item_id_int=21
+2026-08-09 13:10:15,235 | INFO     | erp.views.widgets.item_view | Row 20: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,239 | INFO     | erp.views.widgets.item_view | Row 20: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,239 | INFO     | erp.views.widgets.item_view | Row 20: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,239 | INFO     | erp.views.widgets.item_view | Row 21: item.id=22 (type=<class 'int'>), item_id_int=22
+2026-08-09 13:10:15,239 | INFO     | erp.views.widgets.item_view | Row 21: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,249 | INFO     | erp.views.widgets.item_view | Row 21: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,252 | INFO     | erp.views.widgets.item_view | Row 21: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,254 | INFO     | erp.views.widgets.item_view | Row 22: item.id=23 (type=<class 'int'>), item_id_int=23
+2026-08-09 13:10:15,256 | INFO     | erp.views.widgets.item_view | Row 22: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,256 | INFO     | erp.views.widgets.item_view | Row 22: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,256 | INFO     | erp.views.widgets.item_view | Row 22: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,256 | INFO     | erp.views.widgets.item_view | Row 23: item.id=24 (type=<class 'int'>), item_id_int=24
+2026-08-09 13:10:15,265 | INFO     | erp.views.widgets.item_view | Row 23: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,267 | INFO     | erp.views.widgets.item_view | Row 23: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,270 | INFO     | erp.views.widgets.item_view | Row 23: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,272 | INFO     | erp.views.widgets.item_view | Row 24: item.id=25 (type=<class 'int'>), item_id_int=25
+2026-08-09 13:10:15,275 | INFO     | erp.views.widgets.item_view | Row 24: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,279 | INFO     | erp.views.widgets.item_view | Row 24: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,281 | INFO     | erp.views.widgets.item_view | Row 24: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,285 | INFO     | erp.views.widgets.item_view | Row 25: item.id=26 (type=<class 'int'>), item_id_int=26
+2026-08-09 13:10:15,287 | INFO     | erp.views.widgets.item_view | Row 25: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,290 | INFO     | erp.views.widgets.item_view | Row 25: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,293 | INFO     | erp.views.widgets.item_view | Row 25: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,293 | INFO     | erp.views.widgets.item_view | Row 26: item.id=28 (type=<class 'int'>), item_id_int=28
+2026-08-09 13:10:15,293 | INFO     | erp.views.widgets.item_view | Row 26: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,300 | INFO     | erp.views.widgets.item_view | Row 26: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,302 | INFO     | erp.views.widgets.item_view | Row 26: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,302 | INFO     | erp.views.widgets.item_view | Row 27: item.id=29 (type=<class 'int'>), item_id_int=29
+2026-08-09 13:10:15,307 | INFO     | erp.views.widgets.item_view | Row 27: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,310 | INFO     | erp.views.widgets.item_view | Row 27: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,310 | INFO     | erp.views.widgets.item_view | Row 27: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,310 | INFO     | erp.views.widgets.item_view | Row 28: item.id=30 (type=<class 'int'>), item_id_int=30
+2026-08-09 13:10:15,317 | INFO     | erp.views.widgets.item_view | Row 28: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,319 | INFO     | erp.views.widgets.item_view | Row 28: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,321 | INFO     | erp.views.widgets.item_view | Row 28: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,322 | INFO     | erp.views.widgets.item_view | Row 29: item.id=32 (type=<class 'int'>), item_id_int=32
+2026-08-09 13:10:15,322 | INFO     | erp.views.widgets.item_view | Row 29: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,322 | INFO     | erp.views.widgets.item_view | Row 29: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,326 | INFO     | erp.views.widgets.item_view | Row 29: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,327 | INFO     | erp.views.widgets.item_view | Row 30: item.id=33 (type=<class 'int'>), item_id_int=33
+2026-08-09 13:10:15,327 | INFO     | erp.views.widgets.item_view | Row 30: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,329 | INFO     | erp.views.widgets.item_view | Row 30: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,331 | INFO     | erp.views.widgets.item_view | Row 30: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,332 | INFO     | erp.views.widgets.item_view | Row 31: item.id=34 (type=<class 'int'>), item_id_int=34
+2026-08-09 13:10:15,332 | INFO     | erp.views.widgets.item_view | Row 31: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,332 | INFO     | erp.views.widgets.item_view | Row 31: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,332 | INFO     | erp.views.widgets.item_view | Row 31: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:10:15,338 | INFO     | erp.views.widgets.item_view | Row 32: item.id=35 (type=<class 'int'>), item_id_int=35
+2026-08-09 13:10:15,339 | INFO     | erp.views.widgets.item_view | Row 32: stock_map keys=[32, 18, 17, 2, 11, 15, 6, 7, 16, 13, 12, 22, 21, 26, 25, 28, 4, 5, 10, 3, 8, 24, 9, 14, 34, 33, 20, 19, 30, 29, 1, 23, 35]
+2026-08-09 13:10:15,340 | INFO     | erp.views.widgets.item_view | Row 32: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:10:15,342 | INFO     | erp.views.widgets.item_view | Row 32: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:43:15,933 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-09 13:43:20,949 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-09 13:43:20,968 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-09 13:43:23,419 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-09 13:43:23,421 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-09 13:43:23,423 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-09 13:43:23,427 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-09 13:43:23,429 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-09 13:43:29,957 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-09 13:43:29,957 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-09 13:43:29,961 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-09 13:43:29,961 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-09 13:43:29,961 | INFO     | erp.__main__ | Starting application...
+2026-08-09 13:43:32,020 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-09 13:43:43,093 | WARNING  | erp.authentication.auth_service | Failed login attempt for username=admin
+2026-08-09 13:43:49,631 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-09 13:43:50,077 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-09 13:43:50,077 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-09 13:43:50,101 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-09 13:43:55,776 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=200.0, Purchases=0
+2026-08-09 13:43:58,328 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-09 13:44:00,690 | INFO     | erp.services.dashboard_service | ✅ Fetched 5 recent transactions
+2026-08-09 13:44:03,351 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-09 13:44:05,811 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-09 13:44:05,813 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-09 13:48:07,592 | INFO     | erp.views.widgets.party_view | Loaded 2 parties
+2026-08-09 13:50:41,383 | INFO     | erp.services.account_service | AccountService.create_account() inserted account with id=20
+2026-08-09 13:50:42,304 | INFO     | erp.services.account_service | Created account 1140 - Fixed assets (id=20)
+2026-08-09 13:50:42,304 | INFO     | erp.controllers.account_controller | AccountController.create_account() success for 1140
+2026-08-09 13:50:42,304 | INFO     | erp.views.widgets.chart_of_accounts_widget | _on_add: account created successfully, refreshing
+2026-08-09 13:51:57,646 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-09 13:52:18,036 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-09 13:52:20,405 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11'}
+2026-08-09 13:52:22,889 | INFO     | erp.views.widgets.item_view | Loaded 3 items
+2026-08-09 13:52:25,365 | INFO     | erp.utils.helpers | Fetched 3 items with stock data
+2026-08-09 13:52:25,368 | INFO     | erp.views.widgets.item_view | Loaded stocks for 3 items using helper: {2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:52:25,370 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:52:25,371 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:52:25,373 | INFO     | erp.views.widgets.item_view | Loaded stock for 3 items: {2: 11.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:52:25,374 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-09 13:52:25,374 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 3, 1]
+2026-08-09 13:52:25,374 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:52:25,374 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-09 13:52:25,383 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-09 13:52:25,383 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 3, 1]
+2026-08-09 13:52:25,386 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:52:25,386 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-09 13:52:25,388 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-09 13:52:25,388 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 3, 1]
+2026-08-09 13:52:25,388 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:52:25,388 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-09 13:53:59,911 | INFO     | erp.services.item_service | Auto-generated item code: ITEM-00005
+2026-08-09 13:54:03,619 | INFO     | erp.services.item_service | Created item ITEM-00005 - finished goods (id=4)
+2026-08-09 13:54:34,757 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-09 13:54:37,310 | INFO     | erp.utils.helpers | Fetched 4 items with stock data
+2026-08-09 13:54:37,310 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:54:37,310 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:54:37,320 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:54:37,320 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:54:37,326 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-09 13:54:37,326 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:54:37,326 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:54:37,334 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-09 13:54:37,338 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-09 13:54:37,342 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:54:37,344 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:54:37,346 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-09 13:54:37,348 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-09 13:54:37,352 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:54:37,355 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:54:37,360 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-09 13:54:37,363 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-09 13:54:37,368 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:54:37,370 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:54:37,372 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:55:02,139 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-09 13:55:02,145 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:55:02,155 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:55:02,157 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:55:02,161 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-09 13:55:02,163 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-09 13:55:02,167 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:55:02,174 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:55:02,179 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-09 13:55:02,191 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-09 13:55:02,200 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:55:02,204 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:55:02,211 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-09 13:55:02,215 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-09 13:55:02,219 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:55:02,223 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:55:02,226 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-09 13:55:02,229 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-09 13:55:02,236 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-09 13:55:02,241 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-09 13:55:02,245 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-09 13:55:07,373 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 2 customers
+2026-08-09 13:55:07,930 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 invoices
+2026-08-09 13:58:42,609 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() STARTING - iterating over 13 rows
+2026-08-09 13:58:42,609 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 0: retrieved acc_id=1 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,609 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 1: retrieved acc_id=2 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,619 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 2: retrieved acc_id=3 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,621 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 3: retrieved acc_id=20 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,625 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 4: retrieved acc_id=4 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,627 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 5: retrieved acc_id=5 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,631 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 6: retrieved acc_id=6 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,634 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 7: retrieved acc_id=7 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,636 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 8: retrieved acc_id=8 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,640 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 9: retrieved acc_id=9 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,644 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 10: retrieved acc_id=10 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,647 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 11: retrieved acc_id=11 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,653 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() row 12: retrieved acc_id=12 from table item (type=<class 'int'>)
+2026-08-09 13:58:42,658 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() COLLECTION COMPLETE - 0 entries: total_debit=0.0, total_credit=0.0
+2026-08-09 13:58:42,667 | ERROR    | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() ENTRIES DATA: []
+2026-08-09 13:58:42,672 | WARNING  | erp.views.widgets.opening_balance_dialog | OpeningBalanceDialog._save() no balances to save
+2026-08-09 14:05:32,673 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00003
+2026-08-09 14:05:33,144 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00004
+2026-08-09 14:05:37,899 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00005
+2026-08-09 14:05:38,403 | INFO     | erp.services.party_service | Created party SUPP-00003 - mic (id=3)
+2026-08-09 14:05:42,717 | INFO     | erp.views.widgets.party_view | Loaded 4 parties
+2026-08-09 14:05:44,247 | INFO     | erp.services.party_service | Created party SUPP-00005 - mic (id=4)
+2026-08-09 14:05:48,549 | INFO     | erp.views.widgets.party_view | Loaded 5 parties
+2026-08-09 14:05:49,162 | ERROR    | erp.database.connection | Transaction rolled back: The cursor is closed.
+2026-08-09 14:06:10,459 | INFO     | erp.services.party_service | Deactivated party id=5
+2026-08-09 14:06:14,362 | INFO     | erp.views.widgets.party_view | Loaded 5 parties
+2026-08-09 14:06:27,561 | INFO     | erp.services.party_service | Deactivated party id=3
+2026-08-09 14:06:30,021 | INFO     | erp.views.widgets.party_view | Loaded 5 parties
+2026-08-09 14:14:46,248 | INFO     | erp.services.manufacturing_service | Auto-generated BOM name: BOM-00003
+2026-08-09 14:14:55,251 | INFO     | erp.services.manufacturing_service | Created BOM 'BOM-00003' for item ITEM-00003 (id=2)
+2026-08-12 01:39:07,928 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:39:07,930 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:39:07,932 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 01:39:07,936 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 01:39:07,939 | INFO     | erp.__main__ | Starting application...
+2026-08-12 01:39:09,550 | WARNING  | erp.database.connection | Connection attempt 1 failed (Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io), retrying in 2 seconds...
+2026-08-12 01:39:12,361 | WARNING  | erp.database.connection | Connection attempt 2 failed (Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io), retrying in 2 seconds...
+2026-08-12 01:39:15,276 | ERROR    | erp.database.connection | Failed to connect after 3 retries: Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io
+2026-08-12 01:39:15,276 | ERROR    | erp.database.connection | SQLite Cloud fetch_one failed: Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io | sql=SELECT 1 FROM users LIMIT 1
+2026-08-12 01:39:15,282 | INFO     | erp.database.migrations.migrator | Running schema migration...
+2026-08-12 01:39:16,117 | WARNING  | erp.database.connection | Connection attempt 1 failed (Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io), retrying in 2 seconds...
+2026-08-12 01:39:19,113 | WARNING  | erp.database.connection | Connection attempt 2 failed (Your free node has been paused due to inactivity. To resume usage, please restart your node from your dashboard: https://dashboard.sqlitecloud.io), retrying in 2 seconds...
+2026-08-12 01:39:20,632 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 01:40:18,405 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:40:18,407 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:40:18,408 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 01:40:18,414 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 01:40:18,416 | INFO     | erp.__main__ | Starting application...
+2026-08-12 01:40:20,611 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 01:40:35,496 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 01:40:36,051 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 01:40:36,051 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 01:40:36,070 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 01:40:40,206 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-12 01:40:42,500 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 01:40:44,745 | INFO     | erp.services.dashboard_service | ✅ Fetched 5 recent transactions
+2026-08-12 01:40:47,034 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 01:40:49,221 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 01:40:49,221 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 01:41:11,369 | INFO     | erp.views.widgets.party_view | Loaded 5 parties
+2026-08-12 01:41:17,553 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 01:41:19,901 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11'}
+2026-08-12 01:41:22,489 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-12 01:41:24,600 | INFO     | erp.utils.helpers | Fetched 4 items with stock data
+2026-08-12 01:41:24,600 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:41:24,610 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:41:24,613 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:41:24,613 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:41:24,621 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-12 01:41:24,624 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:41:24,626 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:41:24,627 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-12 01:41:24,628 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-12 01:41:24,629 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:41:24,630 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:41:24,630 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-12 01:41:24,633 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-12 01:41:24,634 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:41:24,635 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:41:24,636 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-12 01:41:24,638 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-12 01:41:24,639 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:41:24,640 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:41:24,640 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-12 01:42:29,366 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-12 01:42:30,357 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 3 suppliers
+2026-08-12 01:42:36,538 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 invoices
+2026-08-12 01:42:38,386 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-12 01:42:51,674 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:42:51,684 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:42:51,687 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 01:42:51,738 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 01:42:51,739 | INFO     | erp.__main__ | Starting application...
+2026-08-12 01:42:53,649 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 01:43:11,561 | WARNING  | erp.authentication.auth_service | Failed login attempt for username=admin
+2026-08-12 01:43:17,600 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 01:43:18,318 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 01:43:18,318 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 01:43:18,318 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 01:43:22,574 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-12 01:43:24,716 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 01:43:28,241 | INFO     | erp.services.dashboard_service | ✅ Fetched 5 recent transactions
+2026-08-12 01:43:31,896 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 01:43:34,252 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 01:43:34,252 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 01:44:28,446 | INFO     | erp.services.expense_service | Created expense category: salary (ID: 1)
+2026-08-12 01:44:42,678 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 01:44:47,683 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 01:44:47,724 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 01:44:49,344 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 01:44:49,345 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 01:44:49,347 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 01:44:49,353 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 01:44:49,354 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 01:47:38,346 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:47:38,347 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:47:38,347 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 01:47:38,351 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 01:47:38,352 | INFO     | erp.__main__ | Starting application...
+2026-08-12 01:47:40,313 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 01:47:47,857 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 01:47:48,259 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 01:47:48,259 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 01:47:48,273 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 01:47:53,611 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-12 01:47:59,281 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 01:48:02,894 | INFO     | erp.services.dashboard_service | ✅ Fetched 5 recent transactions
+2026-08-12 01:48:05,725 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 01:48:07,773 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 01:48:07,773 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 01:48:18,815 | INFO     | erp.services.expense_service | Created expense category: Salaries (ID: 2)
+2026-08-12 01:48:47,302 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'JV-00002', 'voucher_type': 'JOURNAL', 'entry_date': '2026-08-12', 'reference_no': None, 'narration': 'Expense voucher 1: Salaries', 'source_table': 'expenses', 'source_id': 1, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-12 01:48:47,302 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 19, 'debit': 55000.0, 'credit': 0, 'description': 'Expense: Salaries'}, {'account_id': 1, 'debit': 0, 'credit': 55000.0, 'description': 'Payment for: Salaries'}]
+2026-08-12 01:48:47,302 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-12 01:48:47,302 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=19, debit=55000.0, credit=0
+2026-08-12 01:48:47,662 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 19, 'account_code': '6000', 'account_name': 'General & Administrative Expenses', 'company_id': 1, 'is_active': 1, 'account_type': 'EXPENSE'}
+2026-08-12 01:48:47,670 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=19 EXISTS (code=6000, name=General & Administrative Expenses, company_id=1, is_active=1)
+2026-08-12 01:48:47,670 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=1, debit=0, credit=55000.0
+2026-08-12 01:48:48,037 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 1, 'account_code': '1000', 'account_name': 'Cash in Hand', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-12 01:48:48,037 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=1 EXISTS (code=1000, name=Cash in Hand, company_id=1, is_active=1)
+2026-08-12 01:48:48,037 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-12 01:48:48,533 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=23
+2026-08-12 01:48:48,533 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=19, debit=55000.0, credit=0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[19, 55000.0, 0, 'Expense: Salaries', 23, 0]
+2026-08-12 01:48:48,859 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-12 01:48:48,859 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=1, debit=0, credit=55000.0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[1, 0, 55000.0, 'Payment for: Salaries', 23, 1]
+2026-08-12 01:48:49,117 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-12 01:48:49,117 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=23
+2026-08-12 01:48:49,119 | INFO     | erp.services.accounting_service | Posted journal entry #23 (JOURNAL) voucher=JV-00002 amount=55000.00
+2026-08-12 01:48:49,969 | INFO     | erp.services.expense_service | Created expense 1: Salaries - Rs.55000.00
+2026-08-12 01:48:57,728 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 01:49:02,743 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 01:49:02,761 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 01:49:32,383 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 01:49:32,384 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 01:49:32,386 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 01:49:32,392 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 01:49:32,393 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 01:51:22,051 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:51:22,052 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:52:44,850 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:52:44,851 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:54:23,405 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:54:23,406 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:55:36,525 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 01:55:36,526 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 01:55:36,528 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 01:55:36,534 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 01:55:36,535 | INFO     | erp.__main__ | Starting application...
+2026-08-12 01:55:37,904 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 01:55:43,838 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 01:55:44,324 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 01:55:44,324 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 01:55:44,324 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 01:55:44,879 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=0, Purchases=0
+2026-08-12 01:55:45,200 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 01:55:45,454 | INFO     | erp.services.dashboard_service | ✅ Fetched 6 recent transactions
+2026-08-12 01:55:45,699 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 01:55:46,074 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 01:55:46,074 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 01:55:51,343 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 01:55:51,587 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11'}
+2026-08-12 01:55:51,970 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-12 01:55:52,206 | INFO     | erp.utils.helpers | Fetched 4 items with stock data
+2026-08-12 01:55:52,206 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 11.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:55:52,217 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:55:52,222 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-12 01:55:52,224 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-12 01:55:52,225 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:55:52,226 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:55:52,226 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=11.0 (type=<class 'float'>)
+2026-08-12 01:55:52,227 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-12 01:55:52,228 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:55:52,229 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:55:52,229 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-12 01:55:52,231 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-12 01:55:52,233 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-12 01:55:52,233 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 01:55:52,233 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-12 01:55:54,229 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 customers
+2026-08-12 01:55:54,462 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 3 invoices
+2026-08-12 01:56:47,064 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'SI-00018', 'voucher_type': 'SALES', 'entry_date': '2026-08-12', 'reference_no': None, 'narration': 'Sales invoice SI-00017 to cus', 'source_table': 'sales_invoices', 'source_id': 4, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-12 01:56:47,065 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 3, 'debit': 100000.0, 'credit': 0.0, 'description': 'Credit sale to cus', 'party_id': 1}, {'account_id': 13, 'debit': 0.0, 'credit': 100000.0, 'description': 'Sales revenue'}]
+2026-08-12 01:56:47,065 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-12 01:56:47,066 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=3, debit=100000.0, credit=0.0
+2026-08-12 01:56:47,309 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 3, 'account_code': '1100', 'account_name': 'Accounts Receivable', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-12 01:56:47,311 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=3 EXISTS (code=1100, name=Accounts Receivable, company_id=1, is_active=1)
+2026-08-12 01:56:47,312 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=13, debit=0.0, credit=100000.0
+2026-08-12 01:56:47,548 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 13, 'account_code': '4000', 'account_name': 'Sales Revenue', 'company_id': 1, 'is_active': 1, 'account_type': 'REVENUE'}
+2026-08-12 01:56:47,550 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=13 EXISTS (code=4000, name=Sales Revenue, company_id=1, is_active=1)
+2026-08-12 01:56:47,551 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-12 01:56:48,020 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=24
+2026-08-12 01:56:48,022 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=3, debit=100000.0, credit=0.0, columns=['account_id', 'debit', 'credit', 'description', 'party_id', 'journal_entry_id', 'line_order'], values=[3, 100000.0, 0.0, 'Credit sale to cus', 1, 24, 0]
+2026-08-12 01:56:48,259 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-12 01:56:48,260 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=13, debit=0.0, credit=100000.0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[13, 0.0, 100000.0, 'Sales revenue', 24, 1]
+2026-08-12 01:56:48,496 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-12 01:56:48,497 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=24
+2026-08-12 01:56:48,498 | INFO     | erp.services.accounting_service | Posted journal entry #24 (SALES) voucher=SI-00018 amount=100000.00
+2026-08-12 01:56:48,745 | INFO     | erp.services.sales_invoice_service | Created sales invoice SI-00017 for customer 1 (id=4)
+2026-08-12 01:56:49,771 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 4 invoices
+2026-08-12 01:56:58,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'RV-00002', 'voucher_type': 'RECEIPT', 'entry_date': '2026-08-12', 'reference_no': None, 'narration': 'Receipt from cus - SI-00017', 'source_table': 'receipts', 'source_id': None, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-12 01:56:58,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 1, 'debit': 100000.0, 'credit': 0, 'description': 'Payment from cus'}, {'account_id': 3, 'debit': 0, 'credit': 100000.0, 'description': 'Payment from cus', 'party_id': 1}]
+2026-08-12 01:56:58,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-12 01:56:58,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=1, debit=100000.0, credit=0
+2026-08-12 01:56:58,579 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 1, 'account_code': '1000', 'account_name': 'Cash in Hand', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-12 01:56:58,579 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=1 EXISTS (code=1000, name=Cash in Hand, company_id=1, is_active=1)
+2026-08-12 01:56:58,579 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=3, debit=0, credit=100000.0
+2026-08-12 01:56:58,824 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 3, 'account_code': '1100', 'account_name': 'Accounts Receivable', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-12 01:56:58,824 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=3 EXISTS (code=1100, name=Accounts Receivable, company_id=1, is_active=1)
+2026-08-12 01:56:58,824 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-12 01:56:59,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=25
+2026-08-12 01:56:59,354 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=1, debit=100000.0, credit=0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[1, 100000.0, 0, 'Payment from cus', 25, 0]
+2026-08-12 01:56:59,583 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-12 01:56:59,583 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=3, debit=0, credit=100000.0, columns=['account_id', 'debit', 'credit', 'description', 'party_id', 'journal_entry_id', 'line_order'], values=[3, 0, 100000.0, 'Payment from cus', 1, 25, 1]
+2026-08-12 01:56:59,829 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-12 01:56:59,829 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=25
+2026-08-12 01:56:59,829 | INFO     | erp.services.accounting_service | Posted journal entry #25 (RECEIPT) voucher=RV-00002 amount=100000.00
+2026-08-12 01:57:00,533 | INFO     | erp.services.payment_service | ✅ Updated paid_amount for sales invoice 4: +100000.0
+2026-08-12 01:57:00,533 | INFO     | erp.services.dashboard_service | Dashboard cache cleared
+2026-08-12 01:57:00,533 | INFO     | erp.services.payment_service | ✅ Dashboard cache invalidated after receipt
+2026-08-12 01:57:00,533 | INFO     | erp.services.payment_service | Receipt RV-00002 recorded: Rs. 100,000.00 from cus
+2026-08-12 01:57:04,335 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 4 invoices
+2026-08-12 01:57:05,138 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 3 suppliers
+2026-08-12 01:57:05,387 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-12 01:57:51,438 | INFO     | erp.services.account_service | AccountService.create_account() inserted account with id=21
+2026-08-12 01:57:51,771 | INFO     | erp.services.account_service | Created account 1501 - bag (Asset) (id=21)
+2026-08-12 01:57:51,771 | INFO     | erp.views.widgets.asset_view | Created asset account: 1501 - bag
+2026-08-12 01:57:53,554 | INFO     | erp.services.party_service | Created party SUPP-IDK - idk (id=6)
+2026-08-12 01:57:54,042 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() CALLED with header={'company_id': 1, 'voucher_number': 'JV-00003', 'voucher_type': 'JOURNAL', 'entry_date': '2026-08-12', 'reference_no': None, 'narration': 'Asset purchase: bag - Rs. 1,000.00 (CURRENT)', 'source_table': None, 'source_id': None, 'is_posted': 1, 'created_by': None}, lines count=2
+2026-08-12 01:57:54,042 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() lines data: [{'account_id': 21, 'debit': 1000.0, 'credit': 0, 'description': 'Purchase: bag'}, {'account_id': 8, 'debit': 0, 'credit': 1000.0, 'description': 'Liability for bag - idk', 'party_id': 6}]
+2026-08-12 01:57:54,042 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() STARTING validation of 2 account IDs
+2026-08-12 01:57:54,042 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 0: account_id=21, debit=1000.0, credit=0
+2026-08-12 01:57:54,294 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_check result={'id': 21, 'account_code': '1501', 'account_name': 'bag (Asset)', 'company_id': 1, 'is_active': 1, 'account_type': 'ASSET'}
+2026-08-12 01:57:54,294 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0: account_id=21 EXISTS (code=1501, name=bag (Asset), company_id=1, is_active=1)
+2026-08-12 01:57:54,294 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() validating line 1: account_id=8, debit=0, credit=1000.0
+2026-08-12 01:57:54,660 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_check result={'id': 8, 'account_code': '2000', 'account_name': 'Accounts Payable', 'company_id': 1, 'is_active': 1, 'account_type': 'LIABILITY'}
+2026-08-12 01:57:54,660 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1: account_id=8 EXISTS (code=2000, name=Accounts Payable, company_id=1, is_active=1)
+2026-08-12 01:57:54,660 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL account validations PASSED
+2026-08-12 01:57:55,141 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserted header with entry_id=26
+2026-08-12 01:57:55,141 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 0: account_id=21, debit=1000.0, credit=0, columns=['account_id', 'debit', 'credit', 'description', 'journal_entry_id', 'line_order'], values=[21, 1000.0, 0, 'Purchase: bag', 26, 0]
+2026-08-12 01:57:55,376 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 0 inserted successfully, result=1
+2026-08-12 01:57:55,387 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() inserting line 1: account_id=8, debit=0, credit=1000.0, columns=['account_id', 'debit', 'credit', 'description', 'party_id', 'journal_entry_id', 'line_order'], values=[8, 0, 1000.0, 'Liability for bag - idk', 6, 26, 1]
+2026-08-12 01:57:55,621 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() line 1 inserted successfully, result=1
+2026-08-12 01:57:55,621 | ERROR    | erp.repositories.journal_repository | JournalRepository.insert_entry() ALL lines inserted successfully, returning entry_id=26
+2026-08-12 01:57:55,621 | INFO     | erp.services.accounting_service | Posted journal entry #26 (JOURNAL) voucher=JV-00003 amount=1000.00
+2026-08-12 01:58:20,052 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 01:58:25,060 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 01:58:25,075 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 01:58:54,242 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 01:58:54,242 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 01:58:54,242 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 01:58:54,242 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 01:58:54,242 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 02:17:14,953 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:17:14,954 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:17:14,955 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 02:17:14,958 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 02:17:14,960 | INFO     | erp.__main__ | Starting application...
+2026-08-12 02:17:16,605 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 02:17:17,141 | INFO     | erp.database.migrations.add_material_cost_columns | Added column production_orders.raw_material_cost
+2026-08-12 02:17:17,654 | INFO     | erp.database.migrations.add_material_cost_columns | Added column production_orders.packing_material_cost
+2026-08-12 02:17:18,209 | INFO     | erp.database.migrations.add_material_cost_columns | Added column stock_batches.raw_unit_cost
+2026-08-12 02:17:18,727 | INFO     | erp.database.migrations.add_material_cost_columns | Added column stock_batches.packing_unit_cost
+2026-08-12 02:17:19,242 | INFO     | erp.database.migrations.add_material_cost_columns | Seeded account 5001 - Cost of Packing Materials
+2026-08-12 02:17:23,912 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 02:17:24,554 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:17:24,557 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:17:24,575 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 02:17:25,080 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:17:25,359 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:17:25,643 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:17:25,930 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:17:26,185 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:17:26,188 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:17:51,940 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 02:17:56,941 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 02:17:56,966 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 02:18:25,689 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 02:18:25,690 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 02:18:25,692 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 02:18:25,698 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 02:18:25,699 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 02:30:34,104 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:30:34,104 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:30:42,795 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:30:42,796 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:30:56,759 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:30:56,760 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:31:28,465 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:31:28,466 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:31:28,469 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 02:31:28,473 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 02:31:28,475 | INFO     | erp.__main__ | Starting application...
+2026-08-12 02:31:30,320 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 02:31:35,640 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 02:31:36,041 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:31:36,041 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:31:36,059 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 02:31:36,578 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:31:36,869 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:31:37,111 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:31:37,360 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:31:37,650 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:31:37,887 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:31:57,610 | INFO     | erp.views.widgets.party_view | Loaded 6 parties
+2026-08-12 02:31:59,852 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 02:32:00,180 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11', 'raw_unit_cost': 0.0, 'packing_unit_cost': 0.0}
+2026-08-12 02:32:00,601 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-12 02:32:00,844 | INFO     | erp.utils.helpers | Fetched 4 items with stock data
+2026-08-12 02:32:00,844 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:32:00,844 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:32:00,850 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:32:00,850 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:32:00,850 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-12 02:32:00,850 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:32:00,850 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:32:00,854 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-12 02:32:00,854 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-12 02:32:00,855 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:32:00,856 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:32:00,856 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=10.0 (type=<class 'float'>)
+2026-08-12 02:32:00,858 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-12 02:32:00,859 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:32:00,859 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:32:00,860 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-12 02:32:00,862 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-12 02:32:00,862 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:32:00,862 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:32:00,862 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-12 02:32:03,500 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 4 customers
+2026-08-12 02:32:03,707 | INFO     | erp.views.widgets.sales_invoice_view | Loaded 4 invoices
+2026-08-12 02:32:06,105 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 4 suppliers
+2026-08-12 02:32:06,353 | INFO     | erp.views.widgets.purchase_invoice_view | Loaded 2 invoices
+2026-08-12 02:32:07,908 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:32:27,943 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 02:32:28,198 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11', 'raw_unit_cost': 0.0, 'packing_unit_cost': 0.0}
+2026-08-12 02:32:35,972 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 02:32:40,978 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 02:32:40,984 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 02:33:12,727 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 02:33:12,727 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 02:33:12,730 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 02:33:12,734 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 02:33:12,735 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 02:33:46,866 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:33:46,867 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:33:46,926 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:33:46,928 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:33:46,929 | ERROR    | erp.controllers.dashboard_controller | Unexpected error getting dashboard data
+Traceback (most recent call last):
+  File "F:\software\v1 corrected\BOP-software\controllers\dashboard_controller.py", line 20, in get_dashboard_data
+    print("📊 DashboardController: Fetching data...")
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f4ca' in position 0: character maps to <undefined>
+2026-08-12 02:33:47,033 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:33:47,069 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:34:39,023 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:34:39,026 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:35:28,537 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:35:28,538 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:35:28,539 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 02:35:28,543 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 02:35:28,543 | INFO     | erp.__main__ | Starting application...
+2026-08-12 02:35:30,128 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 02:35:36,816 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 02:35:37,257 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:35:37,257 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:35:37,257 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 02:35:37,774 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:35:38,045 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:35:38,322 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:35:38,572 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:35:38,822 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:35:39,107 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:35:47,840 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:35:53,339 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 02:35:58,347 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 02:35:58,357 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 02:36:29,916 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 02:36:29,916 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 02:36:29,916 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 02:36:29,926 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 02:36:29,927 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 02:38:20,091 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:38:20,093 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:38:27,334 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:38:27,336 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:38:47,413 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:38:47,413 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:38:47,413 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 02:38:47,413 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 02:38:47,413 | INFO     | erp.__main__ | Starting application...
+2026-08-12 02:38:49,030 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 02:38:54,744 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 02:38:55,234 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:38:55,234 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:38:55,246 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 02:38:55,807 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:38:56,184 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:38:56,547 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:38:56,797 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:38:57,164 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:38:57,411 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:39:06,128 | INFO     | erp.__main__ | Shutting down auto-backup service...
+2026-08-12 02:39:11,141 | INFO     | erp.services.auto_backup | Auto-backup stopped
+2026-08-12 02:39:11,157 | INFO     | erp.__main__ | 🔄 Creating exit backup...
+2026-08-12 02:39:40,531 | INFO     | erp.__main__ | ✅ Exit backup created
+2026-08-12 02:39:40,533 | INFO     | erp.__main__ | 🔄 Closing database connections...
+2026-08-12 02:39:40,536 | INFO     | erp.database.connection | SQLite Cloud connections closed
+2026-08-12 02:39:40,539 | INFO     | erp.__main__ | ✅ SQLite Cloud connection pool closed
+2026-08-12 02:39:40,539 | INFO     | erp.__main__ | ✅ Database connections closed
+2026-08-12 02:40:28,260 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:40:28,262 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:40:28,371 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:40:28,409 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:40:28,412 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:46:32,128 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:46:32,130 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:46:56,059 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:46:56,060 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:47:03,235 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:47:03,235 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:47:03,282 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:47:03,307 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:47:03,307 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:47:16,622 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:47:16,623 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:47:16,668 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:47:16,698 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:47:16,698 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:47:32,908 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:47:32,909 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:47:40,162 | INFO     | erp.main | 🔄 Creating exit backup...
+2026-08-12 02:47:40,167 | WARNING  | erp.main | Cleanup error: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
+2026-08-12 02:48:02,309 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-08-12 02:48:02,309 | INFO     | erp.database.connection | ✅ SQLiteCloudConnection initialized (direct mode)
+2026-08-12 02:48:02,311 | INFO     | erp.__main__ | Starting auto-backup service...
+2026-08-12 02:48:02,313 | INFO     | erp.services.auto_backup | Auto-backup started (interval: 24 hours)
+2026-08-12 02:48:02,313 | INFO     | erp.__main__ | Starting application...
+2026-08-12 02:48:04,034 | INFO     | erp.__main__ | ✅ Database already initialized, skipping migrations
+2026-08-12 02:48:10,575 | INFO     | erp.authentication.auth_service | User 'admin' logged in (role=Admin)
+2026-08-12 02:48:11,173 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:48:11,173 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:48:11,196 | INFO     | erp.services.dashboard_service | 🔄 Dashboard cache miss, fetching from DB...
+2026-08-12 02:48:11,704 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:48:11,966 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:48:12,224 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:48:12,577 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:48:12,838 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:48:13,129 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:48:25,226 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:48:25,229 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-12 02:48:25,736 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:48:26,003 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:48:26,270 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:48:26,542 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:48:26,798 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:48:27,123 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:48:28,053 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 02:48:28,306 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11', 'raw_unit_cost': 0.0, 'packing_unit_cost': 0.0}
+2026-08-12 02:48:28,618 | INFO     | erp.views.widgets.item_view | Loaded 4 items
+2026-08-12 02:48:28,962 | INFO     | erp.utils.helpers | Fetched 4 items with stock data
+2026-08-12 02:48:28,962 | INFO     | erp.views.widgets.item_view | Loaded stocks for 4 items using helper: {2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:48:28,962 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: received stocks={2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:48:28,962 | INFO     | erp.views.widgets.item_view | StockLoadThread callback: stocks keys types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:48:28,962 | INFO     | erp.views.widgets.item_view | Loaded stock for 4 items: {2: 10.0, 4: 0.0, 3: -70.0, 1: -45.0}
+2026-08-12 02:48:28,966 | INFO     | erp.views.widgets.item_view | Row 0: item.id=1 (type=<class 'int'>), item_id_int=1
+2026-08-12 02:48:28,966 | INFO     | erp.views.widgets.item_view | Row 0: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:48:28,966 | INFO     | erp.views.widgets.item_view | Row 0: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:48:28,966 | INFO     | erp.views.widgets.item_view | Row 0: current_stock=-45.0 (type=<class 'float'>)
+2026-08-12 02:48:28,970 | INFO     | erp.views.widgets.item_view | Row 1: item.id=2 (type=<class 'int'>), item_id_int=2
+2026-08-12 02:48:28,971 | INFO     | erp.views.widgets.item_view | Row 1: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:48:28,971 | INFO     | erp.views.widgets.item_view | Row 1: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:48:28,972 | INFO     | erp.views.widgets.item_view | Row 1: current_stock=10.0 (type=<class 'float'>)
+2026-08-12 02:48:28,973 | INFO     | erp.views.widgets.item_view | Row 2: item.id=3 (type=<class 'int'>), item_id_int=3
+2026-08-12 02:48:28,974 | INFO     | erp.views.widgets.item_view | Row 2: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:48:28,974 | INFO     | erp.views.widgets.item_view | Row 2: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:48:28,975 | INFO     | erp.views.widgets.item_view | Row 2: current_stock=-70.0 (type=<class 'float'>)
+2026-08-12 02:48:28,976 | INFO     | erp.views.widgets.item_view | Row 3: item.id=4 (type=<class 'int'>), item_id_int=4
+2026-08-12 02:48:28,977 | INFO     | erp.views.widgets.item_view | Row 3: stock_map keys=[2, 4, 3, 1]
+2026-08-12 02:48:28,978 | INFO     | erp.views.widgets.item_view | Row 3: stock_map key types=[<class 'int'>, <class 'int'>, <class 'int'>, <class 'int'>]
+2026-08-12 02:48:28,978 | INFO     | erp.views.widgets.item_view | Row 3: current_stock=0.0 (type=<class 'float'>)
+2026-08-12 02:48:29,272 | INFO     | erp.views.widgets.dashboard_view | 🔄 Dashboard View refreshed on show
+2026-08-12 02:48:35,789 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:48:35,792 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-12 02:48:36,417 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:48:36,675 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:48:36,950 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:48:37,204 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:48:37,458 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:48:37,833 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:48:40,030 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:48:40,033 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-12 02:48:40,541 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:48:40,796 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:48:41,076 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:48:41,330 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:48:41,584 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:48:41,854 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:48:44,228 | INFO     | erp.views.widgets.dashboard_view | 🔄 LOADING DASHBOARD DATA
+2026-08-12 02:48:44,241 | INFO     | erp.services.dashboard_service | 🔄 Dashboard forced refresh, fetching from DB...
+2026-08-12 02:48:44,741 | INFO     | erp.services.dashboard_service | ✅ Today's stats: Sales=100000.0, Purchases=0
+2026-08-12 02:48:45,003 | INFO     | erp.services.dashboard_service | ✅ Main dashboard query completed
+2026-08-12 02:48:45,259 | INFO     | erp.services.dashboard_service | ✅ Fetched 8 recent transactions
+2026-08-12 02:48:45,513 | INFO     | erp.services.dashboard_service | ✅ Found 2 low stock items
+2026-08-12 02:48:45,769 | INFO     | erp.services.dashboard_service | ✅ Found 0 expiring items
+2026-08-12 02:48:46,035 | INFO     | erp.services.dashboard_service | ✅ Dashboard data built and cached
+2026-08-12 02:48:52,756 | INFO     | erp.views.widgets.item_view | Total stock batches: 8
+2026-08-12 02:48:53,130 | INFO     | erp.views.widgets.item_view | Sample stock: {'id': 1, 'item_id': 1, 'warehouse_id': 1, 'batch_number': 'PURCHASE-1-20260808205010', 'manufacturing_date': '2026-08-08', 'expiry_date': '2028-08-07', 'purchase_price': 1.0, 'quantity_in_stock': 80.0, 'received_date': '2026-08-08', 'is_active': 1, 'created_at': '2026-08-08 15:50:11', 'raw_unit_cost': 0.0, 'packing_unit_cost': 0.0}
+2026-08-12 02:48:54,615 | INFO     | erp.views.widgets.party_view | Loaded 6 parties
+2026-08-12 02:48:57,965 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00006
+2026-08-12 02:48:59,472 | ERROR    | erp.database.connection | Transaction rolled back: An error occurred while reading command length from the socket.
+2026-08-12 02:48:59,472 | WARNING  | erp.database.connection | Connection error on attempt 1/3: An error occurred while reading command length from the socket. | sql=
+            INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
+            VALUES (?, ?, ?, 1, 5)
+            ON CONFLICT(company_id, document_type) DO UPDATE SET
+                next_number = next_number + 1
+            RETURNING prefix, next_number, padding
+            
+2026-08-12 02:48:59,484 | INFO     | erp.database.connection | Retrying in 1.0s...
+2026-08-12 02:49:00,493 | WARNING  | erp.database.connection | Connection error on attempt 2/3: The cursor is closed. | sql=
+            INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
+            VALUES (?, ?, ?, 1, 5)
+            ON CONFLICT(company_id, document_type) DO UPDATE SET
+                next_number = next_number + 1
+            RETURNING prefix, next_number, padding
+            
+2026-08-12 02:49:00,493 | INFO     | erp.database.connection | Retrying in 2.0s...
+2026-08-12 02:49:02,771 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00008
+2026-08-12 02:49:04,099 | INFO     | erp.services.party_service | Created party SUPP-00008 - new (id=8)
+2026-08-12 02:49:04,349 | INFO     | erp.views.widgets.party_view | Loaded 8 parties
+2026-08-12 02:49:23,509 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00009
+2026-08-12 02:49:24,822 | INFO     | erp.services.party_service | Created party SUPP-00009 - new 2 (id=9)
+2026-08-12 02:49:25,110 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00010
+2026-08-12 02:49:25,110 | INFO     | erp.views.widgets.party_view | Loaded 9 parties
+2026-08-12 02:49:26,381 | INFO     | erp.services.party_service | Created party SUPP-00010 - new 2 (id=10)
+2026-08-12 02:49:26,667 | INFO     | erp.views.widgets.party_view | Loaded 10 parties
+2026-08-12 02:49:31,297 | INFO     | erp.services.party_service | Auto-generated party code: CUST-00003
+2026-08-12 02:49:32,522 | INFO     | erp.services.party_service | Created party CUST-00003 - 1 (id=11)
+2026-08-12 02:49:32,863 | INFO     | erp.views.widgets.party_view | Loaded 11 parties
+2026-08-12 02:49:37,483 | INFO     | erp.services.party_service | Auto-generated party code: SUPP-00011
+2026-08-12 02:49:38,702 | ERROR    | erp.database.connection | Transaction rolled back: An error occurred while reading command length from the socket.

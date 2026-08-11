@@ -51,7 +51,7 @@ class OpeningBalanceDialog(QDialog):
             "For Liability accounts (Accounts Payable): Enter positive numbers.\n"
             "Equity will be automatically calculated."
         )
-        info.setStyleSheet("background: #f8f9fa; padding: 10px; border-radius: 4px;")
+        info.setStyleSheet("background: #242424; padding: 10px; border-radius: 4px;")
         info.setWordWrap(True)
         layout.addWidget(info)
 
@@ -67,14 +67,14 @@ class OpeningBalanceDialog(QDialog):
         button_layout = QHBoxLayout()
 
         self.calculate_btn = QPushButton("Calculate Equity")
+        self.calculate_btn.setObjectName("primary")
         self.calculate_btn.clicked.connect(self._calculate_equity)
-        self.calculate_btn.setStyleSheet("background: #3498db; color: white; font-weight: bold;")
         button_layout.addWidget(self.calculate_btn)
 
         button_layout.addStretch()
 
         self.save_btn = QPushButton("Save Opening Balance")
-        self.save_btn.setStyleSheet("background: #2ecc71; color: white; font-weight: bold;")
+        self.save_btn.setObjectName("success")
         self.save_btn.clicked.connect(self._save)
         button_layout.addWidget(self.save_btn)
 

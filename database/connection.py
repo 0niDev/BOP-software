@@ -38,24 +38,35 @@ class ConnectionPool:
             self._is_initialized = True
             logger.info(f"Connection pool initialized with {self.max_connections} connections")
     
+    def warm_up(self, count: int = 3) -> None:
+        """Eagerly open a few connections so the first queries don't pay the
+        TCP/TLS handshake latency. Failures are non-fatal (the pool will
+        lazily create connections as usual)."""
+        count = max(0, min(count, self.max_connections))
+        if not self._connection_string:
+            return
+        for _ in range(count):
+            try:
+                conn = sqlitecloud.connect(self._connection_string)
+                conn.execute("PRAGMA busy_timeout = 5000")
+                with self._lock:
+                    if len(self._connections) < self.max_connections:
+                        self._connections.append(conn)
+                    else:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+            except Exception as exc:
+                logger.warning(f"Pool warm-up connection failed (non-fatal): {exc}")
+    
     def get_connection(self):
         with self._lock:
             if not self._is_initialized:
                 raise RuntimeError("Connection pool not initialized. Call initialize() first.")
             
-            while self._connections:
-                conn = self._connections.pop()
-                try:
-                    # Clean up any pending transactions before reusing connection
-                    conn.execute("ROLLBACK")
-                    conn.execute("SELECT 1")
-                    return conn
-                except Exception:
-                    # Connection is dead, close it and try next
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
+            if self._connections:
+                return self._connections.pop()
             
             if not self._connection_string:
                 raise RuntimeError("Connection string not set")
@@ -96,16 +107,6 @@ class ConnectionPool:
             return
         with self._lock:
             if len(self._connections) < self.max_connections:
-                # Always rollback any pending transactions before returning to pool
-                try:
-                    conn.execute("ROLLBACK")
-                except Exception:
-                    pass
-                # Reset connection state to ensure clean slate
-                try:
-                    conn.execute("SELECT 1")
-                except Exception:
-                    pass
                 self._connections.append(conn)
             else:
                 try:

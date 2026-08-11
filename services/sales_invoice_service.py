@@ -215,6 +215,7 @@ class SalesInvoiceService:
                 "line_total": float(line_total),
                 "item_name": item_name,
                 "item_code": item_code,
+                "item_type": item_dict.get('item_type', 'FINISHED_GOOD'),
             })
 
             subtotal += quantity * unit_price
@@ -250,7 +251,7 @@ class SalesInvoiceService:
             account_codes_needed.append("1010")  # Bank
 
         # Cache for COGS entries
-        account_codes_needed.extend(["5000", "1220", "1200"])
+        account_codes_needed.extend(["5000", "5001", "1220", "1200", "1210"])
 
         # Batch fetch all needed accounts
         account_cache = {}
@@ -337,6 +338,9 @@ class SalesInvoiceService:
             # Prepare all invoice items data for batch insert
             items_data = []
             batch_cache = {}  # Cache batches to reuse for same item/warehouse
+            cogs_raw = Decimal('0')
+            cogs_packing = Decimal('0')
+            credits_by_account: dict[int, Decimal] = {}
 
             for item_data in validated_items:
                 # Find the batch that will be used for this item
@@ -350,6 +354,36 @@ class SalesInvoiceService:
 
                 batch = batch_cache[cache_key]
                 batch_id = batch['id'] if batch else None
+
+                # COGS split by item type. Finished goods use the batch's
+                # raw/packing unit-cost split (raw -> 5000, packing -> 5001,
+                # credit 1220). Direct sales of raw/packing materials debit
+                # the matching COGS account and credit their own inventory
+                # account (1200 / 1210).
+                if batch:
+                    item_type = item_data.get("item_type", "FINISHED_GOOD")
+                    qty = Decimal(str(item_data["quantity"]))
+                    if item_type == "FINISHED_GOOD":
+                        raw_unit = batch.get('raw_unit_cost', 0) or 0
+                        packing_unit = batch.get('packing_unit_cost', 0) or 0
+                        if raw_unit == 0 and packing_unit == 0:
+                            raw_unit = float(batch.get('purchase_price', 0) or 0)
+                        cogs_raw += Decimal(str(raw_unit)) * qty
+                        cogs_packing += Decimal(str(packing_unit)) * qty
+                        fg_id = account_cache.get("1220")
+                        if fg_id:
+                            credits_by_account[fg_id["id"]] = credits_by_account.get(fg_id["id"], Decimal('0')) + (Decimal(str(raw_unit)) + Decimal(str(packing_unit))) * qty
+                    else:
+                        unit_cost = float(batch.get('purchase_price', 0) or 0)
+                        amount = Decimal(str(unit_cost)) * qty
+                        if item_type == "PACKING_MATERIAL":
+                            cogs_packing += amount
+                            inv_id = account_cache.get("1210")
+                        else:  # RAW_MATERIAL
+                            cogs_raw += amount
+                            inv_id = account_cache.get("1200")
+                        if inv_id:
+                            credits_by_account[inv_id["id"]] = credits_by_account.get(inv_id["id"], Decimal('0')) + amount
 
                 clean_item_data = {
                     "invoice_id": invoice.id,
@@ -370,6 +404,36 @@ class SalesInvoiceService:
 
             # Bulk update stock with shared cache
             self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
+
+            # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr inventory account(s)
+            cogs_total = cogs_raw + cogs_packing
+            if cogs_total > 0:
+                cogs_account_dict = account_cache.get("5000")
+                packing_cogs_account_dict = account_cache.get("5001")
+                if cogs_account_dict:
+                    if cogs_raw > 0:
+                        journal_lines.append(JournalLine(
+                            account_id=cogs_account_dict["id"],
+                            debit=float(cogs_raw),
+                            credit=0.0,
+                            description=f"COGS (raw materials) - {invoice_number}"
+                        ))
+                    if cogs_packing > 0 and packing_cogs_account_dict:
+                        journal_lines.append(JournalLine(
+                            account_id=packing_cogs_account_dict["id"],
+                            debit=float(cogs_packing),
+                            credit=0.0,
+                            description=f"COGS (packing materials) - {invoice_number}"
+                        ))
+                    for inv_id, amount in credits_by_account.items():
+                        journal_lines.append(JournalLine(
+                            account_id=inv_id,
+                            debit=0.0,
+                            credit=float(amount),
+                            description=f"Reduce inventory - {invoice_number}"
+                        ))
+                    logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s",
+                                float(cogs_raw), float(cogs_packing), invoice_number)
 
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.SALES,
@@ -569,6 +633,7 @@ class SalesInvoiceService:
                 "line_total": float(line_total),
                 "item_name": item['item_name'],
                 "item_code": item['item_code'],
+                "item_type": item.get('item_type', 'FINISHED_GOOD'),
             })
             
             subtotal += quantity * unit_price
@@ -599,6 +664,8 @@ class SalesInvoiceService:
         
         # Insert new invoice items
         items_data = []
+        cogs_raw = Decimal('0')
+        cogs_packing = Decimal('0')
         for item_data in validated_items:
             cache_key = f"{item_data['item_id']}_{warehouse_id}"
             if cache_key not in batch_cache:
@@ -610,6 +677,25 @@ class SalesInvoiceService:
             
             batch = batch_cache[cache_key]
             batch_id = batch['id'] if batch else None
+
+            # COGS split (same logic as create path).
+            if batch:
+                item_type = item_data.get("item_type", "FINISHED_GOOD")
+                qty = Decimal(str(item_data["quantity"]))
+                if item_type == "FINISHED_GOOD":
+                    raw_unit = batch.get('raw_unit_cost', 0) or 0
+                    packing_unit = batch.get('packing_unit_cost', 0) or 0
+                    if raw_unit == 0 and packing_unit == 0:
+                        raw_unit = float(batch.get('purchase_price', 0) or 0)
+                    cogs_raw += Decimal(str(raw_unit)) * qty
+                    cogs_packing += Decimal(str(packing_unit)) * qty
+                else:
+                    unit_cost = float(batch.get('purchase_price', 0) or 0)
+                    amount = Decimal(str(unit_cost)) * qty
+                    if item_type == "PACKING_MATERIAL":
+                        cogs_packing += amount
+                    else:  # RAW_MATERIAL
+                        cogs_raw += amount
             
             clean_item_data = {
                 "invoice_id": invoice_id,
@@ -638,7 +724,7 @@ class SalesInvoiceService:
             account_codes_needed.append("1000")
         elif payment_type in ["BANK", "CHEQUE"]:
             account_codes_needed.append("1010")
-        
+        account_codes_needed += ["5000", "5001", "1220", "1200", "1210"]
         account_cache = {}
         for code in set(account_codes_needed):
             account_dict = self.account_repo.find_by_code(code)
@@ -714,7 +800,36 @@ class SalesInvoiceService:
                     description="Sales tax"
                 )
             )
-        
+
+        # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr Finished Goods (1220)
+        cogs_total = cogs_raw + cogs_packing
+        if cogs_total > 0 and account_cache.get("5000") and account_cache.get("1220"):
+            cogs_account_dict = account_cache.get("5000")
+            packing_cogs_account_dict = account_cache.get("5001")
+            inventory_finished_dict = account_cache.get("1220")
+            if cogs_raw > 0:
+                journal_lines.append(JournalLine(
+                    account_id=cogs_account_dict["id"],
+                    debit=float(cogs_raw),
+                    credit=0.0,
+                    description=f"COGS (raw materials) - {invoice_number}"
+                ))
+            if cogs_packing > 0 and packing_cogs_account_dict:
+                journal_lines.append(JournalLine(
+                    account_id=packing_cogs_account_dict["id"],
+                    debit=float(cogs_packing),
+                    credit=0.0,
+                    description=f"COGS (packing materials) - {invoice_number}"
+                ))
+            journal_lines.append(JournalLine(
+                account_id=inventory_finished_dict["id"],
+                debit=0.0,
+                credit=float(cogs_total),
+                description=f"Reduce finished goods inventory - {invoice_number}"
+            ))
+            logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s (update)",
+                        float(cogs_raw), float(cogs_packing), invoice_number)
+
         self.accounting_service.post_journal_entry(
             voucher_type=VoucherType.SALES,
             entry_date=invoice_date,

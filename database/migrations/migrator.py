@@ -52,6 +52,7 @@ SYSTEM_ACCOUNTS: list[tuple[str, str, str, str | None]] = [
     ("4000", "Sales Revenue",               "REVENUE",   None),
     ("4100", "Sales Returns & Allowances",  "REVENUE",   None),
     ("5000", "Cost of Goods Sold",          "EXPENSE",   None),
+    ("5001", "Cost of Packing Materials",    "EXPENSE",   None),
     ("5100", "Purchase Returns & Allowances","EXPENSE",  None),
     ("5200", "Manufacturing Wastage Expense","EXPENSE",  None),
     ("5300", "Inventory Loss / Expiry Expense","EXPENSE", None),
