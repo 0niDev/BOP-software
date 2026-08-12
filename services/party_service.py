@@ -41,7 +41,7 @@ class PartyService:
         if credit_limit < 0:
             raise ValidationError("Credit limit cannot be negative.")
 
-        # 2. ✅ FIX: Handle code properly
+        # 2. ✅ Handle code properly (manual validation only; auto-generate inside transaction)
         if code is not None:
             # Manual code provided - validate it
             code = code.strip()
@@ -50,12 +50,7 @@ class PartyService:
             existing = self.repo.find_by_code(code, party_type.value, company_id)
             if existing:
                 raise ValidationError(f"Party code '{code}' already exists.")
-        else:
-            # Auto-generate code based on party type
-            document_type = "CUSTOMER" if party_type == PartyType.CUSTOMER else "SUPPLIER"
-            code = self.journal_repo.next_voucher_number(company_id, document_type)
-            # This generates "CUST-00001" or "SUPP-00001"
-            logger.info(f"Auto-generated party code: {code}")
+        # (auto-generate happens inside the transaction below)
 
         # 3. Validate account linkage (if provided)
         if account_id is not None:
@@ -67,18 +62,22 @@ class PartyService:
             if party_type == PartyType.SUPPLIER and account["account_type"] != "LIABILITY":
                 raise ValidationError("Supplier accounts must link to liability-type accounts (e.g., A/P).")
 
-        # 4. Create party instance
-        party = Party(
-            code=code,
-            name=name,
-            party_type=party_type,
-            credit_limit=credit_limit,
-            account_id=account_id,
-            company_id=company_id,
-        )
-
-        # 5. Persist within transaction
+        # 4. Persist within transaction (code generation included so sequence
+        #    rolls back together with the insert on failure — no gaps)
         with self.db.transaction():
+            if code is None:
+                document_type = "CUSTOMER" if party_type == PartyType.CUSTOMER else "SUPPLIER"
+                code = self.journal_repo.next_voucher_number(company_id, document_type)
+                logger.info(f"Auto-generated party code: {code}")
+
+            party = Party(
+                code=code,
+                name=name,
+                party_type=party_type,
+                credit_limit=credit_limit,
+                account_id=account_id,
+                company_id=company_id,
+            )
             new_id = self.repo.insert_unique(party.to_dict())
             party.id = new_id
 

@@ -65,19 +65,15 @@ class ManufacturingService:
         if finished_item["item_type"] != "FINISHED_GOOD":
             raise ValidationError("Finished item must be of type FINISHED_GOOD.")
 
-        # 2. ✅ Handle BOM name (manual or auto-generate)
+        # 2. ✅ Handle BOM name (manual validation only; auto-generate inside transaction)
         if bom_name is not None:
             bom_name = bom_name.strip()
             if not bom_name:
                 raise ValidationError("BOM name cannot be empty.")
-            # Check if BOM name already exists
             existing = self.bom_repo.find_by_name(bom_name, company_id)
             if existing:
                 raise ValidationError(f"BOM name '{bom_name}' already exists.")
-        else:
-            # Auto-generate BOM name
-            bom_name = self.journal_repo.next_voucher_number(company_id, "BOM")
-            logger.info(f"Auto-generated BOM name: {bom_name}")
+        # (auto-generate happens inside the transaction below)
 
         if output_quantity <= 0:
             raise ValidationError("Output quantity must be greater than 0.")
@@ -109,16 +105,20 @@ class ManufacturingService:
                 "wastage_percent": wastage_percent,
             })
 
-        # 4. Create BOM
-        bom = BillOfMaterials(
-            finished_item_id=finished_item_id,
-            bom_name=bom_name,
-            output_quantity=output_quantity,
-            notes=notes,
-            company_id=company_id,
-        )
-
+        # 4. Create BOM within transaction (code generation included so sequence
+        #    rolls back together with the insert on failure — no gaps)
         with self.db.transaction():
+            if bom_name is None:
+                bom_name = self.journal_repo.next_voucher_number(company_id, "BOM")
+                logger.info(f"Auto-generated BOM name: {bom_name}")
+
+            bom = BillOfMaterials(
+                finished_item_id=finished_item_id,
+                bom_name=bom_name,
+                output_quantity=output_quantity,
+                notes=notes,
+                company_id=company_id,
+            )
             bom.id = self.bom_repo.insert(bom.to_dict())
             for comp in validated_components:
                 comp["bom_id"] = bom.id

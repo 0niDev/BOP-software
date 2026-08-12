@@ -798,3 +798,89 @@ Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Det
 2026-08-12 16:33:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:90) [FLW-5C58661B0D] | Details: {'name=Flow Item'}
 2026-08-12 16:33:23 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:50) [PI-FLOW-P1-FLW-5C58661B0D] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
 2026-08-12 16:33:28 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (PAYMENT)(ID:9) [#9] | Details: {'amount=1000.0 party=Flow Supplier'}
+2026-08-12 17:41:53 | BANKING         | CREATE     | Company:1 [System] | Entity: Bank Transaction (DEPOSIT)(ID:3) [AR] | Details: {'amount=100000.0 description='}
+2026-08-12 18:05:06 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:2) [Salaries] | Details: {'amount=100.0 description=ahmad'}
+2026-08-12 18:05:10 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:3) [Salaries] | Details: {'amount=1.1 description=ali'}
+2026-08-12 18:08:06 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:4) [Salaries] | Details: {'amount=100.0 description=ahmad'}
+2026-08-12 18:08:10 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:5) [Salaries] | Details: {'amount=1.1 description=ali'}
+2026-08-12 18:08:14 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:6) [Salaries] | Details: {'amount=100.0 description=ali2'}
+2026-08-12 18:12:04 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:7) [Salaries] | Details: {'amount=1000.0 description=naveed'}
+2026-08-12 20:30:25 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:184) [PSR-FE3519013C] | Details: {'name=Party Service Test credit_limit=10000.0'}
+2026-08-12 20:30:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:185) [PSR-2593BB5573] | Details: {'name=First credit_limit=0.0'}
+2026-08-12 20:30:29 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (BOTH)(ID:186) [PSR-966339B5ED] | Details: {'name=Before credit_limit=0.0'}
+2026-08-12 20:30:30 | PARTY           | UPDATE     | Company:1 [System] | Entity: Party (BOTH)(ID:186) [PSR-966339B5ED] | Details: {'name=After changes={'name': 'After', 'credit_limit': 500.0, 'account_id': None, 'is_active': 1}'}
+2026-08-12 20:30:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:93) [ISR-3F8D896314] | Details: {'name=Service Test Item'}
+2026-08-12 20:30:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:94) [ISR-A9535A994C] | Details: {'name=Dup Item'}
+2026-08-12 20:30:53 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:187) [FLW-2CFDCDA882] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:30:54 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:188) [FLW-74E4A18976] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:30:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:95) [FLW-15132F5FA3] | Details: {'name=Flow Item'}
+2026-08-12 20:31:05 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:51) [PI-FLOW-FLW-15132F5FA3] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-12 20:31:09 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:189) [FLW-665920C03D] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:31:11 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:190) [FLW-EB12A90C8B] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:31:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:96) [FLW-EFA44B89AA] | Details: {'name=Flow Item'}
+2026-08-12 20:31:22 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:52) [PI-FLOWC-FLW-EFA44B89AA] | Details: {'supplier=Flow Supplier total=500.0 items=1 payment=CASH'}
+2026-08-12 20:31:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:191) [FLW-A3C6234B1B] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:31:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:192) [FLW-D331B768DD] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:31:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:97) [FLW-02FA393DC6] | Details: {'name=Flow Item'}
+2026-08-12 20:31:36 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:53) [PI-FLOW-S1-FLW-02FA393DC6] | Details: {'supplier=Flow Supplier total=10000.0 items=1 payment=CREDIT'}
+2026-08-12 20:32:25 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:193) [PSR-6F8D57106D] | Details: {'name=Party Service Test credit_limit=10000.0'}
+2026-08-12 20:32:27 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:194) [PSR-6C8BEB0202] | Details: {'name=First credit_limit=0.0'}
+2026-08-12 20:32:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (BOTH)(ID:195) [PSR-9260079938] | Details: {'name=Before credit_limit=0.0'}
+2026-08-12 20:32:29 | PARTY           | UPDATE     | Company:1 [System] | Entity: Party (BOTH)(ID:195) [PSR-9260079938] | Details: {'name=After changes={'name': 'After', 'credit_limit': 500.0, 'account_id': None, 'is_active': 1}'}
+2026-08-12 20:32:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:98) [ISR-3102D2532F] | Details: {'name=Service Test Item'}
+2026-08-12 20:32:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:99) [ISR-144CD5AAAB] | Details: {'name=Dup Item'}
+2026-08-12 20:32:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:196) [FLW-1ECEA58E8F] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:32:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:197) [FLW-6556B2DE80] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:32:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:100) [FLW-6850B8B47E] | Details: {'name=Flow Item'}
+2026-08-12 20:33:02 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:54) [PI-FLOW-FLW-6850B8B47E] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-12 20:33:07 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:198) [FLW-19569CF2C1] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:33:08 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:199) [FLW-F6194254E8] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:33:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:101) [FLW-8D6D0FB838] | Details: {'name=Flow Item'}
+2026-08-12 20:33:18 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:55) [PI-FLOWC-FLW-8D6D0FB838] | Details: {'supplier=Flow Supplier total=500.0 items=1 payment=CASH'}
+2026-08-12 20:33:22 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:200) [FLW-8D369E63AA] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:33:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:201) [FLW-81D7FDB6DF] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:33:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:102) [FLW-F4D4724A31] | Details: {'name=Flow Item'}
+2026-08-12 20:33:32 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:56) [PI-FLOW-S1-FLW-F4D4724A31] | Details: {'supplier=Flow Supplier total=10000.0 items=1 payment=CREDIT'}
+2026-08-12 20:33:42 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:26) [SI-FLOW-FLW-F4D4724A31] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-12 20:33:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:202) [FLW-7EB264802F] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:33:47 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:203) [FLW-75915FF1EB] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:33:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:103) [FLW-E5E0C2DC92] | Details: {'name=Flow Item'}
+2026-08-12 20:33:55 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:57) [PI-FLOW-R1-FLW-E5E0C2DC92] | Details: {'supplier=Flow Supplier total=5000.0 items=1 payment=CREDIT'}
+2026-08-12 20:34:02 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:27) [SI-FLOW-R1-FLW-E5E0C2DC92] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-12 20:34:06 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (RECEIPT)(ID:12) [#12] | Details: {'amount=1500.0 party=Flow Customer'}
+2026-08-12 20:34:10 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:204) [FLW-2E57430122] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:34:11 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:205) [FLW-23C05F5F0B] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:34:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:104) [FLW-BE4A084289] | Details: {'name=Flow Item'}
+2026-08-12 20:34:19 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:58) [PI-FLOW-P1-FLW-BE4A084289] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-12 20:34:24 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (PAYMENT)(ID:10) [#10] | Details: {'amount=1000.0 party=Flow Supplier'}
+2026-08-12 20:42:58 | EXPENSE         | CREATE     | Company:1 [System] | Entity: Expense(ID:14) [cars] | Details: {'amount=10000.0 description='}
+2026-08-12 20:53:44 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [PSR-B7E8531E67] | Details: {'name=Party Service Test credit_limit=10000.0'}
+2026-08-12 20:53:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [PSR-F5BA82E6D0] | Details: {'name=First credit_limit=0.0'}
+2026-08-12 20:53:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (BOTH)(ID:3) [PSR-4191AC9C45] | Details: {'name=Before credit_limit=0.0'}
+2026-08-12 20:53:49 | PARTY           | UPDATE     | Company:1 [System] | Entity: Party (BOTH)(ID:3) [PSR-4191AC9C45] | Details: {'name=After changes={'name': 'After', 'credit_limit': 500.0, 'account_id': None, 'is_active': 1}'}
+2026-08-12 20:53:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:36) [ISR-ED33E5D7EE] | Details: {'name=Service Test Item'}
+2026-08-12 20:53:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:37) [ISR-31C503E3E1] | Details: {'name=Dup Item'}
+2026-08-12 20:54:11 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:4) [FLW-436E0578FD] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:54:13 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:5) [FLW-08657BE5E0] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:54:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:38) [FLW-6369A27A4D] | Details: {'name=Flow Item'}
+2026-08-12 20:54:24 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:1) [PI-FLOW-FLW-6369A27A4D] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-12 20:54:29 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:6) [FLW-B4A6B972A8] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:54:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:7) [FLW-575AF38ADB] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:54:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:39) [FLW-894CE54E92] | Details: {'name=Flow Item'}
+2026-08-12 20:54:42 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:2) [PI-FLOWC-FLW-894CE54E92] | Details: {'supplier=Flow Supplier total=500.0 items=1 payment=CASH'}
+2026-08-12 20:54:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:8) [FLW-2942AB1CD3] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:54:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:9) [FLW-A0D51FEE9D] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:54:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:40) [FLW-146E2E8B91] | Details: {'name=Flow Item'}
+2026-08-12 20:54:57 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:3) [PI-FLOW-S1-FLW-146E2E8B91] | Details: {'supplier=Flow Supplier total=10000.0 items=1 payment=CREDIT'}
+2026-08-12 20:55:07 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-FLOW-FLW-146E2E8B91] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-12 20:55:12 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:10) [FLW-77EF9E725B] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:55:14 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:11) [FLW-C4FAA76258] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:55:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:41) [FLW-B9B9C32196] | Details: {'name=Flow Item'}
+2026-08-12 20:55:22 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:4) [PI-FLOW-R1-FLW-B9B9C32196] | Details: {'supplier=Flow Supplier total=5000.0 items=1 payment=CREDIT'}
+2026-08-12 20:55:29 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:2) [SI-FLOW-R1-FLW-B9B9C32196] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-12 20:55:35 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (RECEIPT)(ID:1) [#1] | Details: {'amount=1500.0 party=Flow Customer'}
+2026-08-12 20:55:39 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:12) [FLW-662E7D1566] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-12 20:55:40 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:13) [FLW-8747546723] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-12 20:55:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:42) [FLW-4692E2F998] | Details: {'name=Flow Item'}
+2026-08-12 20:55:49 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:5) [PI-FLOW-P1-FLW-4692E2F998] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-12 20:55:54 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (PAYMENT)(ID:1) [#1] | Details: {'amount=1000.0 party=Flow Supplier'}

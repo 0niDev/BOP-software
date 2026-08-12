@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 import os
 os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/MainDatabase.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 from views.main_window import MainWindow   # ← ADD THIS LINE
@@ -739,6 +739,8 @@ class Application:
                 # Idempotent column migration - runs on existing databases too
                 from database.migrations.add_material_cost_columns import run_column_migration
                 run_column_migration(db)
+                from database.migrations.add_expense_items import run_expense_items_migration
+                run_expense_items_migration(db)
                 return
             except Exception:
                 pass
@@ -746,6 +748,8 @@ class Application:
             # Idempotent column migration - ensures new cost columns/accounts exist
             from database.migrations.add_material_cost_columns import run_column_migration
             run_column_migration(db)
+            from database.migrations.add_expense_items import run_expense_items_migration
+            run_expense_items_migration(db)
         except Exception:
             logger.exception("Fatal error initializing database")
             raise

@@ -66,10 +66,7 @@ class ItemService:
             existing = self.repo.find_by_code(item_code, company_id)
             if existing:
                 raise ValidationError(f"Item code '{item_code}' already exists.")
-        else:
-            # Auto-generate item code
-            item_code = self.journal_repo.next_voucher_number(company_id, "ITEM")
-            logger.info(f"Auto-generated item code: {item_code}")
+        # (auto-generate happens inside the transaction below)
 
         # 3. Validate tax rate if provided
         if tax_rate_id is not None:
@@ -81,24 +78,27 @@ class ItemService:
             if tax_rate["tax_type"] != "SALES_TAX":
                 raise ValidationError("Tax rate must be sales tax type.")
 
-        # 4. Create item instance
-        item = Item(
-            item_code=item_code,
-            item_name=item_name,
-            notes=notes,
-            unit=unit,
-            purchase_price=purchase_price,
-            selling_price=selling_price,
-            minimum_stock=minimum_stock,
-            maximum_stock=maximum_stock,
-            tax_rate_id=tax_rate_id,
-            item_type=item_type,
-            category_id=category_id,
-            company_id=company_id,
-        )
-
-        # 5. Persist within transaction
+        # 4. Persist within transaction (code generation included so sequence
+        #    rolls back together with the insert on failure — no gaps)
         with self.db.transaction():
+            if item_code is None:
+                item_code = self.journal_repo.next_voucher_number(company_id, "ITEM")
+                logger.info(f"Auto-generated item code: {item_code}")
+
+            item = Item(
+                item_code=item_code,
+                item_name=item_name,
+                notes=notes,
+                unit=unit,
+                purchase_price=purchase_price,
+                selling_price=selling_price,
+                minimum_stock=minimum_stock,
+                maximum_stock=maximum_stock,
+                tax_rate_id=tax_rate_id,
+                item_type=item_type,
+                category_id=category_id,
+                company_id=company_id,
+            )
             new_id = self.repo.insert_unique(item.to_dict())
             item.id = new_id
 

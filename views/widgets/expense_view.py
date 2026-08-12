@@ -28,6 +28,7 @@ from controllers.account_controller import AccountController
 from models.expense import ExpenseCategory
 from utils.help_utils import create_help_button
 from utils.logger import get_logger
+from views.widgets.expense_items_dialog import ExpenseItemsDialog
 
 logger = get_logger(__name__)
 
@@ -326,6 +327,10 @@ class ExpenseView(QWidget):
         self.report_btn.clicked.connect(self._show_monthly_report)
         button_layout.addWidget(self.report_btn)
 
+        self.pay_items_btn = QPushButton("Pay Items")
+        self.pay_items_btn.clicked.connect(self._on_pay_items)
+        button_layout.addWidget(self.pay_items_btn)
+
         layout.addLayout(button_layout)
 
     def _build_category_tab(self, layout):
@@ -515,6 +520,21 @@ class ExpenseView(QWidget):
                 QMessageBox.information(self, "Success", "Expense created successfully!")
             else:
                 QMessageBox.warning(self, "Creation Failed", error)
+
+    def _on_pay_items(self):
+        """Open the Pay Items dialog for bulk-paying category line-items."""
+        if not self._categories:
+            QMessageBox.information(self, "Pay Items", "Create an expense category first.")
+            return
+        default_category_id = self.category_filter.currentData()
+        dialog = ExpenseItemsDialog(
+            categories=self._categories,
+            default_category_id=default_category_id,
+            company_id=1,
+            parent=self,
+        )
+        dialog.items_paid.connect(self._load_expenses)
+        dialog.exec()
 
     def _on_delete_expense(self):
         if not self._selected_expense_id:

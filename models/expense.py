@@ -36,6 +36,47 @@ class ExpenseCategory:
 
 
 @dataclass
+class ExpenseItem:
+    """A recurring line-item under an expense category (e.g. a salary payee).
+
+    Used by the "Pay Items" bulk-payment feature: the user maintains a list of
+    items per category and pays any subset in a single dialog, one expense
+    voucher per item.
+    """
+
+    category_id: int
+    name: str
+    amount: float | None = None
+    is_active: bool = True
+    id: Optional[int] = None
+    company_id: int = 1
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @staticmethod
+    def from_row(row: dict) -> "ExpenseItem":
+        return ExpenseItem(
+            id=row["id"],
+            company_id=row["company_id"],
+            category_id=row["category_id"],
+            name=row["name"],
+            amount=row.get("amount"),
+            is_active=bool(row["is_active"]),
+            created_at=row.get("created_at"),
+            updated_at=row.get("updated_at"),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "company_id": self.company_id,
+            "category_id": self.category_id,
+            "name": self.name,
+            "amount": self.amount,
+            "is_active": int(self.is_active),
+        }
+
+
+@dataclass
 class Expense:
     """Expense voucher."""
     voucher_number: str

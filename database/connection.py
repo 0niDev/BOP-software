@@ -202,6 +202,7 @@ class SQLiteCloudConnection(DatabaseConnection):
         self._connection_string = self._get_connection_string()
         init_pool(self._connection_string)
         self._transaction_conn = None  # Hold connection during transaction
+        self._transaction_depth = 0     # Nesting depth for savepoint-based transactions
         logger.info("✅ SQLiteCloudConnection initialized (direct mode)")
 
     def _get_connection_string(self) -> str:
@@ -488,31 +489,55 @@ class SQLiteCloudConnection(DatabaseConnection):
 
     @contextmanager
     def transaction(self) -> Iterator["SQLiteCloudConnection"]:
-        conn = self._get_cached_connection()
-        try:
+        """Transaction context manager with savepoint-based nesting support.
+
+        The outermost ``with`` block issues a real ``BEGIN``/``COMMIT`` (or
+        ``ROLLBACK``). Any nested ``with`` block (e.g. a service calling
+        another service that opens its own transaction) is mapped to a
+        ``SAVEPOINT`` on the same connection, so it can roll back
+        independently without aborting the whole outer transaction. This keeps
+        the single-level behaviour identical while fixing the latent
+        "cannot start a transaction within a transaction" error on nesting.
+        """
+        is_root = self._transaction_conn is None
+        if is_root:
+            conn = self._get_cached_connection()
             conn.execute("BEGIN")
-            # Hold the connection for the duration of the transaction
             self._transaction_conn = conn
+            self._transaction_depth = 1
+        else:
+            conn = self._transaction_conn
+            self._transaction_depth += 1
+            conn.execute(f"SAVEPOINT sp_{self._transaction_depth}")
+
+        try:
             # Yield self (the wrapper) so fetch_one, execute, etc. work within transactions
             yield self
-            conn.execute("COMMIT")
-        except sqlitecloud.Error as exc:
-            try:
-                conn.execute("ROLLBACK")
-            except Exception:
-                pass
-            logger.error("Transaction rolled back: %s", exc)
-            raise DatabaseError(str(exc)) from exc
         except Exception as exc:
             try:
-                conn.execute("ROLLBACK")
+                if is_root:
+                    conn.execute("ROLLBACK")
+                else:
+                    conn.execute(f"ROLLBACK TO SAVEPOINT sp_{self._transaction_depth}")
+                    conn.execute(f"RELEASE SAVEPOINT sp_{self._transaction_depth}")
             except Exception:
                 pass
             logger.error("Transaction rolled back: %s", exc)
+            if isinstance(exc, sqlitecloud.Error):
+                raise DatabaseError(str(exc)) from exc
             raise
+        else:
+            if is_root:
+                conn.execute("COMMIT")
+            else:
+                conn.execute(f"RELEASE SAVEPOINT sp_{self._transaction_depth}")
         finally:
-            self._transaction_conn = None
-            self._return_connection(conn)
+            if is_root:
+                self._transaction_conn = None
+                self._transaction_depth = 0
+                self._return_connection(conn)
+            else:
+                self._transaction_depth -= 1
 
     def _execute_with_retry(self, sql: str, params: Sequence[Any] = (), operation_type: str = "execute"):
         """Internal helper for executing SQL with retry logic, respecting transactions."""

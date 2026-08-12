@@ -360,6 +360,8 @@ class DashboardView(QWidget):
         view = QChartView(chart)
         view.setRenderHint(QPainter.Antialiasing)
         view.setMinimumHeight(260)
+        view.setMaximumHeight(260)
+        view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         donut_layout.addWidget(view)
 
         row_layout.addWidget(donut_frame, 1)
@@ -421,6 +423,8 @@ class DashboardView(QWidget):
             bar_view = QChartView(bar_chart)
             bar_view.setRenderHint(QPainter.Antialiasing)
             bar_view.setMinimumHeight(260)
+            bar_view.setMaximumHeight(260)
+            bar_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             trend_layout.addWidget(bar_view)
         else:
             empty = QLabel("No monthly data available.")

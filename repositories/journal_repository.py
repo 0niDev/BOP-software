@@ -169,6 +169,82 @@ class JournalRepository(BaseRepository):
         
         prefix, next_number, padding = result["prefix"], result["next_number"], result["padding"]
         return f"{prefix}{str(next_number).zfill(padding)}"
+    def next_voucher_numbers(self, company_id: int, document_type: str, count: int) -> list[str]:
+        """Atomically reserve *count* sequential voucher numbers in one write."""
+        doc_type_mapping = {
+            'SALES': 'SALES_INVOICE',
+            'PURCHASE': 'PURCHASE_INVOICE',
+            'PAYMENT': 'PAYMENT',
+            'RECEIPT': 'RECEIPT',
+            'JOURNAL': 'JOURNAL_VOUCHER',
+            'OPENING': 'OPENING',
+            'CUSTOMER': 'CUSTOMER',
+            'SUPPLIER': 'SUPPLIER',
+            'EXPENSE': 'EXPENSE',
+        }
+        seq_doc_type = doc_type_mapping.get(document_type, document_type)
+        result = self.db.fetch_one(
+            """
+            INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
+            VALUES (?, ?, ?, ?, 5)
+            ON CONFLICT(company_id, document_type) DO UPDATE SET
+                next_number = next_number + ?
+            RETURNING prefix, next_number, padding
+            """,
+            (company_id, seq_doc_type, f"{seq_doc_type}-", count, count),
+        )
+        prefix = result["prefix"]
+        end_number = result["next_number"]
+        padding = result["padding"]
+        return [
+            f"{prefix}{str(end_number - count + 1 + i).zfill(padding)}"
+            for i in range(count)
+        ]
+
+    def insert_entries_bulk(
+        self, headers: list[dict], lines_per_entry: list[list[dict]]
+    ) -> list[int]:
+        """Insert multiple journal entries + lines in minimal round trips.
+
+        Skips per-line account_id validation (caller must guarantee validity).
+        Each entry gets a unique journal_entry_id assigned via last_insert_id
+        offset calculation.  Must be called inside ``db.transaction()``.
+        """
+        if not headers:
+            return []
+
+        # --- insert all headers in one executemany ---
+        cols = list(headers[0].keys())
+        placeholders = ", ".join("?" for _ in cols)
+        col_list = ", ".join(cols)
+        sql_h = f"INSERT INTO {self.table_name} ({col_list}) VALUES ({placeholders})"
+        self.db.executemany(sql_h, [tuple(h[c] for c in cols) for h in headers])
+
+        # figure out the range of generated IDs (assumes AUTOINCREMENT = sequential)
+        last_id = self.db.last_insert_id()
+        first_id = last_id - len(headers) + 1
+        entry_ids = list(range(first_id, last_id + 1))
+
+        # --- insert all lines in one executemany (flattened) ---
+        all_lines: list[dict] = []
+        for entry_id, lines in zip(entry_ids, lines_per_entry):
+            for order, line in enumerate(lines):
+                row = dict(line)
+                row["journal_entry_id"] = entry_id
+                row.setdefault("line_order", order)
+                if row.get("party_id") is None:
+                    row.pop("party_id", None)
+                all_lines.append(row)
+
+        if all_lines:
+            line_cols = list(all_lines[0].keys())
+            line_ph = ", ".join("?" for _ in line_cols)
+            line_cl = ", ".join(line_cols)
+            sql_l = f"INSERT INTO journal_entry_lines ({line_cl}) VALUES ({line_ph})"
+            self.db.executemany(sql_l, [tuple(r[c] for c in line_cols) for r in all_lines])
+
+        return entry_ids
+
     def find_lines_for_entry(self, journal_entry_id: int) -> list[dict]:
         return self.db.fetch_all(
             "SELECT jel.*, a.account_code, a.account_name FROM journal_entry_lines jel "
