@@ -27,9 +27,21 @@ from PySide6.QtCore import QTimer
 from controllers.banking_controller import BankingController
 from controllers.party_controller import PartyController
 from models.banking import BankAccount, Cheque
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+BANKING_HELP = """
+<h3>Banking</h3>
+<p>Manage bank accounts, cheques, and transactions.</p>
+<ul>
+    <li><b>Bank Accounts</b> - create accounts, deposit, and withdraw funds.</li>
+    <li><b>Cheques</b> - issue or receive cheques and track their status (Uncleared, Cleared, Bounced, Lost).</li>
+    <li><b>Transactions</b> - view all deposit/withdrawal history per account.</li>
+</ul>
+<p>Bank account balances are updated automatically when you record sales or purchase payments.</p>
+"""
 
 
 class BankingDataLoader(QObject):
@@ -376,6 +388,15 @@ class BankingView(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
+
+        # Header row with help button
+        header = QHBoxLayout()
+        title = QLabel("Banking")
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Banking", BANKING_HELP))
+        layout.addLayout(header)
 
         self.tabs = QTabWidget()
 

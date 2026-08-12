@@ -34,9 +34,21 @@ from PySide6.QtCharts import (
 )
 
 from controllers.dashboard_controller import DashboardController
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+DASHBOARD_HELP = """
+<h3>Dashboard</h3>
+<p>Overview of your company's performance at a glance.</p>
+<ul>
+    <li><b>KPI Cards</b> - Revenue, expenses, profit, and outstanding balances.</li>
+    <li><b>Charts</b> - Sales by category, expenses breakdown, and revenue trends.</li>
+    <li><b>Alerts</b> - Low-stock items, overdue invoices, and pending deliveries.</li>
+</ul>
+<p>Click <b>Refresh</b> to update the data manually.</p>
+"""
 
 
 class DashboardLoadThread(QThread):
@@ -111,6 +123,8 @@ class DashboardView(QWidget):
         self.refresh_btn.setCursor(Qt.PointingHandCursor)
         self.refresh_btn.clicked.connect(lambda: self._load_data(force=True))
         header_layout.addWidget(self.refresh_btn)
+        
+        header_layout.addWidget(create_help_button("Dashboard", DASHBOARD_HELP))
         
         main_layout.addWidget(header_widget)
 

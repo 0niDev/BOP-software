@@ -20,10 +20,22 @@ from PySide6.QtWidgets import (
 from controllers.item_controller import ItemController
 from config.app_config import get_config
 from models.item import Item
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 from utils.helpers import fetch_all_items_with_stock, format_currency
 
 logger = get_logger(__name__)
+
+ITEM_HELP = """
+<h3>Inventory Management</h3>
+<p>Track all raw materials, packing materials, and finished goods.</p>
+<ul>
+    <li><b>Add/Edit/Deactivate</b> items with codes, units, and pricing.</li>
+    <li><b>Current Stock</b> is updated automatically when you receive or dispatch items.</li>
+    <li><b>Minimum/Maximum Stock</b> fields control reorder alerts.</li>
+</ul>
+<p>Use the search bar to filter items by name or code.</p>
+"""
 
 
 class ItemLoadThread(QThread):
@@ -169,6 +181,8 @@ class ItemView(QWidget):
         self.refresh_btn.setFixedWidth(100)
         self.refresh_btn.clicked.connect(self._load_items_async)
         controls_layout.addWidget(self.refresh_btn)
+        
+        controls_layout.addWidget(create_help_button("Inventory", ITEM_HELP))
 
         layout.addLayout(controls_layout)
 

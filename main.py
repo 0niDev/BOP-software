@@ -663,6 +663,30 @@ QChartView {
     background: transparent;
     border: none;
 }
+
+/* ============================================================
+   HELP BUTTON
+   ============================================================ */
+QPushButton#helpButton {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #8B1A2B,
+        stop:1 #A83248);
+    color: #ffffff;
+    border: none;
+    border-radius: 14px;
+    font-weight: bold;
+    font-size: 14px;
+    min-width: 30px;
+    max-width: 34px;
+    min-height: 26px;
+    max-height: 26px;
+}
+
+QPushButton#helpButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #A83248,
+        stop:1 #C44A63);
+}
 """
 
 

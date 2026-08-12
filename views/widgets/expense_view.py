@@ -26,9 +26,22 @@ from PySide6.QtWidgets import (
 from controllers.expense_controller import ExpenseController
 from controllers.account_controller import AccountController
 from models.expense import ExpenseCategory
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+EXPENSE_HELP = """
+<h3>Expenses</h3>
+<p>Track and categorize all company expenses.</p>
+<ul>
+    <li><b>Expenses tab</b> - log individual expenses with date and category.</li>
+    <li><b>Categories tab</b> - manage expense categories and link to accounts.</li>
+    <li><b>Filter</b> by date range or category.</li>
+    <li><b>Monthly Report</b> - view a summary for any month.</li>
+</ul>
+<p>Accounting entries are posted automatically for each expense.</p>
+"""
 
 
 class ExpenseDataLoader(QObject):
@@ -235,6 +248,15 @@ class ExpenseView(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
+
+        # Header row with help button
+        header = QHBoxLayout()
+        title = QLabel("Expenses")
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Expenses", EXPENSE_HELP))
+        layout.addLayout(header)
 
         # Tabs
         self.tabs = QTabWidget()

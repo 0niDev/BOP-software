@@ -31,9 +31,23 @@ from controllers.item_controller import ItemController
 from controllers.banking_controller import BankingController
 from database.connection import get_db
 from models.sales_invoice import SalesInvoice
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+SALES_HELP = """
+<h3>Sales Invoices</h3>
+<p>Create and manage invoices for your customers.</p>
+<ul>
+    <li><b>Create</b> a new sales invoice with auto-generated invoice number.</li>
+    <li><b>Add items</b> via the item dialog with quantity and pricing.</li>
+    <li><b>Payment types</b> - Cash, Bank, Cheque, or Credit.</li>
+    <li>Accounting entries and stock updates are posted automatically.</li>
+    <li><b>Receive Payment</b> - record customer payments for credit invoices.</li>
+</ul>
+<p>Use the status filter to view confirmed or cancelled invoices.</p>
+"""
 
 
 class InvoiceLoadThread(QThread):
@@ -405,6 +419,8 @@ class SalesInvoiceView(QWidget):
         self.refresh_button.setToolTip("Refresh invoices, customers, and items")
         self.refresh_button.clicked.connect(self._on_refresh_clicked)
         controls_layout.addWidget(self.refresh_button)
+        
+        controls_layout.addWidget(create_help_button("Sales Invoices", SALES_HELP))
         
         layout.addLayout(controls_layout)
 

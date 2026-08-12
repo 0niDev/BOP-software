@@ -13,6 +13,18 @@ from PySide6.QtWidgets import (
 )
 
 from database.connection import get_db
+from utils.help_utils import create_help_button
+
+
+PAYMENT_HELP = """
+<h3>Payments</h3>
+<p>View all supplier payments in one place.</p>
+<ul>
+    <li>Payments are listed with voucher number, date, supplier, amount, and method.</li>
+    <li>Payments are created when you use <b>Make Payment</b> in the Purchase Invoices tab.</li>
+</ul>
+<p>This is a read-only view. To create a payment, go to Purchases and select an invoice.</p>
+"""
 
 
 class PaymentView(QWidget):
@@ -27,10 +39,14 @@ class PaymentView(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Title
+        # Header row with help button
+        header = QHBoxLayout()
         title = QLabel("💰 Payments")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Payments", PAYMENT_HELP))
+        layout.addLayout(header)
 
         # Payments Table
         self.table = QTableWidget()

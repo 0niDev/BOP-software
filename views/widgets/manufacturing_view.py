@@ -28,9 +28,21 @@ from controllers.manufacturing_controller import ManufacturingController
 from controllers.item_controller import ItemController
 from models.bill_of_materials import BillOfMaterials
 from models.production_order import ProductionOrder
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+MANUFACTURING_HELP = """
+<h3>Manufacturing</h3>
+<p>Manage Bills of Materials (BOM) and Production Orders.</p>
+<ul>
+    <li><b>BOM</b> - Define which raw materials are needed to produce a finished good.</li>
+    <li><b>Production Orders</b> - Track orders from Draft, In Progress, to Completed.</li>
+    <li>Stock is updated automatically when production orders are completed.</li>
+</ul>
+<p>Search and filter BOMs or orders using the search bar.</p>
+"""
 
 
 class ManufacturingDataLoader(QObject):
@@ -519,6 +531,15 @@ class ManufacturingView(QWidget):
         """Builds the UI."""
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
+
+        # Header row with help button
+        header = QHBoxLayout()
+        title = QLabel("Manufacturing")
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Manufacturing", MANUFACTURING_HELP))
+        layout.addLayout(header)
 
         # Tabs for BOM and Production Orders
         self.tabs = QTabWidget()

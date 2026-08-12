@@ -52,3 +52,58 @@ def test_db_backed_view_constructs(qapp, db, mod_name, cls_name):
     assert widget is not None
     widget.deleteLater()
     qapp.processEvents()
+
+
+# ---------------------------------------------------------------------------
+# Help button tests
+# ---------------------------------------------------------------------------
+
+def _find_help_button(widget):
+    """Recursively find a QPushButton with objectName 'helpButton'."""
+    from PySide6.QtWidgets import QPushButton
+    for child in widget.findChildren(QPushButton):
+        if child.objectName() == "helpButton":
+            return child
+    return None
+
+
+@pytest.mark.parametrize("mod_name,cls_name", _SIMPLE_VIEWS)
+def test_view_has_help_button(qapp, mod_name, cls_name):
+    cls = _import_view(mod_name, cls_name)
+    widget = cls()
+    btn = _find_help_button(widget)
+    assert btn is not None, f"{cls_name} is missing a help button"
+    assert btn.text() == "?"
+    widget.deleteLater()
+    qapp.processEvents()
+
+
+@pytest.mark.parametrize("mod_name,cls_name", _DB_BACKED_VIEWS)
+def test_db_backed_view_has_help_button(qapp, db, mod_name, cls_name):
+    cls = _import_view(mod_name, cls_name)
+    widget = cls()
+    btn = _find_help_button(widget)
+    assert btn is not None, f"{cls_name} is missing a help button"
+    assert btn.text() == "?"
+    widget.deleteLater()
+    qapp.processEvents()
+
+
+def test_dashboard_view_has_help_button(qapp):
+    from views.widgets.dashboard_view import DashboardView
+    widget = DashboardView()
+    btn = _find_help_button(widget)
+    assert btn is not None, "DashboardView is missing a help button"
+    assert btn.text() == "?"
+    widget.deleteLater()
+    qapp.processEvents()
+
+
+def test_chart_of_accounts_has_help_button(qapp):
+    from views.widgets.chart_of_accounts_widget import ChartOfAccountsWidget
+    widget = ChartOfAccountsWidget()
+    btn = _find_help_button(widget)
+    assert btn is not None, "ChartOfAccountsWidget is missing a help button"
+    assert btn.text() == "?"
+    widget.deleteLater()
+    qapp.processEvents()

@@ -31,9 +31,23 @@ from controllers.banking_controller import BankingController
 from controllers.payment_controller import PaymentController
 from database.connection import get_db
 from models.purchase_invoice import PurchaseInvoice
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+PURCHASE_HELP = """
+<h3>Purchase Invoices</h3>
+<p>Record and manage purchase invoices from suppliers.</p>
+<ul>
+    <li><b>Create</b> a new purchase invoice with auto-generated invoice number.</li>
+    <li><b>Add items</b> via the item dialog with quantity and pricing.</li>
+    <li><b>Payment types</b> - Cash, Bank, Cheque, or Credit.</li>
+    <li>Accounting entries are posted automatically on save.</li>
+    <li><b>Receive Payment</b> - record supplier payments for credit invoices.</li>
+</ul>
+<p>Use the status filter to view confirmed or cancelled invoices.</p>
+"""
 
 
 class InvoiceLoadThread(QThread):
@@ -398,6 +412,8 @@ class PurchaseInvoiceView(QWidget):
         self.refresh_button.setToolTip("Refresh invoices, suppliers, and items")
         self.refresh_button.clicked.connect(self._on_refresh_clicked)
         controls_layout.addWidget(self.refresh_button)
+        
+        controls_layout.addWidget(create_help_button("Purchase Invoices", PURCHASE_HELP))
         
         layout.addLayout(controls_layout)
 

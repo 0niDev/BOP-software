@@ -24,9 +24,21 @@ from views.widgets.opening_balance_dialog import OpeningBalanceDialog
 from controllers.account_controller import AccountController
 from models.account import Account
 from models.enums import AccountType
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+CHART_OF_ACCOUNTS_HELP = """
+<h3>Chart of Accounts</h3>
+<p>Manage your company's accounts for double-entry bookkeeping.</p>
+<ul>
+    <li><b>Add/Edit/Deactivate</b> accounts (Asset, Liability, Equity, Revenue, Expense).</li>
+    <li><b>Opening Balance</b> - set starting balances for a new financial period.</li>
+    <li><b>Parent accounts</b> let you group accounts for reporting.</li>
+</ul>
+<p>Every invoice and payment automatically posts to these accounts.</p>
+"""
 
 
 class AccountDialog(QDialog):
@@ -116,6 +128,7 @@ class ChartOfAccountsWidget(QWidget):
         title = QLabel("Chart of Accounts")
         title.setStyleSheet("font-size: 16px; font-weight: bold;")
         header_row.addWidget(title)
+        header_row.addWidget(create_help_button("Chart of Accounts", CHART_OF_ACCOUNTS_HELP))
         header_row.addStretch()
 
         self.search_input = QLineEdit()

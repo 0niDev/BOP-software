@@ -16,9 +16,22 @@ from PySide6.QtWidgets import (
 )
 
 from controllers.backup_controller import BackupController
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+BACKUP_HELP = """
+<h3>Backup Management</h3>
+<p>Protect your data with regular backups.</p>
+<ul>
+    <li><b>Backup All Locations</b> - create backups to all configured locations.</li>
+    <li><b>Create Backup (.db)</b> - export a single SQLite database file.</li>
+    <li><b>Restore Backup</b> - import a previously saved backup.</li>
+    <li><b>Backup History</b> - view all existing backups by location.</li>
+</ul>
+<p>Backups run automatically every 24 hours and on application exit.</p>
+"""
 
 
 class BackupView(QWidget):
@@ -34,10 +47,14 @@ class BackupView(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
 
-        # Title
+        # Header row with help button
+        header = QHBoxLayout()
         title = QLabel("💾 Backup Management")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Backup Management", BACKUP_HELP))
+        layout.addLayout(header)
 
         # Backup locations
         locations_group = QGroupBox("📁 Backup Locations")

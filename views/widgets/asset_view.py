@@ -25,10 +25,22 @@ from PySide6.QtWidgets import (
 from database.connection import get_db
 from services.accounting_service import AccountingService, JournalLine
 from models.enums import VoucherType, AccountType
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 from services.account_service import AccountService
 
 logger = get_logger(__name__)
+
+ASSET_HELP = """
+<h3>Fixed Assets</h3>
+<p>Track your company's fixed assets (machinery, vehicles, furniture, etc.).</p>
+<ul>
+    <li><b>Add Asset</b> - log a new fixed asset with purchase amount and date.</li>
+    <li><b>Classification</b> - Current (due within 1 year) or Non-Current (after 1 year).</li>
+    <li>Each asset creates a journal entry and appears on the Balance Sheet.</li>
+</ul>
+<p>Use Refresh to reload asset data.</p>
+"""
 
 
 class AssetDialog(QDialog):
@@ -304,6 +316,7 @@ class AssetView(QWidget):
         title = QLabel("📦 Fixed Assets")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
         header.addWidget(title)
+        header.addWidget(create_help_button("Fixed Assets", ASSET_HELP))
         header.addStretch()
 
         self.refresh_btn = QPushButton("Refresh")

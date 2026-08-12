@@ -174,3 +174,34 @@ class TestExceptions:
     def test_exception_message(self):
         e = ValidationError("Bad input")
         assert str(e) == "Bad input"
+
+
+# ---------------------------------------------------------------------------
+# Help utilities
+# ---------------------------------------------------------------------------
+
+class TestHelpUtils:
+    def test_create_help_button_returns_button(self):
+        from utils.help_utils import create_help_button
+        btn = create_help_button("Test Module", "<p>Hello</p>")
+        assert btn is not None
+
+    def test_button_text_is_question_mark(self):
+        from utils.help_utils import create_help_button
+        btn = create_help_button("Test", "<p>Help</p>")
+        assert btn.text() == "?"
+
+    def test_button_object_name(self):
+        from utils.help_utils import create_help_button
+        btn = create_help_button("Test", "<p>Help</p>")
+        assert btn.objectName() == "helpButton"
+
+    def test_button_tooltip_contains_module_title(self):
+        from utils.help_utils import create_help_button
+        btn = create_help_button("Inventory", "<p>Help</p>")
+        assert "Inventory" in btn.toolTip()
+
+    def test_button_fixed_width(self):
+        from utils.help_utils import create_help_button
+        btn = create_help_button("Test", "<p>Help</p>")
+        assert btn.maximumWidth() == 34

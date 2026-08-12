@@ -21,9 +21,21 @@ from controllers.party_controller import PartyController
 from config.app_config import get_config
 from models.enums import PartyType
 from models.party import Party
+from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+PARTY_HELP = """
+<h3>Party Management</h3>
+<p>Manage your Customers, Suppliers, or parties that are Both.</p>
+<ul>
+    <li><b>Add/Edit/Deactivate</b> parties with contact details and credit limits.</li>
+    <li><b>Type filter</b> - switch between Customers, Suppliers, or Both.</li>
+    <li>Party codes are auto-generated.</li>
+</ul>
+<p>Parties appear automatically when creating invoices or recording payments.</p>
+"""
 
 
 class PartyLoadThread(QThread):
@@ -110,6 +122,8 @@ class PartyView(QWidget):
         self.type_filter.addItem("Both", PartyType.BOTH)
         self.type_filter.currentIndexChanged.connect(self._on_filter_changed)
         controls_layout.addWidget(self.type_filter)
+        
+        controls_layout.addWidget(create_help_button("Party Management", PARTY_HELP))
         
         layout.addLayout(controls_layout)
 

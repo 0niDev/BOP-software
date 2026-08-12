@@ -22,10 +22,24 @@ from PySide6.QtWidgets import (
 
 from controllers.report_controller import ReportController
 from controllers.party_controller import PartyController
+from utils.help_utils import create_help_button
 from utils.report_exporter import ReportExporter
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+REPORT_HELP = """
+<h3>Reports</h3>
+<p>Generate financial reports with export/print options.</p>
+<ul>
+    <li><b>Trial Balance</b> - summary of all account balances.</li>
+    <li><b>Profit & Loss</b> - revenue minus expenses for a date range.</li>
+    <li><b>Balance Sheet</b> - assets, liabilities, and equity position.</li>
+    <li><b>Cash Book</b> - all cash and bank transactions.</li>
+    <li><b>Party Ledger</b> - transaction history for any customer or supplier.</li>
+</ul>
+<p>Use Export to save reports as PDF, Excel, or CSV.</p>
+"""
 
 
 class ReportView(QWidget):
@@ -73,6 +87,15 @@ class ReportView(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
+
+        # Header row with help button
+        header = QHBoxLayout()
+        title = QLabel("Reports")
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("Reports", REPORT_HELP))
+        layout.addLayout(header)
 
         self.tabs = QTabWidget()
 

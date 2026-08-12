@@ -23,10 +23,22 @@ from PySide6.QtWidgets import (
 from controllers.auth_controller import AuthController
 from database.connection import get_db
 from models.user import User, UserRole
+from utils.help_utils import create_help_button
 from utils.security import hash_password
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+USERS_HELP = """
+<h3>User Management</h3>
+<p>Manage system users and their roles (Admin only).</p>
+<ul>
+    <li><b>Add User</b> - create a new user with a role (Admin, Manager, Operator, Viewer).</li>
+    <li><b>Edit</b> - change name, role, or deactivate a user.</li>
+    <li><b>Reset Password</b> - set a new password for any user.</li>
+</ul>
+<p>Each role has different permissions. Admin has full access to all modules.</p>
+"""
 
 
 class UserDialog(QDialog):
@@ -133,10 +145,14 @@ class UsersView(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Title
+        # Title with help button
+        header = QHBoxLayout()
         title = QLabel("👥 User Management")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch()
+        header.addWidget(create_help_button("User Management", USERS_HELP))
+        layout.addLayout(header)
 
         # Controls
         controls_layout = QHBoxLayout()
