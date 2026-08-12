@@ -37,12 +37,7 @@ class DatabaseConfig:
     - mysql: MySQL/MariaDB
     - postgresql: PostgreSQL
     """
-    engine: str = field(default_factory=lambda: os.getenv("ERP_DB_ENGINE", "sqlite"))
-    
-    # SQLite (local)
-    sqlite_path: str = field(
-        default_factory=lambda: os.getenv("ERP_DB_PATH", str(DATA_DIR / "erp.db"))
-    )
+    engine: str = field(default_factory=lambda: os.getenv("ERP_DB_ENGINE", "sqlitecloud"))
     
     # SQLite Cloud (network)
     sqlite_cloud_url: str = field(

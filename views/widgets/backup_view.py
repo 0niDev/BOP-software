@@ -58,7 +58,7 @@ class BackupView(QWidget):
         backup_all_btn.setMinimumHeight(40)
         buttons_layout.addWidget(backup_all_btn)
         
-        backup_local_btn = QPushButton("📁 Backup Local Only")
+        backup_local_btn = QPushButton("📁 Create Backup (.db)")
         backup_local_btn.clicked.connect(self._backup_local)
         backup_local_btn.setMinimumHeight(40)
         buttons_layout.addWidget(backup_local_btn)
@@ -152,20 +152,20 @@ class BackupView(QWidget):
             self._load_backup_status()
 
     def _backup_local(self):
-        """Backup to local folder only."""
-        self.status_label.setText("🔄 Creating local backup...")
+        """Create a .db backup of the cloud database in the local backups folder."""
+        self.status_label.setText("🔄 Creating .db backup...")
         
         success, error = self.controller.backup_local()
         
         if error:
             QMessageBox.warning(self, "Backup Failed", error)
-            self.status_label.setText(f"❌ Local backup failed: {error}")
+            self.status_label.setText(f"❌ Backup failed: {error}")
             return
 
         if success:
             QMessageBox.information(self, "Backup Complete", 
-                "✅ Local backup created successfully in the 'backups' folder!")
-            self.status_label.setText("✅ Local backup complete")
+                "✅ Backup created successfully in the 'backups' folder!")
+            self.status_label.setText("✅ Backup complete")
             self._load_backup_status()
 
     def _restore_backup(self):

@@ -291,7 +291,7 @@ atexit.register(cleanup)  # Backup + close connections
 
 ## Tech Stack
 - **GUI**: PySide6 (Qt 6)
-- **Database**: SQLite Cloud (hosted) with local fallback
+- **Database**: SQLite Cloud (hosted)
 - **ORM Pattern**: Repository + DataClass models
 - **Reporting**: ReportLab (PDF), openpyxl (Excel)
 - **Security**: PBKDF2 password hashing

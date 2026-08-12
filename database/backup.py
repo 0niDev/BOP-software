@@ -1,25 +1,24 @@
-"""Command line backup tool."""
+"""Command line backup tool (cloud database -> local .db file)."""
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.backup_service import BackupService
+from database.auto_backup import auto_backup
 
 
 def main():
     """Run backup from command line."""
-    service = BackupService()
-    results = service.backup_all()
-    
-    success_count = sum(1 for v in results.values() if v)
-    total_count = len(results)
-    
-    print("\n" + "="*60)
-    if success_count == total_count:
-        print(f"✅ All {total_count} backups successful!")
+    success = auto_backup()
+
+    if success:
+        print("\n" + "="*60)
+        print("✅ Backup successful!")
+        print("="*60)
     else:
-        print(f"⚠️ {success_count}/{total_count} backups successful")
-    print("="*60)
+        print("\n" + "="*60)
+        print("❌ Backup failed")
+        print("="*60)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

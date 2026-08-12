@@ -38,7 +38,7 @@ Based on the logs, here's the exact sequence of actions:
 ### 1. **Database Does Not Exist** (Error #1)
 - **Location**: `database/auto_backup.py:33`
 - **Cause**: The SQLite Cloud database `cool-depot.sqlite` was never created on the remote server
-- **Impact**: Exit backup fails, but application continues to work with local migrations
+- **Impact**: Exit backup fails, but the application continues to work
 
 ### 2. **SSL/TLS Socket Errors** (Errors #3-13)
 - **Error Message**: `ssl.SSLError: [SSL: WRONG_VERSION_NUMBER] wrong version number`
@@ -174,12 +174,7 @@ The root issue is that `cool-depot.sqlite` doesn't exist on the SQLite Cloud ser
 1. **Log into SQLite Cloud Dashboard**: https://dashboard.sqlite.cloud
 2. **Create the database**: Create a new database named `cool-depot.sqlite`
 3. **Verify credentials**: Ensure the API key `bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw` has access
-4. **Alternative**: Switch to local SQLite mode temporarily:
-   ```bash
-   export ERP_DB_ENGINE=sqlite
-   export ERP_DB_PATH=./data/erp.db
-   python main.py
-   ```
+4. **Verify configuration**: Ensure `main.py` sets `ERP_DB_ENGINE=sqlitecloud` and `SQLITE_CLOUD_URL` correctly
 
 ### Recommended: Monitor Network Stability
 

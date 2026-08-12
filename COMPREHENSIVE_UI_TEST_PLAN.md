@@ -1017,7 +1017,7 @@ If time is limited, test in this order:
 
 If you encounter issues:
 1. Check logs: `/workspace/logs/erp.log`
-2. Review database: `/workspace/data/erp.db`
+2. Review backups: `/workspace/backups/` (cloud database is hosted on SQLite Cloud)
 3. Consult documentation: `/workspace/COMPLETE_ERP_DOCUMENTATION.md`
 4. Check known fixes: `/workspace/FIXES_SUMMARY.md`
 

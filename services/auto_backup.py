@@ -6,18 +6,20 @@ import time
 import datetime
 from pathlib import Path
 
-from services.backup_service import BackupService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class AutoBackup:
-    """Automatic backup scheduler running in background."""
+    """Automatic backup scheduler running in background.
+
+    Each scheduled run downloads the cloud database into a local ``.db``
+    backup file (see ``database.auto_backup.auto_backup``).
+    """
 
     def __init__(self, interval_hours: int = 24):
         self.interval_hours = interval_hours
-        self.service = BackupService()
         self.running = False
         self.thread = None
 
@@ -40,6 +42,8 @@ class AutoBackup:
 
     def _run(self):
         """Run the backup loop."""
+        from database.auto_backup import auto_backup
+
         while self.running:
             try:
                 # Wait for interval
@@ -47,15 +51,8 @@ class AutoBackup:
 
                 # Perform backup
                 logger.info("Auto-backup triggered...")
-                results = self.service.backup_all()
-
-                success_count = sum(1 for v in results.values() if v)
-                total_count = len(results)
-
-                if success_count == total_count:
-                    logger.info(f"Auto-backup complete: {success_count}/{total_count} locations")
-                else:
-                    logger.warning(f"Auto-backup partial: {success_count}/{total_count} locations")
+                auto_backup()
+                logger.info("Auto-backup complete")
 
             except Exception as e:
                 logger.exception(f"Auto-backup error: {e}")

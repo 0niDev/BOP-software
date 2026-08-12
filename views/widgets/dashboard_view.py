@@ -1,7 +1,15 @@
 """Dashboard widget - main home screen."""
 from __future__ import annotations
 
-from PySide6.QtCore import QMargins, Qt, QThread, Signal
+import shiboken6
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QMargins,
+    Qt,
+    QThread,
+    Signal,
+)
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -121,7 +129,12 @@ class DashboardView(QWidget):
         main_layout.addWidget(scroll)
 
     def _clear_layout(self, layout):
-        """Recursively clear a layout."""
+        """Recursively clear a layout, destroying widgets and nested sub-layouts.
+
+        The layout object passed in is NOT deleted (callers hold a permanent
+        reference to the root layout); only its children and nested sub-layouts
+        are torn down.
+        """
         if layout is None:
             return
         while layout.count():
@@ -130,7 +143,20 @@ class DashboardView(QWidget):
             if widget:
                 widget.deleteLater()
             elif item.layout():
-                self._clear_layout(item.layout())
+                sub = item.layout()
+                self._clear_layout(sub)
+                sub.deleteLater()
+        self._flush_deferred_deletes()
+
+    def _flush_deferred_deletes(self):
+        """Force destruction of widgets scheduled with deleteLater().
+
+        deleteLater() only takes effect once the deferred-delete events are
+        processed. Without a real event-loop turn (e.g. when refreshes fire
+        back-to-back), orphaned widgets stay alive and stacked, which makes
+        graphs "grow" on every dashboard refresh.
+        """
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
     def _load_data(self, force: bool = False):
         """Load dashboard data asynchronously."""
@@ -141,15 +167,20 @@ class DashboardView(QWidget):
             self._is_loaded = False
         
         # Cancel any existing load thread
-        if self._load_thread and self._load_thread.isRunning():
-            logger.warning("⚠️ Previous load thread still running, terminating...")
-            self._load_thread.terminate()
-            self._load_thread.wait(1000)  # Wait up to 1 second
-            # Disconnect old signal to prevent multiple calls
+        old_thread = self._load_thread
+        self._load_thread = None
+        if old_thread is not None and shiboken6.isValid(old_thread):
+            if old_thread.isRunning():
+                logger.warning("⚠️ Previous load thread still running, terminating...")
+                old_thread.terminate()
+                old_thread.wait(1000)  # Wait up to 1 second
+            # Always disconnect old signal to prevent multiple calls,
+            # even if the thread already finished and emitted a queued signal
             try:
-                self._load_thread.data_loaded.disconnect(self._on_data_loaded)
-            except:
+                old_thread.data_loaded.disconnect(self._on_data_loaded)
+            except (RuntimeError, TypeError):
                 pass
+            old_thread.deleteLater()
         
         # Update UI to show loading state
         self.last_updated_label.setText("Last updated: Loading...")
@@ -159,7 +190,16 @@ class DashboardView(QWidget):
         # Start new load thread with force_refresh flag
         self._load_thread = DashboardLoadThread(self.controller, force_refresh=force)
         self._load_thread.data_loaded.connect(self._on_data_loaded)
+        self._load_thread.finished.connect(self._on_load_finished)
         self._load_thread.start()
+
+    def _on_load_finished(self):
+        """Clear the finished load thread so we never touch a dead wrapper."""
+        sender = self.sender()
+        if sender is not None and sender is self._load_thread:
+            self._load_thread = None
+        if sender is not None and shiboken6.isValid(sender):
+            sender.deleteLater()
     
     def _on_data_loaded(self, data, error):
         """Handle dashboard data loaded from background thread."""
@@ -185,13 +225,8 @@ class DashboardView(QWidget):
         self.last_updated_label.setText(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
         
         # Clear existing widgets
-        while self.content_layout.count():
-            item = self.content_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-            elif item.layout():
-                self._clear_layout(item.layout())
+        self._clear_layout(self.content_layout)
+        self._flush_deferred_deletes()
         
         # 1. KPI Cards
         self._add_kpi_cards(data)
@@ -611,13 +646,8 @@ class DashboardView(QWidget):
     def _show_empty_state(self):
         """Show empty state when no data is available."""
         # Clear existing widgets
-        while self.content_layout.count():
-            item = self.content_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-            elif item.layout():
-                self._clear_layout(item.layout())
+        self._clear_layout(self.content_layout)
+        self._flush_deferred_deletes()
         
         # Show welcome message
         label = QLabel("Welcome to BOP Nutraceuticals!\n\nStart by adding:\n• Chart of Accounts\n• Parties (Customers & Suppliers)\n• Items (Inventory)\n• Purchase Invoices\n• Sales Invoices")

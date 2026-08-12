@@ -35,7 +35,7 @@
 **Architecture Pattern:** Multi-layered (Views → Controllers → Services → Repositories → Database)  
 **Programming Language:** Python 3.9+  
 **GUI Framework:** PySide6 (Qt 6)  
-**Database:** SQLite Cloud (Hosted) with local fallback  
+**Database:** SQLite Cloud (Hosted)  
 **Total Codebase:** ~14,500 lines of Python code across 110+ files  
 
 ### Business Purpose
@@ -321,13 +321,11 @@ Database (SQLite Cloud with Connection Pooling)
 ├── backups/                         # Database backups
 │   └── erp_backup_YYYYMMDD_HHMMSS.db/sql
 │
-├── data/                            # Local database files
-│   ├── company_1.db
-│   └── erp.db
+├── data/                            # Runtime data (no local database files)
+│   └── (empty; database is hosted on SQLite Cloud)
 │
 └── project/                         # Legacy project files
-    ├── init_db.py
-    └── fix_database.py
+    └── init_db.py
 ```
 
 ### File Count by Module
@@ -2418,7 +2416,6 @@ from dataclasses import dataclass
 class DatabaseConfig:
     engine: str = os.getenv('ERP_DB_ENGINE', 'sqlitecloud')
     sqlite_cloud_url: str = os.getenv('SQLITE_CLOUD_URL', '')
-    local_db_path: str = os.getenv('ERP_LOCAL_DB', '/workspace/data/erp.db')
 
 @dataclass
 class AppConfig:
@@ -2439,9 +2436,8 @@ def get_config() -> AppConfig:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ERP_DB_ENGINE` | `sqlitecloud` | Database engine (sqlitecloud, sqlite) |
+| `ERP_DB_ENGINE` | `sqlitecloud` | Database engine (sqlitecloud) |
 | `SQLITE_CLOUD_URL` | (required) | SQLite Cloud connection string |
-| `ERP_LOCAL_DB` | `/workspace/data/erp.db` | Local database path |
 | `ERP_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `ERP_BACKUP_ENABLED` | `true` | Enable auto-backup |
 | `ERP_BACKUP_INTERVAL` | `24` | Backup interval in hours |
@@ -2455,10 +2451,7 @@ from config.app_config import get_config
 config = get_config()
 
 # Database connection
-if config.database.engine == 'sqlitecloud':
-    conn = sqlitecloud.connect(config.database.sqlite_cloud_url)
-else:
-    conn = sqlite3.connect(config.database.local_db_path)
+conn = sqlitecloud.connect(config.database.sqlite_cloud_url)
 
 # Logging
 logging.basicConfig(level=getattr(logging, config.log_level))

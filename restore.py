@@ -1,9 +1,9 @@
-"""Command line restore tool."""
+"""Command line restore tool (local .db backup -> cloud database)."""
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.backup_service import BackupService
+from database.backup_manager import list_backups, restore_backup
 
 
 def main():
@@ -11,32 +11,24 @@ def main():
     print("\n" + "="*60)
     print("🔄 RESTORE FROM BACKUP")
     print("="*60)
-    
-    # List available backups
-    import glob
-    backup_files = glob.glob("backups/erp_backup_*.db")
-    
-    if not backup_files:
+
+    backups = list_backups()
+
+    if not backups:
         print("❌ No backups found in 'backups' folder")
         return
-    
-    print("\n📋 Available backups:")
-    for i, f in enumerate(backup_files, 1):
-        print(f"  {i}. {f}")
-    
+
     try:
         choice = int(input("\nSelect backup number (0 to cancel): "))
         if choice == 0:
             print("Cancelled")
             return
-        
-        if 1 <= choice <= len(backup_files):
-            backup_path = backup_files[choice - 1]
-            service = BackupService()
-            
+
+        if 1 <= choice <= len(backups):
+            backup_path = backups[choice - 1]
             confirm = input(f"⚠️ Restore from {backup_path}? (yes/no): ")
             if confirm.lower() == "yes":
-                success = service.restore_backup(backup_path)
+                success = restore_backup(backup_path)
                 if success:
                     print("✅ Database restored successfully!")
                 else:
@@ -45,7 +37,7 @@ def main():
             print("❌ Invalid selection")
     except ValueError:
         print("❌ Invalid input")
-    
+
     print("="*60)
 
 

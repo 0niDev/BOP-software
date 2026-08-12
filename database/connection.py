@@ -4,7 +4,7 @@ Database connection layer - Direct SQLite Cloud connection with pooling.
 from __future__ import annotations
 
 import sqlitecloud
-import sqlite3
+from sqlitecloud.exceptions import SQLiteCloudException
 import threading
 import time
 from contextlib import contextmanager
@@ -136,6 +136,32 @@ def get_pool() -> ConnectionPool:
     return _pool
 
 
+# Network/transient error keywords for retry logic
+_RETRYABLE_KEYWORDS = (
+    'socket',
+    'ssl',
+    'connection',
+    'read',
+    'write',
+    'wrong version',
+    'cursor is closed',
+    'decompress',
+    'parsing data',
+)
+
+
+def _is_retryable_error(exc: sqlitecloud.Error) -> bool:
+    """Classify a sqlitecloud error as transient/retryable or permanent."""
+    error_msg = str(exc).lower()
+    if any(keyword in error_msg for keyword in _RETRYABLE_KEYWORDS):
+        return True
+    # The driver raises the generic SQLiteCloudException for network-level
+    # failures (socket read/write errors, lost connections). Specific DBAPI
+    # subclasses (OperationalError, ProgrammingError, ...) reflect real
+    # SQLite errors and must NOT be retried.
+    return isinstance(exc, SQLiteCloudException)
+
+
 # ============================================================
 # DATABASE CONNECTION ABSTRACT CLASS
 # ============================================================
@@ -217,12 +243,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                     return [dict(zip(columns, row)) for row in rows]
                 return rows
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
                     
                     # Close problematic connection
@@ -273,12 +297,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                     return dict(zip(columns, row))
                 return row
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
                     
                     # Close problematic connection
@@ -330,12 +352,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                     # This prevents "cannot commit - no transaction is active" errors
                     return cursor.rowcount
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
                     
                     # Close problematic connection
@@ -383,12 +403,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                 cursor.executemany(sql, seq_of_params)
                 return cursor
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
                     
                     # Close problematic connection
@@ -433,12 +451,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                 cursor = conn.execute("SELECT last_insert_rowid()")
                 return cursor.fetchone()[0]
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc}")
                     
                     # Close problematic connection
@@ -520,12 +536,10 @@ class SQLiteCloudConnection(DatabaseConnection):
                 conn = self._get_cached_connection()
                 return conn.execute(sql, params)
             except sqlitecloud.Error as exc:
-                error_msg = str(exc)
                 last_error = exc
-                
+
                 # Check if this is a connection-related error that can be retried
-                retryable_keywords = ['socket', 'ssl', 'connection', 'read', 'wrong version', 'cursor is closed']
-                if any(keyword in error_msg.lower() for keyword in retryable_keywords):
+                if _is_retryable_error(exc):
                     logger.warning(f"Connection error on attempt {retry_count + 1}/{max_retries}: {exc} | sql={sql}")
                     
                     # Close problematic connection
@@ -563,105 +577,12 @@ class SQLiteCloudConnection(DatabaseConnection):
 
 
 # ============================================================
-# LOCAL SQLITE CONNECTION (for migration/fallback)
-# ============================================================
-
-class SQLiteConnection(DatabaseConnection):
-    """SQLite implementation for local database."""
-    
-    def __init__(self, config: DatabaseConfig | None = None):
-        self._config = config or get_config().database
-        self._local = threading.local()
-
-    def _get_conn(self) -> sqlite3.Connection:
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            try:
-                conn = sqlite3.connect(
-                    self._config.sqlite_path,
-                    detect_types=sqlite3.PARSE_DECLTYPES,
-                    isolation_level=None,
-                )
-                conn.row_factory = sqlite3.Row
-                if self._config.foreign_keys:
-                    conn.execute("PRAGMA foreign_keys = ON")
-                conn.execute("PRAGMA journal_mode = WAL")
-                self._local.conn = conn
-            except sqlite3.Error as exc:
-                logger.error("Failed to open SQLite connection: %s", exc)
-                raise DatabaseError(f"Could not connect to database: {exc}") from exc
-        return conn
-
-    def execute(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Cursor:
-        conn = self._get_conn()
-        try:
-            return conn.execute(sql, params)
-        except sqlite3.Error as exc:
-            logger.error("SQL execute failed: %s | sql=%s", exc, sql)
-            raise DatabaseError(str(exc)) from exc
-
-    def executemany(self, sql: str, seq_of_params: Sequence[Sequence[Any]]) -> sqlite3.Cursor:
-        conn = self._get_conn()
-        try:
-            return conn.executemany(sql, seq_of_params)
-        except sqlite3.Error as exc:
-            logger.error("SQL executemany failed: %s | sql=%s", exc, sql)
-            raise DatabaseError(str(exc)) from exc
-
-    def fetch_one(self, sql: str, params: Sequence[Any] = ()) -> dict | None:
-        cur = self.execute(sql, params)
-        row = cur.fetchone()
-        return dict(row) if row is not None else None
-
-    def fetch_all(self, sql: str, params: Sequence[Any] = ()) -> list[dict]:
-        cur = self.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
-
-    def last_insert_id(self) -> int:
-        return self._get_conn().execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    @contextmanager
-    def transaction(self) -> Iterator["SQLiteConnection"]:
-        conn = self._get_conn()
-        nested = getattr(self._local, "in_transaction", False)
-        if not nested:
-            conn.execute("BEGIN")
-            self._local.in_transaction = True
-        else:
-            conn.execute("SAVEPOINT nested_sp")
-        try:
-            yield self
-            if not nested:
-                conn.execute("COMMIT")
-            else:
-                conn.execute("RELEASE nested_sp")
-        except Exception as exc:
-            if not nested:
-                conn.execute("ROLLBACK")
-            else:
-                conn.execute("ROLLBACK TO nested_sp")
-            logger.error("Transaction rolled back: %s", exc)
-            raise
-        finally:
-            if not nested:
-                self._local.in_transaction = False
-
-    def close(self) -> None:
-        conn = getattr(self._local, "conn", None)
-        if conn is not None:
-            conn.close()
-            self._local.conn = None
-
-
-# ============================================================
 # FACTORY AND SINGLETON
 # ============================================================
 
 def create_connection(config: DatabaseConfig | None = None) -> DatabaseConnection:
     cfg = config or get_config().database
-    if cfg.engine == "sqlite":
-        return SQLiteConnection(cfg)
-    elif cfg.engine == "sqlitecloud":
+    if cfg.engine == "sqlitecloud":
         return SQLiteCloudConnection(cfg)
     elif cfg.engine == "mysql":
         raise DatabaseError("MySQL support not implemented yet")

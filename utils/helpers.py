@@ -594,7 +594,8 @@ def validate_required_fields(
         Tuple of (is_valid, list_of_error_messages)
     """
     errors = []
-    
+    field_labels = field_labels or {}
+
     for field in required_fields:
         value = data.get(field)
         

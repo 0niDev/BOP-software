@@ -379,7 +379,10 @@ class PurchaseInvoiceService:
                 # Now set batch_id for the invoice item
                 item_data["batch_id"] = batch_id
                 item_data["invoice_id"] = invoice.id
-                item = PurchaseInvoiceItem(**item_data)
+                # item_type is used only for the type-totals split above, it is
+                # not a column/field of purchase_invoice_items or the model.
+                pii_data = {k: v for k, v in item_data.items() if k != "item_type"}
+                item = PurchaseInvoiceItem(**pii_data)
                 self.item_repo.insert(item.to_dict())
                 
                 # Update stock quantity for the created batch

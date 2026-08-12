@@ -45,7 +45,7 @@ This is a complete, professional Enterprise Resource Planning (ERP) system desig
 
 - **Language**: Python 3.9+
 - **GUI Framework**: PySide6 (Qt for Python)
-- **Database**: SQLiteCloud (cloud-hosted SQLite) with local SQLite fallback
+- **Database**: SQLiteCloud (cloud-hosted SQLite)
 - **Architecture**: Multi-layered (Repository-Service-Controller-View)
 - **Design Patterns**: Repository, Service Layer, Dependency Injection, Singleton, Factory
 
@@ -247,7 +247,7 @@ User Action → View → Controller → Service → Repository → Database
 
 **File**: `database/connection.py`
 
-The database layer provides a unified interface for database operations with support for both local SQLite and cloud-hosted SQLiteCloud.
+The database layer provides a unified interface for database operations using cloud-hosted SQLiteCloud.
 
 #### `DatabaseConnection` Class
 
