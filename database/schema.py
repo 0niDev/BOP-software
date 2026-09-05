@@ -489,6 +489,8 @@ SCHEMA_STATEMENTS: list[str] = [
         output_quantity     REAL NOT NULL DEFAULT 1,
         notes               TEXT,
         is_active           INTEGER NOT NULL DEFAULT 1,
+        is_temp             INTEGER NOT NULL DEFAULT 0,
+        is_ghost            INTEGER NOT NULL DEFAULT 0,
         created_at          TEXT NOT NULL DEFAULT (datetime('now'))
     );
     """,
@@ -524,6 +526,7 @@ SCHEMA_STATEMENTS: list[str] = [
         created_at          TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at          TEXT,  -- ✅ ADD THIS LINE
         completed_at        TEXT,
+        is_ghost            INTEGER NOT NULL DEFAULT 0,
         UNIQUE (company_id, order_number)
     );
     """,

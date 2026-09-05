@@ -237,11 +237,11 @@ class JournalRepository(BaseRepository):
                 all_lines.append(row)
 
         if all_lines:
-            line_cols = list(all_lines[0].keys())
+            line_cols = list(dict.fromkeys(k for r in all_lines for k in r.keys()))
             line_ph = ", ".join("?" for _ in line_cols)
             line_cl = ", ".join(line_cols)
             sql_l = f"INSERT INTO journal_entry_lines ({line_cl}) VALUES ({line_ph})"
-            self.db.executemany(sql_l, [tuple(r[c] for c in line_cols) for r in all_lines])
+            self.db.executemany(sql_l, [tuple(r.get(c) for c in line_cols) for r in all_lines])
 
         return entry_ids
 

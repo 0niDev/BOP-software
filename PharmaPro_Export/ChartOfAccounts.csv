@@ -1,0 +1,261 @@
+﻿AccountNo,UserNo,AccountName,AccountType,AccountDepth,Narration,ParentAccountNo,OpeningDebit,OpeningCredit,AdjustedDebit,AdjustedCredit,IsDetailed,IsLocked,IsPosted,IsEditable,BalFlag,PLFlag,ExpFlag
+1,1,Assets,Asset,0,,,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+11,1,Current Assets,Asset,1,,1,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+111,1,Cash In Hand,Asset,2,,11,0.00,0.00,0.00,0.00,True,False,True,False,True,+,False
+112,1,Bank Accounts,Asset,2,,11,0.00,0.00,0.00,0.00,False,True,True,False,True, ,False
+113,1,Inventory,Asset,2,,11,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+1131,1,Opening stock,Asset,3,,113,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1132,1,Stock purchased,Asset,3,,113,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+11321,1,Purchase stock value,Asset,4,,1132,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+11322,1,Returned stock value,Asset,4,,1132,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1133,1,Stock sold,Asset,3,,113,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+11331,1,Sold stock original value,Asset,4,,1133,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+11332,1,Returned stock original value,Asset,4,,1133,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1134,1,Stockgot from expiry claims,Asset,3,,113,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1135,1,Stock given for expiry claims,Asset,3,,113,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1136,1,Stock expired,Asset,3,,113,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1137,1,Stock Productions,Asset,3,,113,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+1137001,1,Actual Cost Of Consume Stock,Asset,4,,1137,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1137002,1,Actual Cost Of Produce Stock,Asset,4,,1137,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1138,1,Stock Packings,Asset,3,,113,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+1138001,1,Actual Cost Of Packing Consume,Asset,4,,1138,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1138002,1,Actual Cost Of Finish Goods,Asset,4,,1138,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+12,1,Fixed Assets,Asset,1,,1,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+12001,1,HBL Instalment,Asset,2,,12,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+12002,1,Instalment of Moter Bike,Asset,2,,12,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+12003,1,Instalment of Moter Car,Asset,2,,12,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+121,1,Auto vehicles,Asset,2,,12,0.00,0.00,0.00,0.00,False,False,True,True,True, ,False
+1211,1,Auto vehicles: Original value,Asset,3,,121,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+1212,1,Auto vehicles: Depriciatiion,Asset,3,Accumulated depriciation,121,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+122,1,Furniture and fixture,Asset,2,,12,0.00,0.00,0.00,0.00,False,False,True,True,True, ,False
+1221,1,Fur and Fix: Original value,Asset,3,,122,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+1222,1,Fur and Fix: Depriciation,Asset,3,Accumulated depriciation,122,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+123,1,Building and grounds,Asset,2,,12,0.00,0.00,0.00,0.00,False,False,True,True,True, ,False
+1231,1,Building and G: Original value,Asset,3,,123,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+1232,1,Building and G: Depriciation,Asset,3,Accumulated depriciation,123,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+124,1,Office equipment,Asset,2,,12,0.00,0.00,0.00,0.00,False,False,True,True,True, ,False
+1241,1,Office equip: Original value,Asset,3,,124,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+1242,1,Office equip: Depriciation..,Asset,3,Accumulated depriciation,124,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+125,1,Computer & software,Asset,2,,12,0.00,0.00,0.00,0.00,False,False,True,True,True, ,False
+1251,1,Comp and Soft: Original value,Asset,3,,125,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+1252,1,Comp and Soft: Depriciation,Asset,3,Accumulated depriciation,125,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+13,1,Other assets,Asset,1,,1,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+13001,1,Factory Machinery Purchase,Asset,2,,13,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+131,1,Salestax receivable,Asset,2,,13,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+1311,1,Salestax paid on opening,Asset,3,,131,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1312,1,Salestax paid on purchase,Asset,3,,131,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1313,1,Salestax received on return,Asset,3,Salestax received from purchase return,131,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1314,1,Salestax received on sales,Asset,3,,131,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+1315,1,Salestax paid on sales return,Asset,3,,131,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+132,1,Prepaid expenses,Asset,2,,13,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+133,1,Deposits and securities,Asset,2,,13,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+134,1,Long term investment,Asset,2,,13,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+14,1,Car Purchase Payment,Asset,1,,1,0.00,0.00,0.00,0.00,False,False,True,True,False,,False
+14001,1,Car Sale And Purchase,Asset,2,,14,0.00,0.00,0.00,0.00,True,False,True,True,False,,False
+2,1,Liabilities,Liability,0,,,0.00,0.00,0.00,0.00,False,True,True,False,True, ,False
+21,1,Short term liabilities,Liability,1,,2,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+21001,1,Atta Lab,Liability,2,,21,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+21002,1,Anaiyat Aluminium Door,Liability,2,,21,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+21008,1,Riaz Karachi,Liability,2,,21,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+22,1,Long term liabilities,Liability,1,,2,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+3,1,Equity,Capital,0,,,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+31,1,Capital investment,Capital,1,,3,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+31002,1,Zafer Iqbal Saudia,Capital,2,,31,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+31003,1,Rana Asad,Capital,2,,31,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+32,1,Withdrawls,Capital,1,,3,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+33,1,Last year earnings,Capital,1,,3,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+34,1,Current year earnings,Capital,1,,3,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+4,1,Revenue,Revenue,0,,,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+41,1,Net Sales,Revenue,1,,4,0.00,0.00,0.00,0.00,False,False,True,False,False,+,False
+411,1,Gross sales value,Revenue,2,,41,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+412,1,Sales returned value,Revenue,2,,41,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+42,1,Revenue through vendor claims,Revenue,1,,4,0.00,0.00,0.00,0.00,True,False,True,False,False,+,False
+49,1,Other income,Revenue,1,,4,0.00,0.00,0.00,0.00,True,False,True,True,False,+,False
+5,1,Expense,Expense,0,,,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+51,1,Sales expenses,Expense,1,,5,0.00,0.00,0.00,0.00,False,False,True,False,False,-,False
+511,1,Cost ofgoods sold,Expense,2,,51,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+5111,1,Actual cost of sold stock,Expense,3,,511,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+5112,1,Actual cost of returned stock,Expense,3,,511,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+5113,1,MACHINE REPAIR AND MAINTENANCE,Expense,3,,511,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+512,1,Discounts,Expense,2,,51,0.00,0.00,0.00,0.00,False,False,True,False,False, ,False
+5121,1,Special discount on sale,Expense,3,,512,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+5122,1,Special discount returned,Expense,3,,512,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+5123,1,Discount on recovery,Expense,3,,512,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+513,1,Customer claimed stock value,Expense,2,,51,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+514,1,Expired stock actual value,Expense,2,,51,0.00,0.00,0.00,0.00,True,False,True,False,False, ,False
+515,1,Purchase Return Cost Difference,Expense,2,,51,0.00,0.00,0.00,0.00,True,False,True,False,False,-,False
+518,1,Salery SalesMan,Expense,2,,51,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+519,1,L.C MARKET EXP,Expense,2,,51,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52,1,General and admin expenses,Expense,1,,5,0.00,0.00,0.00,0.00,False,False,True,True,False,-,False
+52001,1,Factory Kitchen,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52002,1,Zeeshan D.i / Drap,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52003,1,Womiqa Ahmad,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52004,1,RAHEEL Adv,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52005,1,Product Regestration Fee DRAP,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52006,1,IMRANULLAH (Labour inspecter),Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52007,1,Liquid Yeast Purchase,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52008,1,Bank Alhabib L.C Account,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52009,1,Habib Car Rent,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+5201,1,Payroll,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52010,1,Zafer Iqbal Profit,Expense,2,,52,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52011,1,Wages,Expense,3,,5201,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52012,1,Benifits,Expense,3,,5201,0.00,0.00,0.00,0.00,True,False,True,True,False,-,False
+52013,1,Payroll taxes,Expense,3,"EOBI, Social security etc",5201,0.00,0.00,0.00,0.00,True,False,True,True,False,-,False
+52014,1,Salary Factory Staff,Expense,3,,5201,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+52015,1,Salary Market Staff,Expense,3,,5201,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+5202,1,Maintenance,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52021,1,Auto vehicles,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52022,1,Furniture and fixture,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52023,1,Building and ground,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+52024,1,Office equipment,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52025,1,Computer and software,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52026,1,Staitionary,Expense,3,,5202,0.00,0.00,0.00,0.00,True,False,False,True,False, ,False
+5203,1,Depriciation,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+52031,1,Depr: Auto vehicles,Expense,3,,5203,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52032,1,Depr: Furniture and fixture,Expense,3,,5203,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52033,1,Depr: Building and ground,Expense,3,,5203,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52034,1,Depr: Office equipment,Expense,3,,5203,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52035,1,Depr: Computer and software,Expense,3,,5203,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+5204,1,Rents and leases,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52041,1,Shop and store rent,Expense,3,,5204,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+5205,1,Travel & entertainment,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52051,1,Lodging,Expense,3,,5205,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52052,1,Transportation,Expense,3,,5205,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52053,1,Meals,Expense,3,,5205,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52054,1,Entertainment,Expense,3,,5205,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+52055,1,Gasoline charges,Expense,3,,5205,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+5206,1,Shipping,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52061,1,Freight,Expense,3,,5206,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52062,1,Supply And Bility expenses,Expense,3,,5206,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+52063,1,Insurance,Expense,3,,5206,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+5207,1,Taxes & Zakat,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+5208,1,Consultancy fees,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+5209,1,Overhead expenes,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,False
+520901,1,Telephone and faxes,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520902,1,Internet expenses,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520903,1,Mail and postages,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520904,1,Utitlity expenses,Expense,3,,5209,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+5209041,1,Electricity bills,Expense,4,,520904,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+5209042,1,Gas Bills,Expense,4,,520904,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+5209043,1,Telephone Bill,Expense,4,,520904,0.00,0.00,0.00,0.00,True,False,False,True,False, ,False
+520905,1,Advertising,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520906,1,Contributions and donations,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520907,1,License or permit fees,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520908,1,Membership dues,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520909,1,News papers and journals,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+520910,1,Promotion public relations,Expense,3,,5209,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+5210,1,Financial expenses,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False, ,True
+52101,1,Intrests,Expense,3,,5210,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+52102,1,Bank charges,Expense,3,,5210,0.00,0.00,0.00,0.00,True,False,True,True,False, ,True
+5211,1,Admin Staff Salay,Expense,2,,52,0.00,0.00,0.00,0.00,False,False,True,True,False,,False
+5211001,1,admin staff salary,Expense,3,,5211,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+53,1,Income tax,Expense,1,,5,0.00,0.00,0.00,0.00,False,False,True,True,False,-,True
+54,1,Other expenses,Expense,1,,5,0.00,0.00,0.00,0.00,False,False,True,True,False,-,True
+540,1,Factory Utility Bills,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+540001,1,Bank Instalment,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,True,-,True
+54001,1,Shafeeq/ Ishaq,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+541,1,Cash short,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False, ,False
+544,1,Foreign Tour,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+546,1,Dr.Abdul Razzaq Sb Travelling,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+547,1,Factory Karcha,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+548,1,Market Team Expenses,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+549,1,Market Incentive,Expense,2,,54,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+55,1,Car maintinance,Expense,1,,5,0.00,0.00,0.00,0.00,False,False,True,True,False,,False
+55001,1,Car And Loader Vehciles Repair,Expense,2,,55,0.00,0.00,0.00,0.00,True,False,True,True,False,-,True
+6,1,Parties,Party,0,,,0.00,0.00,0.00,0.00,False,True,True,False,False, ,False
+61,1,Vendors,Party,1,,6,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+610001,1,Khalid Plastic Bottle ,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610003,1,Dr.Umer plastic Bottle Pet,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610004,1,Waqas Printing,Party,2,,61,0.00,1152985.00,0.00,0.00,True,False,True,False,False,,True
+610005,1,Muneer Carton,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610006,1,Hafeez DCP ,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610010,1,S.A Salt,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610012,1,HAFIZ IMRAN Plastic,Party,2,"Kashmir Road, Gulam.M. Abad",61,0.00,3879170.00,0.00,0.00,True,False,True,False,False,,True
+610014,1,USMAN Lab,Party,2,,61,0.00,10074091.00,0.00,0.00,True,False,True,False,False,,True
+610016,1,Khalid Bento,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610018,1,Local Raw Material Purchase ,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610019,1,Local Packing Material Purchase ,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610021,1,Quality Plastic ,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+610022,1,Calcium And Bentonite Purchase,Party,2,,61,0.00,0.00,0.00,0.00,True,False,True,False,False,,True
+62,1,Customers,Party,1,,6,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+620001,1,Dr Zia,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620005,1,Dr/Wajid V/S,Party,2,Mardan,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620006,1,Nasir Jamal,Party,2,Rawalpindi,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620007,1,Mehar Younas,Party,2,-,62,377355.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620008,1,Amir Mian,Party,2,,62,9879731.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620010,1,Shan M/S ,Party,2,-,62,3091716.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620012,1,Raao Shifakhana ,Party,2,-,62,0.00,242106.00,0.00,0.00,True,False,True,True,False,,True
+620013,1,Alharam Traders,Party,2,-,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620014,1,Hamza & Talha Traders,Party,2,-,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620015,1,Faizan Ejaz,Party,2,-,62,3247965.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620016,1,Habib Malik ,Party,2,-,62,998180.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620020,1,Dr.Tahir,Party,2,A block G.M Abad,62,0.00,4215800.00,0.00,0.00,True,False,True,True,False,,True
+620022,1,Imtiyaz Supra Traders 2,Party,2,-,62,0.00,11200000.00,0.00,0.00,True,False,True,True,False,,True
+620024,1,Rana Flour Mill & Kashmir Wanda,Party,2,29 chak,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620027,1,H.P.I Traders,Party,2,,62,554142.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620031,1,Dr.Khalid ,Party,2,Faisalabad ,62,2000.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620032,1,Dr.wasey,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620033,1,Enaam Traders,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620034,1,Lucky Marwat V/S,Party,2,Lucky Marwat,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620035,1,Yaqoob,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620037,1,Meer Khan ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620038,1,Noor Khan,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620039,1,Shareef ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620040,1,Meer Khan,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620041,1,Qazi Irfan,Party,2,,62,5753114.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620042,1,Dr.Darban Azad Traders,Party,2,,62,0.00,568635.00,0.00,0.00,True,False,True,True,False,,True
+620045,1,Dr.Irfan Ullah ,Party,2,,62,0.00,1417547.00,0.00,0.00,True,False,True,True,False,,True
+620046,1,Aaman Ullah,Party,2,Suraiy Nurang + Peshawar,62,0.00,396509.00,0.00,0.00,True,False,True,True,False,,True
+620047,1,Ameen Medical Store,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620049,1,ORION GROUP FSD,Party,2,Sargodha Road,62,0.00,160922.00,0.00,0.00,True,False,True,True,False,,True
+620060,1,Hafiz Poultry medicos,Party,2,,62,40664865.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620061,1,Supreme Poultry ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620062,1,"Dr,ASIF",Party,2,,62,20200.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620063,1,Sheikh Shahid ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620064,1,Glubal V/S ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620065,1,OBAID KAREEM,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620067,1,HALEEM Vetnairy Store,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620071,1,Dr.Usman,Party,2,,62,3418600.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620074,1,Zeeshan Bivet Lahore,Party,2,Lahore,62,62420.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620076,1,Attique,Party,2,,62,150072.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620078,1,Kashmir poultry LiveStock,Party,2,,62,0.00,772473.00,0.00,0.00,True,False,True,True,False,,True
+620080,1,A.R Group Pindi,Party,2,,62,300000.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620081,1,Vassy Jhang,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620083,1,AL-Qabeer Poultary,Party,2,,62,0.00,12600.00,0.00,0.00,True,False,True,True,False,,True
+620091,1,Hamza and Talha Traders 2,Party,2,Sargodha,62,4511032.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620092,1,Dr SAQAB ,Party,2,,62,259140.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620094,1,Alharam Traders 2.,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620095,1,Malik Afaaq,Party,2,Sargodah,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620096,1,Merlin Life care/ Dr.Asif,Party,2,,62,1750100.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620097,1,Dr.TAHIR SGD,Party,2,,62,0.00,4262400.00,0.00,0.00,True,False,True,True,False,,True
+620098,1,RANA LIAQAT SGD,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620099,1,HAFIZ MEDICOZ LIVESTOCK,Party,2,,62,1846780.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620103,1,Nimat Ullah,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620104,1,VIRTUS Pharmaceuticals,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620107,1,Danish Poultry Sakkhar,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620108,1,The Poultry Solution ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620109,1,Dr.Saqab Leon Group,Party,2,,62,0.00,680080.00,0.00,0.00,True,False,True,True,False,,True
+620110,1,Z.A Enterprises,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620111,1,Dr.Wadood  C/O Hafiz Poultry,Party,2,,62,0.00,1000000.00,0.00,0.00,True,False,True,True,False,,True
+620112,1,Hassan Shahid ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620113,1,Waseem Traders,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620114,1,Zain V/S Cuttling,Party,2,Cuttling Kpk,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620115,1,Shah V/S ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620116,1,Almansoor V/S ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620117,1,Dr.Shakeel ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620118,1,Amjad Khan ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620119,1,Dr.Fida ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620120,1,Decent Poluntry ,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620121,1,Jahzaib Sumandari,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+620122,1,Islamabad Poultry,Party,2,,62,0.00,0.00,0.00,0.00,True,False,True,True,False,,False
+63,1,Salesmen,Party,1,,6,0.00,0.00,0.00,0.00,False,False,True,False,True, ,False
+64,1,personal,Party,1,,6,0.00,0.00,0.00,0.00,False,False,True,True,False,,False
+64002,1,DR.Abdul Razzaq Sb,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64004,1,Rana Anwaar,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64005,1,Rana Shezad,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64007,1,Mrs.Farah,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64008,1,Rana Asad,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64009,1,NBP Loan,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64010,1,Zafer Iqbal Investment,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64011,1,Ishaq Okara Investment,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True
+64012,1,Bio Oxime,Party,2,,64,0.00,0.00,0.00,0.00,True,False,True,True,False,,True

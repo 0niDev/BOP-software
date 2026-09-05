@@ -10,11 +10,11 @@ class BOMRepository(BaseRepository):
     table_name = "bill_of_materials"
 
     def find_by_finished_item(self, finished_item_id: int, company_id: int = 1) -> list[dict]:
-        """Find all BOMs for a finished item."""
+        """Find all non-temporary BOMs for a finished item."""
         return self.db.fetch_all(
             """
             SELECT * FROM bill_of_materials 
-            WHERE finished_item_id = ? AND company_id = ?
+            WHERE finished_item_id = ? AND company_id = ? AND is_temp = 0
             ORDER BY bom_name
             """,
             (finished_item_id, company_id),
@@ -30,12 +30,15 @@ class BOMRepository(BaseRepository):
             (bom_name, company_id),
         )
 
-    def find_all_for_company(self, company_id: int = 1, active_only: bool = True) -> list[dict]:
-        """Get all BOMs for a company."""
-        sql = "SELECT * FROM bill_of_materials WHERE company_id = ?"
+    def find_all_for_company(self, company_id: int = 1, active_only: bool = True,
+                             include_ghost: bool = True) -> list[dict]:
+        """Get all non-temporary BOMs for a company."""
+        sql = "SELECT * FROM bill_of_materials WHERE company_id = ? AND is_temp = 0"
         params = [company_id]
         if active_only:
             sql += " AND is_active = 1"
+        if not include_ghost:
+            sql += " AND is_ghost = 0"
         sql += " ORDER BY bom_name"
         return self.db.fetch_all(sql, tuple(params))
 

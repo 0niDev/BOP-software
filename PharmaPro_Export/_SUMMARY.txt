@@ -1,0 +1,53 @@
+﻿
+Table                Rows File                   
+-----                ---- ----                   
+History             11040 History.csv            
+ProductionBatch      3031 ProductionBatch.csv    
+ProductionBody       3010 ProductionBody.csv     
+PackingBatch         1918 PackingBatch.csv       
+PackingBody          1906 PackingBody.csv        
+FormulaBody          1667 FormulaBody.csv        
+Products             1342 Products.csv           
+CompIDs              1036 CompIDs.csv            
+FillingBody           895 FillingBody.csv        
+PurchasesBody         741 PurchasesBody.csv      
+PurchasesBatch        741 PurchasesBatch.csv     
+SalesBatch            727 SalesBatch.csv         
+SalesBody             721 SalesBody.csv          
+AllVouchers           686 AllVouchers.csv        
+PackingHeader         617 PackingHeader.csv      
+DebitVouchersBody     598 DebitVouchersBody.csv  
+Productions           571 Productions.csv        
+FillingHeader         314 FillingHeader.csv      
+Purchases             307 Purchases.csv          
+CollectionBody        301 CollectionBody.csv     
+CashCollection        301 CashCollection.csv     
+Sales                 289 Sales.csv              
+CurrentStock          272 CurrentStock.csv       
+ChartOfAccounts       260 ChartOfAccounts.csv    
+Project_Tasks         258 Project_Tasks.csv      
+FormulaHeader         250 FormulaHeader.csv      
+AccountsBalances      202 AccountsBalances.csv   
+Project_Registry      122 Project_Registry.csv   
+OpeningStock          121 OpeningStock.csv       
+OpeningBatch          121 OpeningBatch.csv       
+DebitVouchers         106 DebitVouchers.csv      
+Parties                83 Parties.csv            
+ActualTowns            49 ActualTowns.csv        
+SaleReturnsBatch       17 SaleReturnsBatch.csv   
+SaleReturnsBody        17 SaleReturnsBody.csv    
+JournalVouchersBody     6 JournalVouchersBody.csv
+ExpiriesBatch           6 ExpiriesBatch.csv      
+ExpiriesBody            6 ExpiriesBody.csv       
+ActualSectors           5 ActualSectors.csv      
+Companies               4 Companies.csv          
+SaleReturns             4 SaleReturns.csv        
+JournalVouchers         3 JournalVouchers.csv    
+CreditVouchers          1 CreditVouchers.csv     
+Users                   1 Users.csv              
+Expiries                1 Expiries.csv           
+CreditVouchersBody      1 CreditVouchersBody.csv 
+
+
+TOTAL TABLES WITH DATA: 46
+TOTAL ROWS: 34675

@@ -1,0 +1,260 @@
+        1  Assets
+         11  Current Assets
+          111  Cash In Hand
+          112  Bank Accounts
+          113  Inventory
+           1131  Opening stock
+           1132  Stock purchased
+            11321  Purchase stock value
+            11322  Returned stock value
+           1133  Stock sold
+            11331  Sold stock original value
+            11332  Returned stock original value
+           1134  Stockgot from expiry claims
+           1135  Stock given for expiry claims
+           1136  Stock expired
+           1137  Stock Productions
+          1137001  Actual Cost Of Consume Stock
+          1137002  Actual Cost Of Produce Stock
+           1138  Stock Packings
+          1138001  Actual Cost Of Packing Consume
+          1138002  Actual Cost Of Finish Goods
+         12  Fixed Assets
+        12001  HBL Instalment
+        12002  Instalment of Moter Bike
+        12003  Instalment of Moter Car
+          121  Auto vehicles
+           1211  Auto vehicles: Original value
+           1212  Auto vehicles: Depriciatiion
+          122  Furniture and fixture
+           1221  Fur and Fix: Original value
+           1222  Fur and Fix: Depriciation
+          123  Building and grounds
+           1231  Building and G: Original value
+           1232  Building and G: Depriciation
+          124  Office equipment
+           1241  Office equip: Original value
+           1242  Office equip: Depriciation..
+          125  Computer & software
+           1251  Comp and Soft: Original value
+           1252  Comp and Soft: Depriciation
+         13  Other assets
+        13001  Factory Machinery Purchase
+          131  Salestax receivable
+           1311  Salestax paid on opening
+           1312  Salestax paid on purchase
+           1313  Salestax received on return
+           1314  Salestax received on sales
+           1315  Salestax paid on sales return
+          132  Prepaid expenses
+          133  Deposits and securities
+          134  Long term investment
+         14  Car Purchase Payment
+        14001  Car Sale And Purchase
+        2  Liabilities
+         21  Short term liabilities
+        21001  Atta Lab
+        21002  Anaiyat Aluminium Door
+        21008  Riaz Karachi
+         22  Long term liabilities
+        3  Equity
+         31  Capital investment
+        31002  Zafer Iqbal Saudia
+        31003  Rana Asad
+         32  Withdrawls
+         33  Last year earnings
+         34  Current year earnings
+        4  Revenue
+         41  Net Sales
+          411  Gross sales value
+          412  Sales returned value
+         42  Revenue through vendor claims
+         49  Other income
+        5  Expense
+         51  Sales expenses
+          511  Cost ofgoods sold
+           5111  Actual cost of sold stock
+           5112  Actual cost of returned stock
+           5113  MACHINE REPAIR AND MAINTENANCE
+          512  Discounts
+           5121  Special discount on sale
+           5122  Special discount returned
+           5123  Discount on recovery
+          513  Customer claimed stock value
+          514  Expired stock actual value
+          515  Purchase Return Cost Difference
+          518  Salery SalesMan
+          519  L.C MARKET EXP
+         52  General and admin expenses
+        52001  Factory Kitchen
+        52002  Zeeshan D.i / Drap
+        52003  Womiqa Ahmad
+        52004  RAHEEL Adv
+        52005  Product Regestration Fee DRAP
+        52006  IMRANULLAH (Labour inspecter)
+        52007  Liquid Yeast Purchase
+        52008  Bank Alhabib L.C Account
+        52009  Habib Car Rent
+         5201  Payroll
+          52011  Wages
+          52012  Benifits
+          52013  Payroll taxes
+          52014  Salary Factory Staff
+          52015  Salary Market Staff
+        52010  Zafer Iqbal Profit
+         5202  Maintenance
+          52021  Auto vehicles
+          52022  Furniture and fixture
+          52023  Building and ground
+          52024  Office equipment
+          52025  Computer and software
+          52026  Staitionary
+         5203  Depriciation
+          52031  Depr: Auto vehicles
+          52032  Depr: Furniture and fixture
+          52033  Depr: Building and ground
+          52034  Depr: Office equipment
+          52035  Depr: Computer and software
+         5204  Rents and leases
+          52041  Shop and store rent
+         5205  Travel & entertainment
+          52051  Lodging
+          52052  Transportation
+          52053  Meals
+          52054  Entertainment
+          52055  Gasoline charges
+         5206  Shipping
+          52061  Freight
+          52062  Supply And Bility expenses
+          52063  Insurance
+         5207  Taxes & Zakat
+         5208  Consultancy fees
+         5209  Overhead expenes
+         520901  Telephone and faxes
+         520902  Internet expenses
+         520903  Mail and postages
+         520904  Utitlity expenses
+          5209041  Electricity bills
+          5209042  Gas Bills
+          5209043  Telephone Bill
+         520905  Advertising
+         520906  Contributions and donations
+         520907  License or permit fees
+         520908  Membership dues
+         520909  News papers and journals
+         520910  Promotion public relations
+         5210  Financial expenses
+          52101  Intrests
+          52102  Bank charges
+         5211  Admin Staff Salay
+        5211001  admin staff salary
+         53  Income tax
+         54  Other expenses
+          540  Factory Utility Bills
+       540001  Bank Instalment
+        54001  Shafeeq/ Ishaq
+          541  Cash short
+          544  Foreign Tour
+          546  Dr.Abdul Razzaq Sb Travelling
+          547  Factory Karcha
+          548  Market Team Expenses
+          549  Market Incentive
+         55  Car maintinance
+        55001  Car And Loader Vehciles Repair
+        6  Parties
+         61  Vendors
+       610001  Khalid Plastic Bottle 
+       610003  Dr.Umer plastic Bottle Pet
+       610004  Waqas Printing
+       610005  Muneer Carton
+       610006  Hafeez DCP 
+       610010  S.A Salt
+       610012  HAFIZ IMRAN Plastic
+       610014  USMAN Lab
+       610016  Khalid Bento
+       610018  Local Raw Material Purchase 
+       610019  Local Packing Material Purchase 
+       610021  Quality Plastic 
+       610022  Calcium And Bentonite Purchase
+         62  Customers
+       620001  Dr Zia
+       620005  Dr/Wajid V/S
+       620006  Nasir Jamal
+       620007  Mehar Younas
+       620008  Amir Mian
+       620010  Shan M/S 
+       620012  Raao Shifakhana 
+       620013  Alharam Traders
+       620014  Hamza & Talha Traders
+       620015  Faizan Ejaz
+       620016  Habib Malik 
+       620020  Dr.Tahir
+       620022  Imtiyaz Supra Traders 2
+       620024  Rana Flour Mill & Kashmir Wanda
+       620027  H.P.I Traders
+       620031  Dr.Khalid 
+       620032  Dr.wasey
+       620033  Enaam Traders
+       620034  Lucky Marwat V/S
+       620035  Yaqoob
+       620037  Meer Khan 
+       620038  Noor Khan
+       620039  Shareef 
+       620040  Meer Khan
+       620041  Qazi Irfan
+       620042  Dr.Darban Azad Traders
+       620045  Dr.Irfan Ullah 
+       620046  Aaman Ullah
+       620047  Ameen Medical Store
+       620049  ORION GROUP FSD
+       620060  Hafiz Poultry medicos
+       620061  Supreme Poultry 
+       620062  Dr,ASIF
+       620063  Sheikh Shahid 
+       620064  Glubal V/S 
+       620065  OBAID KAREEM
+       620067  HALEEM Vetnairy Store
+       620071  Dr.Usman
+       620074  Zeeshan Bivet Lahore
+       620076  Attique
+       620078  Kashmir poultry LiveStock
+       620080  A.R Group Pindi
+       620081  Vassy Jhang
+       620083  AL-Qabeer Poultary
+       620091  Hamza and Talha Traders 2
+       620092  Dr SAQAB 
+       620094  Alharam Traders 2.
+       620095  Malik Afaaq
+       620096  Merlin Life care/ Dr.Asif
+       620097  Dr.TAHIR SGD
+       620098  RANA LIAQAT SGD
+       620099  HAFIZ MEDICOZ LIVESTOCK
+       620103  Nimat Ullah
+       620104  VIRTUS Pharmaceuticals
+       620107  Danish Poultry Sakkhar
+       620108  The Poultry Solution 
+       620109  Dr.Saqab Leon Group
+       620110  Z.A Enterprises
+       620111  Dr.Wadood  C/O Hafiz Poultry
+       620112  Hassan Shahid 
+       620113  Waseem Traders
+       620114  Zain V/S Cuttling
+       620115  Shah V/S 
+       620116  Almansoor V/S 
+       620117  Dr.Shakeel 
+       620118  Amjad Khan 
+       620119  Dr.Fida 
+       620120  Decent Poluntry 
+       620121  Jahzaib Sumandari
+       620122  Islamabad Poultry
+         63  Salesmen
+         64  personal
+        64002  DR.Abdul Razzaq Sb
+        64004  Rana Anwaar
+        64005  Rana Shezad
+        64007  Mrs.Farah
+        64008  Rana Asad
+        64009  NBP Loan
+        64010  Zafer Iqbal Investment
+        64011  Ishaq Okara Investment
+        64012  Bio Oxime

@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -161,6 +162,11 @@ class ItemView(QWidget):
         self._save_threads = []  # Keep strong references to prevent GC crash
         self._is_saving = False
         self._is_loaded = False  # Track if initial data load has completed
+        self._last_used = {
+            "unit": "UNIT",
+            "item_type": "FINISHED_GOOD",
+            "category_id": None,
+        }
         self._build_ui()
         # Don't load immediately - wait for showEvent
 
@@ -177,10 +183,22 @@ class ItemView(QWidget):
         self.search_input.textChanged.connect(self._on_search_changed)
         controls_layout.addWidget(self.search_input, stretch=2)
 
+        self.type_filter = QComboBox()
+        self.type_filter.addItem("All Types", None)
+        self.type_filter.addItem("Raw Material", "RAW_MATERIAL")
+        self.type_filter.addItem("Packing Material", "PACKING_MATERIAL")
+        self.type_filter.addItem("Finished Good", "FINISHED_GOOD")
+        self.type_filter.currentIndexChanged.connect(self._refresh_row_visibility)
+        controls_layout.addWidget(self.type_filter)
+
         self.refresh_btn = QPushButton("Refresh")
         self.refresh_btn.setFixedWidth(100)
         self.refresh_btn.clicked.connect(self._load_items_async)
         controls_layout.addWidget(self.refresh_btn)
+
+        self.opening_stock_btn = QPushButton("Opening Stock")
+        self.opening_stock_btn.clicked.connect(self._on_opening_stock)
+        controls_layout.addWidget(self.opening_stock_btn)
         
         controls_layout.addWidget(create_help_button("Inventory", ITEM_HELP))
 
@@ -277,6 +295,14 @@ class ItemView(QWidget):
         layout.addWidget(form_group)
 
 
+    def _on_opening_stock(self) -> None:
+        """Opens the opening stock dialog."""
+        from views.widgets.opening_stock_dialog import OpeningStockDialog
+
+        dialog = OpeningStockDialog(self.controller, parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            self._load_items_async()
+
     def _on_save_clicked(self) -> None:
         """Handles save/update button click - runs in background thread."""
         # Prevent multiple saves at once
@@ -316,6 +342,13 @@ class ItemView(QWidget):
         tax_rate_id = self.tax_rate_input.currentData()
         item_type = self.item_type_input.currentData()
         category_id = self.category_input.currentData()
+
+        # Remember last used values for quick entry of similar items
+        self._last_used = {
+            "unit": unit,
+            "item_type": item_type,
+            "category_id": category_id,
+        }
 
         # Disable save button briefly (1 sec max), but keep form active for continuous entry
         self._set_save_enabled(False)
@@ -400,6 +433,7 @@ class ItemView(QWidget):
                 # For new items, clear form immediately for fast entry
                 # This clears the form right after the auto-generated code message
                 self._clear_form()
+                self._restore_last_used()
                 self.name_input.setFocus()
             else:
                 # For updates, show confirmation and clear selection
@@ -541,6 +575,7 @@ class ItemView(QWidget):
     def _populate_table(self):
         """Populate the table with cached data."""
         items = self._items_cache
+        self._row_types = [item.item_type for item in items]
         
         # Check if we have stock data loaded (even if empty dict means no stock batches exist)
         has_stock_data = hasattr(self, '_stocks_loaded') and self._stocks_loaded
@@ -617,6 +652,7 @@ class ItemView(QWidget):
         self._clear_form()
         self._populate_dropdowns()
         self._is_loaded = True
+        self._refresh_row_visibility()
 
     def _populate_dropdowns(self) -> None:
         """Populates tax rates and categories dropdowns"""
@@ -641,14 +677,26 @@ class ItemView(QWidget):
 
     def _on_search_changed(self, text: str) -> None:
         """Filters table based on search text"""
+        self._refresh_row_visibility()
+
+    def _refresh_row_visibility(self) -> None:
+        """Hides/shows table rows based on type filter and search text."""
+        search = self.search_input.text().lower()
+        ftype = self.type_filter.currentData()
+        row_types = getattr(self, "_row_types", [])
         for row in range(self.table.rowCount()):
-            matches = False
-            for col in [0, 1]:
-                item = self.table.item(row, col)
-                if item and text.lower() in item.text().lower():
-                    matches = True
-                    break
-            self.table.setRowHidden(row, not matches)
+            hidden = False
+            if ftype is not None and row_types and row < len(row_types):
+                if row_types[row] != ftype:
+                    hidden = True
+            if not hidden and search:
+                code_item = self.table.item(row, 0)
+                name_item = self.table.item(row, 1)
+                code_text = code_item.text().lower() if code_item else ""
+                name_text = name_item.text().lower() if name_item else ""
+                if search not in code_text and search not in name_text:
+                    hidden = True
+            self.table.setRowHidden(row, hidden)
 
     def _on_table_clicked(self, index) -> None:
         """Loads selected item into form for editing"""
@@ -723,6 +771,24 @@ class ItemView(QWidget):
                 self._clear_form()
             else:
                 QMessageBox.warning(self, "Delete Failed", error)
+
+    def _restore_last_used(self) -> None:
+        """Restore last used unit, item type, and category for fast entry."""
+        unit_idx = self.unit_input.findData(self._last_used.get("unit", "UNIT"))
+        if unit_idx >= 0:
+            self.unit_input.setCurrentIndex(unit_idx)
+
+        type_idx = self.item_type_input.findData(
+            self._last_used.get("item_type", "FINISHED_GOOD")
+        )
+        if type_idx >= 0:
+            self.item_type_input.setCurrentIndex(type_idx)
+
+        category_id = self._last_used.get("category_id")
+        if category_id:
+            cat_idx = self.category_input.findData(category_id)
+            if cat_idx >= 0:
+                self.category_input.setCurrentIndex(cat_idx)
 
     def _on_add_clicked(self) -> None:
         """Clears form for adding a new entry"""

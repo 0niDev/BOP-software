@@ -1,0 +1,5 @@
+﻿SReturnId,SaleId,LastUpdateDate,ReturnDate,PreviousDebit,PaidAmount,SpecialDiscount,CustomerId,IsUndelivered,TimeKey,IsPosted,SalesManId,UserNo,Remarks
+1,,07/09/2026 00:10:00,06/09/2026 00:00:00,0.00,0.00,0.00,620027,False,0 0 0 0 0 0 250 117,False,,1,Sale Return
+2,,07/09/2026 00:11:00,06/24/2026 00:00:00,0.00,0.00,0.00,620027,False,0 0 0 0 0 0 250 118,False,,1,Sale Return
+3,,08/15/2026 23:31:00,08/13/2026 00:00:00,0.00,0.00,0.00,620022,False,0 0 0 0 0 1 150 211,False,,1,Sale return
+4,,08/16/2026 00:54:00,08/12/2026 00:00:00,0.00,0.00,0.00,620118,False,0 0 0 0 0 1 150 210,False,,1,Sale Return

@@ -488,7 +488,13 @@ class PurchaseInvoiceService:
         warehouse_id: int = 1,
         bank_account_id: Optional[int] = None,
     ) -> PurchaseInvoice:
-        """Update an existing purchase invoice."""
+        """Update an existing purchase invoice.
+
+        The whole operation (journal reversal, stock restore, header update,
+        line replacement, stock add and new journal entry) runs inside ONE
+        transaction so a failure can never leave the invoice/journal/stock in
+        a partial state.
+        """
         from decimal import Decimal
         
         # Get existing invoice
@@ -506,68 +512,7 @@ class PurchaseInvoiceService:
             raise ValidationError(f"Supplier {supplier_id} not found.")
         supplier = Party(**supplier_dict) if isinstance(supplier_dict, dict) else supplier_dict
         
-        # Reverse existing journal entry
-        existing_journal = self.accounting_service.get_journal_entry(
-            source_table="purchase_invoices",
-            source_id=invoice_id
-        )
-        
-        if existing_journal:
-            journal_lines = existing_journal.get('lines', [])
-            
-            # Create reversing lines (swap debit/credit)
-            reverse_lines = []
-            for line in journal_lines:
-                reverse_lines.append(JournalLine(
-                    account_id=line['account_id'],
-                    debit=line['credit'],  # Swap
-                    credit=line['debit'],  # Swap
-                    party_id=line.get('party_id'),
-                    description=f"Reversal of {line['description']}"
-                ))
-            
-            self.accounting_service.post_journal_entry(
-                voucher_type=VoucherType.PURCHASE,
-                entry_date=invoice_date,
-                lines=reverse_lines,
-                source_table="purchase_invoices",
-                source_id=invoice_id,
-                narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} for update"
-            )
-            logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
-        
-        # Restore stock for existing invoice items
-        existing_items = self.item_repo.find_by_invoice_id(invoice_id)
-        batch_cache = {}
-        item_cache = {}
-        for item in existing_items:
-            # Get or create batch for restoration (using negative quantity to reverse)
-            batch_id = self._get_or_create_batch(
-                item_id=item['item_id'],
-                warehouse_id=warehouse_id,
-                batch_number=item.get('batch_number'),
-                manufacturing_date=item.get('manufacturing_date'),
-                expiry_date=item.get('expiry_date'),
-                purchase_price=item['unit_cost'],
-                quantity=-item['quantity'],  # Negative to reverse the stock
-            )
-            item_data = self.item_master_repo.get_by_id(item['item_id'])
-            if item_data:
-                self._update_stock(
-                    item_id=item['item_id'],
-                    warehouse_id=warehouse_id,
-                    quantity=-item['quantity'],  # Negative to reverse
-                    unit_cost=item['unit_cost'],
-                    batch_id=batch_id,
-                    batch_cache=batch_cache,
-                    item_cache=item_cache,
-                )
-        logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
-        
-        # Delete existing invoice items
-        self.db.execute("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", (invoice_id,))
-        
-        # Now create new entries with updated data (similar to create logic)
+        # Validate all items first (fail fast, no mutation on invalid input)
         validated_items = []
         subtotal = Decimal(0)
         discount_amount = Decimal(0)
@@ -613,81 +558,7 @@ class PurchaseInvoiceService:
         
         total_amount = subtotal - discount_amount + tax_amount
         
-        # Update invoice header
-        invoice_data = {
-            "invoice_number": invoice_number,
-            "supplier_id": supplier_id,
-            "invoice_date": invoice_date,
-            "payment_type": payment_type,
-            "bank_account_id": bank_account_id,
-            "subtotal": float(subtotal),
-            "discount_amount": float(discount_amount),
-            "tax_amount": float(tax_amount),
-            "total_amount": float(total_amount),
-            "notes": notes,
-            "status": status,
-            "company_id": company_id,
-            "warehouse_id": warehouse_id,
-        }
-        
-        self.invoice_repo.update(invoice_id, invoice_data)
-        logger.info(f"Updated invoice header for {invoice_number}")
-        
-        # Insert new invoice items AND add stock for new items
-        items_data = []
-        batch_cache = {}
-        item_cache = {}
-        
-        with self.db.transaction() as conn:
-            for item_data in validated_items:
-                # First create/get the batch and get its ID
-                batch_id = self._get_or_create_batch(
-                    item_id=item_data["item_id"],
-                    warehouse_id=warehouse_id,
-                    batch_number=item_data.get("batch_number"),
-                    manufacturing_date=item_data.get("manufacturing_date"),
-                    expiry_date=item_data.get("expiry_date"),
-                    purchase_price=item_data["unit_cost"],
-                    quantity=item_data["quantity"],
-                    conn=conn,
-                )
-                
-                # Set batch_id for the invoice item
-                item_data["batch_id"] = batch_id
-                
-                clean_item_data = {
-                    "invoice_id": invoice_id,
-                    "item_id": item_data["item_id"],
-                    "batch_id": batch_id,
-                    "quantity": item_data["quantity"],
-                    "unit_cost": item_data["unit_cost"],
-                    "discount_amount": item_data["discount_amount"],
-                    "tax_amount": item_data["tax_amount"],
-                    "line_total": item_data["line_total"],
-                    "batch_number": item_data.get("batch_number"),
-                    "manufacturing_date": item_data.get("manufacturing_date"),
-                    "expiry_date": item_data.get("expiry_date"),
-                }
-                items_data.append(clean_item_data)
-                
-                # Insert the invoice item
-                item = PurchaseInvoiceItem(**clean_item_data)
-                self.item_repo.insert(item.to_dict())
-                
-                # Update stock quantity for the created batch
-                self._update_stock(
-                    item_id=item_data["item_id"],
-                    warehouse_id=warehouse_id,
-                    quantity=item_data["quantity"],
-                    unit_cost=item_data["unit_cost"],
-                    batch_id=batch_id,
-                    batch_cache=batch_cache,
-                    item_cache=item_cache,
-                )
-        
-        logger.info(f"Added stock for new items in invoice {invoice_number}")
-        
-        # Create new journal entry
+        # Resolve the credit account before mutating anything.
         account_codes_needed = ["1200", "1210", "1220"]  # Inventory by type
         if payment_type == "CREDIT":
             account_codes_needed.append("2000")  # Accounts Payable
@@ -751,7 +622,7 @@ class PurchaseInvoiceService:
         for item_data in validated_items:
             itype = item_data.get("item_type", "RAW_MATERIAL")
             type_totals[itype] = type_totals.get(itype, 0.0) + item_data["line_total"]
-
+        
         for itype, amount in type_totals.items():
             code = type_codes.get(itype, "1200")
             inventory_lines.append(JournalLine(
@@ -760,9 +631,9 @@ class PurchaseInvoiceService:
                 credit=0.0,
                 description=f"Inventory purchase - {itype.replace('_', ' ').title()}"
             ))
-
+        
         journal_lines = inventory_lines
-
+        
         # Only add party_id for CREDIT purchases
         if credit_party_id is not None:
             journal_lines.append(
@@ -797,35 +668,173 @@ class PurchaseInvoiceService:
                 )
             )
         
-        self.accounting_service.post_journal_entry(
-            voucher_type=VoucherType.PURCHASE,
-            entry_date=invoice_date,
-            lines=journal_lines,
-            source_table="purchase_invoices",
-            source_id=invoice_id,
-            narration=f"Updated purchase invoice {invoice_number} from {supplier.name}"
-        )
-        
-        # Record bank transaction if payment is BANK or CHEQUE
-        if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
-            self.db.execute("""
-                INSERT INTO bank_transactions (
+        # ---- Atomic mutation block ------------------------------------------
+        with self.db.transaction() as conn:
+            # Reverse existing journal entry
+            existing_journal = self.accounting_service.get_journal_entry(
+                source_table="purchase_invoices",
+                source_id=invoice_id
+            )
+            
+            if existing_journal:
+                journal_lines_existing = existing_journal.get('lines', [])
+                
+                # Create reversing lines (swap debit/credit)
+                reverse_lines = []
+                for line in journal_lines_existing:
+                    reverse_lines.append(JournalLine(
+                        account_id=line['account_id'],
+                        debit=line['credit'],  # Swap
+                        credit=line['debit'],  # Swap
+                        party_id=line.get('party_id'),
+                        description=f"Reversal of {line['description']}"
+                    ))
+                
+                self.accounting_service.post_journal_entry(
+                    voucher_type=VoucherType.PURCHASE,
+                    entry_date=invoice_date,
+                    lines=reverse_lines,
+                    source_table="purchase_invoices",
+                    source_id=invoice_id,
+                    narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} for update"
+                )
+                logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
+            
+            # Restore stock for existing invoice items
+            existing_items = self.item_repo.find_by_invoice_id(invoice_id)
+            batch_cache = {}
+            item_cache = {}
+            for item in existing_items:
+                # Get or create batch for restoration (using negative quantity to reverse)
+                batch_id = self._get_or_create_batch(
+                    item_id=item['item_id'],
+                    warehouse_id=warehouse_id,
+                    batch_number=item.get('batch_number'),
+                    manufacturing_date=item.get('manufacturing_date'),
+                    expiry_date=item.get('expiry_date'),
+                    purchase_price=item['unit_cost'],
+                    quantity=-item['quantity'],  # Negative to reverse the stock
+                    conn=conn,
+                )
+                item_data = self.item_master_repo.get_by_id(item['item_id'])
+                if item_data:
+                    self._update_stock(
+                        item_id=item['item_id'],
+                        warehouse_id=warehouse_id,
+                        quantity=-item['quantity'],  # Negative to reverse
+                        unit_cost=item['unit_cost'],
+                        batch_id=batch_id,
+                        batch_cache=batch_cache,
+                        item_cache=item_cache,
+                    )
+            logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
+            
+            # Delete existing invoice items
+            self.db.execute("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", (invoice_id,))
+            
+            # Update invoice header
+            invoice_data = {
+                "invoice_number": invoice_number,
+                "supplier_id": supplier_id,
+                "invoice_date": invoice_date,
+                "payment_type": payment_type,
+                "bank_account_id": bank_account_id,
+                "subtotal": float(subtotal),
+                "discount_amount": float(discount_amount),
+                "tax_amount": float(tax_amount),
+                "total_amount": float(total_amount),
+                "notes": notes,
+                "status": status,
+                "company_id": company_id,
+                "warehouse_id": warehouse_id,
+            }
+            
+            self.invoice_repo.update(invoice_id, invoice_data)
+            logger.info(f"Updated invoice header for {invoice_number}")
+            
+            # Insert new invoice items AND add stock for new items
+            items_data = []
+            batch_cache = {}
+            item_cache = {}
+            
+            for item_data in validated_items:
+                # First create/get the batch and get its ID
+                batch_id = self._get_or_create_batch(
+                    item_id=item_data["item_id"],
+                    warehouse_id=warehouse_id,
+                    batch_number=item_data.get("batch_number"),
+                    manufacturing_date=item_data.get("manufacturing_date"),
+                    expiry_date=item_data.get("expiry_date"),
+                    purchase_price=item_data["unit_cost"],
+                    quantity=item_data["quantity"],
+                    conn=conn,
+                )
+                
+                # Set batch_id for the invoice item
+                item_data["batch_id"] = batch_id
+                
+                clean_item_data = {
+                    "invoice_id": invoice_id,
+                    "item_id": item_data["item_id"],
+                    "batch_id": batch_id,
+                    "quantity": item_data["quantity"],
+                    "unit_cost": item_data["unit_cost"],
+                    "discount_amount": item_data["discount_amount"],
+                    "tax_amount": item_data["tax_amount"],
+                    "line_total": item_data["line_total"],
+                    "batch_number": item_data.get("batch_number"),
+                    "manufacturing_date": item_data.get("manufacturing_date"),
+                    "expiry_date": item_data.get("expiry_date"),
+                }
+                items_data.append(clean_item_data)
+                
+                # Insert the invoice item
+                item = PurchaseInvoiceItem(**clean_item_data)
+                self.item_repo.insert(item.to_dict())
+                
+                # Update stock quantity for the created batch
+                self._update_stock(
+                    item_id=item_data["item_id"],
+                    warehouse_id=warehouse_id,
+                    quantity=item_data["quantity"],
+                    unit_cost=item_data["unit_cost"],
+                    batch_id=batch_id,
+                    batch_cache=batch_cache,
+                    item_cache=item_cache,
+                )
+            
+            logger.info(f"Added stock for new items in invoice {invoice_number}")
+            
+            # Post the new journal entry for the updated invoice
+            self.accounting_service.post_journal_entry(
+                voucher_type=VoucherType.PURCHASE,
+                entry_date=invoice_date,
+                lines=journal_lines,
+                source_table="purchase_invoices",
+                source_id=invoice_id,
+                narration=f"Updated purchase invoice {invoice_number} from {supplier.name}"
+            )
+            
+            # Record bank transaction if payment is BANK or CHEQUE
+            if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
+                self.db.execute("""
+                    INSERT INTO bank_transactions (
+                        bank_account_id,
+                        transaction_type,
+                        amount,
+                        transaction_date,
+                        reference_no,
+                        notes,
+                        created_at
+                    ) VALUES (?, 'WITHDRAWAL', ?, ?, ?, ?, datetime('now'))
+                """, (
                     bank_account_id,
-                    transaction_type,
-                    amount,
-                    transaction_date,
-                    reference_no,
-                    notes,
-                    created_at
-                ) VALUES (?, 'WITHDRAWAL', ?, ?, ?, ?, datetime('now'))
-            """, (
-                bank_account_id,
-                float(total_amount),
-                invoice_date,
-                invoice_number,
-                f"Updated purchase invoice {invoice_number} - {payment_type} payment"
-            ))
-            logger.info(f"Recorded bank withdrawal for updated invoice {invoice_number}")
+                    float(total_amount),
+                    invoice_date,
+                    invoice_number,
+                    f"Updated purchase invoice {invoice_number} - {payment_type} payment"
+                ))
+                logger.info(f"Recorded bank withdrawal for updated invoice {invoice_number}")
         
         logger.info("Updated purchase invoice %s for supplier %s (id=%s)", 
                 invoice_number, supplier_id, invoice_id)

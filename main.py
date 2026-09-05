@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 import os
 os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/MainDatabase.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/erp_backup_20260820_023705.db?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 from views.main_window import MainWindow   # ← ADD THIS LINE
@@ -741,6 +741,8 @@ class Application:
                 run_column_migration(db)
                 from database.migrations.add_expense_items import run_expense_items_migration
                 run_expense_items_migration(db)
+                from database.migrations.add_temp_bom import run_temp_bom_migration
+                run_temp_bom_migration(db)
                 return
             except Exception:
                 pass
@@ -750,6 +752,8 @@ class Application:
             run_column_migration(db)
             from database.migrations.add_expense_items import run_expense_items_migration
             run_expense_items_migration(db)
+            from database.migrations.add_temp_bom import run_temp_bom_migration
+            run_temp_bom_migration(db)
         except Exception:
             logger.exception("Fatal error initializing database")
             raise

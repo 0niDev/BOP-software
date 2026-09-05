@@ -15,6 +15,8 @@ class BillOfMaterials:
     id: Optional[int] = None
     company_id: int = 1
     is_active: bool = True
+    is_temp: bool = False
+    is_ghost: bool = False
     created_at: Optional[str] = None
     components: list = field(default_factory=list)
 
@@ -29,6 +31,8 @@ class BillOfMaterials:
             output_quantity=row["output_quantity"],
             notes=row.get("notes"),
             is_active=bool(row["is_active"]),
+            is_temp=bool(row.get("is_temp", 0)),
+            is_ghost=bool(row.get("is_ghost", 0)),
             created_at=row.get("created_at"),
             components=[],
         )
@@ -42,6 +46,7 @@ class BillOfMaterials:
             "output_quantity": self.output_quantity,
             "notes": self.notes,
             "is_active": int(self.is_active),
+            "is_temp": int(self.is_temp),
         }
 
 

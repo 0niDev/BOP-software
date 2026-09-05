@@ -30,8 +30,8 @@ class BalanceSheetReport(Report):
                     ELSE COALESCE(SUM(jel.credit - jel.debit), 0)
                 END as balance
             FROM accounts a
-            LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
-            LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id AND je.is_posted = 1
+            LEFT JOIN journal_entries je ON je.is_posted = 1
+            LEFT JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id AND jel.account_id = a.id
             WHERE a.company_id = ? AND a.is_active = 1
             GROUP BY a.id
             HAVING balance != 0

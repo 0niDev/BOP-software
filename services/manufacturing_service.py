@@ -140,9 +140,10 @@ class ManufacturingService:
         ]
         return bom
 
-    def list_boms(self, company_id: int = 1, active_only: bool = True) -> list[BillOfMaterials]:
+    def list_boms(self, company_id: int = 1, active_only: bool = True,
+                  include_ghost: bool = True) -> list[BillOfMaterials]:
         """List all BOMs with components loaded in a single batch query (eliminates N+1)."""
-        rows = self.bom_repo.find_all_for_company(company_id, active_only)
+        rows = self.bom_repo.find_all_for_company(company_id, active_only, include_ghost)
         
         if not rows:
             return []
@@ -227,13 +228,98 @@ class ManufacturingService:
         company_id: int = 1,
         warehouse_id: int = 1,
         created_by: int | None = None,
+        temp_finished_item_id: int | None = None,
+        temp_components: list[dict] | None = None,
     ) -> ProductionOrder:
-        """Create a new production order."""
+        """Create a new production order.
+
+        Pass ``temp_finished_item_id`` + ``temp_components`` for a one-use
+        (temporary) production. A hidden, flagged temp BOM is created and
+        linked to the order; it is never shown in the BOM list.
+        """
         order_number = order_number.strip()
         if not order_number:
             raise ValidationError("Order number is required.")
         if planned_quantity <= 0:
             raise ValidationError("Planned quantity must be greater than 0.")
+
+        is_temp = temp_finished_item_id is not None and temp_components is not None
+
+        if is_temp:
+            finished_item = self.item_repo.get_by_id(temp_finished_item_id)
+            if not finished_item:
+                raise ValidationError("Finished item does not exist.")
+            if finished_item["item_type"] != "FINISHED_GOOD":
+                raise ValidationError("Finished item must be of type FINISHED_GOOD.")
+            if not temp_components:
+                raise ValidationError("At least one component is required.")
+
+            validated_components = []
+            for comp in temp_components:
+                component_item_id = comp.get("component_item_id")
+                quantity_required = comp.get("quantity_required", 0)
+                wastage_percent = comp.get("wastage_percent", 0)
+
+                if not component_item_id or quantity_required <= 0:
+                    raise ValidationError("Each component requires an item and quantity.")
+
+                component_item = self.item_repo.get_by_id(component_item_id)
+                if not component_item:
+                    raise ValidationError(f"Component item {component_item_id} does not exist.")
+                if component_item["item_type"] not in ["RAW_MATERIAL", "PACKING_MATERIAL"]:
+                    raise ValidationError(
+                        f"Component {component_item['item_name']} must be RAW_MATERIAL or PACKING_MATERIAL."
+                    )
+                if wastage_percent < 0 or wastage_percent > 100:
+                    raise ValidationError("Wastage percentage must be between 0 and 100.")
+
+                validated_components.append({
+                    "component_item_id": component_item_id,
+                    "quantity_required": quantity_required,
+                    "wastage_percent": wastage_percent,
+                })
+
+            order = ProductionOrder(
+                order_number=order_number,
+                bom_id=0,  # set below once the temp BOM is created
+                planned_quantity=planned_quantity,
+                manufacturing_date=manufacturing_date,
+                expiry_date=expiry_date,
+                notes=notes,
+                company_id=company_id,
+                warehouse_id=warehouse_id,
+                created_by=created_by,
+                status="DRAFT",
+            )
+
+            with self.db.transaction():
+                temp_bom = BillOfMaterials(
+                    finished_item_id=temp_finished_item_id,
+                    bom_name=f"TEMP-{order_number}",
+                    output_quantity=1.0,
+                    notes="Temporary one-use BOM",
+                    company_id=company_id,
+                    is_active=True,
+                    is_temp=True,
+                )
+                temp_bom.id = self.bom_repo.insert(temp_bom.to_dict())
+                for comp in validated_components:
+                    comp["bom_id"] = temp_bom.id
+                    self.bom_component_repo.insert(BOMComponent(**comp).to_dict())
+                order.bom_id = temp_bom.id
+                order.id = self.order_repo.insert_unique(order.to_dict())
+
+            logger.info("Created temporary production order %s (id=%s, temp bom=%s)",
+                        order_number, order.id, temp_bom.id)
+
+            # Log activity
+            log_manufacturing_order_created(
+                order_id=order.id,
+                order_number=order_number,
+                product_name=finished_item["item_name"],
+                quantity=planned_quantity,
+            )
+            return order
 
         bom = self.get_bom(bom_id)
         if not bom:
@@ -288,10 +374,11 @@ class ManufacturingService:
     def list_production_orders(
         self,
         company_id: int = 1,
-        status: str | None = None
+        status: str | None = None,
+        include_ghost: bool = True,
     ) -> list[ProductionOrder]:
         """List production orders with components loaded in a single batch query (eliminates N+1)."""
-        rows = self.order_repo.find_all_for_company(company_id, status)
+        rows = self.order_repo.find_all_for_company(company_id, status, include_ghost)
         
         if not rows:
             return []

@@ -1,0 +1,5 @@
+﻿CompanyId,CompanyName,ExternalCode,IsActive
+00,Finished Goods,00,True
+01,Raw Materials,01,True
+02,Packing Materials,02,True
+03,UnPacked-Materials,03,True

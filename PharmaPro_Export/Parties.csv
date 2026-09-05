@@ -1,0 +1,84 @@
+﻿AccountNo,ActualTownId,Address,City,ContactPerson,Phone1,Phone2,Phone3,Fax,Mobile,EMail,WWW,NTN,STN,IsCustomer,IsVendor,CustomerType,CreditLimit,CreditPeriod,IsValidLicense,LicenseNo,LicenseExpiryDate,BirthDate,PartyName,PriceCategory,IsActive
+610001,,204 Chak canal Road,Faisalabad,,0300-5468286,,,,,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Khalid Plastic Bottle ,TradePrice1,True
+610003,,"D,Type colony ",Faisalabad,,0321-6669999,,,,,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Dr.Umer plastic Bottle Pet,TradePrice1,True
+610004,,Model Town Narwala Road,Faisalabad,,0300-5549513,,,,,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Waqas Printing,TradePrice1,True
+610005,,Kashmir Road G M Abad,Faisalabad,,0307-3513772,,,,,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Muneer Carton,TradePrice1,True
+610006,,,Faisalabad,,0300-8650473,,,,,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Hafeez DCP ,TradePrice1,True
+610010,,7 Chak Same Pully Daewoo Road ,Faisalabad,M.Faqeer,,,,,0300-6635509,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,S.A Salt,TradePrice1,True
+610012,,"Kashmir Road, Gulam.M. Abad",Faisalabad,Imran Sb,,,,,0302-9316106,,,,,False,True,Other,0.00,0,False,,,07/13/2023 00:00:00,HAFIZ IMRAN Plastic,TradePrice1,True
+610014,,Jinnah Colony,Faisalabad,Usman,041-2646801,,,041-2413352,0300-7636605,,,,,False,True,Other,0.00,0,False,,,07/01/2023 00:00:00,USMAN Lab,TradePrice1,True
+610016,,"Muslim Town,FSD",Faisalabad,,,,,,0303-7777467,,,,,False,True,Other,0.00,0,False,,,06/26/2023 00:00:00,Khalid Bento,TradePrice1,True
+610018,,,FSD,,,,,,,,,,,False,True,Other,0.00,0,False,,,10/17/2024 00:00:00,Local Raw Material Purchase ,TradePrice1,True
+610019,,,FSD,,,,,,,,,,,False,True,Other,0.00,0,False,,,10/17/2024 00:00:00,Local Packing Material Purchase ,TradePrice1,True
+610021,,,,,,,,,,,,,,False,True,Other,0.00,0,False,,,01/01/2026 00:00:00,Quality Plastic ,TradePrice1,True
+610022,,,,,,,,,,,,,,False,True,Other,0.00,0,False,,,04/01/2026 00:00:00,Calcium And Bentonite Purchase,TradePrice1,True
+620001,3,,,0320-5788580,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/20/2025 00:00:00,06/21/2023 00:00:00,Dr Zia,TradePrice1,True
+620005,4,Mardan,,0300-5713893,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Dr/Wajid V/S,TradePrice1,True
+620006,22,Rawalpindi,,0333-9598515,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Nasir Jamal,TradePrice1,True
+620007,6,-,,0300-6010017,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Mehar Younas,TradePrice1,True
+620008,5,,,0303-9004350,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Amir Mian,TradePrice1,True
+620010,9,-,,0321-2215324,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Shan M/S ,TradePrice1,True
+620012,14,-,,0300-6762646,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Raao Shifakhana ,TradePrice1,True
+620013,15,-,,0342-7588588,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Alharam Traders,TradePrice1,True
+620014,13,-,,0300-9600979,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Hamza & Talha Traders,TradePrice1,True
+620015,17,-,,0311-4366713,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Faizan Ejaz,TradePrice1,True
+620016,5,-,,0321-8669948,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/24/2025 00:00:00,06/25/2023 00:00:00,Habib Malik ,TradePrice1,True
+620020,5,A block G.M Abad,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Dr.Tahir,TradePrice1,True
+620022,20,-,,0300-8430956,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Imtiyaz Supra Traders 2,TradePrice1,True
+620024,5,29 chak,,0321-7535757,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Rana Flour Mill & Kashmir Wanda,TradePrice1,True
+620027,5,Sargodha Road,,0321-9660960,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,H.P.I Traders,TradePrice1,True
+620031,5,Faisalabad ,,0333-8179255,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Dr.Khalid ,TradePrice1,True
+620032,12,-,,"0303-4465194, 0326-1991491",,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Dr.wasey,TradePrice1,True
+620033,4,-,,0300-8584201,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Enaam Traders,TradePrice1,True
+620034,32,Lucky Marwat,,0313-9006490,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Lucky Marwat V/S,TradePrice1,True
+620035,33,,,0302-3874430,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Yaqoob,TradePrice1,True
+620037,33,,,"0315-0972320, 0333-3352320",,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Meer Khan ,TradePrice1,True
+620038,33,,,0300-0440079,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Noor Khan,TradePrice1,True
+620039,33,,,"0311-8337130, 0336-1824900",,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Shareef ,TradePrice1,True
+620040,3,,,0093700088551,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Meer Khan,TradePrice1,True
+620041,34,-,,0304-2383290,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Qazi Irfan,TradePrice1,True
+620042,35,,,0304-7783209,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Dr.Darban Azad Traders,TradePrice1,True
+620045,5,Model Town Narwala Road,,0302-6093663,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/25/2025 00:00:00,06/26/2023 00:00:00,Dr.Irfan Ullah ,TradePrice1,True
+620046,38,Suraiy Nurang + Peshawar,,0300-5764491,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/15/2025 00:00:00,07/16/2023 00:00:00,Aaman Ullah,TradePrice1,True
+620047,4,,,,,,,,,,,,,True,False,Doctor,0.00,0,False,,07/15/2025 00:00:00,07/16/2023 00:00:00,Ameen Medical Store,TradePrice1,True
+620049,5,Sargodha Road,,,,,,,,,,,,True,False,Doctor,0.00,0,False,,07/17/2025 00:00:00,07/18/2023 00:00:00,ORION GROUP FSD,TradePrice1,True
+620060,41,Jaranwala.,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/29/2026 00:00:00,04/18/2024 00:00:00,Hafiz Poultry medicos,TradePrice1,True
+620061,4,Peshawer,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/29/2026 00:00:00,04/23/2024 00:00:00,Supreme Poultry ,TradePrice1,True
+620062,42,Hafizabad,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,05/19/2026 00:00:00,05/19/2024 00:00:00,"Dr,ASIF",TradePrice1,True
+620063,36,Hyderabad,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,05/31/2026 00:00:00,05/22/2024 00:00:00,Sheikh Shahid ,TradePrice1,True
+620064,33,QUETTA,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,06/02/2026 00:00:00,05/25/2024 00:00:00,Glubal V/S ,TradePrice1,True
+620065,36,Hyderabad,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/24/2026 00:00:00,08/24/2024 00:00:00,OBAID KAREEM,TradePrice1,True
+620067,4,Peshawer,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,09/18/2026 00:00:00,09/18/2024 00:00:00,HALEEM Vetnairy Store,TradePrice1,True
+620071,15,Kamaliya,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,10/24/2026 00:00:00,10/24/2024 00:00:00,Dr.Usman,TradePrice1,True
+620074,17,Lahore,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,11/27/2026 00:00:00,11/27/2024 00:00:00,Zeeshan Bivet Lahore,TradePrice1,True
+620076,33,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,12/16/2026 00:00:00,12/16/2024 00:00:00,Attique,TradePrice1,True
+620078,19,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,12/19/2026 00:00:00,12/19/2024 00:00:00,Kashmir poultry LiveStock,TradePrice1,True
+620080,19,RawalPindi,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,01/19/2027 00:00:00,01/19/2025 00:00:00,A.R Group Pindi,TradePrice1,True
+620081,12,Jhang,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,02/08/2027 00:00:00,02/08/2025 00:00:00,Vassy Jhang,TradePrice1,True
+620083,30,Mianwali,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,02/08/2027 00:00:00,02/08/2025 00:00:00,AL-Qabeer Poultary,TradePrice1,True
+620091,13,Sargodha,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/07/2027 00:00:00,04/07/2025 00:00:00,Hamza and Talha Traders 2,TradePrice1,True
+620092,46,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/29/2027 00:00:00,04/29/2025 00:00:00,Dr SAQAB ,TradePrice1,True
+620094,15,Kamaliya,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/19/2027 00:00:00,08/13/2025 00:00:00,Alharam Traders 2.,TradePrice1,True
+620095,13,Sargodah,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/19/2027 00:00:00,08/07/2025 00:00:00,Malik Afaaq,TradePrice1,True
+620096,16,MULTAN,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,09/02/2027 00:00:00,08/23/2025 00:00:00,Merlin Life care/ Dr.Asif,TradePrice1,True
+620097,13,Sargodah,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,12/02/2027 00:00:00,11/01/2025 00:00:00,Dr.TAHIR SGD,TradePrice1,True
+620098,13,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,12/02/2027 00:00:00,11/15/2025 00:00:00,RANA LIAQAT SGD,TradePrice1,True
+620099,41,Jaranwala,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,12/28/2027 00:00:00,11/01/2025 00:00:00,HAFIZ MEDICOZ LIVESTOCK,TradePrice1,True
+620103,48,Sawaat,,,,,,,,,,,,True,False,Other,0.00,0,False,,02/17/2028 00:00:00,01/01/2026 00:00:00,Nimat Ullah,TradePrice1,True
+620104,5,Faisalabad,,,,,,,,,,,,True,False,Doctor,0.00,0,False,,02/25/2028 00:00:00,01/01/2026 00:00:00,VIRTUS Pharmaceuticals,TradePrice1,True
+620107,35,Sakkhar,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/22/2028 00:00:00,04/23/2026 00:00:00,Danish Poultry Sakkhar,TradePrice1,True
+620108,37,Karachi,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/22/2028 00:00:00,02/28/2026 00:00:00,The Poultry Solution ,TradePrice1,True
+620109,16,Multan,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,04/29/2028 00:00:00,04/15/2026 00:00:00,Dr.Saqab Leon Group,TradePrice1,True
+620110,5,,,FSD,,,,,,,,,,True,False,Retailer,0.00,0,False,,05/25/2028 00:00:00,05/26/2026 00:00:00,Z.A Enterprises,TradePrice1,True
+620111,8,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/03/2028 00:00:00,07/04/2026 00:00:00,Dr.Wadood  C/O Hafiz Poultry,TradePrice1,True
+620112,43,Okara,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/03/2028 00:00:00,07/04/2026 00:00:00,Hassan Shahid ,TradePrice1,True
+620113,36,Hyderabad,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/03/2028 00:00:00,07/04/2026 00:00:00,Waseem Traders,TradePrice1,True
+620114,49,Cuttling Kpk,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/07/2028 00:00:00,07/08/2026 00:00:00,Zain V/S Cuttling,TradePrice1,True
+620115,50,Boneer ,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/07/2028 00:00:00,07/08/2026 00:00:00,Shah V/S ,TradePrice1,True
+620116,51,Khaal,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/07/2028 00:00:00,07/08/2026 00:00:00,Almansoor V/S ,TradePrice1,True
+620117,11,Raheem Yar Khan,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/28/2028 00:00:00,07/29/2026 00:00:00,Dr.Shakeel ,TradePrice1,True
+620118,4,Peshawer,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/28/2028 00:00:00,07/29/2026 00:00:00,Amjad Khan ,TradePrice1,True
+620119,30,Mianwali,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,07/28/2028 00:00:00,07/29/2026 00:00:00,Dr.Fida ,TradePrice1,True
+620120,11,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/12/2028 00:00:00,08/13/2026 00:00:00,Decent Poluntry ,TradePrice1,True
+620121,6,Sumandri,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/16/2028 00:00:00,08/17/2026 00:00:00,Jahzaib Sumandari,TradePrice1,True
+620122,33,,,,,,,,,,,,,True,False,Retailer,0.00,0,False,,08/17/2028 00:00:00,08/18/2026 00:00:00,Islamabad Poultry,TradePrice1,True

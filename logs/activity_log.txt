@@ -1150,3 +1150,967 @@ Format: TIMESTAMP | ACTIVITY_TYPE | ACTION | CompanyInfo UserInfo EntityInfo Det
 2026-08-13 02:56:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:285) [ITEM-00287] | Details: {'name=MB FCR Grow oral powder 25 kg'}
 2026-08-13 02:57:03 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:285) [ITEM-00287] | Details: {'name=MB FCR Grow oral powder 25 kg'}
 2026-08-15 01:41:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:286) [ITEM-00288] | Details: {'name=SHIPPER [A] 25 PACKET 1 X 6'}
+2026-08-17 11:49:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:353) [ITEM-00355] | Details: {'name=LABEL TONI PLEX 5 LIT'}
+2026-08-17 11:50:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:354) [ITEM-00356] | Details: {'name=LABEL TONI PLEX 1 LIT'}
+2026-08-17 11:50:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:355) [ITEM-00357] | Details: {'name=LABEL NEPHRETIC 1 KG'}
+2026-08-17 11:50:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:356) [ITEM-00358] | Details: {'name=LABEL URI FLUSH 1 LIT'}
+2026-08-17 11:51:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:357) [ITEM-00359] | Details: {'name=LABEL EN BOOST 1 LIT'}
+2026-08-17 11:51:41 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:357) | Details: {'name=LABEL URI FLUSH 5 LIT changes={'name': 'LABEL URI FLUSH 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 11:51:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:358) [ITEM-00360] | Details: {'name=LABEL EN BOOST 1 LIT'}
+2026-08-17 11:52:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:359) [ITEM-00361] | Details: {'name=LABEL EN BOOST 5 LIT'}
+2026-08-17 11:56:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:360) [ITEM-00362] | Details: {'name=BOTTLE ROUND LITER'}
+2026-08-17 11:56:16 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:360) | Details: {'name=BOTTLE LITER changes={'name': 'BOTTLE LITER', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 11:56:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:361) [ITEM-00363] | Details: {'name=BOTTLE 250 ML'}
+2026-08-17 11:57:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:362) [ITEM-00364] | Details: {'name=NUTRI LIC BAG 25 KG'}
+2026-08-17 11:58:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:363) [ITEM-00365] | Details: {'name=LABEL KIMCHI SAL 5 LIT'}
+2026-08-17 11:58:28 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:363) [ITEM-00365] | Details: {'name=LABEL KIMCHI SAL 5 LIT'}
+2026-08-17 12:02:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:364) [ITEM-00366] | Details: {'name=LABEL AMBRO LIC 1 LIT'}
+2026-08-17 12:03:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:365) [ITEM-00367] | Details: {'name=LABEL TOXI LIC 1 LIT'}
+2026-08-17 12:03:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:366) [ITEM-00368] | Details: {'name=LABEL TOXI LIC 5 LIT'}
+2026-08-17 12:04:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:367) [ITEM-00369] | Details: {'name=SHIPPER J'}
+2026-08-17 12:04:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:368) [ITEM-00370] | Details: {'name=LABEL BRONCOKILL 5 LIT'}
+2026-08-17 12:05:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:369) [ITEM-00371] | Details: {'name=PACKET GOLDEN PREMIX 1 KG'}
+2026-08-17 12:05:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:370) [ITEM-00372] | Details: {'name=LABEL GOLDEN PREMIX 25 KG'}
+2026-08-17 12:06:35 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:55) [ITEM-00057] | Details: {'name=Power Plus 5 kg'}
+2026-08-17 12:06:41 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:54) [ITEM-00056] | Details: {'name=Power plus 25 kg'}
+2026-08-17 12:07:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:371) [ITEM-00373] | Details: {'name=WHITE CAN 25 LIT'}
+2026-08-17 12:07:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:372) [ITEM-00374] | Details: {'name=LABEL RESPIGUARD 5 LIT'}
+2026-08-17 12:07:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:373) [ITEM-00375] | Details: {'name=LABEL RESPIGUARD 1 LIT'}
+2026-08-17 12:08:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:374) [ITEM-00376] | Details: {'name=LABEL MICROTOX 1 LIT'}
+2026-08-17 12:08:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:375) [ITEM-00377] | Details: {'name=LABEL MICROTOX 5 LIT'}
+2026-08-17 12:09:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:376) [ITEM-00378] | Details: {'name=LABEL HIPALIVE LIQUID 5 LIT'}
+2026-08-17 12:09:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:377) [ITEM-00379] | Details: {'name=LABEL HIPALIVE LIQUID 1 LIT'}
+2026-08-17 12:10:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:378) [ITEM-00380] | Details: {'name=BUCKET LARGE'}
+2026-08-17 12:11:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:379) [ITEM-00381] | Details: {'name=LABEL FEROVIT PLUS 1LIT'}
+2026-08-17 12:11:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:380) [ITEM-00382] | Details: {'name=LABEL FEROVIT PLUS 5 LIT'}
+2026-08-17 12:11:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:381) [ITEM-00383] | Details: {'name=LABEL SUPER COPPER LIQUID 1 LIT'}
+2026-08-17 12:12:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:382) [ITEM-00384] | Details: {'name=LABEL SUPER COPPER LIQUID 5 LIT'}
+2026-08-17 12:12:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:383) [ITEM-00385] | Details: {'name=LABEL ACIDI-LIC 25 LIT'}
+2026-08-17 12:12:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:384) [ITEM-00386] | Details: {'name=T'}
+2026-08-17 12:13:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:385) [ITEM-00387] | Details: {'name=LABEL BIO AMBROX 5 LIT'}
+2026-08-17 12:13:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:386) [ITEM-00388] | Details: {'name=LABEL BANTOX POWDER 25 KG'}
+2026-08-17 12:13:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:387) [ITEM-00389] | Details: {'name=LABEL BANTOX POWDER PLUS 25 KG'}
+2026-08-17 12:13:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:388) [ITEM-00390] | Details: {'name=LABEL BOP MICROGOLD 25 KG'}
+2026-08-17 12:14:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:389) [ITEM-00391] | Details: {'name=LABEL PROMIN GOLD MINERALS 20 KG'}
+2026-08-17 12:14:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:390) [ITEM-00392] | Details: {'name=PACKET PROMIN GOLD MINERALS 1 KG'}
+2026-08-17 12:15:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:391) [ITEM-00393] | Details: {'name=LABEL PH 5 LIQUID 25 LIT'}
+2026-08-17 12:15:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:392) [ITEM-00394] | Details: {'name=LABEL PH 5 LIQUID 5 LIT'}
+2026-08-17 12:16:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:393) [ITEM-00395] | Details: {'name=LABEL CALPHO LIC LIQUID 5 LIT'}
+2026-08-17 12:16:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:394) [ITEM-00396] | Details: {'name=LABEL BOP COPPER 1 LIT'}
+2026-08-17 12:16:59 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:353) | Details: {'name=LABEL TONI PLEX 5 LIT changes={'name': 'LABEL TONI PLEX 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:17:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:395) [ITEM-00397] | Details: {'name=LABEL ADEK POWDER 1 KG'}
+2026-08-17 12:17:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:396) [ITEM-00398] | Details: {'name=LABEL BOP ADEK 5 LIT'}
+2026-08-17 12:18:14 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:396) [ITEM-00398] | Details: {'name=LABEL BOP ADEK 5 LIT'}
+2026-08-17 12:19:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:397) [ITEM-00399] | Details: {'name=LABEL MINRO LIC 25 KG'}
+2026-08-17 12:19:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:398) [ITEM-00400] | Details: {'name=PACEKT MINRO LIC 1 KG'}
+2026-08-17 12:19:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:399) [ITEM-00401] | Details: {'name=LABEL VITAMINRO LIC 25 KG'}
+2026-08-17 12:19:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:400) [ITEM-00402] | Details: {'name=PACEKT VITAMINRO LIC 1 KG'}
+2026-08-17 12:20:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:401) [ITEM-00403] | Details: {'name=LABEL BENTO LIC 25 KG'}
+2026-08-17 12:21:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:402) [ITEM-00404] | Details: {'name=BAD ADLYLIC 25 KG'}
+2026-08-17 12:22:03 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:402) | Details: {'name=BAG IDLYLIC 25 KG changes={'name': 'BAG IDLYLIC 25 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:22:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:403) [ITEM-00405] | Details: {'name=BAD DCP-LIC 25 KG'}
+2026-08-17 12:22:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:404) [ITEM-00406] | Details: {'name=BAG ORGAFAT LIC 25 KG'}
+2026-08-17 12:22:59 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:404) | Details: {'name=BAG ORGAFAT LIC changes={'name': 'BAG ORGAFAT LIC', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:23:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:405) [ITEM-00407] | Details: {'name=S+D CALCO-LIC 100 ML'}
+2026-08-17 12:23:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:406) [ITEM-00408] | Details: {'name=S+D CALCO-LIC 100 ML'}
+2026-08-17 12:25:34 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:405) | Details: {'name=S+D CALPHO-LIC 100 ML changes={'name': 'S+D CALPHO-LIC 100 ML', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:25:43 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:406) | Details: {'name=S+D CALCO-LIC 120 ML changes={'name': 'S+D CALCO-LIC 120 ML', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:28:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:407) [ITEM-00409] | Details: {'name=LABEL BOP COOLPER POWDER 25 KG'}
+2026-08-17 12:28:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:408) [ITEM-00410] | Details: {'name=PACKET BOP SUPER DRINK 1 KG'}
+2026-08-17 12:29:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:409) [ITEM-00411] | Details: {'name=PACKET COOPLER POWDER 100 G'}
+2026-08-17 12:29:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:410) [ITEM-00412] | Details: {'name=PACKET MICRO GEST POWDER 100 G'}
+2026-08-17 12:30:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:411) [ITEM-00413] | Details: {'name=PACKET GROW MORE 100 G'}
+2026-08-17 12:30:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:412) [ITEM-00414] | Details: {'name=PACKET MAGENT 100 G'}
+2026-08-17 12:31:02 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:411) | Details: {'name=PACKET GROW MORE 100 G changes={'name': 'PACKET GROW MORE 100 G', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:31:10 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:412) | Details: {'name=PACKET MAGENT 100 G changes={'name': 'PACKET MAGENT 100 G', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:31:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:413) [ITEM-00415] | Details: {'name=PACKET CALCIUM 72 1 KG'}
+2026-08-17 12:32:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:414) [ITEM-00416] | Details: {'name=PACKET CALCIVIT D 1 KG'}
+2026-08-17 12:33:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:415) [ITEM-00417] | Details: {'name=PACKET GROW MORE 1 KG'}
+2026-08-17 12:34:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:416) [ITEM-00418] | Details: {'name=LABEL ENERGO LIC 5 LIT'}
+2026-08-17 12:34:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:417) [ITEM-00419] | Details: {'name=LABEL URETIC POWDER 1 KG'}
+2026-08-17 12:35:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:418) [ITEM-00420] | Details: {'name=LABEL PROCOPCID ORAL LIQUID 5 LIT'}
+2026-08-17 12:36:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:419) [ITEM-00421] | Details: {'name=LABEL HEAATIC OPTIMIZER 250 ML'}
+2026-08-17 12:37:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:420) [ITEM-00422] | Details: {'name=BAG DCP POWDER 29%'}
+2026-08-17 12:37:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:421) [ITEM-00423] | Details: {'name=LABEL TOXI OFF LIQUID 1 LIT'}
+2026-08-17 12:38:05 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:421) | Details: {'name=LABEL TOXI OFF LIQUID 5 LIT changes={'name': 'LABEL TOXI OFF LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:40:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:422) [ITEM-00424] | Details: {'name=LABEL TOXI GOLD LIQUID 5 LIT'}
+2026-08-17 12:41:07 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:422) | Details: {'name=LABEL TOXI GOLD LIQUID 5 LIT changes={'name': 'LABEL TOXI GOLD LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:41:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:423) [ITEM-00425] | Details: {'name=LABEL RESPIFIT LIQUID 5 LIT'}
+2026-08-17 12:43:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:424) [ITEM-00426] | Details: {'name=LABEL RESPIFIT 5 LIT'}
+2026-08-17 12:43:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:425) [ITEM-00427] | Details: {'name=LABEL HEPALIV LIQUID 1 LIT'}
+2026-08-17 12:43:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:426) [ITEM-00428] | Details: {'name=LABEL HEPALIV LIQUID 5 LIT'}
+2026-08-17 12:43:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:427) [ITEM-00429] | Details: {'name=RED COLOR BAG'}
+2026-08-17 12:44:16 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:427) | Details: {'name=RED BAG 25 KG changes={'name': 'RED BAG 25 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 12:44:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:428) [ITEM-00430] | Details: {'name=BLUE BAG 25 KG'}
+2026-08-17 12:44:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:429) [ITEM-00431] | Details: {'name=YELLOW BAG 25 KG'}
+2026-08-17 12:45:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:430) [ITEM-00432] | Details: {'name=BAG CALCIUM 72 [25 KG]'}
+2026-08-17 12:46:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:431) [ITEM-00433] | Details: {'name=LABEL BOP LIVERCARE 25 KG'}
+2026-08-17 12:47:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:432) [ITEM-00434] | Details: {'name=LABEL EC GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 12:48:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:433) [ITEM-00435] | Details: {'name=LABEL SACHRO LIC ORAL POWDER 25 KG'}
+2026-08-17 12:48:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:434) [ITEM-00436] | Details: {'name=PACKET SACHRO LIC ORAL POWDER 1 KG'}
+2026-08-17 12:48:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:435) [ITEM-00437] | Details: {'name=LABEL EGGCELENT LIQUID 5 LIT'}
+2026-08-17 12:49:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:436) [ITEM-00438] | Details: {'name=LABEL LIVOCARE LIQUID 5 LIIT'}
+2026-08-17 12:49:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:437) [ITEM-00439] | Details: {'name=LABEL YEAST PLUS POWDER 25 KG'}
+2026-08-17 12:50:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:438) [ITEM-00440] | Details: {'name=S+D GRLIMINT PLUS LIQUID 100 M'}
+2026-08-17 12:50:54 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:438) [ITEM-00440] | Details: {'name=S+D GRLIMINT PLUS LIQUID 100 M'}
+2026-08-17 12:53:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:439) [ITEM-00441] | Details: {'name=PACKET PROFEN C+ 1 KG'}
+2026-08-17 12:53:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:440) [ITEM-00442] | Details: {'name=LABEL HEPATIC OPTIMIZER FORT 25 KG'}
+2026-08-17 13:02:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:441) [ITEM-00443] | Details: {'name=label aquajust 25 lit'}
+2026-08-17 13:04:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:442) [ITEM-00444] | Details: {'name=LABEL REG OLD 25 KG'}
+2026-08-17 13:04:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:443) [ITEM-00445] | Details: {'name=LABEL REG OLD 1 KG'}
+2026-08-17 13:05:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:444) [ITEM-00446] | Details: {'name=LABEL HIMAX DAIRY 25 KG'}
+2026-08-17 13:05:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:445) [ITEM-00447] | Details: {'name=LABEL RUMICID 25 KG'}
+2026-08-17 13:08:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:446) [ITEM-00448] | Details: {'name=LABEL HY CALD 5 LIT'}
+2026-08-17 13:08:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:447) [ITEM-00449] | Details: {'name=LABEL AVIVITA PLUS 1 LIT'}
+2026-08-17 13:09:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:448) [ITEM-00450] | Details: {'name=LABEL AVIVITA PLUS 5 LIT'}
+2026-08-17 13:10:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:449) [ITEM-00451] | Details: {'name=LABEL EX TOX LIQUID 5 LIT'}
+2026-08-17 13:13:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:450) [ITEM-00452] | Details: {'name=LABEL PH CURE 25 LIT'}
+2026-08-17 13:13:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:451) [ITEM-00453] | Details: {'name=LABEL ES 200 5 LIT'}
+2026-08-17 13:14:34 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:452) [ITEM-00454] | Details: {'name=LABEL STABLE C20 [5 LIT]'}
+2026-08-17 13:15:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:453) [ITEM-00455] | Details: {'name=S+D TIMP EX ORAL LIQUID 120ML'}
+2026-08-17 13:16:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:454) [ITEM-00456] | Details: {'name=LABEL BOP DAIRY TOX 25 KG'}
+2026-08-17 13:16:26 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:454) [ITEM-00456] | Details: {'name=LABEL BOP DAIRY TOX 25 KG'}
+2026-08-17 13:27:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:455) [ITEM-00457] | Details: {'name=LABEL AQUA GUARD 25 LIT'}
+2026-08-17 13:30:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:456) [ITEM-00458] | Details: {'name=LABEL VIRO IMMUNE 1 LIT'}
+2026-08-17 13:30:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:457) [ITEM-00459] | Details: {'name=LABEL VIRO IMMUNE 5 LIT'}
+2026-08-17 13:30:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:458) [ITEM-00460] | Details: {'name=LABEL SUPER YEAST LIQUID 5 LIT'}
+2026-08-17 13:31:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:459) [ITEM-00461] | Details: {'name=LABEL VITAL GUT 5 LIT'}
+2026-08-17 13:32:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:460) [ITEM-00462] | Details: {'name=LABEL BOP PRO TOX LIT'}
+2026-08-17 13:32:41 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:460) | Details: {'name=LABEL BOP PRO TOX 5 LIT changes={'name': 'LABEL BOP PRO TOX 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 13:33:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:461) [ITEM-00463] | Details: {'name=LABEL VETI GUARD LIT'}
+2026-08-17 13:33:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:462) [ITEM-00464] | Details: {'name=LABEL SPARKO 80 25  LIT'}
+2026-08-17 13:33:52 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:461) | Details: {'name=LABEL VETI GUARD 5 LIT changes={'name': 'LABEL VETI GUARD 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 13:34:00 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:462) | Details: {'name=LABEL SPARKO 80 25 LIT changes={'name': 'LABEL SPARKO 80 25 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 13:34:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:463) [ITEM-00465] | Details: {'name=LABEL AMPRO PLUS 5 LIT'}
+2026-08-17 13:34:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:464) [ITEM-00466] | Details: {'name=LABEL HEPATIC OPTIMIZER 1 LIT'}
+2026-08-17 13:39:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:465) [ITEM-00467] | Details: {'name=LABEL HEAATIC OPTIMIZER 5 LIT'}
+2026-08-17 13:40:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:466) [ITEM-00468] | Details: {'name=SHIPPER (K) 1 KG JAR'}
+2026-08-17 13:41:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:467) [ITEM-00469] | Details: {'name=DRUM WHITE 25 KG'}
+2026-08-17 13:42:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:468) [ITEM-00470] | Details: {'name=LABEL GROW MORE 25 KG'}
+2026-08-17 13:43:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:469) [ITEM-00471] | Details: {'name=S+D HEAATIC OPTIMIZER 100 ML'}
+2026-08-17 13:43:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:470) [ITEM-00472] | Details: {'name=DROPPER 20 ML'}
+2026-08-17 13:44:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:471) [ITEM-00473] | Details: {'name=PACKET UDDER BOOST 500 G'}
+2026-08-17 13:44:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:472) [ITEM-00474] | Details: {'name=LABEL DCP GOLD 25 KH'}
+2026-08-17 13:45:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:473) [ITEM-00475] | Details: {'name=LABEL RESPI EASE LIQUID 5 LIT'}
+2026-08-17 13:45:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:474) [ITEM-00476] | Details: {'name=LABEL BIO ESEL 200 LIQUID 5 LIT'}
+2026-08-17 13:46:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:475) [ITEM-00477] | Details: {'name=LABEL LYZOGUARD LIQUID 5 LIT'}
+2026-08-17 13:46:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:476) [ITEM-00478] | Details: {'name=LABEL TIE TOX LIQUID 5 LIT'}
+2026-08-17 13:46:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:477) [ITEM-00479] | Details: {'name=LABEL MERLIN FIX ORAL POWDER 25 KIG'}
+2026-08-17 13:47:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:478) [ITEM-00480] | Details: {'name=LABEL CRD  MINT ORAL LIQUID 5 LIT'}
+2026-08-17 13:47:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:479) [ITEM-00481] | Details: {'name=LABEL CRD  MINT ORAL LIQUID 1 LIT'}
+2026-08-17 13:47:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:480) [ITEM-00482] | Details: {'name=LABEL TASK 1 ORAL LIQUID 1 LIT'}
+2026-08-17 13:47:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:481) [ITEM-00483] | Details: {'name=LABEL TASK 1 ORAL LIQUID 5 LIT'}
+2026-08-17 13:47:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:482) [ITEM-00484] | Details: {'name=LABEL IMMUNIT Z ORAL LIQUID 5 LIT'}
+2026-08-17 13:47:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:483) [ITEM-00485] | Details: {'name=LABEL IMMUNIT Z ORAL LIQUID 1 LIT'}
+2026-08-17 13:48:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:484) [ITEM-00486] | Details: {'name=LABEL TOPVIT ORAL LIQUID 5 LIT'}
+2026-08-17 13:49:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:485) [ITEM-00487] | Details: {'name=LABEL MLC 100 ORAL LIQUID 1 LIT'}
+2026-08-17 13:49:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:486) [ITEM-00488] | Details: {'name=LABEL MLC 100 ORAL LIQUID 5 LIT'}
+2026-08-17 13:49:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:487) [ITEM-00489] | Details: {'name=LABEL MINTO LIC ORAL LIQUID 1 LIT'}
+2026-08-17 13:49:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:488) [ITEM-00490] | Details: {'name=PACKET RENO GURD FLUSH ORAL POWDER 1 KG'}
+2026-08-17 13:50:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:489) [ITEM-00491] | Details: {'name=LABEL FROST ORAL LIQUID 5 LIT'}
+2026-08-17 13:50:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:490) [ITEM-00492] | Details: {'name=LABEL FLUSH GOLD 5 LIT'}
+2026-08-17 13:50:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:491) [ITEM-00493] | Details: {'name=LABEL SUPER LIVFIT 5 LIT'}
+2026-08-17 13:51:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:492) [ITEM-00494] | Details: {'name=LABEL ACIDO FORTE 25 LIT'}
+2026-08-17 13:51:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:493) [ITEM-00495] | Details: {'name=LABEL VETLIV ORAL SOLUTION 5 LIT'}
+2026-08-17 13:52:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:494) [ITEM-00496] | Details: {'name=LABEL COPPER GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 13:52:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:495) [ITEM-00497] | Details: {'name=LABEL ADEK GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 13:56:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:496) [ITEM-00498] | Details: {'name=LABEL HEPA GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 13:56:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:497) [ITEM-00499] | Details: {'name=LABEL TOXI GOLD FORTE POWDER 25 KG'}
+2026-08-17 13:57:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:498) [ITEM-00500] | Details: {'name=LABEL EMUNE GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 13:57:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:499) [ITEM-00501] | Details: {'name=LABEL MICRO MILK PREMIX'}
+2026-08-17 13:57:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:500) [ITEM-00502] | Details: {'name=LABEL MICRO MILK PREMIX POWER 25 KG'}
+2026-08-17 13:57:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:501) [ITEM-00503] | Details: {'name=LABLE RUMEN GUARD ORAL POWDER 25 KG'}
+2026-08-17 13:58:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:502) [ITEM-00504] | Details: {'name=LABEL ULTRA IMMUNE ORAL LIQUID 5 LIT'}
+2026-08-17 13:58:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:503) [ITEM-00505] | Details: {'name=LABEL MENTO RESPI ORAL LIQUID 5 LIT'}
+2026-08-17 13:59:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:504) [ITEM-00506] | Details: {'name=LABEL BENTOX PLUS ORAL POWDER 25 KG'}
+2026-08-17 14:00:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:505) [ITEM-00507] | Details: {'name=PACKET DAIRY YEAST 1 KG'}
+2026-08-17 14:00:34 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:506) [ITEM-00508] | Details: {'name=LABEL CHIK HUARD ORAL LIQUID 5 LIT'}
+2026-08-17 14:01:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:507) [ITEM-00509] | Details: {'name=LABEL LG MUNE ORAL LIQUID 5 LIT'}
+2026-08-17 14:01:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:508) [ITEM-00510] | Details: {'name=LABEL BOP E 50 ORAL LIQUID 5 LIT'}
+2026-08-17 14:05:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:509) [ITEM-00511] | Details: {'name=LABEL LEVO CARE ORAL  LIQUID 5 LIT'}
+2026-08-17 14:05:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:510) [ITEM-00512] | Details: {'name=LABEL MYCO SHEILD  ORAL LIQUID 5 LIT'}
+2026-08-17 14:05:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:511) [ITEM-00513] | Details: {'name=LABEL REHYDRATE ORAL LIQUID 5 LIT'}
+2026-08-17 14:06:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:512) [ITEM-00514] | Details: {'name=LABEL PHYTO PHOS ORAL LIQUID'}
+2026-08-17 14:06:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:513) [ITEM-00515] | Details: {'name=LABEL BOP BUFFER PLUS 25 KG'}
+2026-08-17 14:09:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:514) [ITEM-00516] | Details: {'name=LABEL ULTRA IMMUNE ORAL LIQUID 1 LTI'}
+2026-08-17 14:09:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:515) [ITEM-00517] | Details: {'name=LABEL NEUFEN GOLD ORAL POWDER 1 KG'}
+2026-08-17 14:10:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:516) [ITEM-00518] | Details: {'name=LABEL BOVI VITAM PREMIX 25 KG'}
+2026-08-17 14:10:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:517) [ITEM-00519] | Details: {'name=LABEL BOVI MINERAL PREMIX 25 K'}
+2026-08-17 14:10:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:518) [ITEM-00520] | Details: {'name=BOVI TOX ORAL POWDER 25 KG'}
+2026-08-17 14:10:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:519) [ITEM-00521] | Details: {'name=LABEL BOVI TOX ORAL POWDER 25 KG'}
+2026-08-17 14:10:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:520) [ITEM-00522] | Details: {'name=LABEL BOVI TOX PLUS ORAL POWDER 25 KG'}
+2026-08-17 14:11:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:521) [ITEM-00523] | Details: {'name=LABEL BOVI DCP ORAL POWDER 25 KG'}
+2026-08-17 14:11:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:522) [ITEM-00524] | Details: {'name=LABEL OXYESP ORAL LIQUID 5 LIT'}
+2026-08-17 14:11:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:523) [ITEM-00525] | Details: {'name=LABEL LIVTONE ORAL LIQUID 5 LIT'}
+2026-08-17 14:11:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:524) [ITEM-00526] | Details: {'name=LABEL COPPER CHELATE ORAL LIQUID 5 LIT'}
+2026-08-17 14:12:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:525) [ITEM-00527] | Details: {'name=LABEL VITAMIN E SAL ORAL LIQUID 5 LIT'}
+2026-08-17 14:12:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:526) [ITEM-00528] | Details: {'name=LABEL LIVGUARD ORAL LIQUID 5 LIT'}
+2026-08-17 14:13:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:527) [ITEM-00529] | Details: {'name=LABEL BOP PHYTAZYME LIQUID PYTASE 5 LIT'}
+2026-08-17 14:13:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:528) [ITEM-00530] | Details: {'name=LABEL CHICK GUARD ORAL LIQUID 1 LIT'}
+2026-08-17 14:14:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:529) [ITEM-00531] | Details: {'name=LABEL CHICK GUARD ORAL LIQUID 5 LIT'}
+2026-08-17 14:14:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:530) [ITEM-00532] | Details: {'name=LABEL VITAL GUT 1 LIT'}
+2026-08-17 14:15:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:531) [ITEM-00533] | Details: {'name=LABEL BOP E 50 ORAL LIQUID 1 LIT'}
+2026-08-17 14:15:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:532) [ITEM-00534] | Details: {'name=LABEL BOP PRO TOX LIQUID 1 LIT'}
+2026-08-17 14:15:57 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:512) | Details: {'name=LABEL PHYTO PHOS ORAL LIQUID 5 LIT changes={'name': 'LABEL PHYTO PHOS ORAL LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-17 14:16:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:533) [ITEM-00535] | Details: {'name=LABEL PHYTO PHOS ORAL LIQUID 1 LIT'}
+2026-08-17 14:16:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:534) [ITEM-00536] | Details: {'name=LABEL HERBS GOLD ORAL LIQUID 5 LIT'}
+2026-08-17 14:16:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:535) [ITEM-00537] | Details: {'name=LABEL DCP LIC ORAL POWDER 25 KG'}
+2026-08-17 14:17:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:536) [ITEM-00538] | Details: {'name=LABEL VETO RESPI ORAL LIQUID OLD BASE 5 LIT'}
+2026-08-17 14:17:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:537) [ITEM-00539] | Details: {'name=LABEL TOXIN PRO ORAL LIQUID 5 LIT'}
+2026-08-17 14:17:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:538) [ITEM-00540] | Details: {'name=LABEL LG MUNE ORAL LIQUID 1 LIT'}
+2026-08-17 14:18:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:539) [ITEM-00541] | Details: {'name=LABEL ULTRA E SEL ORAL LIQUID 1 LIT'}
+2026-08-17 14:19:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:540) [ITEM-00542] | Details: {'name=LABEL ULTRA LIVERCARE ORAL LIQUID 1 LIT'}
+2026-08-17 14:19:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:541) [ITEM-00543] | Details: {'name=BOP NUTRAMIN FORTE 25 KG'}
+2026-08-17 14:20:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:542) [ITEM-00544] | Details: {'name=LABEL BOP D CAL ORAL LIQUID 5 LIT'}
+2026-08-17 14:20:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:543) [ITEM-00545] | Details: {'name=LABEL JELITO LIQUID 25 LIT'}
+2026-08-17 14:20:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:544) [ITEM-00546] | Details: {'name=LABEL BIO E SEL 20 ORAL LIQUID 5 LIT'}
+2026-08-17 14:21:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:545) [ITEM-00547] | Details: {'name=LABEL TIE TOX LIQUID 1 LIT'}
+2026-08-17 14:22:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:546) [ITEM-00548] | Details: {'name=LABEL RESPI EASE LIQUID 1 LIT'}
+2026-08-19 03:18:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:547) [ITEM-00549] | Details: {'name=Aerosil'}
+2026-08-19 03:18:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:548) [ITEM-00550] | Details: {'name=Ammonium chloride'}
+2026-08-19 03:19:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:549) [ITEM-00551] | Details: {'name=Bentonite'}
+2026-08-19 03:19:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:550) [ITEM-00552] | Details: {'name=Citric Acid'}
+2026-08-19 03:19:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:551) [ITEM-00553] | Details: {'name=CMC Sodium'}
+2026-08-19 03:19:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:552) [ITEM-00554] | Details: {'name=Calcium Sulphate'}
+2026-08-19 03:19:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:553) [ITEM-00555] | Details: {'name=CSL'}
+2026-08-19 03:19:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:554) [ITEM-00556] | Details: {'name=Calcium Carbonate'}
+2026-08-19 03:19:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:555) [ITEM-00557] | Details: {'name=Copper Sulphate'}
+2026-08-19 03:19:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:556) [ITEM-00558] | Details: {'name=Betaine'}
+2026-08-19 03:19:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:557) [ITEM-00559] | Details: {'name=Choline Chloride'}
+2026-08-19 03:19:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:558) [ITEM-00560] | Details: {'name=Chocolate Brown Colour'}
+2026-08-19 03:19:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:559) [ITEM-00561] | Details: {'name=Calcium Chloride'}
+2026-08-19 03:19:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:560) [ITEM-00562] | Details: {'name=ChloroForm'}
+2026-08-19 03:19:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:561) [ITEM-00563] | Details: {'name=DCP (Calcium)'}
+2026-08-19 03:19:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:562) [ITEM-00564] | Details: {'name=DCP (Dana)'}
+2026-08-19 03:19:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:563) [ITEM-00565] | Details: {'name=Camphor'}
+2026-08-19 03:19:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:564) [ITEM-00566] | Details: {'name=Dextrose'}
+2026-08-19 03:19:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:565) [ITEM-00567] | Details: {'name=Eucalyptus Oil'}
+2026-08-19 03:19:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:566) [ITEM-00568] | Details: {'name=Formic Acid'}
+2026-08-19 03:19:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:567) [ITEM-00569] | Details: {'name=Glacial Acetic Acid'}
+2026-08-19 03:19:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:568) [ITEM-00570] | Details: {'name=Genshat Voilt (Crystal)'}
+2026-08-19 03:19:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:569) [ITEM-00571] | Details: {'name=Garlic Oil'}
+2026-08-19 03:19:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:570) [ITEM-00572] | Details: {'name=Garlic Extract Powder'}
+2026-08-19 03:19:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:571) [ITEM-00573] | Details: {'name=Ginger Oil'}
+2026-08-19 03:19:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:572) [ITEM-00574] | Details: {'name=Ginger Extract Powder'}
+2026-08-19 03:19:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:573) [ITEM-00575] | Details: {'name=Kaolin'}
+2026-08-19 03:19:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:574) [ITEM-00576] | Details: {'name=Lactic Acid'}
+2026-08-19 03:19:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:575) [ITEM-00577] | Details: {'name=Lysozyme'}
+2026-08-19 03:19:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:576) [ITEM-00578] | Details: {'name=Methyl Paraben Sodium (MP)'}
+2026-08-19 03:19:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:577) [ITEM-00579] | Details: {'name=Menthol Crystal'}
+2026-08-19 03:19:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:578) [ITEM-00580] | Details: {'name=Menthol Essence Oil'}
+2026-08-19 03:19:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:579) [ITEM-00581] | Details: {'name=Molasses'}
+2026-08-19 03:19:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:580) [ITEM-00582] | Details: {'name=Magnesium Sulphate'}
+2026-08-19 03:19:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:581) [ITEM-00583] | Details: {'name=Turpentine Oil'}
+2026-08-19 03:19:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:582) [ITEM-00584] | Details: {'name=Propylene Glycol (PG)'}
+2026-08-19 03:19:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:583) [ITEM-00585] | Details: {'name=Propyl Paraben Sodium (PP)'}
+2026-08-19 03:19:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:584) [ITEM-00586] | Details: {'name=Phosphoric Acid 85%'}
+2026-08-19 03:19:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:585) [ITEM-00587] | Details: {'name=*(missing)*'}
+2026-08-19 03:19:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:586) [ITEM-00588] | Details: {'name=Resberry Red Color'}
+2026-08-19 03:19:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:587) [ITEM-00589] | Details: {'name=Sodium Benzoate'}
+2026-08-19 03:19:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:588) [ITEM-00590] | Details: {'name=Starch'}
+2026-08-19 03:20:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:589) [ITEM-00591] | Details: {'name=Sodium Chloride'}
+2026-08-19 03:20:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:590) [ITEM-00592] | Details: {'name=Sodium Bicarbonate'}
+2026-08-19 03:20:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:591) [ITEM-00593] | Details: {'name=Sorbitol Liquid 70%'}
+2026-08-19 03:20:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:592) [ITEM-00594] | Details: {'name=Silmyrin'}
+2026-08-19 03:20:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:593) [ITEM-00595] | Details: {'name=Sodium Sulphate'}
+2026-08-19 03:20:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:594) [ITEM-00596] | Details: {'name=Titanium Dioxide (T.T)'}
+2026-08-19 03:20:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:595) [ITEM-00597] | Details: {'name=Tween 80'}
+2026-08-19 03:20:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:596) [ITEM-00598] | Details: {'name=Tartrazine Yellow Color Indian'}
+2026-08-19 03:20:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:597) [ITEM-00599] | Details: {'name=Urea'}
+2026-08-19 03:20:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:598) [ITEM-00600] | Details: {'name=Vitamin A'}
+2026-08-19 03:20:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:599) [ITEM-00601] | Details: {'name=Vitamin B1'}
+2026-08-19 03:20:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:600) [ITEM-00602] | Details: {'name=Vitamin B2'}
+2026-08-19 03:20:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:601) [ITEM-00603] | Details: {'name=Vitamin C (Ascorbic acid)'}
+2026-08-19 03:20:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:602) [ITEM-00604] | Details: {'name=Vitamin D3'}
+2026-08-19 03:20:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:603) [ITEM-00605] | Details: {'name=Vitamin B6'}
+2026-08-19 03:20:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:604) [ITEM-00606] | Details: {'name=Xanthan Gum'}
+2026-08-19 03:20:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:605) [ITEM-00607] | Details: {'name=Wheat Bran'}
+2026-08-19 03:20:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:606) [ITEM-00608] | Details: {'name=Zinc Sulphate'}
+2026-08-19 03:20:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:607) [ITEM-00609] | Details: {'name=Manganese'}
+2026-08-19 03:20:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:608) [ITEM-00610] | Details: {'name=Cobalt Sulphate'}
+2026-08-19 03:20:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:609) [ITEM-00611] | Details: {'name=Iron Sulphate'}
+2026-08-19 03:20:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:610) [ITEM-00612] | Details: {'name=Vitamin B-12'}
+2026-08-19 03:20:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:611) [ITEM-00613] | Details: {'name=Spt Amm. Aromatic'}
+2026-08-19 03:20:34 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:612) [ITEM-00614] | Details: {'name=Tinc Zingiberis Forte'}
+2026-08-19 03:20:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:613) [ITEM-00615] | Details: {'name=Tinc. Cardamom Co'}
+2026-08-19 03:20:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:614) [ITEM-00616] | Details: {'name=Aqua Menth Pip Conc'}
+2026-08-19 03:20:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:615) [ITEM-00617] | Details: {'name=Linseed A'}
+2026-08-19 03:20:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:616) [ITEM-00618] | Details: {'name=Anise Oil'}
+2026-08-19 03:20:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:617) [ITEM-00619] | Details: {'name=Thymol'}
+2026-08-19 03:20:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:618) [ITEM-00620] | Details: {'name=Vitamin E'}
+2026-08-19 03:20:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:619) [ITEM-00621] | Details: {'name=Potassium Chloride'}
+2026-08-19 03:20:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:620) [ITEM-00622] | Details: {'name=Crystal Violet'}
+2026-08-19 03:20:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:621) [ITEM-00623] | Details: {'name=Peppermint Oil'}
+2026-08-19 03:20:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:622) [ITEM-00624] | Details: {'name=Levander Oil'}
+2026-08-19 03:20:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:623) [ITEM-00625] | Details: {'name=Mallotus Philippinesis'}
+2026-08-19 03:20:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:624) [ITEM-00626] | Details: {'name=Packing'}
+2026-08-19 03:20:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:625) [ITEM-00627] | Details: {'name=Trachyspermum Ammi Ext'}
+2026-08-19 03:21:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:626) [ITEM-00628] | Details: {'name=Capsicum Oil'}
+2026-08-19 03:21:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:627) [ITEM-00629] | Details: {'name=Capsium Chloride'}
+2026-08-19 03:21:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:628) [ITEM-00630] | Details: {'name=Clove Oil'}
+2026-08-19 03:21:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:629) [ITEM-00631] | Details: {'name=Carnitine'}
+2026-08-19 03:21:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:630) [ITEM-00632] | Details: {'name=Methionine'}
+2026-08-19 03:21:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:631) [ITEM-00633] | Details: {'name=Inositol'}
+2026-08-19 03:21:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:632) [ITEM-00634] | Details: {'name=Vitamin PP'}
+2026-08-19 03:21:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:633) [ITEM-00635] | Details: {'name=L-Aspartic Acid'}
+2026-08-19 03:21:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:634) [ITEM-00636] | Details: {'name=L-Glutamic Acid'}
+2026-08-19 03:21:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:635) [ITEM-00637] | Details: {'name=L-Glycine'}
+2026-08-19 03:21:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:636) [ITEM-00638] | Details: {'name=Magnesium Chloride'}
+2026-08-19 03:21:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:637) [ITEM-00639] | Details: {'name=Milk Thristle Extract'}
+2026-08-19 03:21:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:638) [ITEM-00640] | Details: {'name=Boldo Extract'}
+2026-08-19 03:21:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:639) [ITEM-00641] | Details: {'name=Artichoke Extract'}
+2026-08-19 03:21:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:640) [ITEM-00642] | Details: {'name=Kimchi Extract'}
+2026-08-19 03:21:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:641) [ITEM-00643] | Details: {'name=Propionic Acid'}
+2026-08-19 03:21:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:642) [ITEM-00644] | Details: {'name=Sodium Selenite'}
+2026-08-19 03:21:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:643) [ITEM-00645] | Details: {'name=Mono & diglycerides of fatty Acids'}
+2026-08-19 03:21:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:644) [ITEM-00646] | Details: {'name=Ammonium Propionate'}
+2026-08-19 03:21:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:645) [ITEM-00647] | Details: {'name=Yeast Extract (Saccharomyces Cerevisiae)'}
+2026-08-19 03:21:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:646) [ITEM-00648] | Details: {'name=Tocopherol Acetate'}
+2026-08-19 03:21:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:647) [ITEM-00649] | Details: {'name=Ortho Phosphoric Acid'}
+2026-08-19 03:21:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:648) [ITEM-00650] | Details: {'name=Glycine'}
+2026-08-19 03:21:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:649) [ITEM-00651] | Details: {'name=Lysine'}
+2026-08-19 03:22:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:650) [ITEM-00652] | Details: {'name=Sodium Citrate'}
+2026-08-19 03:22:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:651) [ITEM-00653] | Details: {'name=L-Carnitine Hydrochloride'}
+2026-08-19 03:22:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:652) [ITEM-00654] | Details: {'name=Mannan Oligosaccharides'}
+2026-08-19 03:22:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:653) [ITEM-00655] | Details: {'name=Cynarine'}
+2026-08-19 03:22:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:654) [ITEM-00656] | Details: {'name=Malic Acid'}
+2026-08-19 03:22:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:655) [ITEM-00657] | Details: {'name=Calcium Lactate'}
+2026-08-19 03:22:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:656) [ITEM-00658] | Details: {'name=Thyme Oil'}
+2026-08-19 03:22:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:657) [ITEM-00659] | Details: {'name=Calcium Phosphate'}
+2026-08-19 03:22:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:658) [ITEM-00660] | Details: {'name=Iodine'}
+2026-08-19 03:22:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:659) [ITEM-00661] | Details: {'name=Calcium'}
+2026-08-19 03:22:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:660) [ITEM-00662] | Details: {'name=Calcium Propionate'}
+2026-08-19 03:22:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:661) [ITEM-00663] | Details: {'name=Sodium Propionate'}
+2026-08-19 03:22:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:662) [ITEM-00664] | Details: {'name=Magnesium Oxide'}
+2026-08-19 03:22:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:663) [ITEM-00665] | Details: {'name=Vitamin K'}
+2026-08-19 03:22:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:664) [ITEM-00666] | Details: {'name=Vitamin B5'}
+2026-08-19 03:22:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:665) [ITEM-00667] | Details: {'name=Niacin'}
+2026-08-19 03:22:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:666) [ITEM-00668] | Details: {'name=Folic Acid'}
+2026-08-19 03:22:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:667) [ITEM-00669] | Details: {'name=Biotin'}
+2026-08-19 03:22:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:668) [ITEM-00670] | Details: {'name=EDTA (Antioxidant)'}
+2026-08-19 03:22:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:669) [ITEM-00671] | Details: {'name=Aluminum Oxide'}
+2026-08-19 03:22:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:670) [ITEM-00672] | Details: {'name=Calcium Oxide'}
+2026-08-19 03:22:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:671) [ITEM-00673] | Details: {'name=Iron Oxide'}
+2026-08-19 03:22:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:672) [ITEM-00674] | Details: {'name=Sodium Oxide'}
+2026-08-19 03:22:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:673) [ITEM-00675] | Details: {'name=Potassium Oxide'}
+2026-08-19 03:22:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:674) [ITEM-00676] | Details: {'name=Rumen bypass Fat'}
+2026-08-19 03:22:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:675) [ITEM-00677] | Details: {'name=Rumen bypass Protein'}
+2026-08-19 03:22:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:676) [ITEM-00678] | Details: {'name=Live Yeast Culture'}
+2026-08-19 03:22:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:677) [ITEM-00679] | Details: {'name=Bacillus Subtilles Extract'}
+2026-08-19 03:22:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:678) [ITEM-00680] | Details: {'name=Tri Calcium Phosphate'}
+2026-08-19 03:22:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:679) [ITEM-00681] | Details: {'name=Jivanti'}
+2026-08-19 03:22:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:680) [ITEM-00682] | Details: {'name=Shatavari'}
+2026-08-19 03:22:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:681) [ITEM-00683] | Details: {'name=Kambojika'}
+2026-08-19 03:22:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:682) [ITEM-00684] | Details: {'name=Zingiber Officinale'}
+2026-08-19 03:22:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:683) [ITEM-00685] | Details: {'name=Di Sodium Hydrogen Citrate'}
+2026-08-19 03:22:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:684) [ITEM-00686] | Details: {'name=Belladonna Extract'}
+2026-08-19 03:22:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:685) [ITEM-00687] | Details: {'name=Nuxvomica'}
+2026-08-19 03:22:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:686) [ITEM-00688] | Details: {'name=Vitamin H'}
+2026-08-19 03:22:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:687) [ITEM-00689] | Details: {'name=Zinc Chloride'}
+2026-08-19 03:22:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:688) [ITEM-00690] | Details: {'name=Vitamin B3'}
+2026-08-19 03:22:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:689) [ITEM-00691] | Details: {'name=D.CP (Phosphorous)'}
+2026-08-19 03:23:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:690) [ITEM-00692] | Details: {'name=Quercus Infectoria'}
+2026-08-19 03:23:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:691) [ITEM-00693] | Details: {'name=Bambusa Arundinacea'}
+2026-08-19 03:23:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:692) [ITEM-00694] | Details: {'name=Potassium Nitrate'}
+2026-08-19 03:23:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:693) [ITEM-00695] | Details: {'name=Ammonium'}
+2026-08-19 03:23:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:694) [ITEM-00696] | Details: {'name=Licorice'}
+2026-08-19 03:23:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:695) [ITEM-00697] | Details: {'name=Wheat Husk'}
+2026-08-19 03:23:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:696) [ITEM-00698] | Details: {'name=Thyme Powder'}
+2026-08-19 03:23:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:697) [ITEM-00699] | Details: {'name=Cayenne Paper Powder'}
+2026-08-19 03:23:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:698) [ITEM-00700] | Details: {'name=Vitamin K3'}
+2026-08-19 03:23:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:699) [ITEM-00701] | Details: {'name=Nicotinic Acid'}
+2026-08-19 03:23:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:700) [ITEM-00702] | Details: {'name=Pantothenic Acid'}
+2026-08-19 03:23:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:701) [ITEM-00703] | Details: {'name=Threonine'}
+2026-08-19 03:23:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:702) [ITEM-00704] | Details: {'name=Herbal Extract'}
+2026-08-19 03:23:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:703) [ITEM-00705] | Details: {'name=Thymus Vulgaris'}
+2026-08-19 03:23:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:704) [ITEM-00706] | Details: {'name=Oregano Extract'}
+2026-08-19 03:23:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:705) [ITEM-00707] | Details: {'name=Mentha Piperta'}
+2026-08-19 03:23:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:706) [ITEM-00708] | Details: {'name=Ferrous Sulfate'}
+2026-08-19 03:23:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:707) [ITEM-00709] | Details: {'name=Ethylenediamine dihydrochloride'}
+2026-08-19 03:23:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:708) [ITEM-00710] | Details: {'name=Cobalt Carbonate'}
+2026-08-19 03:23:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:709) [ITEM-00711] | Details: {'name=Riboflavin'}
+2026-08-19 03:23:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:710) [ITEM-00712] | Details: {'name=D-Calcium Pantothenate'}
+2026-08-19 03:23:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:711) [ITEM-00713] | Details: {'name=Pyridoxine hydrochloride'}
+2026-08-19 03:23:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:712) [ITEM-00714] | Details: {'name=Thiamine Mononitrate'}
+2026-08-19 03:23:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:713) [ITEM-00715] | Details: {'name=Phosphorus Oxide'}
+2026-08-19 03:23:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:714) [ITEM-00716] | Details: {'name=Tryptophan'}
+2026-08-19 03:23:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:715) [ITEM-00717] | Details: {'name=Cystine'}
+2026-08-19 03:23:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:716) [ITEM-00718] | Details: {'name=Nicotinamide'}
+2026-08-19 03:23:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:717) [ITEM-00719] | Details: {'name=Sulphur'}
+2026-08-19 03:23:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:718) [ITEM-00720] | Details: {'name=Nucleotide'}
+2026-08-19 03:23:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:719) [ITEM-00721] | Details: {'name=Vitamin D'}
+2026-08-19 03:23:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:720) [ITEM-00722] | Details: {'name=Manganese Sulphate'}
+2026-08-19 03:23:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:721) [ITEM-00723] | Details: {'name=Cobalt Chloride'}
+2026-08-19 03:23:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:722) [ITEM-00724] | Details: {'name=Zinc Oxide'}
+2026-08-19 03:23:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:723) [ITEM-00725] | Details: {'name=Copper'}
+2026-08-19 03:23:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:724) [ITEM-00726] | Details: {'name=Jamal Gota'}
+2026-08-19 03:23:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:725) [ITEM-00727] | Details: {'name=Flavour Banana'}
+2026-08-19 03:23:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:726) [ITEM-00728] | Details: {'name=Tobacco'}
+2026-08-19 03:23:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:727) [ITEM-00729] | Details: {'name=Fat Oil'}
+2026-08-19 03:23:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:728) [ITEM-00730] | Details: {'name=Soyaa Been'}
+2026-08-19 03:24:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:729) [ITEM-00731] | Details: {'name=ARQ'}
+2026-08-19 03:24:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:730) [ITEM-00732] | Details: {'name=ARQ Vasaka'}
+2026-08-19 03:24:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:731) [ITEM-00733] | Details: {'name=HCL'}
+2026-08-19 03:24:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:732) [ITEM-00734] | Details: {'name=Sodium Metaby Sulphate'}
+2026-08-19 03:24:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:733) [ITEM-00735] | Details: {'name=Butryic Acid'}
+2026-08-19 03:24:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:734) [ITEM-00736] | Details: {'name=Glycerine'}
+2026-08-19 03:24:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:735) [ITEM-00737] | Details: {'name=PHOSPHORUS Powder 29%'}
+2026-08-19 03:24:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:736) [ITEM-00738] | Details: {'name=Sodium Borate'}
+2026-08-19 03:24:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:737) [ITEM-00739] | Details: {'name=Telcum Powder'}
+2026-08-19 03:24:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:738) [ITEM-00740] | Details: {'name=Castor Oil'}
+2026-08-19 03:24:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:739) [ITEM-00741] | Details: {'name=Glucose'}
+2026-08-19 03:24:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:740) [ITEM-00742] | Details: {'name=Ammonium Sulphate'}
+2026-08-19 03:24:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:741) [ITEM-00743] | Details: {'name=Potassium Phosphate (Mono Basic)'}
+2026-08-19 03:24:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:742) [ITEM-00744] | Details: {'name=Potassium Phosphate (Di-Basic)'}
+2026-08-19 03:24:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:743) [ITEM-00745] | Details: {'name=Peptone'}
+2026-08-19 03:24:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:744) [ITEM-00746] | Details: {'name=Yeast Extract (Arena Bioscien)'}
+2026-08-19 03:24:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:745) [ITEM-00747] | Details: {'name=Sodium Chloride (Sigma)'}
+2026-08-19 03:24:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:746) [ITEM-00748] | Details: {'name=IPA'}
+2026-08-19 03:24:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:747) [ITEM-00749] | Details: {'name=Calcium Hypochlorite'}
+2026-08-19 03:24:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:748) [ITEM-00750] | Details: {'name=Turmeric Ext'}
+2026-08-19 03:24:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:749) [ITEM-00751] | Details: {'name=Cutting Oil'}
+2026-08-19 03:24:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:750) [ITEM-00752] | Details: {'name=Sugar'}
+2026-08-19 03:24:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:751) [ITEM-00753] | Details: {'name=Lab Items For Testing'}
+2026-08-19 03:24:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:752) [ITEM-00754] | Details: {'name=General Items For Lab'}
+2026-08-19 03:24:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:753) [ITEM-00755] | Details: {'name=Ammonium Metavandate'}
+2026-08-19 03:24:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:754) [ITEM-00756] | Details: {'name=Sodium Alginate'}
+2026-08-19 03:24:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:755) [ITEM-00757] | Details: {'name=LEO Cevon B'}
+2026-08-19 03:25:27 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:585) [ITEM-00587] | Details: {'name=*(missing)*'}
+2026-08-19 03:39:17 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:164) [ITEM-00166] | Details: {'name=CRD Mint Oral liquid 5 lit'}
+2026-08-19 03:39:42 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:366) [ITEM-00368] | Details: {'name=LABEL TOXI LIC 5 LIT'}
+2026-08-19 03:41:19 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:78) | Details: {'name=V & M minerals 20 kg changes={'name': 'V & M minerals 20 kg', 'unit': 'KG', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:41:32 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:205) | Details: {'name=bovi minerl premix 25 kg changes={'name': 'bovi minerl premix 25 kg', 'unit': 'KG', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:02 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:393) | Details: {'name=LABEL CALPHO LIC LIQUID 5 LIT changes={'name': 'LABEL CALPHO LIC LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:17 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:484) | Details: {'name=LABEL TOPVIT ORAL LIQUID 5 LIT changes={'name': 'LABEL TOPVIT ORAL LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:26 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:485) | Details: {'name=LABEL MLC 100 ORAL LIQUID 1 LIT changes={'name': 'LABEL MLC 100 ORAL LIQUID 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:34 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:486) | Details: {'name=LABEL MLC 100 ORAL LIQUID 5 LIT changes={'name': 'LABEL MLC 100 ORAL LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:41 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:487) | Details: {'name=LABEL MINTO LIC ORAL LIQUID 1 LIT changes={'name': 'LABEL MINTO LIC ORAL LIQUID 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:42:50 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:488) | Details: {'name=PACKET RENO GURD FLUSH ORAL POWDER 1 KG changes={'name': 'PACKET RENO GURD FLUSH ORAL POWDER 1 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:43:34 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:345) | Details: {'name=LABEL BOP ADEK 1 LIT changes={'name': 'LABEL BOP ADEK 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:43:44 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:371) | Details: {'name=WHITE CAN 25 LIT changes={'name': 'WHITE CAN 25 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:43:53 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:372) | Details: {'name=LABEL RESPIGUARD 5 LIT changes={'name': 'LABEL RESPIGUARD 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:00 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:373) | Details: {'name=LABEL RESPIGUARD 1 LIT changes={'name': 'LABEL RESPIGUARD 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:05 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:374) | Details: {'name=LABEL MICROTOX 1 LIT changes={'name': 'LABEL MICROTOX 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:12 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:375) | Details: {'name=LABEL MICROTOX 5 LIT changes={'name': 'LABEL MICROTOX 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:18 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:376) | Details: {'name=LABEL HIPALIVE LIQUID 5 LIT changes={'name': 'LABEL HIPALIVE LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:23 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:377) | Details: {'name=LABEL HIPALIVE LIQUID 1 LIT changes={'name': 'LABEL HIPALIVE LIQUID 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:29 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:378) | Details: {'name=BUCKET LARGE changes={'name': 'BUCKET LARGE', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:39 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:379) | Details: {'name=LABEL FEROVIT PLUS 1LIT changes={'name': 'LABEL FEROVIT PLUS 1LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:47 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:380) | Details: {'name=LABEL FEROVIT PLUS 5 LIT changes={'name': 'LABEL FEROVIT PLUS 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:53 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:381) | Details: {'name=LABEL SUPER COPPER LIQUID 1 LIT changes={'name': 'LABEL SUPER COPPER LIQUID 1 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:44:58 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:382) | Details: {'name=LABEL SUPER COPPER LIQUID 5 LIT changes={'name': 'LABEL SUPER COPPER LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:03 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:383) | Details: {'name=LABEL ACIDI-LIC 25 LIT changes={'name': 'LABEL ACIDI-LIC 25 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:11 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:384) | Details: {'name=T changes={'name': 'T', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:16 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:385) | Details: {'name=LABEL BIO AMBROX 5 LIT changes={'name': 'LABEL BIO AMBROX 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:23 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:386) | Details: {'name=LABEL BANTOX POWDER 25 KG changes={'name': 'LABEL BANTOX POWDER 25 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:27 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:387) | Details: {'name=LABEL BANTOX POWDER PLUS 25 KG changes={'name': 'LABEL BANTOX POWDER PLUS 25 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:34 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:388) | Details: {'name=LABEL BOP MICROGOLD 25 KG changes={'name': 'LABEL BOP MICROGOLD 25 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:43 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:389) | Details: {'name=LABEL PROMIN GOLD MINERALS 20 KG changes={'name': 'LABEL PROMIN GOLD MINERALS 20 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:49 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:390) | Details: {'name=PACKET PROMIN GOLD MINERALS 1 KG changes={'name': 'PACKET PROMIN GOLD MINERALS 1 KG', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:45:54 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:391) | Details: {'name=LABEL PH 5 LIQUID 25 LIT changes={'name': 'LABEL PH 5 LIQUID 25 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:46:00 | ITEM            | UPDATE     | Company:1 [System] | Entity: Item(ID:392) | Details: {'name=LABEL PH 5 LIQUID 5 LIT changes={'name': 'LABEL PH 5 LIQUID 5 LIT', 'unit': 'UNIT', 'purchase_price': 0.0, 'selling_price': 0.0, 'minimum_stock': 0.0, 'maximum_stock': 0.0}'}
+2026-08-19 03:46:29 | ITEM            | DELETE     | Company:1 [System] | Entity: Item(ID:384) [ITEM-00386] | Details: {'name=T'}
+2026-08-19 12:46:55 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:1) [610001] | Details: {'name=Khalid Plastic Bottle credit_limit=0.0'}
+2026-08-19 12:46:57 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [610003] | Details: {'name=Dr.Umer plastic Bottle Pet credit_limit=0.0'}
+2026-08-19 12:46:59 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:3) [610004] | Details: {'name=Waqas Printing credit_limit=0.0'}
+2026-08-19 12:47:02 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:4) [610005] | Details: {'name=Muneer Carton credit_limit=0.0'}
+2026-08-19 12:47:04 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:5) [610006] | Details: {'name=Hafeez DCP credit_limit=0.0'}
+2026-08-19 12:47:06 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:6) [610010] | Details: {'name=S.A Salt credit_limit=0.0'}
+2026-08-19 12:47:08 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:7) [610012] | Details: {'name=HAFIZ IMRAN Plastic credit_limit=0.0'}
+2026-08-19 12:47:11 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:8) [610014] | Details: {'name=USMAN Lab credit_limit=0.0'}
+2026-08-19 12:47:13 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:9) [610016] | Details: {'name=Khalid Bento credit_limit=0.0'}
+2026-08-19 12:47:15 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:10) [610018] | Details: {'name=Local Raw Material Purchase credit_limit=0.0'}
+2026-08-19 12:47:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:11) [610019] | Details: {'name=Local Packing Material Purchase credit_limit=0.0'}
+2026-08-19 12:47:20 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:12) [610021] | Details: {'name=Quality Plastic credit_limit=0.0'}
+2026-08-19 12:47:22 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:13) [610022] | Details: {'name=Calcium And Bentonite Purchase credit_limit=0.0'}
+2026-08-19 12:47:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:14) [620001] | Details: {'name=Dr Zia credit_limit=0.0'}
+2026-08-19 12:47:26 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:15) [620005] | Details: {'name=Dr/Wajid V/S credit_limit=0.0'}
+2026-08-19 12:47:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:16) [620006] | Details: {'name=Nasir Jamal credit_limit=0.0'}
+2026-08-19 12:47:30 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:17) [620007] | Details: {'name=Mehar Younas credit_limit=0.0'}
+2026-08-19 12:47:32 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:18) [620008] | Details: {'name=Amir Mian credit_limit=0.0'}
+2026-08-19 12:47:34 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:19) [620010] | Details: {'name=Shan M/S credit_limit=0.0'}
+2026-08-19 12:47:36 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:20) [620012] | Details: {'name=Raao Shifakhana credit_limit=0.0'}
+2026-08-19 12:47:38 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:21) [620013] | Details: {'name=Alharam Traders credit_limit=0.0'}
+2026-08-19 12:47:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:22) [620014] | Details: {'name=Hamza & Talha Traders credit_limit=0.0'}
+2026-08-19 12:47:43 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:23) [620015] | Details: {'name=Faizan Ejaz credit_limit=0.0'}
+2026-08-19 12:47:44 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:24) [620016] | Details: {'name=Habib Malik credit_limit=0.0'}
+2026-08-19 12:47:47 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:25) [620020] | Details: {'name=Dr.Tahir credit_limit=0.0'}
+2026-08-19 12:47:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:26) [620022] | Details: {'name=Imtiyaz Supra Traders 2 credit_limit=0.0'}
+2026-08-19 12:47:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:27) [620024] | Details: {'name=Rana Flour Mill & Kashmir Wanda credit_limit=0.0'}
+2026-08-19 12:47:53 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:28) [620027] | Details: {'name=H.P.I Traders credit_limit=0.0'}
+2026-08-19 12:47:56 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:29) [620031] | Details: {'name=Dr.Khalid credit_limit=0.0'}
+2026-08-19 12:47:58 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:30) [620032] | Details: {'name=Dr.wasey credit_limit=0.0'}
+2026-08-19 12:48:00 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:31) [620033] | Details: {'name=Enaam Traders credit_limit=0.0'}
+2026-08-19 12:48:02 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:32) [620034] | Details: {'name=Lucky Marwat V/S credit_limit=0.0'}
+2026-08-19 12:48:04 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:33) [620035] | Details: {'name=Yaqoob credit_limit=0.0'}
+2026-08-19 12:48:06 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:34) [620037] | Details: {'name=Meer Khan credit_limit=0.0'}
+2026-08-19 12:48:08 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:35) [620038] | Details: {'name=Noor Khan credit_limit=0.0'}
+2026-08-19 12:48:10 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:36) [620039] | Details: {'name=Shareef credit_limit=0.0'}
+2026-08-19 12:48:12 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:37) [620040] | Details: {'name=Meer Khan credit_limit=0.0'}
+2026-08-19 12:48:14 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:38) [620041] | Details: {'name=Qazi Irfan credit_limit=0.0'}
+2026-08-19 12:48:16 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:39) [620042] | Details: {'name=Dr.Darban Azad Traders credit_limit=0.0'}
+2026-08-19 12:48:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:40) [620045] | Details: {'name=Dr.Irfan Ullah credit_limit=0.0'}
+2026-08-19 12:48:20 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:41) [620046] | Details: {'name=Aaman Ullah credit_limit=0.0'}
+2026-08-19 12:48:22 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:42) [620047] | Details: {'name=Ameen Medical Store credit_limit=0.0'}
+2026-08-19 12:48:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:43) [620049] | Details: {'name=ORION GROUP FSD credit_limit=0.0'}
+2026-08-19 12:48:26 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:44) [620060] | Details: {'name=Hafiz Poultry medicos credit_limit=0.0'}
+2026-08-19 12:48:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:45) [620061] | Details: {'name=Supreme Poultry credit_limit=0.0'}
+2026-08-19 12:48:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:46) [620062] | Details: {'name=Dr,ASIF credit_limit=0.0'}
+2026-08-19 12:48:33 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:47) [620063] | Details: {'name=Sheikh Shahid credit_limit=0.0'}
+2026-08-19 12:48:35 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:48) [620064] | Details: {'name=Glubal V/S credit_limit=0.0'}
+2026-08-19 12:48:37 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:49) [620065] | Details: {'name=OBAID KAREEM credit_limit=0.0'}
+2026-08-19 12:48:39 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:50) [620067] | Details: {'name=HALEEM Vetnairy Store credit_limit=0.0'}
+2026-08-19 12:48:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:51) [620071] | Details: {'name=Dr.Usman credit_limit=0.0'}
+2026-08-19 12:48:44 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:52) [620074] | Details: {'name=Zeeshan Bivet Lahore credit_limit=0.0'}
+2026-08-19 12:48:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:53) [620076] | Details: {'name=Attique credit_limit=0.0'}
+2026-08-19 12:48:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:54) [620078] | Details: {'name=Kashmir poultry LiveStock credit_limit=0.0'}
+2026-08-19 12:48:50 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:55) [620080] | Details: {'name=A.R Group Pindi credit_limit=0.0'}
+2026-08-19 12:49:01 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:56) [620081] | Details: {'name=Vassy Jhang credit_limit=0.0'}
+2026-08-19 12:49:03 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:57) [620083] | Details: {'name=AL-Qabeer Poultary credit_limit=0.0'}
+2026-08-19 12:49:05 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:58) [620091] | Details: {'name=Hamza and Talha Traders 2 credit_limit=0.0'}
+2026-08-19 12:49:07 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:59) [620092] | Details: {'name=Dr SAQAB credit_limit=0.0'}
+2026-08-19 12:49:09 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:60) [620094] | Details: {'name=Alharam Traders 2. credit_limit=0.0'}
+2026-08-19 12:49:12 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:61) [620095] | Details: {'name=Malik Afaaq credit_limit=0.0'}
+2026-08-19 12:49:14 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:62) [620096] | Details: {'name=Merlin Life care/ Dr.Asif credit_limit=0.0'}
+2026-08-19 12:49:16 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:63) [620097] | Details: {'name=Dr.TAHIR SGD credit_limit=0.0'}
+2026-08-19 12:49:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:64) [620098] | Details: {'name=RANA LIAQAT SGD credit_limit=0.0'}
+2026-08-19 12:49:20 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:65) [620099] | Details: {'name=HAFIZ MEDICOZ LIVESTOCK credit_limit=0.0'}
+2026-08-19 12:49:22 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:66) [620103] | Details: {'name=Nimat Ullah credit_limit=0.0'}
+2026-08-19 12:49:24 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:67) [620104] | Details: {'name=VIRTUS Pharmaceuticals credit_limit=0.0'}
+2026-08-19 12:49:26 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:68) [620107] | Details: {'name=Danish Poultry Sakkhar credit_limit=0.0'}
+2026-08-19 12:49:29 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:69) [620108] | Details: {'name=The Poultry Solution credit_limit=0.0'}
+2026-08-19 12:49:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:70) [620109] | Details: {'name=Dr.Saqab Leon Group credit_limit=0.0'}
+2026-08-19 12:49:34 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:71) [620110] | Details: {'name=Z.A Enterprises credit_limit=0.0'}
+2026-08-19 12:49:36 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:72) [620111] | Details: {'name=Dr.Wadood  C/O Hafiz Poultry credit_limit=0.0'}
+2026-08-19 12:49:38 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:73) [620112] | Details: {'name=Hassan Shahid credit_limit=0.0'}
+2026-08-19 12:49:40 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:74) [620113] | Details: {'name=Waseem Traders credit_limit=0.0'}
+2026-08-19 12:49:43 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:75) [620114] | Details: {'name=Zain V/S Cuttling credit_limit=0.0'}
+2026-08-19 12:49:45 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:76) [620115] | Details: {'name=Shah V/S credit_limit=0.0'}
+2026-08-19 12:49:47 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:77) [620116] | Details: {'name=Almansoor V/S credit_limit=0.0'}
+2026-08-19 12:49:49 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:78) [620117] | Details: {'name=Dr.Shakeel credit_limit=0.0'}
+2026-08-19 12:49:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:79) [620118] | Details: {'name=Amjad Khan credit_limit=0.0'}
+2026-08-19 12:49:53 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:80) [620119] | Details: {'name=Dr.Fida credit_limit=0.0'}
+2026-08-19 12:49:55 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:81) [620120] | Details: {'name=Decent Poluntry credit_limit=0.0'}
+2026-08-19 12:49:57 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:82) [620121] | Details: {'name=Jahzaib Sumandari credit_limit=0.0'}
+2026-08-19 12:50:00 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:83) [620122] | Details: {'name=Islamabad Poultry credit_limit=0.0'}
+2026-08-19 13:14:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:756) [ITEM-00758] | Details: {'name=Renu Guard Bucket Label'}
+2026-08-19 13:14:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:757) [ITEM-00759] | Details: {'name=Ammonium chloride'}
+2026-08-19 13:14:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:758) [ITEM-00760] | Details: {'name=Bentonite'}
+2026-08-19 13:14:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:759) [ITEM-00761] | Details: {'name=Citric Acid'}
+2026-08-19 13:14:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:760) [ITEM-00762] | Details: {'name=CSL'}
+2026-08-19 13:14:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:761) [ITEM-00763] | Details: {'name=Calcium Carbonate'}
+2026-08-19 13:14:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:762) [ITEM-00764] | Details: {'name=Copper Sulphate'}
+2026-08-19 13:14:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:763) [ITEM-00765] | Details: {'name=Betaine'}
+2026-08-19 13:14:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:764) [ITEM-00766] | Details: {'name=Choline Chloride'}
+2026-08-19 13:14:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:765) [ITEM-00767] | Details: {'name=Calcium Chloride'}
+2026-08-19 13:15:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:766) [ITEM-00768] | Details: {'name=DCP (Calcium)'}
+2026-08-19 13:15:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:767) [ITEM-00769] | Details: {'name=DCP (Dana)'}
+2026-08-19 13:15:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:768) [ITEM-00770] | Details: {'name=Camphor'}
+2026-08-19 13:15:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:769) [ITEM-00771] | Details: {'name=Dextrose'}
+2026-08-19 13:15:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:770) [ITEM-00772] | Details: {'name=Eucluptus Oil'}
+2026-08-19 13:15:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:771) [ITEM-00773] | Details: {'name=Formic Acid'}
+2026-08-19 13:15:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:772) [ITEM-00774] | Details: {'name=Glacial Acetic Acid'}
+2026-08-19 13:15:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:773) [ITEM-00775] | Details: {'name=Genshat Voilt (Crystal)'}
+2026-08-19 13:15:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:774) [ITEM-00776] | Details: {'name=Garlic Oil'}
+2026-08-19 13:15:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:775) [ITEM-00777] | Details: {'name=Garlic Extract Powder'}
+2026-08-19 13:15:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:776) [ITEM-00778] | Details: {'name=Ginger Oil'}
+2026-08-19 13:15:20 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:777) [ITEM-00779] | Details: {'name=Ginger Extract Powder'}
+2026-08-19 13:15:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:778) [ITEM-00780] | Details: {'name=Kaolin'}
+2026-08-19 13:15:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:779) [ITEM-00781] | Details: {'name=Lactic Acid'}
+2026-08-19 13:15:25 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:780) [ITEM-00782] | Details: {'name=Menthol Crystal'}
+2026-08-19 13:15:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:781) [ITEM-00783] | Details: {'name=Molasses'}
+2026-08-19 13:15:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:782) [ITEM-00784] | Details: {'name=Magnesium Sulphate'}
+2026-08-19 13:15:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:783) [ITEM-00785] | Details: {'name=Turpentine Oil'}
+2026-08-19 13:15:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:784) [ITEM-00786] | Details: {'name=Propylene Glycol (PG)'}
+2026-08-19 13:15:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:785) [ITEM-00787] | Details: {'name=Phosphoric Acid 85%'}
+2026-08-19 13:15:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:786) [ITEM-00788] | Details: {'name=Sodium Benzoate'}
+2026-08-19 13:15:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:787) [ITEM-00789] | Details: {'name=Starch'}
+2026-08-19 13:15:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:788) [ITEM-00790] | Details: {'name=Sodium Chloride'}
+2026-08-19 13:15:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:789) [ITEM-00791] | Details: {'name=Sodium Bicarbonate'}
+2026-08-19 13:15:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:790) [ITEM-00792] | Details: {'name=Sorbitol Liquid 70%'}
+2026-08-19 13:15:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:791) [ITEM-00793] | Details: {'name=Silmyrin'}
+2026-08-19 13:15:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:792) [ITEM-00794] | Details: {'name=Sodium Sulphate'}
+2026-08-19 13:15:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:793) [ITEM-00795] | Details: {'name=Titanium Dioxide (T.T)'}
+2026-08-19 13:15:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:794) [ITEM-00796] | Details: {'name=Tartrazine Yellow Color Indian'}
+2026-08-19 13:15:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:795) [ITEM-00797] | Details: {'name=Vitamin B1'}
+2026-08-19 13:15:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:796) [ITEM-00798] | Details: {'name=Vitamin B2'}
+2026-08-19 13:15:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:797) [ITEM-00799] | Details: {'name=Vitamin C (Ascorbic acid)'}
+2026-08-19 13:15:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:798) [ITEM-00800] | Details: {'name=Vitamin D3'}
+2026-08-19 13:15:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:799) [ITEM-00801] | Details: {'name=Vitamin B6'}
+2026-08-19 13:15:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:800) [ITEM-00802] | Details: {'name=Xanthan Gum'}
+2026-08-19 13:16:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:801) [ITEM-00803] | Details: {'name=Wheat Bran'}
+2026-08-19 13:16:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:802) [ITEM-00804] | Details: {'name=Zinc Sulphate'}
+2026-08-19 13:16:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:803) [ITEM-00805] | Details: {'name=Spt Amm. Aromatic'}
+2026-08-19 13:16:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:804) [ITEM-00806] | Details: {'name=Anise Oil'}
+2026-08-19 13:16:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:805) [ITEM-00807] | Details: {'name=Vitamin E'}
+2026-08-19 13:16:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:806) [ITEM-00808] | Details: {'name=Potassium Chloride'}
+2026-08-19 13:16:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:807) [ITEM-00809] | Details: {'name=Crystal Violet'}
+2026-08-19 13:16:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:808) [ITEM-00810] | Details: {'name=Peppermint Oil'}
+2026-08-19 13:16:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:809) [ITEM-00811] | Details: {'name=Capsicum Oil'}
+2026-08-19 13:16:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:810) [ITEM-00812] | Details: {'name=Clove Oil'}
+2026-08-19 13:16:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:811) [ITEM-00813] | Details: {'name=Sodium Citrate'}
+2026-08-19 13:16:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:812) [ITEM-00814] | Details: {'name=Calcium'}
+2026-08-19 13:16:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:813) [ITEM-00815] | Details: {'name=Calcium Propionate'}
+2026-08-19 13:16:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:814) [ITEM-00816] | Details: {'name=Vitamin B3'}
+2026-08-19 13:16:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:815) [ITEM-00817] | Details: {'name=Cobalt Chloride'}
+2026-08-19 13:16:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:816) [ITEM-00818] | Details: {'name=Fat Oil'}
+2026-08-19 13:16:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:817) [ITEM-00819] | Details: {'name=ARQ'}
+2026-08-19 13:16:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:818) [ITEM-00820] | Details: {'name=ARQ Vasaka'}
+2026-08-19 13:16:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:819) [ITEM-00821] | Details: {'name=HCL'}
+2026-08-19 13:16:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:820) [ITEM-00822] | Details: {'name=Sodium Metaby Sulphate'}
+2026-08-19 13:16:34 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:821) [ITEM-00823] | Details: {'name=Glycerine'}
+2026-08-19 13:16:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:822) [ITEM-00824] | Details: {'name=PHOSPHORUS Powder 29%'}
+2026-08-19 13:16:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:823) [ITEM-00825] | Details: {'name=Castor Oil'}
+2026-08-19 13:16:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:824) [ITEM-00826] | Details: {'name=Ammonium Sulphate'}
+2026-08-19 13:16:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:825) [ITEM-00827] | Details: {'name=Potassium Phosphate (Mono Basic)'}
+2026-08-19 13:16:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:826) [ITEM-00828] | Details: {'name=Potassium Phosphate ( Di-Basic)'}
+2026-08-19 13:16:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:827) [ITEM-00829] | Details: {'name=I.P.A'}
+2026-08-19 13:16:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:828) [ITEM-00830] | Details: {'name=Lab Items For Testing'}
+2026-08-19 13:16:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:829) [ITEM-00831] | Details: {'name=General Items For Lab'}
+2026-08-19 13:16:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:830) [ITEM-00832] | Details: {'name=Ammonium Metavandate'}
+2026-08-19 13:16:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:831) [ITEM-00833] | Details: {'name=Sodium Alginate'}
+2026-08-19 13:16:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:832) [ITEM-00834] | Details: {'name=Shipper [B] 12 Bottle (1 Liter)'}
+2026-08-19 13:16:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:833) [ITEM-00835] | Details: {'name=Shipper [D] 4pcs cane (5 Liter)'}
+2026-08-19 13:16:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:834) [ITEM-00836] | Details: {'name=Shipper [F] 100 pcs bottle Pet 100 ML'}
+2026-08-19 13:16:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:835) [ITEM-00837] | Details: {'name=Shipper [G] 100 pcs cane 100 ML'}
+2026-08-19 13:17:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:836) [ITEM-00838] | Details: {'name=Bottle Can White  100ML'}
+2026-08-19 13:17:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:837) [ITEM-00839] | Details: {'name=Bottle Pet Amber 100ML'}
+2026-08-19 13:17:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:838) [ITEM-00840] | Details: {'name=Plastic Can White 5 Liter'}
+2026-08-19 13:17:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:839) [ITEM-00841] | Details: {'name=Metal Bottle Silver 1 Liter'}
+2026-08-19 13:17:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:840) [ITEM-00842] | Details: {'name=Label Fuzion Plus 5 Liter'}
+2026-08-19 13:17:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:841) [ITEM-00843] | Details: {'name=Label Toxi Lic 5 Liter'}
+2026-08-19 13:17:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:842) [ITEM-00844] | Details: {'name=Label Calci Phos D 5 Liter'}
+2026-08-19 13:17:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:843) [ITEM-00845] | Details: {'name=Label CID 7 (5)Lit'}
+2026-08-19 13:17:13 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:844) [ITEM-00846] | Details: {'name=Label Hepatic Optimizer 5 Liter'}
+2026-08-19 13:17:15 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:845) [ITEM-00847] | Details: {'name=Label Garlimint Plus 5 Liter'}
+2026-08-19 13:17:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:846) [ITEM-00848] | Details: {'name=BAG BOP DCP 25 KG'}
+2026-08-19 13:17:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:847) [ITEM-00849] | Details: {'name=Label Growth Promoter Plus 25 KG'}
+2026-08-19 13:17:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:848) [ITEM-00850] | Details: {'name=JAR 1 KG'}
+2026-08-19 13:17:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:849) [ITEM-00851] | Details: {'name=Label Mento Care 1 Liter'}
+2026-08-19 13:17:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:850) [ITEM-00852] | Details: {'name=Label Micro Sel-E Oral Liquid 1 Liter'}
+2026-08-19 13:17:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:851) [ITEM-00853] | Details: {'name=White Bag Unprint'}
+2026-08-19 13:17:27 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:852) [ITEM-00854] | Details: {'name=Label Paower Plus 25 KG'}
+2026-08-19 13:17:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:853) [ITEM-00855] | Details: {'name=Label Magnet Plus 25 Kg'}
+2026-08-19 13:17:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:854) [ITEM-00856] | Details: {'name=Shipper { I } 12 Pcs Bottle New'}
+2026-08-19 13:17:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:855) [ITEM-00857] | Details: {'name=Label Prime Grow Protein 25 kg'}
+2026-08-19 13:17:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:856) [ITEM-00858] | Details: {'name=Label Bio Ambrox 1 Liter'}
+2026-08-19 13:17:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:857) [ITEM-00859] | Details: {'name=Unprint Packet 1kg'}
+2026-08-19 13:17:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:858) [ITEM-00860] | Details: {'name=Label Immune Forte 1 Lit'}
+2026-08-19 13:17:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:859) [ITEM-00861] | Details: {'name=Label Micro Sel E 5 Lit'}
+2026-08-19 13:17:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:860) [ITEM-00862] | Details: {'name=Label Toni Plex 5 Lit'}
+2026-08-19 13:17:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:861) [ITEM-00863] | Details: {'name=Label Nephretic 1 Kg'}
+2026-08-19 13:17:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:862) [ITEM-00864] | Details: {'name=Label En Boost 1 Lit'}
+2026-08-19 13:17:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:863) [ITEM-00865] | Details: {'name=Bottle Round liter'}
+2026-08-19 13:17:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:864) [ITEM-00866] | Details: {'name=Label Kimchi Sal 5 Lit'}
+2026-08-19 13:17:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:865) [ITEM-00867] | Details: {'name=Label Ambro Lic 1 Lit'}
+2026-08-19 13:17:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:866) [ITEM-00868] | Details: {'name=Shipper J'}
+2026-08-19 13:17:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:867) [ITEM-00869] | Details: {'name=Label Mento Care 5 Lit'}
+2026-08-19 13:17:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:868) [ITEM-00870] | Details: {'name=Packet Golden Premix 1Kg'}
+2026-08-19 13:17:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:869) [ITEM-00871] | Details: {'name=Label Golden Premix 25Kg'}
+2026-08-19 13:17:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:870) [ITEM-00872] | Details: {'name=Packet Paower Plus 1 kg'}
+2026-08-19 13:18:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:871) [ITEM-00873] | Details: {'name=White Can 25 Liter'}
+2026-08-19 13:18:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:872) [ITEM-00874] | Details: {'name=Label CID 7 Oral Liquid 25 Liter'}
+2026-08-19 13:18:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:873) [ITEM-00875] | Details: {'name=Label RespiGuard 5 Liter'}
+2026-08-19 13:18:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:874) [ITEM-00876] | Details: {'name=Label MicroTox 5 Liter'}
+2026-08-19 13:18:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:875) [ITEM-00877] | Details: {'name=Label HepaLive Liquid 5 Liter'}
+2026-08-19 13:18:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:876) [ITEM-00878] | Details: {'name=Bucket Large'}
+2026-08-19 13:18:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:877) [ITEM-00879] | Details: {'name=Label Immune Forte 5 Lit'}
+2026-08-19 13:18:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:878) [ITEM-00880] | Details: {'name=Label Ferovit Plus 5 Lit'}
+2026-08-19 13:18:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:879) [ITEM-00881] | Details: {'name=Label Super Copper Liquid 5 Lit'}
+2026-08-19 13:18:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:880) [ITEM-00882] | Details: {'name=Label Super Adek Liquid 5 Lit'}
+2026-08-19 13:18:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:881) [ITEM-00883] | Details: {'name=Label Acidi-Lic 25 Lit'}
+2026-08-19 13:18:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:882) [ITEM-00884] | Details: {'name=Label Bio Ambrox 5 Lit'}
+2026-08-19 13:18:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:883) [ITEM-00885] | Details: {'name=Label Bentox Powder 25kg'}
+2026-08-19 13:18:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:884) [ITEM-00886] | Details: {'name=Packet Promin Gold Minerals 1kg'}
+2026-08-19 13:18:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:885) [ITEM-00887] | Details: {'name=Label PH5 Liquid 25 Liter'}
+2026-08-19 13:18:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:886) [ITEM-00888] | Details: {'name=Label Calpho Lic Liquid 5 Lit'}
+2026-08-19 13:18:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:887) [ITEM-00889] | Details: {'name=Label Bop Copper Liquid 1 Lit'}
+2026-08-19 13:18:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:888) [ITEM-00890] | Details: {'name=Label Toni Plex Liquid 1 lit'}
+2026-08-19 13:18:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:889) [ITEM-00891] | Details: {'name=Label ADEK Powder 1 Kg'}
+2026-08-19 13:18:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:890) [ITEM-00892] | Details: {'name=Label Minro-Lic 25 Kg'}
+2026-08-19 13:18:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:891) [ITEM-00893] | Details: {'name=Bag UnPrint idyLic 25 Kg'}
+2026-08-19 13:18:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:892) [ITEM-00894] | Details: {'name=Bag DCP-Lic 25 kg'}
+2026-08-19 13:18:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:893) [ITEM-00895] | Details: {'name=Label URECTIC Powder 1 kg'}
+2026-08-19 13:18:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:894) [ITEM-00896] | Details: {'name=Label PROCOPCID Oral Liquid 5 Liter'}
+2026-08-19 13:18:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:895) [ITEM-00897] | Details: {'name=Label En-Boost Liquid 5 liter'}
+2026-08-19 13:18:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:896) [ITEM-00898] | Details: {'name=Label Toxi - Off Liquid 5 Liter'}
+2026-08-19 13:18:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:897) [ITEM-00899] | Details: {'name=Label TOXI GOLD Liquid 5 Liter'}
+2026-08-19 13:18:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:898) [ITEM-00900] | Details: {'name=Label RespiFit Liquid 5 Liter'}
+2026-08-19 13:18:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:899) [ITEM-00901] | Details: {'name=Label HepaLiv Liquid 1 Liter'}
+2026-08-19 13:18:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:900) [ITEM-00902] | Details: {'name=Bag Bop Red Colour'}
+2026-08-19 13:18:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:901) [ITEM-00903] | Details: {'name=Label Bop Livercare 25 kg'}
+2026-08-19 13:18:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:902) [ITEM-00904] | Details: {'name=Label E.C Gold Oral Liquid 5 Litter'}
+2026-08-19 13:18:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:903) [ITEM-00905] | Details: {'name=Label Sachro-lic Oral Powder 25 KG'}
+2026-08-19 13:18:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:904) [ITEM-00906] | Details: {'name=Label Eggcelent Liquid 5 Litter'}
+2026-08-19 13:18:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:905) [ITEM-00907] | Details: {'name=Label Hepatic Optimizer fort 25kg'}
+2026-08-19 13:19:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:906) [ITEM-00908] | Details: {'name=Label Bio Adeck Liquid 5Lit'}
+2026-08-19 13:19:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:907) [ITEM-00909] | Details: {'name=Label Microgold-Bop 25 kg'}
+2026-08-19 13:19:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:908) [ITEM-00910] | Details: {'name=Label Rumicid 25kg'}
+2026-08-19 13:19:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:909) [ITEM-00911] | Details: {'name=Label Garliment Plus 1Liter'}
+2026-08-19 13:19:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:910) [ITEM-00912] | Details: {'name=Label lysogar-lic 1KG'}
+2026-08-19 13:19:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:911) [ITEM-00913] | Details: {'name=Label Ex.Tox Liquid  5Lit'}
+2026-08-19 13:19:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:912) [ITEM-00914] | Details: {'name=Label P.H Cure 25Liter'}
+2026-08-19 13:19:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:913) [ITEM-00915] | Details: {'name=Label E.S 200 5Lit'}
+2026-08-19 13:19:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:914) [ITEM-00916] | Details: {'name=Label Stable C20  5Lit'}
+2026-08-19 13:19:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:915) [ITEM-00917] | Details: {'name=Bag Calcium 72  25kg'}
+2026-08-19 13:19:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:916) [ITEM-00918] | Details: {'name=Bag Bop Yellow Colour'}
+2026-08-19 13:19:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:917) [ITEM-00919] | Details: {'name=Label Bop Dairy Mineral 25 KG'}
+2026-08-19 13:19:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:918) [ITEM-00920] | Details: {'name=Label  Viro Immune Liquid 5L'}
+2026-08-19 13:19:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:919) [ITEM-00921] | Details: {'name=Label Super Yeast Liquid 5 Liter'}
+2026-08-19 13:19:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:920) [ITEM-00922] | Details: {'name=Label Bop Pro-Tox Liquid 5L'}
+2026-08-19 13:19:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:921) [ITEM-00923] | Details: {'name=Label Ampro-Plus 5L'}
+2026-08-19 13:19:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:922) [ITEM-00924] | Details: {'name=Label Hepatic-Opt 1Liter'}
+2026-08-19 13:19:30 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:923) [ITEM-00925] | Details: {'name=Label Bop Adek Liquid 1Liter'}
+2026-08-19 13:19:32 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:924) [ITEM-00926] | Details: {'name=Label Heaatic Optimizer 5 Liter'}
+2026-08-19 13:19:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:925) [ITEM-00927] | Details: {'name=Bag Bop Blue Colour'}
+2026-08-19 13:19:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:926) [ITEM-00928] | Details: {'name=Drum White 25 kg'}
+2026-08-19 13:19:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:927) [ITEM-00929] | Details: {'name=Dropper  30ML'}
+2026-08-19 13:19:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:928) [ITEM-00930] | Details: {'name=S+D Garliment Plus 30ML'}
+2026-08-19 13:19:40 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:929) [ITEM-00931] | Details: {'name=Label Dcp Gold 25KG'}
+2026-08-19 13:19:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:930) [ITEM-00932] | Details: {'name=Label Bop Copper Liquiq 5L'}
+2026-08-19 13:19:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:931) [ITEM-00933] | Details: {'name=Label Merlin Fix Oral Powder 25 kg'}
+2026-08-19 13:19:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:932) [ITEM-00934] | Details: {'name=Label CRD Mint Oral Liquid 5 Liter'}
+2026-08-19 13:19:47 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:933) [ITEM-00935] | Details: {'name=Label CRD Mint Oral Liquid  1 Liter'}
+2026-08-19 13:19:49 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:934) [ITEM-00936] | Details: {'name=Label Task 1 Oral Liquid  5 Liter'}
+2026-08-19 13:19:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:935) [ITEM-00937] | Details: {'name=Label Immunit Z Oral Liquid  5 Liter'}
+2026-08-19 13:19:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:936) [ITEM-00938] | Details: {'name=Label TopVit Oral Liquid  5 Liter'}
+2026-08-19 13:19:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:937) [ITEM-00939] | Details: {'name=Label MLC 100  Oral Liquid 5 Liter'}
+2026-08-19 13:19:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:938) [ITEM-00940] | Details: {'name=Packet Reno Gurd Flush Oral Powder 1 kg'}
+2026-08-19 13:19:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:939) [ITEM-00941] | Details: {'name=Label Frost Oral Liquid 5 Liter'}
+2026-08-19 13:19:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:940) [ITEM-00942] | Details: {'name=Label Flush Gold 5 Lit'}
+2026-08-19 13:20:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:941) [ITEM-00943] | Details: {'name=Label Acido Forte 25 Lit'}
+2026-08-19 13:20:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:942) [ITEM-00944] | Details: {'name=Label VETLIV Oral Solution 5 Lit'}
+2026-08-19 13:20:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:943) [ITEM-00945] | Details: {'name=Label COPPER Gold Oral Liquid 5 Lit'}
+2026-08-19 13:20:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:944) [ITEM-00946] | Details: {'name=Label Adek Gold Oral Liquid 5 Lit'}
+2026-08-19 13:20:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:945) [ITEM-00947] | Details: {'name=Label Hepa Gold Oral Liquid 5 Lit'}
+2026-08-19 13:20:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:946) [ITEM-00948] | Details: {'name=label Toxi Gold Forte Powder 25 kg'}
+2026-08-19 13:20:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:947) [ITEM-00949] | Details: {'name=Label Mento Respi Oral Liquid 5 Lit'}
+2026-08-19 13:20:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:948) [ITEM-00950] | Details: {'name=Label Bentox Plus Oral Powder 25 kg'}
+2026-08-19 13:20:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:949) [ITEM-00951] | Details: {'name=Label L.G Mune Oral Liquid 5 Lit'}
+2026-08-19 13:20:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:950) [ITEM-00952] | Details: {'name=Label BOP E 50 Oral Liquid 5 Lit'}
+2026-08-19 13:20:18 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:951) [ITEM-00953] | Details: {'name=Label O-D Plus Oral Liquid 5 Lit'}
+2026-08-19 13:20:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:952) [ITEM-00954] | Details: {'name=Label Levo Care Oral Liquid 5 Lit'}
+2026-08-19 13:20:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:953) [ITEM-00955] | Details: {'name=Label Phyto-Phos Oral Liquid 5 Lit'}
+2026-08-19 13:20:23 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:954) [ITEM-00956] | Details: {'name=Label Bop Buffer Plus 25 kg'}
+2026-08-19 13:20:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:955) [ITEM-00957] | Details: {'name=Label Neufen Gold Oral Powder 1 kg'}
+2026-08-19 13:20:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:956) [ITEM-00958] | Details: {'name=Label LivGuard Oral Liquid 5 Lit'}
+2026-08-19 13:20:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:957) [ITEM-00959] | Details: {'name=Label Calci Phos D 1 Lit'}
+2026-08-19 13:20:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:958) [ITEM-00960] | Details: {'name=Label Veto Respi Oral Liquid Oil.B 5 Lit'}
+2026-08-19 13:20:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:959) [ITEM-00961] | Details: {'name=Label Toxin Pro Oral Liquid 5 Lit'}
+2026-08-19 13:20:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:960) [ITEM-00962] | Details: {'name=Label Respi Guard Oral Liquid 1 Lit'}
+2026-08-19 13:20:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:961) [ITEM-00963] | Details: {'name=Label Super Copper 1Lit'}
+2026-08-19 13:20:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:962) [ITEM-00964] | Details: {'name=Label Bop D-Cal Oral Liquid 5 Lit'}
+2026-08-19 13:20:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:963) [ITEM-00965] | Details: {'name=Label JELITO Liquid 25 Lit'}
+2026-08-19 13:20:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:964) [ITEM-00966] | Details: {'name=Label Aspolite C Oral Liquid 5 Lit'}
+2026-08-19 13:20:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:965) [ITEM-00967] | Details: {'name=Label BOP Glycholine Plus Oral Sol.25Lit'}
+2026-08-19 13:20:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:966) [ITEM-00968] | Details: {'name=Label BOP Yeast Oral Powder 25 kg'}
+2026-08-19 13:20:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:967) [ITEM-00969] | Details: {'name=Label Hepa Leo Oral Liquid 5 Lit'}
+2026-08-19 13:20:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:968) [ITEM-00970] | Details: {'name=Label Leo Adsorbo Oral Liquid 5 Lit'}
+2026-08-19 13:20:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:969) [ITEM-00971] | Details: {'name=Label Leo Immunomax Oral Liquid 5 Lit'}
+2026-08-19 13:20:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:970) [ITEM-00972] | Details: {'name=Label Leo Viton Oral Liquid 5 Lit'}
+2026-08-19 13:20:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:971) [ITEM-00973] | Details: {'name=Label Leo Cid Pro 25 Lit'}
+2026-08-19 13:20:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:972) [ITEM-00974] | Details: {'name=Label Leo Sorbex Oral Powder 25 kg'}
+2026-08-19 13:20:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:973) [ITEM-00975] | Details: {'name=Label Leo Abmrox Oral Liquid 5 Lit'}
+2026-08-19 13:20:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:974) [ITEM-00976] | Details: {'name=Label Toxi Off Oral Liquid 1 Lit'}
+2026-08-19 13:20:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:975) [ITEM-00977] | Details: {'name=BROCHURE'}
+2026-08-19 13:21:01 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:976) [ITEM-00978] | Details: {'name=Label ElectroMune C Oral Liquid 1 Lit'}
+2026-08-19 13:21:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:977) [ITEM-00979] | Details: {'name=Label CS Guard 20 Oral Liquid 5 Lit'}
+2026-08-19 13:21:04 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:978) [ITEM-00980] | Details: {'name=Label Vital Frame Oral Liquid 5 Lit'}
+2026-08-19 13:21:06 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:979) [ITEM-00981] | Details: {'name=Label MLC 360 Oral Liquid 25 Lit'}
+2026-08-19 13:21:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:980) [ITEM-00982] | Details: {'name=Label BOP TOX Oral Powder 25 kg'}
+2026-08-19 13:21:09 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:981) [ITEM-00983] | Details: {'name=Label Leo Flush Oral Liquid 5 Lit'}
+2026-08-19 13:21:11 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:982) [ITEM-00984] | Details: {'name=Label BOP DCAD Powder 25 kg'}
+2026-08-19 13:21:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:983) [ITEM-00985] | Details: {'name=Label Liv Guard Oral Liquid 1 Lit'}
+2026-08-19 13:21:14 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:984) [ITEM-00986] | Details: {'name=Label Aspolite C Oral Liquid 1 Lit'}
+2026-08-19 13:21:16 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:985) [ITEM-00987] | Details: {'name=Label Bio Guard oral Liquid 5 Lit'}
+2026-08-19 13:21:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:986) [ITEM-00988] | Details: {'name=Label Garlic Pro Oral Liquid  5 Lit'}
+2026-08-19 13:21:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:987) [ITEM-00989] | Details: {'name=Label Bop PH5  1 Lit'}
+2026-08-19 13:21:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:988) [ITEM-00990] | Details: {'name=Label Bio Drink Oral Powder 1 Kg'}
+2026-08-19 13:21:22 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:989) [ITEM-00991] | Details: {'name=Label Bop Cranol Oral Powder 1 Kg'}
+2026-08-19 13:21:24 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:990) [ITEM-00992] | Details: {'name=white bag 5 kg'}
+2026-08-19 13:21:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:991) [ITEM-00993] | Details: {'name=LABEL Ocid Fort Oral Liquid 25 L'}
+2026-08-19 13:21:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:992) [ITEM-00994] | Details: {'name=Label Copper lac oral liquid 1L'}
+2026-08-19 13:21:29 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:993) [ITEM-00995] | Details: {'name=Label Copper Lac plus Oral Liquid 1L'}
+2026-08-19 13:21:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:994) [ITEM-00996] | Details: {'name=Label Tox Go Vital Oral Liquid 5 Lit'}
+2026-08-19 13:21:33 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:995) [ITEM-00997] | Details: {'name=Label Promune 35 Oral Liquid 5 Lit'}
+2026-08-19 13:21:34 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:996) [ITEM-00998] | Details: {'name=Label Grow Pro + Oral Liquid 5 Lit'}
+2026-08-19 13:21:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:997) [ITEM-00999] | Details: {'name=Label Bop Super Premix Oral Powder 25 kg'}
+2026-08-19 13:21:38 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:998) [ITEM-01000] | Details: {'name=Label Brosteine Oral Liquid 1 Lit'}
+2026-08-19 13:21:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:999) [ITEM-01001] | Details: {'name=Label Tox Guard Plus Oral Liquid 5 LIT'}
+2026-08-19 13:21:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1000) [ITEM-01002] | Details: {'name=Label Garliment Forte Oral Liquid 5 LIT'}
+2026-08-19 13:21:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1001) [ITEM-01003] | Details: {'name=LABEL MYCOVIX PLUS ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1002) [ITEM-01004] | Details: {'name=LABEL THERMOXFIX C ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1003) [ITEM-01005] | Details: {'name=LABEL RESPIFIX PLUS ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1004) [ITEM-01006] | Details: {'name=LABEL ADEVIX C ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1005) [ITEM-01007] | Details: {'name=LABEL IMUNIIX PLUS ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1006) [ITEM-01008] | Details: {'name=LABEL AQUAFIX PLUS ORAL LIQUID 1 LIT'}
+2026-08-19 13:21:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1007) [ITEM-01009] | Details: {'name=Label MB Adek Oril Liquid 1Lit'}
+2026-08-19 13:21:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1008) [ITEM-01010] | Details: {'name=Label MB VitaMun Oral Liquid 1 LIT'}
+2026-08-19 13:21:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1009) [ITEM-01011] | Details: {'name=Label LEO Civon 5 LIT'}
+2026-08-19 13:21:58 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1010) [ITEM-01012] | Details: {'name=Label MB FCR Grow Oral Powder 25KG'}
+2026-08-19 13:22:00 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1011) [ITEM-01013] | Details: {'name=Label MB Neutral Plus Oral Powder 25 Lit'}
+2026-08-19 13:22:02 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1012) [ITEM-01014] | Details: {'name=Label Deak C Oral Liquid 5 Lit'}
+2026-08-19 13:22:03 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1013) [ITEM-01015] | Details: {'name=Label De Resp Oral Liquid 5 Lit'}
+2026-08-19 13:22:05 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1014) [ITEM-01016] | Details: {'name=Label De Mune Oral Liquid 5 Lit'}
+2026-08-19 13:22:07 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1015) [ITEM-01017] | Details: {'name=Label Livocent Plus Oril Liquid  5 Lit'}
+2026-08-19 13:22:08 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1016) [ITEM-01018] | Details: {'name=Label Es Dec Oral Liquid 5 Lit'}
+2026-08-19 13:22:10 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1017) [ITEM-01019] | Details: {'name=LABEL AQUAFIX PLUS ORAL LIQUID 25 LIT'}
+2026-08-19 13:22:12 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1018) [ITEM-01020] | Details: {'name=Label Bop Restore-M 25 Kg'}
+2026-08-20 02:44:49 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:88) [PSR-86EB91E17E] | Details: {'name=Party Service Test credit_limit=10000.0'}
+2026-08-20 02:44:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:89) [PSR-6A1ACA9444] | Details: {'name=First credit_limit=0.0'}
+2026-08-20 02:44:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (BOTH)(ID:90) [PSR-4728243DEA] | Details: {'name=Before credit_limit=0.0'}
+2026-08-20 02:44:53 | PARTY           | UPDATE     | Company:1 [System] | Entity: Party (BOTH)(ID:90) [PSR-4728243DEA] | Details: {'name=After changes={'name': 'After', 'credit_limit': 500.0, 'account_id': None, 'is_active': 1}'}
+2026-08-20 02:44:55 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1755) [ISR-1E4713B044] | Details: {'name=Service Test Item'}
+2026-08-20 02:44:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1756) [ISR-79712D6FD9] | Details: {'name=Dup Item'}
+2026-08-20 02:45:18 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:91) [FLW-FF75DE1B0D] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-20 02:45:19 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:92) [FLW-AD3E16A805] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-20 02:45:21 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1757) [FLW-6AE3473BD2] | Details: {'name=Flow Item'}
+2026-08-20 02:45:29 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:308) [PI-FLOW-FLW-6AE3473BD2] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-20 02:45:34 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:93) [FLW-748CA00085] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-20 02:45:35 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:94) [FLW-1985C2A175] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-20 02:45:36 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1758) [FLW-98E79D7787] | Details: {'name=Flow Item'}
+2026-08-20 02:45:46 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:309) [PI-FLOWC-FLW-98E79D7787] | Details: {'supplier=Flow Supplier total=500.0 items=1 payment=CASH'}
+2026-08-20 02:45:50 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:95) [FLW-3A209C5160] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-20 02:45:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:96) [FLW-E0237F5AA1] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-20 02:45:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1759) [FLW-7C97D44886] | Details: {'name=Flow Item'}
+2026-08-20 02:45:59 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:310) [PI-FLOW-S1-FLW-7C97D44886] | Details: {'supplier=Flow Supplier total=10000.0 items=1 payment=CREDIT'}
+2026-08-20 02:46:09 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:290) [SI-FLOW-FLW-7C97D44886] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-20 02:46:14 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:97) [FLW-CE9A47BCA9] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-20 02:46:15 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:98) [FLW-7C767A94DA] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-20 02:46:17 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1760) [FLW-56DA3A85CA] | Details: {'name=Flow Item'}
+2026-08-20 02:46:23 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:311) [PI-FLOW-R1-FLW-56DA3A85CA] | Details: {'supplier=Flow Supplier total=5000.0 items=1 payment=CREDIT'}
+2026-08-20 02:46:30 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:291) [SI-FLOW-R1-FLW-56DA3A85CA] | Details: {'customer=Flow Customer total=1500.0 items=1 payment=CREDIT'}
+2026-08-20 02:46:35 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (RECEIPT)(ID:302) [#302] | Details: {'amount=1500.0 party=Flow Customer'}
+2026-08-20 02:46:38 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:99) [FLW-D500C7D7B8] | Details: {'name=Flow Supplier credit_limit=0.0'}
+2026-08-20 02:46:40 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:100) [FLW-B678DB80C7] | Details: {'name=Flow Customer credit_limit=0.0'}
+2026-08-20 02:46:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1761) [FLW-88E42EE5C2] | Details: {'name=Flow Item'}
+2026-08-20 02:46:48 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:312) [PI-FLOW-P1-FLW-88E42EE5C2] | Details: {'supplier=Flow Supplier total=1000.0 items=1 payment=CREDIT'}
+2026-08-20 02:46:52 | PAYMENT         | CREATE     | Company:1 [System] | Entity: Payment (PAYMENT)(ID:1) [#1] | Details: {'amount=1000.0 party=Flow Supplier'}
+2026-08-20 12:44:36 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:308) [PI-00620] | Details: {'supplier=Local Packing Material Purchase total=259300.0 items=2 payment=CASH'}
+2026-08-20 12:48:02 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:309) [PI-00622] | Details: {'supplier=USMAN Lab total=34000.0 items=3 payment=CASH'}
+2026-08-20 12:51:16 | PURCHASE        | CREATE     | Company:1 [System] | Entity: Purchase Invoice(ID:310) [PI-00624] | Details: {'supplier=Waqas Printing total=3750.0 items=2 payment=CASH'}
+2026-08-20 13:11:05 | PURCHASE        | UPDATE     | Company:1 [System] | Entity: Purchase Invoice(ID:310) [PI-00624] | Details: {'supplier=Waqas Printing total=6000.0 changes=None'}
+2026-08-20 13:14:26 | PURCHASE        | UPDATE     | Company:1 [System] | Entity: Purchase Invoice(ID:310) [PI-00624] | Details: {'supplier=Waqas Printing total=40040.0 changes=None'}
+2026-08-30 11:44:39 | BANKING         | CREATE     | Company:1 [System] | Entity: Bank Transaction (DEPOSIT)(ID:1) [Abdul Razzak] | Details: {'amount=5000.0 description='}
+2026-08-30 11:45:13 | BANKING         | CREATE     | Company:1 [System] | Entity: Bank Transaction (WITHDRAWAL)(ID:2) [Abdul Razzak] | Details: {'amount=100000.0 description='}
+2026-09-05 12:04:40 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cash Buyer credit_limit=0.0'}
+2026-09-05 12:04:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashSale Supplier credit_limit=0.0'}
+2026-09-05 12:04:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashSale Item'}
+2026-09-05 12:06:22 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cash Buyer total=100.0 items=1 payment=CASH'}
+2026-09-05 12:07:19 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cash Buyer credit_limit=0.0'}
+2026-09-05 12:07:19 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:19 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashSale Item'}
+2026-09-05 12:07:20 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cash Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:07:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cash Buyer credit_limit=0.0'}
+2026-09-05 12:07:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashSale Item'}
+2026-09-05 12:07:41 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cash Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:07:43 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Credit Buyer credit_limit=0.0'}
+2026-09-05 12:07:43 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CreditSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:43 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CreditSale Item'}
+2026-09-05 12:07:43 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Credit Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:07:44 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Bank Buyer credit_limit=0.0'}
+2026-09-05 12:07:44 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=BankSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:44 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=BankSale Item'}
+2026-09-05 12:07:45 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Bank Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:07:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cheque Buyer credit_limit=0.0'}
+2026-09-05 12:07:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=ChequeSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=ChequeSale Item'}
+2026-09-05 12:07:47 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cheque Buyer total=200.0 items=1 payment=CHEQUE'}
+2026-09-05 12:07:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Flip Buyer credit_limit=0.0'}
+2026-09-05 12:07:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=FlipCashCredit Supplier credit_limit=0.0'}
+2026-09-05 12:07:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=FlipCashCredit Item'}
+2026-09-05 12:07:49 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:07:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Flip2 Buyer credit_limit=0.0'}
+2026-09-05 12:07:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=FlipCreditCash Supplier credit_limit=0.0'}
+2026-09-05 12:07:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=FlipCreditCash Item'}
+2026-09-05 12:07:51 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip2 Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:07:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=RT Buyer credit_limit=0.0'}
+2026-09-05 12:07:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=RoundTrip Supplier credit_limit=0.0'}
+2026-09-05 12:07:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=RoundTrip Item'}
+2026-09-05 12:07:53 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=RT Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:07:54 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=BankFlip Buyer credit_limit=0.0'}
+2026-09-05 12:07:54 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashToBank Supplier credit_limit=0.0'}
+2026-09-05 12:07:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashToBank Item'}
+2026-09-05 12:07:55 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=BankFlip Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:07:56 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=DepBug Buyer credit_limit=0.0'}
+2026-09-05 12:07:56 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=BankToCash Supplier credit_limit=0.0'}
+2026-09-05 12:07:56 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=BankToCash Item'}
+2026-09-05 12:07:56 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=DepBug Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:07:57 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Dup Buyer credit_limit=0.0'}
+2026-09-05 12:07:57 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=DupBank Supplier credit_limit=0.0'}
+2026-09-05 12:07:57 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=DupBank Item'}
+2026-09-05 12:07:58 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Dup Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:07:59 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Tax Buyer credit_limit=0.0'}
+2026-09-05 12:07:59 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=TaxSale Supplier credit_limit=0.0'}
+2026-09-05 12:07:59 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=TaxSale Item'}
+2026-09-05 12:08:26 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cancel Buyer credit_limit=0.0'}
+2026-09-05 12:08:26 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CancelSale Supplier credit_limit=0.0'}
+2026-09-05 12:08:26 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CancelSale Item'}
+2026-09-05 12:08:26 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cancel Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:08:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Pay Buyer credit_limit=0.0'}
+2026-09-05 12:08:28 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=PaySale Supplier credit_limit=0.0'}
+2026-09-05 12:08:28 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=PaySale Item'}
+2026-09-05 12:08:29 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Pay Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:08:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Overpay Buyer credit_limit=0.0'}
+2026-09-05 12:08:31 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=Overpay Supplier credit_limit=0.0'}
+2026-09-05 12:08:31 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=Overpay Item'}
+2026-09-05 12:08:32 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Overpay Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:08:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Credit Buyer credit_limit=0.0'}
+2026-09-05 12:08:51 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CreditSale Supplier credit_limit=0.0'}
+2026-09-05 12:08:51 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CreditSale Item'}
+2026-09-05 12:08:52 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Credit Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:08:53 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Pay Buyer credit_limit=0.0'}
+2026-09-05 12:08:53 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=PaySale Supplier credit_limit=0.0'}
+2026-09-05 12:08:53 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=PaySale Item'}
+2026-09-05 12:08:54 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Pay Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:09:35 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cash Buyer credit_limit=0.0'}
+2026-09-05 12:09:35 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashSale Supplier credit_limit=0.0'}
+2026-09-05 12:09:35 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashSale Item'}
+2026-09-05 12:09:36 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cash Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:09:37 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Credit Buyer credit_limit=0.0'}
+2026-09-05 12:09:37 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CreditSale Supplier credit_limit=0.0'}
+2026-09-05 12:09:37 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CreditSale Item'}
+2026-09-05 12:09:38 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Credit Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:09:39 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Bank Buyer credit_limit=0.0'}
+2026-09-05 12:09:39 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=BankSale Supplier credit_limit=0.0'}
+2026-09-05 12:09:39 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=BankSale Item'}
+2026-09-05 12:09:40 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Bank Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:09:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Cheque Buyer credit_limit=0.0'}
+2026-09-05 12:09:41 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=ChequeSale Supplier credit_limit=0.0'}
+2026-09-05 12:09:41 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=ChequeSale Item'}
+2026-09-05 12:09:41 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Cheque Buyer total=200.0 items=1 payment=CHEQUE'}
+2026-09-05 12:09:42 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Flip Buyer credit_limit=0.0'}
+2026-09-05 12:09:42 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=FlipCashCredit Supplier credit_limit=0.0'}
+2026-09-05 12:09:42 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=FlipCashCredit Item'}
+2026-09-05 12:09:43 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:09:44 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip Buyer total=200.0 changes=None'}
+2026-09-05 12:09:45 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Flip2 Buyer credit_limit=0.0'}
+2026-09-05 12:09:45 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=FlipCreditCash Supplier credit_limit=0.0'}
+2026-09-05 12:09:45 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=FlipCreditCash Item'}
+2026-09-05 12:09:45 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip2 Buyer total=200.0 items=1 payment=CREDIT'}
+2026-09-05 12:09:46 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Flip2 Buyer total=200.0 changes=None'}
+2026-09-05 12:09:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=RT Buyer credit_limit=0.0'}
+2026-09-05 12:09:46 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=RoundTrip Supplier credit_limit=0.0'}
+2026-09-05 12:09:46 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=RoundTrip Item'}
+2026-09-05 12:09:47 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=RT Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:09:47 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=RT Buyer total=200.0 changes=None'}
+2026-09-05 12:09:47 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=RT Buyer total=200.0 changes=None'}
+2026-09-05 12:09:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=BankFlip Buyer credit_limit=0.0'}
+2026-09-05 12:09:48 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=CashToBank Supplier credit_limit=0.0'}
+2026-09-05 12:09:48 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=CashToBank Item'}
+2026-09-05 12:09:49 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=BankFlip Buyer total=200.0 items=1 payment=CASH'}
+2026-09-05 12:09:49 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=BankFlip Buyer total=200.0 changes=None'}
+2026-09-05 12:09:50 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=DepBug Buyer credit_limit=0.0'}
+2026-09-05 12:09:50 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=BankToCash Supplier credit_limit=0.0'}
+2026-09-05 12:09:50 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=BankToCash Item'}
+2026-09-05 12:09:51 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=DepBug Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:09:51 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=DepBug Buyer total=200.0 changes=None'}
+2026-09-05 12:09:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Dup Buyer credit_limit=0.0'}
+2026-09-05 12:09:52 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=DupBank Supplier credit_limit=0.0'}
+2026-09-05 12:09:52 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=DupBank Item'}
+2026-09-05 12:09:52 | SALES           | CREATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Dup Buyer total=200.0 items=1 payment=BANK'}
+2026-09-05 12:09:53 | SALES           | UPDATE     | Company:1 [System] | Entity: Sales Invoice(ID:1) [SI-00002] | Details: {'customer=Dup Buyer total=200.0 changes=None'}
+2026-09-05 12:09:54 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (CUSTOMER)(ID:1) [CUST-00002] | Details: {'name=Tax Buyer credit_limit=0.0'}
+2026-09-05 12:09:54 | PARTY           | CREATE     | Company:1 [System] | Entity: Party (SUPPLIER)(ID:2) [SUPP-00002] | Details: {'name=TaxSale Supplier credit_limit=0.0'}
+2026-09-05 12:09:54 | ITEM            | CREATE     | Company:1 [System] | Entity: Item(ID:1) [ITEM-00002] | Details: {'name=TaxSale Item'}

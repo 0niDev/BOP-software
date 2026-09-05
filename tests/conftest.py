@@ -1,109 +1,140 @@
 """
-Shared pytest fixtures for the BOP-software test suite.
+Shared fixtures for the integration test-suite.
 
-Design notes:
-- The DB engine is controlled via env vars (ERP_DB_ENGINE / SQLITE_CLOUD_URL)
-  and MUST be set before any application module that touches get_db() is
-  imported, because config.app_config caches its singleton on first use.
-- Never import main.py, seed_data.py or database/auto_backup.py in tests:
-  they forcibly overwrite ERP_DB_ENGINE to 'sqlitecloud'.
-- Repositories cache aggressively (L1/L2/L3). An autouse fixture clears all
-  caches between tests so assertions always read fresh data.
+Every test runs against a fresh throwaway LOCAL SQLite database seeded with the
+real migrations (same as a first app launch) - never the live SQLite Cloud DB.
+Tests call the exact controller/service functions the UI buttons invoke.
 """
 from __future__ import annotations
 
+import io
+import logging
 import os
-import re
 import sys
-import uuid
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+import pytest
 
-# ---------------------------------------------------------------------------
-# DB engine configuration -- must run before any app module import
-# ---------------------------------------------------------------------------
-TEST_DB_ENGINE = os.environ.get("ERP_DB_ENGINE", "sqlitecloud")
-os.environ["ERP_DB_ENGINE"] = TEST_DB_ENGINE
+TESTS_DIR = Path(__file__).resolve().parent
+LOG_OUTPUT_DIR = TESTS_DIR / "_logs"
+LOG_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-if not os.environ.get("SQLITE_CLOUD_URL"):
-    # Extract the connection string embedded in main.py so tests don't
-    # hardcode credentials that are already version-controlled.
-    _main_src = (ROOT / "main.py").read_text(encoding="utf-8")
-    _m = re.search(r"os\.environ\['SQLITE_CLOUD_URL'\]\s*=\s*'([^']+)'", _main_src)
-    if _m:
-        os.environ["SQLITE_CLOUD_URL"] = _m.group(1)
+# Make the project root importable no matter how pytest is launched.
+ROOT = TESTS_DIR.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-import pytest  # noqa: E402
+# Make sure a stray get_db()/create_connection() can never reach the hosted
+# database during a test session.
+os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
+os.environ["SQLITE_CLOUD_URL"] = "sqlitecloud://127.0.0.1:1/DO-NOT-CONNECT?apikey=none"
 
 
-# ---------------------------------------------------------------------------
-# Session-scoped database
-# ---------------------------------------------------------------------------
+def _tolerant_console() -> None:
+    # Several app modules `print()` emoji/debug text.  On a cp1252 Windows
+    # console that raises UnicodeEncodeError inside the printing thread.  Make
+    # the std streams replace un-encodable chars instead of crashing.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None:
+            continue
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except Exception:
+            pass
 
-@pytest.fixture(scope="session")
-def db():
-    """Live database connection with schema ensured (idempotent migrations)."""
-    from database.connection import get_db, close_db
-    from database.migrations.migrator import run_migrations
 
-    conn = get_db()
-    run_migrations(conn)
+_tolerant_console()
+
+
+def _seed_fresh_db(path: str):
+    from database.migrations.migrator import Migrator
+    from database.migrations.add_material_cost_columns import run_column_migration
+    from database.migrations.add_expense_items import run_expense_items_migration
+    from database.migrations.add_temp_bom import run_temp_bom_migration
+
+    from helpers.local_connection import LocalSqliteConnection
+
+    conn = LocalSqliteConnection(path)
+    Migrator(conn).run()
+    run_column_migration(conn)
+    run_expense_items_migration(conn)
+    run_temp_bom_migration(conn)
+    return conn
+
+
+@pytest.fixture()
+def qa_db(tmp_path, monkeypatch):
+    """Fresh local DB + point the whole app (get_db) at it."""
+    from database import connection as dbconn
+    from helpers.local_connection import LocalSqliteConnection
+
+    path = tmp_path / "qa.db"
+    conn = _seed_fresh_db(str(path))
+    monkeypatch.setattr(dbconn, "_db_instance", conn)
+    monkeypatch.setattr(dbconn, "close_db", lambda: None)
+
+    def _local_create_connection(config=None):
+        return conn
+
+    monkeypatch.setattr(dbconn, "create_connection", _local_create_connection)
     yield conn
-    close_db()
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 
-# ---------------------------------------------------------------------------
-# Cache isolation -- autouse so every test sees fresh data
-# ---------------------------------------------------------------------------
+@pytest.fixture()
+def auth(qa_db):
+    """Real login via AuthController (what the Login button runs)."""
+    from controllers.auth_controller import AuthController
+
+    controller = AuthController()
+    user, error = controller.login("admin", "admin123")
+    assert user is not None and not error, f"login failed: {error}"
+    return controller, user
+
+
+@pytest.fixture()
+def admin_user_id(qa_db):
+    """id of the seeded admin user, to pass as created_by."""
+    return qa_db.fetch_one("SELECT id FROM users WHERE username='admin'")["id"]
+
 
 @pytest.fixture(autouse=True)
-def clean_caches():
-    """Clear repository/session/global caches before and after each test."""
-    from utils.cache_manager import CacheManager, SessionCache
-    from utils.event_bus import EventBus
+def _clear_app_caches():
+    """Per-test fresh DB => drop every cached row that belongs to a previous DB."""
     from repositories.base_repository import BaseRepository
+    from utils.cache_manager import SessionCache, _global_cache
 
-    CacheManager.clear_all()
-    SessionCache().clear()
-    EventBus().clear()
     BaseRepository._cache.clear()
-    BaseRepository._session_cache = None
+    SessionCache().clear()
+    _global_cache.clear()
     yield
-    CacheManager.clear_all()
-    SessionCache().clear()
-    EventBus().clear()
     BaseRepository._cache.clear()
+    SessionCache().clear()
+    _global_cache.clear()
 
 
-# ---------------------------------------------------------------------------
-# Unique test-data helpers (safe against a shared live database)
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _capture_logs(request):
+    """Write every ERP log line emitted during a test to tests/_logs/<node>.log."""
+    root = logging.getLogger("erp")
+    buf = io.StringIO()
+    handler = logging.StreamHandler(buf)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+    )
+    root.addHandler(handler)
+    yield
+    root.removeHandler(handler)
+    node = request.node.nodeid.replace("/", "_").replace("\\", "_").replace("::", "__")
+    path = LOG_OUTPUT_DIR / f"{node}.log"
+    text = buf.getvalue()
+    lines = text.splitlines()
+    if len(lines) > 8000:
+        lines = lines[-8000:]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-@pytest.fixture(scope="session")
-def unique_code():
-    """Return a factory producing unique, easy-to-identify test codes."""
-    def _factory(prefix: str = "TST") -> str:
-        return f"{prefix}-{uuid.uuid4().hex[:10].upper()}"
-    return _factory
 
-
-@pytest.fixture
-def cleanup_registry():
-    """Track created entity ids per test for reliable teardown."""
-    created = {"parties": [], "items": [], "purchase_invoices": [], "sales_invoices": [], "journal_ids": []}
-    yield created
-
-
-# ---------------------------------------------------------------------------
-# GUI fixtures -- only created when a test requests them
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="session")
-def qapp():
-    """Offscreen QApplication for Qt widget tests."""
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication
-    app = QApplication.instance() or QApplication([])
-    yield app
+from helpers.local_connection import LocalSqliteConnection  # noqa: E402

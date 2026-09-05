@@ -138,3 +138,29 @@ class ItemController:
         except Exception:
             logger.exception("Unexpected error getting tax rates")
             return [], "An unexpected error occurred while loading tax rates"
+
+    def add_opening_stock(
+        self,
+        item_id: int,
+        quantity: float,
+        unit_cost: float = 0.0,
+        batch_number: str | None = None,
+        expiry_date: str | None = None,
+        party_id: int | None = None,
+    ) -> tuple[bool, str | None]:
+        """Add opening stock for an item (creates a batch + optional journal)."""
+        try:
+            self.service.add_opening_stock(
+                item_id=item_id,
+                quantity=quantity,
+                unit_cost=unit_cost,
+                batch_number=batch_number,
+                expiry_date=expiry_date,
+                party_id=party_id,
+            )
+            return True, None
+        except ERPException as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("Unexpected error adding opening stock")
+            return False, "An unexpected error occurred while adding opening stock."

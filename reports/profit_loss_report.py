@@ -28,7 +28,10 @@ class ProfitLossReport(Report):
                 a.account_code,
                 a.account_name,
                 a.account_type,
-                COALESCE(SUM(jel.credit - jel.debit), 0) as balance
+                CASE 
+                    WHEN a.account_type = 'EXPENSE' THEN COALESCE(SUM(jel.debit - jel.credit), 0)
+                    ELSE COALESCE(SUM(jel.credit - jel.debit), 0)
+                END as balance
             FROM accounts a
             LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
             LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id

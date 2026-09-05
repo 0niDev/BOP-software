@@ -93,8 +93,32 @@ class Migrator:
                     sub_stmt = sub_stmt.strip()
                     if sub_stmt:
                         self._db.execute(sub_stmt)
+            self._migrate_columns()
         logger.info("Schema migration complete.")
         self._seed_defaults()
+
+    def _column_exists(self, table: str, column: str) -> bool:
+        cols = [r["name"] for r in self._db.fetch_all(f"PRAGMA table_info({table})")]
+        return column in cols
+
+    def _migrate_columns(self) -> None:
+        """Idempotently add columns added after the initial schema release."""
+        if not self._column_exists("bill_of_materials", "is_ghost"):
+            self._db.execute(
+                "ALTER TABLE bill_of_materials ADD COLUMN is_ghost INTEGER NOT NULL DEFAULT 0"
+            )
+        if not self._column_exists("production_orders", "is_ghost"):
+            self._db.execute(
+                "ALTER TABLE production_orders ADD COLUMN is_ghost INTEGER NOT NULL DEFAULT 0"
+            )
+        # bank_account_id for invoices (added after initial release so it must
+        # be applied to existing databases; CREATE TABLE IF NOT EXISTS cannot
+        # alter existing tables).
+        for table in ("sales_invoices", "purchase_invoices"):
+            if not self._column_exists(table, "bank_account_id"):
+                self._db.execute(
+                    f"ALTER TABLE {table} ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id)"
+                )
 
     def _seed_defaults(self) -> None:
         with self._db.transaction():

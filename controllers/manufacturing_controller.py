@@ -56,10 +56,10 @@ class ManufacturingController:
             logger.exception("Unexpected error getting BOM")
             return None, "An unexpected error occurred."
 
-    def list_boms(self, active_only: bool | None = True) -> tuple[list[BillOfMaterials], str | None]:
+    def list_boms(self, active_only: bool | None = True, include_ghost: bool = True) -> tuple[list[BillOfMaterials], str | None]:
         """List BOMs."""
         try:
-            boms = self.service.list_boms(active_only=active_only)
+            boms = self.service.list_boms(active_only=active_only, include_ghost=include_ghost)
             return boms, None
         except ERPException as exc:
             return [], str(exc)
@@ -121,8 +121,10 @@ class ManufacturingController:
         manufacturing_date: str,
         expiry_date: str | None = None,
         notes: str | None = None,
+        temp_finished_item_id: int | None = None,
+        temp_components: list[dict] | None = None,
     ) -> tuple[bool, str | None]:
-        """Create a new production order."""
+        """Create a new production order (or a temporary one-use order)."""
         try:
             self.service.create_production_order(
                 order_number=order_number,
@@ -131,6 +133,8 @@ class ManufacturingController:
                 manufacturing_date=manufacturing_date,
                 expiry_date=expiry_date,
                 notes=notes,
+                temp_finished_item_id=temp_finished_item_id,
+                temp_components=temp_components,
             )
             return True, None
         except ERPException as exc:
@@ -152,11 +156,12 @@ class ManufacturingController:
 
     def list_production_orders(
         self,
-        status: str | None = None
+        status: str | None = None,
+        include_ghost: bool = True,
     ) -> tuple[list[ProductionOrder], str | None]:
         """List production orders."""
         try:
-            orders = self.service.list_production_orders(status=status)
+            orders = self.service.list_production_orders(status=status, include_ghost=include_ghost)
             return orders, None
         except ERPException as exc:
             return [], str(exc)

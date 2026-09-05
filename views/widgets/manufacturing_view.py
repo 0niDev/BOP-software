@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal, QDate, QThread, QObject, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QCompleter,
     QDateEdit,
     QDialog,
     QDialogButtonBox,
@@ -32,6 +34,28 @@ from utils.help_utils import create_help_button
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def make_searchable_combo(combo: QComboBox) -> QComboBox:
+    """Make a QComboBox searchable by typing (filters by text via completer).
+
+    The combo becomes an editable combo whose line edit acts as a search bar:
+    type any part of the item name (or code) and a popup lists the matches.
+    """
+    combo.setEditable(True)
+    combo.setInsertPolicy(QComboBox.NoInsert)
+    line_edit = combo.lineEdit()
+    line_edit.setPlaceholderText("Type to search...")
+    completer = QCompleter(combo.model())
+    completer.setFilterMode(Qt.MatchContains)
+    completer.setCaseSensitivity(Qt.CaseInsensitive)
+    completer.setCompletionMode(QCompleter.PopupCompletion)
+    combo.setCompleter(completer)
+    # Keep the placeholder visible even when focused / after selection
+    line_edit.textChanged.connect(
+        lambda text: line_edit.setPlaceholderText("Type to search..." if not text else "")
+    )
+    return combo
 
 MANUFACTURING_HELP = """
 <h3>Manufacturing</h3>
@@ -134,7 +158,13 @@ class BOMDialog(QDialog):
         
         self.finished_item_combo = QComboBox()
         self.finished_item_combo.addItem("Select Finished Item", None)
+        make_searchable_combo(self.finished_item_combo)
         form_layout.addRow("Finished Item*:", self.finished_item_combo)
+
+        self.finished_search = QLineEdit()
+        self.finished_search.setPlaceholderText("Search finished goods by name or code...")
+        self.finished_search.textChanged.connect(self._on_finished_search)
+        form_layout.addRow("Search Finished:", self.finished_search)
         
         self.output_quantity_spin = QDoubleSpinBox()
         self.output_quantity_spin.setMinimum(0.01)
@@ -153,6 +183,12 @@ class BOMDialog(QDialog):
         comp_group = QGroupBox("Components")
         comp_layout = QVBoxLayout(comp_group)
         
+        # Search bar to filter the component picker list
+        self.component_search = QLineEdit()
+        self.component_search.setPlaceholderText("Search components by name or code...")
+        self.component_search.textChanged.connect(self._on_component_search)
+        comp_layout.addWidget(self.component_search)
+        
         self.components_table = QTableWidget()
         self.components_table.setColumnCount(4)
         self.components_table.setHorizontalHeaderLabels([
@@ -167,6 +203,7 @@ class BOMDialog(QDialog):
         self.component_item_combo = QComboBox()
         self.component_item_combo.setMinimumWidth(200)
         self.component_item_combo.addItem("Select Component", None)
+        make_searchable_combo(self.component_item_combo)
         comp_controls.addWidget(self.component_item_combo)
         
         self.component_qty_spin = QDoubleSpinBox()
@@ -275,46 +312,78 @@ class BOMDialog(QDialog):
             QMessageBox.warning(self, "Load Error", error)
             return
         
-        # DEBUG: Print all items
-        print("\n" + "="*60)
-        print("DEBUG: ALL ITEMS LOADED IN BOM DIALOG")
-        print("="*60)
-        for item in items:
-            print(f"  {item.item_code:15} | {item.item_name[:30]:30} | {item.item_type}")
-        print("="*60)
-        
         # Finished items
+        self._finished_items: list = []
         self.finished_item_combo.clear()
         self.finished_item_combo.addItem("Select Finished Item", None)
-        finished_count = 0
         for item in items:
             if item.item_type == "FINISHED_GOOD":
+                self._finished_items.append(item)
                 self.finished_item_combo.addItem(
                     f"{item.item_name} ({item.item_code})", item.id
                 )
-                finished_count += 1
-                print(f"  ✅ Finished: {item.item_code}")
         
         # Component items (raw materials and packing materials)
+        self._component_items: list = []
         self.component_item_combo.clear()
         self.component_item_combo.addItem("Select Component", None)
-        component_count = 0
         for item in items:
             if item.item_type in ["RAW_MATERIAL", "PACKING_MATERIAL"]:
+                self._component_items.append(item)
                 self.component_item_combo.addItem(
                     f"{item.item_name} ({item.item_code})", item.id
                 )
-                component_count += 1
-                print(f"  ✅ Component: {item.item_code}")
-        
-        print(f"\n📊 Summary: {finished_count} finished, {component_count} components")
-        print("="*60)
+
+    def _on_finished_search(self, text: str) -> None:
+        """Filter the finished item picker dropdown by name or code as the user types."""
+        text = (text or "").strip().lower()
+        current_id = self.finished_item_combo.currentData()
+        self.finished_item_combo.blockSignals(True)
+        self.finished_item_combo.clear()
+        self.finished_item_combo.addItem("Select Finished Item", None)
+        for item in self._finished_items:
+            haystack = f"{item.item_name} {item.item_code}".lower()
+            if not text or text in haystack:
+                self.finished_item_combo.addItem(
+                    f"{item.item_name} ({item.item_code})", item.id
+                )
+        self.finished_item_combo.blockSignals(False)
+        if current_id is not None:
+            idx = self.finished_item_combo.findData(current_id)
+            if idx >= 0:
+                self.finished_item_combo.setCurrentIndex(idx)
+
+    def _on_component_search(self, text: str) -> None:
+        """Filter the component picker dropdown by name or code as the user types."""
+        text = (text or "").strip().lower()
+        current_id = self.component_item_combo.currentData()
+        self.component_item_combo.blockSignals(True)
+        self.component_item_combo.clear()
+        self.component_item_combo.addItem("Select Component", None)
+        for item in self._component_items:
+            haystack = f"{item.item_name} {item.item_code}".lower()
+            if not text or text in haystack:
+                self.component_item_combo.addItem(
+                    f"{item.item_name} ({item.item_code})", item.id
+                )
+        self.component_item_combo.blockSignals(False)
+        if current_id is not None:
+            idx = self.component_item_combo.findData(current_id)
+            if idx >= 0:
+                self.component_item_combo.setCurrentIndex(idx)
 
     def _on_add_component(self) -> None:
         """Add a component to the list."""
         item_id = self.component_item_combo.currentData()
+        if item_id is None:
+            # Editable combo: match typed text to an exact item in the list
+            typed = self.component_item_combo.currentText().strip()
+            for i in range(self.component_item_combo.count()):
+                if self.component_item_combo.itemText(i) == typed:
+                    item_id = self.component_item_combo.itemData(i)
+                    break
         if not item_id:
-            QMessageBox.warning(self, "Selection Error", "Please select a component item.")
+            QMessageBox.warning(self, "Selection Error", "Please select a component item from the list.")
             return
         
         quantity = self.component_qty_spin.value()
@@ -527,6 +596,18 @@ class ManufacturingView(QWidget):
             else:
                 logger.debug("DEBUG: Data already loaded, skipping")
 
+    def _on_ghost_filter_changed(self) -> None:
+        """Re-render tables from the cached data when the ghost switch toggles."""
+        if not getattr(self, '_is_loaded', False) or not self._data_cache:
+            return
+        self._populate_boms(self._data_cache.get('boms', []),
+                            self._data_cache.get('items', []))
+        self._populate_orders(self._data_cache.get('orders', []))
+
+    def _hide_ghosts(self) -> bool:
+        """True when the ghost-data switch is ON (hide imported data)."""
+        return self.hide_ghost_chk.isChecked()
+
     def _build_ui(self) -> None:
         """Builds the UI."""
         layout = QVBoxLayout(self)
@@ -538,6 +619,13 @@ class ManufacturingView(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
         header.addWidget(title)
         header.addStretch()
+
+        # Ghost data switch (ON by default = hide imported/ghost BOMs & orders)
+        self.hide_ghost_chk = QCheckBox("Hide imported (ghost) data")
+        self.hide_ghost_chk.setChecked(True)
+        self.hide_ghost_chk.stateChanged.connect(self._on_ghost_filter_changed)
+        header.addWidget(self.hide_ghost_chk)
+
         header.addWidget(create_help_button("Manufacturing", MANUFACTURING_HELP))
         layout.addLayout(header)
 
@@ -573,6 +661,7 @@ class ManufacturingView(QWidget):
         self.bom_active_filter.addItem("All", None)
         self.bom_active_filter.addItem("Active", True)
         self.bom_active_filter.addItem("Inactive", False)
+        self.bom_active_filter.setCurrentIndex(1)  # default: hide inactive BOMs
         self.bom_active_filter.currentIndexChanged.connect(self._load_boms)
         controls_layout.addWidget(self.bom_active_filter)
         
@@ -679,6 +768,13 @@ class ManufacturingView(QWidget):
         # Create item lookup dict
         item_dict = {i.id: i.item_name for i in items}
         
+        if self._hide_ghosts():
+            boms = [b for b in boms if not getattr(b, 'is_ghost', False)]
+        
+        active_filter = self.bom_active_filter.currentData()
+        if active_filter is not None:
+            boms = [b for b in boms if bool(getattr(b, 'is_active', False)) is bool(active_filter)]
+        
         self.bom_table.setRowCount(len(boms))
         self.bom_table.setColumnCount(5)
         self.bom_table.setHorizontalHeaderLabels([
@@ -726,127 +822,61 @@ class ManufacturingView(QWidget):
         
         logger.debug(f"DEBUG: Number of orders: {len(orders)}")
         
+        if self._hide_ghosts():
+            orders = [o for o in orders if not getattr(o, 'is_ghost', False)]
+        
         try:
-            self.order_table.setRowCount(0)
+            # Build a single BOM-name lookup from the already-loaded BOM cache
+            # (avoids a network round-trip per order - the old N+1 hang).
+            cache = getattr(self, '_data_cache', None) or {}
+            boms = cache.get('boms', []) or []
+            bom_name_by_id = {b.id: b.bom_name for b in boms}
+            for order in orders:
+                bom_name_by_id.setdefault(getattr(order, 'bom_id', None), None)
+            missing = [bid for bid, name in bom_name_by_id.items() if name is None and bid is not None]
+            if missing:
+                boms2, _ = self.controller.list_boms(active_only=None)
+                for b in boms2:
+                    bom_name_by_id[b.id] = b.bom_name
+
+            self.order_table.setRowCount(len(orders))
             self.order_table.setColumnCount(9)
             self.order_table.setHorizontalHeaderLabels([
                 "Order #", "BOM", "Planned", "Actual", "Status", "Date", "Batch", "Raw Cost", "Packing Cost"
             ])
             
             for row, order in enumerate(orders):
-                logger.debug("-" * 40)
-                logger.debug(f"DEBUG: Processing order #{row}")
-                logger.debug(f"DEBUG: Order object type: {type(order)}")
-                
-                try:
-                    order_attrs = dir(order)
-                    logger.debug(f"DEBUG: Order attributes (first 20): {[a for a in order_attrs if not a.startswith('_')][:20]}")
-                except Exception as attr_err:
-                    logger.warning(f"DEBUG: Could not get attributes: {attr_err}")
-                
-                logger.debug(f"DEBUG: Order ID: {getattr(order, 'id', 'MISSING')}")
-                logger.debug(f"DEBUG: Order bom_id: {getattr(order, 'bom_id', 'MISSING')}")
-                logger.debug(f"DEBUG: Order status: {getattr(order, 'status', 'MISSING')}")
-                logger.debug(f"DEBUG: Order manufacturing_date: {getattr(order, 'manufacturing_date', 'MISSING')}")
-                logger.debug(f"DEBUG: Order planned_quantity: {getattr(order, 'planned_quantity', 'MISSING')}")
-                logger.debug(f"DEBUG: Order actual_quantity: {getattr(order, 'actual_quantity', 'MISSING')}")
-                logger.debug(f"DEBUG: Order output_batch_number: {getattr(order, 'output_batch_number', 'MISSING')}")
-                
-                # Check if bom_name attribute exists (it shouldn't)
-                if hasattr(order, 'bom_name'):
-                    logger.warning(f"DEBUG: Order HAS bom_name attribute: {order.bom_name}")
-                else:
-                    logger.debug(f"DEBUG: Order does NOT have bom_name attribute (expected)")
-                
-                self.order_table.insertRow(row)
-                
-                # Order Number
+                bom_id = getattr(order, 'bom_id', None)
+                bom_name = bom_name_by_id.get(bom_id) or "-"
                 order_number = str(getattr(order, 'id', '-'))
-                logger.debug(f"DEBUG: Setting order_number: {order_number}")
-                self.order_table.setItem(row, 0, QTableWidgetItem(order_number))
-                
-                # BOM Name - NEEDS TO FETCH FROM BOM
-                bom_name = "-"
-                if getattr(order, 'bom_id', None):
-                    logger.debug(f"DEBUG: Fetching BOM for bom_id={order.bom_id}")
-                    try:
-                        bom_result = self.controller.get_bom(order.bom_id)
-                        logger.debug(f"DEBUG: Fetched BOM result: {bom_result} (type={type(bom_result)})")
-                        
-                        # Controller returns tuple: (bom_object, error_string)
-                        if isinstance(bom_result, tuple) and len(bom_result) == 2:
-                            bom_obj, error = bom_result
-                            if error:
-                                logger.warning(f"DEBUG: Error from controller: {error}")
-                            else:
-                                logger.debug(f"DEBUG: BOM object from controller: {bom_obj}")
-                                if bom_obj:
-                                    bom_name = getattr(bom_obj, 'bom_name', '-')
-                                    logger.debug(f"DEBUG: BOM name found: {bom_name}")
-                                else:
-                                    logger.warning(f"DEBUG: BOM object is None for bom_id={order.bom_id}")
-                        else:
-                            # Fallback: treat result as direct BOM object
-                            bom_obj = bom_result
-                            if bom_obj:
-                                bom_name = getattr(bom_obj, 'bom_name', '-')
-                                logger.debug(f"DEBUG: BOM name found (fallback): {bom_name}")
-                            else:
-                                logger.warning(f"DEBUG: BOM not found for bom_id={order.bom_id}")
-                    except Exception as e:
-                        logger.error(f"DEBUG: Error fetching BOM: {e}", exc_info=True)
-                else:
-                    logger.debug(f"DEBUG: No bom_id for this order")
-                
-                logger.debug(f"DEBUG: Setting bom_name: {bom_name}")
-                self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
-                
-                # Status - use string directly, not .value
                 status = getattr(order, 'status', 'DRAFT')
-                if status:
-                    status_display = status.replace("_", " ").title()
-                else:
-                    status_display = "Draft"
-                logger.debug(f"DEBUG: Setting status: {status_display} (from {status})")
-                self.order_table.setItem(row, 2, QTableWidgetItem(status_display))
-                
-                # Manufacturing Date (not order_date)
+                status_display = status.replace("_", " ").title() if status else "Draft"
                 mfg_date = getattr(order, 'manufacturing_date', None)
-                mfg_date_str = mfg_date if mfg_date else "-"
-                logger.debug(f"DEBUG: Setting manufacturing_date: {mfg_date_str}")
-                self.order_table.setItem(row, 3, QTableWidgetItem(mfg_date_str))
-                
-                # Planned Quantity (not planned_start_date)
                 planned_qty = getattr(order, 'planned_quantity', None)
-                planned_qty_str = str(planned_qty) if planned_qty is not None else "-"
-                logger.debug(f"DEBUG: Setting planned_quantity: {planned_qty_str}")
-                self.order_table.setItem(row, 4, QTableWidgetItem(planned_qty_str))
-                
-                # Actual Quantity (not actual_start_date)
                 actual_qty = getattr(order, 'actual_quantity', None)
-                actual_qty_str = str(actual_qty) if actual_qty is not None else "-"
-                logger.debug(f"DEBUG: Setting actual_quantity: {actual_qty_str}")
-                self.order_table.setItem(row, 5, QTableWidgetItem(actual_qty_str))
-                
-                # Output Batch Number (not batch_number)
                 batch_num = getattr(order, 'output_batch_number', None)
-                batch_num_str = batch_num if batch_num else "-"
-                logger.debug(f"DEBUG: Setting output_batch_number: {batch_num_str}")
-                self.order_table.setItem(row, 6, QTableWidgetItem(batch_num_str))
-                
-                # Raw Material Cost
                 raw_cost = getattr(order, 'raw_material_cost', None)
+                packing_cost = getattr(order, 'packing_material_cost', None)
+                
+                self.order_table.setItem(row, 0, QTableWidgetItem(order_number))
+                self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
+                self.order_table.setItem(row, 2, QTableWidgetItem(status_display))
+                self.order_table.setItem(row, 3, QTableWidgetItem(mfg_date if mfg_date else "-"))
+                self.order_table.setItem(row, 4, QTableWidgetItem(
+                    str(planned_qty) if planned_qty is not None else "-"
+                ))
+                self.order_table.setItem(row, 5, QTableWidgetItem(
+                    str(actual_qty) if actual_qty is not None else "-"
+                ))
+                self.order_table.setItem(row, 6, QTableWidgetItem(
+                    batch_num if batch_num else "-"
+                ))
                 self.order_table.setItem(row, 7, QTableWidgetItem(
                     f"{raw_cost:.2f}" if raw_cost is not None else "-"
                 ))
-                
-                # Packing Material Cost
-                packing_cost = getattr(order, 'packing_material_cost', None)
                 self.order_table.setItem(row, 8, QTableWidgetItem(
                     f"{packing_cost:.2f}" if packing_cost is not None else "-"
                 ))
-                
-                logger.debug(f"DEBUG: Finished processing order #{row}")
             
             logger.debug("=" * 60)
             logger.debug("DEBUG: _populate_orders completed")
@@ -862,12 +892,14 @@ class ManufacturingView(QWidget):
             raise
 
     def _on_bom_search(self, text: str) -> None:
-        """Filter BOM table."""
+        """Filter BOM table by BOM name OR finished goods name."""
         for row in range(self.bom_table.rowCount()):
             matches = False
-            item = self.bom_table.item(row, 0)
-            if item and text.lower() in item.text().lower():
-                matches = True
+            for col in (0, 1):  # Name + Finished Item columns
+                item = self.bom_table.item(row, col)
+                if item and text.lower() in item.text().lower():
+                    matches = True
+                    break
             self.bom_table.setRowHidden(row, not matches)
     
     def _load_boms(self) -> None:
@@ -883,8 +915,13 @@ class ManufacturingView(QWidget):
         if not name_item:
             return
         
-        boms, _ = self.controller.list_boms(active_only=None)
+        cache = getattr(self, '_data_cache', None) or {}
+        boms = cache.get('boms', []) or []
         bom = next((b for b in boms if b.bom_name == name_item.text()), None)
+        
+        if bom is None:
+            boms, _ = self.controller.list_boms(active_only=None)
+            bom = next((b for b in boms if b.bom_name == name_item.text()), None)
         
         if bom:
             self._selected_bom_id = bom.id
@@ -974,7 +1011,16 @@ class ManufacturingView(QWidget):
             QMessageBox.warning(self, "Load Error", error)
             return
         
+        if self._hide_ghosts():
+            orders = [o for o in orders if not getattr(o, 'is_ghost', False)]
+        
         logger.debug(f"DEBUG: Loaded {len(orders)} orders")
+        
+        # Build a single BOM-name lookup (avoid N+1 get_bom per order).
+        bom_name_by_id = {}
+        boms, _ = self.controller.list_boms(active_only=None)
+        for b in boms:
+            bom_name_by_id[b.id] = b.bom_name
         
         self.order_table.setRowCount(len(orders))
         self.order_table.setColumnCount(9)
@@ -983,25 +1029,7 @@ class ManufacturingView(QWidget):
         ])
         
         for row, order in enumerate(orders):
-            logger.debug(f"DEBUG: Processing order #{row}: {order.order_number}")
-            # Get BOM name
-            bom_result = self.controller.get_bom(order.bom_id)
-            logger.debug(f"DEBUG: get_bom returned: {bom_result} (type={type(bom_result)})")
-            
-            # Handle tuple return from controller
-            if isinstance(bom_result, tuple) and len(bom_result) == 2:
-                bom, err = bom_result
-                if err:
-                    logger.warning(f"DEBUG: Error getting BOM: {err}")
-                    bom_name = "Unknown"
-                else:
-                    bom_name = bom.bom_name if bom else "Unknown"
-            else:
-                # Fallback: direct object
-                bom = bom_result
-                bom_name = bom.bom_name if bom else "Unknown"
-            
-            logger.debug(f"DEBUG: BOM name: {bom_name}")
+            bom_name = bom_name_by_id.get(order.bom_id) or "Unknown"
             
             self.order_table.setItem(row, 0, QTableWidgetItem(order.order_number))
             self.order_table.setItem(row, 1, QTableWidgetItem(bom_name))
@@ -1039,8 +1067,15 @@ class ManufacturingView(QWidget):
         if not order_item:
             return
         
-        orders, _ = self.controller.list_production_orders(status=None)
-        order = next((o for o in orders if o.order_number == order_item.text()), None)
+        # Resolve order from the already-loaded cache instead of re-fetching
+        # all orders from the DB on every click.
+        cache = getattr(self, '_data_cache', None) or {}
+        orders = cache.get('orders', []) or []
+        order = next((o for o in orders if str(getattr(o, 'id', '')) == order_item.text()), None)
+        
+        if order is None:
+            orders, _ = self.controller.list_production_orders(status=None)
+            order = next((o for o in orders if str(getattr(o, 'id', '')) == order_item.text()), None)
         
         if order:
             self._selected_order_id = order.id
@@ -1052,54 +1087,195 @@ class ManufacturingView(QWidget):
             self.delete_order_btn.setEnabled(order.status == "DRAFT")
 
     def _on_add_order(self) -> None:
-        """Add new production order."""
+        """Add new production order (saved BOM or one-time temporary production)."""
         # Get BOMs for dropdown
         boms, _ = self.controller.list_boms(active_only=True)
-        if not boms:
-            QMessageBox.warning(self, "No BOMs", "Please create a BOM first.")
-            return
-        
+        if self._hide_ghosts():
+            boms = [b for b in boms if not getattr(b, 'is_ghost', False)]
+        items, _ = self.item_controller.list_items(active_only=True)
+
         # Create simple dialog for order creation
         dialog = QDialog(self)
         dialog.setWindowTitle("New Production Order")
         dialog.setModal(True)
-        dialog.resize(400, 300)
-        
+        dialog.resize(560, 650)
+
         layout = QFormLayout(dialog)
-        
+
         order_number_input = QLineEdit()
         order_number_input.setPlaceholderText("e.g., PROD-2026-001")
         layout.addRow("Order Number*:", order_number_input)
-        
+
         bom_combo = QComboBox()
+        bom_combo.addItem("Select BOM", None)
+        item_name_lookup = {i.id: i.item_name for i in items}
         for bom in boms:
-            # Get finished item name
-            items, _ = self.item_controller.list_items(active_only=False)
-            item_name = next((i.item_name for i in items if i.id == bom.finished_item_id), "Unknown")
+            item_name = item_name_lookup.get(bom.finished_item_id, "Unknown")
             bom_combo.addItem(f"{bom.bom_name} ({item_name})", bom.id)
+        make_searchable_combo(bom_combo)
         layout.addRow("BOM*:", bom_combo)
-        
+
+        # Temporary production option
+        temp_check = QCheckBox("Temporary Production (no saved BOM, one use only)")
+        layout.addRow(temp_check)
+
+        temp_group = QGroupBox("Temporary Production Details")
+        temp_layout = QVBoxLayout(temp_group)
+        temp_form = QFormLayout()
+        temp_group.setLayout(temp_layout)
+
+        finished_combo = QComboBox()
+        finished_combo.addItem("Select Finished Item", None)
+        for item in items:
+            if item.item_type == "FINISHED_GOOD":
+                finished_combo.addItem(f"{item.item_name} ({item.item_code})", item.id)
+        make_searchable_combo(finished_combo)
+        temp_form.addRow("Finished Item*:", finished_combo)
+
+        comp_combo = QComboBox()
+        comp_combo.addItem("Select Component", None)
+        for item in items:
+            if item.item_type in ["RAW_MATERIAL", "PACKING_MATERIAL"]:
+                comp_combo.addItem(f"{item.item_name} ({item.item_code})", item.id)
+        make_searchable_combo(comp_combo)
+        temp_form.addRow("Component:", comp_combo)
+
+        # Search bar to filter the temp component dropdown + added list
+        temp_comp_search = QLineEdit()
+        temp_comp_search.setPlaceholderText("Search components by name or code...")
+        temp_comp_search.textChanged.connect(
+            lambda text: _filter_comp_combo(text)
+        )
+        temp_form.addRow("Search:", temp_comp_search)
+
+        _all_comp_items = [
+            item for item in items
+            if item.item_type in ["RAW_MATERIAL", "PACKING_MATERIAL"]
+        ]
+
+        def _filter_comp_combo(text: str) -> None:
+            text = (text or "").strip().lower()
+            current_id = comp_combo.currentData()
+            comp_combo.blockSignals(True)
+            comp_combo.clear()
+            comp_combo.addItem("Select Component", None)
+            for item in _all_comp_items:
+                haystack = f"{item.item_name} {item.item_code}".lower()
+                if not text or text in haystack:
+                    comp_combo.addItem(f"{item.item_name} ({item.item_code})", item.id)
+            comp_combo.blockSignals(False)
+            if current_id is not None:
+                idx = comp_combo.findData(current_id)
+                if idx >= 0:
+                    comp_combo.setCurrentIndex(idx)
+
+        comp_qty_spin = QDoubleSpinBox()
+        comp_qty_spin.setMinimum(0.01)
+        comp_qty_spin.setMaximum(999999.99)
+        comp_qty_spin.setValue(1.0)
+        comp_qty_spin.setDecimals(2)
+        temp_form.addRow("Component Qty:", comp_qty_spin)
+
+        comp_waste_spin = QDoubleSpinBox()
+        comp_waste_spin.setMinimum(0)
+        comp_waste_spin.setMaximum(100)
+        comp_waste_spin.setValue(0)
+        comp_waste_spin.setDecimals(1)
+        temp_form.addRow("Wastage %:", comp_waste_spin)
+
+        add_comp_btn = QPushButton("Add Component")
+        temp_form.addRow(add_comp_btn)
+
+        comp_table = QTableWidget()
+        comp_table.setColumnCount(4)
+        comp_table.setHorizontalHeaderLabels(["Component", "Qty", "Wastage", "Action"])
+        comp_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        temp_form.addRow(comp_table)
+
+        temp_layout.addLayout(temp_form)
+
+        temp_components: list[dict] = []
+
+        def _add_temp_component():
+            item_id = comp_combo.currentData()
+            if item_id is None:
+                typed = comp_combo.currentText().strip()
+                for i in range(comp_combo.count()):
+                    if comp_combo.itemText(i) == typed:
+                        item_id = comp_combo.itemData(i)
+                        break
+            if not item_id:
+                QMessageBox.warning(dialog, "Selection Error", "Please select a component item.")
+                return
+            qty = comp_qty_spin.value()
+            if qty <= 0:
+                QMessageBox.warning(dialog, "Input Error", "Quantity must be greater than 0.")
+                return
+            for comp in temp_components:
+                if comp["component_item_id"] == item_id:
+                    QMessageBox.warning(dialog, "Duplicate", "This component is already in the list.")
+                    return
+            temp_components.append({
+                "component_item_id": item_id,
+                "quantity_required": qty,
+                "wastage_percent": comp_waste_spin.value(),
+            })
+            comp_combo.setCurrentIndex(0)
+            comp_qty_spin.setValue(1.0)
+            comp_waste_spin.setValue(0)
+            _render_temp_table()
+
+        def _remove_temp_row(row):
+            temp_components.pop(row)
+            _render_temp_table()
+
+        def _render_temp_table():
+            comp_table.setRowCount(len(temp_components))
+            for row, comp in enumerate(temp_components):
+                name = "Unknown"
+                for i in range(comp_combo.count()):
+                    if comp_combo.itemData(i) == comp["component_item_id"]:
+                        name = comp_combo.itemText(i)
+                        break
+                comp_table.setItem(row, 0, QTableWidgetItem(name))
+                comp_table.setItem(row, 1, QTableWidgetItem(f"{comp['quantity_required']:.2f}"))
+                comp_table.setItem(row, 2, QTableWidgetItem(f"{comp['wastage_percent']:.1f}%"))
+                remove_btn = QPushButton("Remove")
+                remove_btn.clicked.connect(lambda checked, r=row: _remove_temp_row(r))
+                comp_table.setCellWidget(row, 3, remove_btn)
+
+        add_comp_btn.clicked.connect(_add_temp_component)
+
+        temp_group.setVisible(False)
+        layout.addRow(temp_group)
+
+        def _on_temp_toggled(checked: bool):
+            temp_group.setVisible(checked)
+            bom_combo.setEnabled(not checked)
+
+        temp_check.toggled.connect(_on_temp_toggled)
+
         planned_qty_spin = QDoubleSpinBox()
         planned_qty_spin.setMinimum(0.01)
         planned_qty_spin.setMaximum(999999.99)
         planned_qty_spin.setValue(1.0)
         planned_qty_spin.setDecimals(2)
         layout.addRow("Planned Quantity*:", planned_qty_spin)
-        
+
         date_input = QDateEdit()
         date_input.setDate(QDate.currentDate())
         date_input.setDisplayFormat("yyyy-MM-dd")
         layout.addRow("Manufacturing Date*:", date_input)
-        
+
         expiry_input = QDateEdit()
         expiry_input.setDate(QDate.currentDate().addYears(2))
         expiry_input.setDisplayFormat("yyyy-MM-dd")
         layout.addRow("Expiry Date:", expiry_input)
-        
+
         notes_input = QLineEdit()
         notes_input.setPlaceholderText("Optional notes")
         layout.addRow("Notes:", notes_input)
-        
+
         button_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
             Qt.Horizontal, dialog
@@ -1107,27 +1283,45 @@ class ManufacturingView(QWidget):
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addRow(button_box)
-        
+
         if dialog.exec() == QDialog.Accepted:
             order_number = order_number_input.text().strip()
             if not order_number:
                 QMessageBox.warning(self, "Input Error", "Order number is required.")
                 return
-            
-            bom_id = bom_combo.currentData()
-            if not bom_id:
-                QMessageBox.warning(self, "Input Error", "Please select a BOM.")
-                return
-            
-            success, error = self.controller.create_production_order(
-                order_number=order_number,
-                bom_id=bom_id,
-                planned_quantity=planned_qty_spin.value(),
-                manufacturing_date=date_input.date().toString("yyyy-MM-dd"),
-                expiry_date=expiry_input.date().toString("yyyy-MM-dd"),
-                notes=notes_input.text().strip() or None,
-            )
-            
+
+            if temp_check.isChecked():
+                finished_item_id = finished_combo.currentData()
+                if finished_item_id is None:
+                    QMessageBox.warning(self, "Input Error", "Please select a finished item.")
+                    return
+                if not temp_components:
+                    QMessageBox.warning(self, "Input Error", "Please add at least one component.")
+                    return
+                success, error = self.controller.create_production_order(
+                    order_number=order_number,
+                    bom_id=0,
+                    planned_quantity=planned_qty_spin.value(),
+                    manufacturing_date=date_input.date().toString("yyyy-MM-dd"),
+                    expiry_date=expiry_input.date().toString("yyyy-MM-dd"),
+                    notes=notes_input.text().strip() or None,
+                    temp_finished_item_id=finished_item_id,
+                    temp_components=temp_components,
+                )
+            else:
+                bom_id = bom_combo.currentData()
+                if not bom_id:
+                    QMessageBox.warning(self, "Input Error", "Please select a BOM.")
+                    return
+                success, error = self.controller.create_production_order(
+                    order_number=order_number,
+                    bom_id=bom_id,
+                    planned_quantity=planned_qty_spin.value(),
+                    manufacturing_date=date_input.date().toString("yyyy-MM-dd"),
+                    expiry_date=expiry_input.date().toString("yyyy-MM-dd"),
+                    notes=notes_input.text().strip() or None,
+                )
+
             if success:
                 self._load_orders()
             else:

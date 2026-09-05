@@ -32,7 +32,8 @@ class ProductionOrderRepository(BaseRepository):
     def find_all_for_company(
         self, 
         company_id: int = 1, 
-        status: str | None = None
+        status: str | None = None,
+        include_ghost: bool = True,
     ) -> list[dict]:
         """Get all production orders with optional status filter."""
         sql = "SELECT * FROM production_orders WHERE company_id = ?"
@@ -40,6 +41,8 @@ class ProductionOrderRepository(BaseRepository):
         if status:
             sql += " AND status = ?"
             params.append(status)
+        if not include_ghost:
+            sql += " AND is_ghost = 0"
         sql += " ORDER BY manufacturing_date DESC"
         return self.db.fetch_all(sql, tuple(params))
 

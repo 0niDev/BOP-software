@@ -223,3 +223,120 @@ class ItemService:
     ) -> list[dict]:
         """Get tax rates for dropdowns"""
         return self.tax_repo.find_all_for_company(company_id, active_only)
+
+    def add_opening_stock(
+        self,
+        item_id: int,
+        quantity: float,
+        unit_cost: float = 0.0,
+        batch_number: str | None = None,
+        expiry_date: str | None = None,
+        party_id: int | None = None,
+        company_id: int = 1,
+        warehouse_id: int = 1,
+    ) -> None:
+        """Add opening stock for an item as a new stock batch.
+
+        Creates the batch plus an OPENING stock movement. If a party
+        (supplier) is provided, posts an OPENING journal entry debiting the
+        item's inventory account and crediting the party to keep the books
+        balanced.
+        """
+        from datetime import date, datetime
+
+        from repositories.stock_batch_repository import StockBatchRepository
+        from repositories.account_repository import AccountRepository
+        from services.accounting_service import AccountingService, JournalLine
+        from models.enums import VoucherType
+
+        if quantity <= 0:
+            raise ValidationError("Quantity must be greater than 0.")
+        if unit_cost < 0:
+            raise ValidationError("Unit cost cannot be negative.")
+
+        item = self.repo.get_by_id(item_id)
+        if not item:
+            raise ValidationError("Item does not exist.")
+
+        if batch_number is None:
+            batch_number = f"OPEN-{item['item_code']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        stock_repo = StockBatchRepository(self.db)
+        total_value = quantity * unit_cost
+
+        with self.db.transaction():
+            stock_repo.create_batch(
+                item_id=item_id,
+                warehouse_id=warehouse_id,
+                batch_number=batch_number,
+                manufacturing_date=date.today().isoformat(),
+                expiry_date=expiry_date,
+                purchase_price=unit_cost,
+                quantity_in_stock=quantity,
+                raw_unit_cost=unit_cost,
+            )
+
+            # Audit trail
+            batch_row = self.db.fetch_one(
+                "SELECT id FROM stock_batches "
+                "WHERE item_id = ? AND warehouse_id = ? AND batch_number = ?",
+                (item_id, warehouse_id, batch_number),
+            )
+            if batch_row:
+                self.db.execute(
+                    """
+                    INSERT INTO stock_movements
+                        (item_id, batch_id, warehouse_id, movement_type, quantity,
+                         unit_cost, movement_date, notes)
+                    VALUES (?, ?, ?, 'OPENING', ?, ?, datetime('now'), ?)
+                    """,
+                    (
+                        item_id,
+                        batch_row["id"],
+                        warehouse_id,
+                        quantity,
+                        unit_cost,
+                        f"Opening stock - {item['item_name']}",
+                    ),
+                )
+
+            # Accounting: debit inventory, credit party to balance
+            if party_id:
+                type_codes = {
+                    "RAW_MATERIAL": "1200",
+                    "PACKING_MATERIAL": "1210",
+                    "FINISHED_GOOD": "1220",
+                }
+                inv_code = type_codes.get(item["item_type"], "1200")
+                account_repo = AccountRepository(self.db)
+                inv_account = account_repo.find_by_code(inv_code, company_id)
+                ap_account = account_repo.find_by_code("2000", company_id)
+                if not inv_account:
+                    raise ValidationError(f"Inventory account ({inv_code}) not found.")
+                if not ap_account:
+                    raise ValidationError("Accounts Payable account (2000) not found.")
+                if total_value > 0:
+                    accounting = AccountingService(self.db)
+                    accounting.post_journal_entry(
+                        voucher_type=VoucherType.OPENING,
+                        entry_date=date.today().isoformat(),
+                        lines=[
+                            JournalLine(
+                                account_id=inv_account["id"],
+                                debit=total_value,
+                                description=f"Opening stock - {item['item_name']}",
+                            ),
+                            JournalLine(
+                                account_id=ap_account["id"],
+                                credit=total_value,
+                                party_id=party_id,
+                                description=f"Opening stock credit - {item['item_name']}",
+                            ),
+                        ],
+                        narration=f"Opening stock for {item['item_name']}",
+                    )
+
+        logger.info(
+            "Added opening stock for item %s: qty=%s unit_cost=%s",
+            item["item_name"], quantity, unit_cost,
+        )

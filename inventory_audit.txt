@@ -1,0 +1,114 @@
+INVENTORY AUDIT - BOP NUTraceuticals ERP
+Date: 2026-08-19
+
+Database: sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/MainDatabase.sqlite
+
+============================================================
+OVERVIEW
+============================================================
+Total items:           755
+Active items:          744
+Inactive items:        11
+
+By type:
+  FINISHED_GOOD:       313
+  RAW_MATERIAL:        210
+  PACKING_MATERIAL:    232
+
+By unit:
+  KG:                  296
+  ML:                  193
+  GRAM:                  5
+  UNIT:                255
+  TABLET:                6
+
+============================================================
+RAW MATERIAL IMPORT (from 'list of raw material.txt')
+============================================================
+Status: COMPLETE - ALL CORRECT
+- 208 raw materials imported successfully.
+- Item codes: ITEM-00549 through ITEM-00757 (209 new items total,
+  includes 1 placeholder, see below).
+- All imported items: unit = KG, item_type = RAW_MATERIAL,
+  purchase_price = 0, selling_price = 0, minimum_stock = 0,
+  maximum_stock = 0, no tax rate, no category.
+- No duplicates within the import.
+- All items verified to match the source file exactly
+  (no missing, no extras).
+
+NOTE: The file 'list of raw material.txt' contains 2 entries marked
+'*(missing)*' (items #39 and #83 in the original list).
+- One placeholder was created during import: ITEM-00587 '*(missing)*'
+  (id=585) and has been DEACTIVATED (does not appear in active list).
+- The second '*(missing)*' entry was auto-skipped as a duplicate.
+  Safe - no active placeholder remains.
+
+============================================================
+MISTAKES FOUND (all pre-existing, NOT from our import)
+============================================================
+
+--- 1. DUPLICATE ACTIVE ITEM NAMES ---
+
+Group A - likely REAL duplicates:
+  'crd mint oral liquid 5 lit'  x2
+    ITEM-00164  FINISHED_GOOD  ML
+    ITEM-00166  FINISHED_GOOD  ML
+
+  'label toxi lic 5 lit'  x2
+    ITEM-00306  PACKING_MATERIAL  UNIT
+    ITEM-00368  PACKING_MATERIAL  UNIT
+
+Group B - product vs. its packing material (probably intentional):
+  'bovi tox oral powder 25 kg'  x2
+    ITEM-00208  FINISHED_GOOD   KG
+    ITEM-00520  PACKING_MATERIAL UNIT
+
+  'bop nutramin forte 25 kg'  x2
+    ITEM-00222  FINISHED_GOOD   KG
+    ITEM-00543  PACKING_MATERIAL UNIT
+
+--- 2. UNIT / NAME MISMATCHES ---
+  Myco-Sheild Oral liquid 25 kg   (ITEM-00198) unit = KG   but name says liquid
+  V & M minerals 20 kg            (ITEM-00080) unit = ML   but name says 20 kg
+  bovi minerl premix 25 kg        (ITEM-00207) unit = ML   but name says 25 kg
+
+--- 3. COSMETIC: NAMES WITH DOUBLE SPACES ---
+  ITEM-00237  'Leo hepaton Oral Liquid  5 lit'
+  ITEM-00242  'Leo Viton Oral Liquid  5 lit'
+  ITEM-00243  'Leo CID pro Oral Liquid  25 lit'
+  ITEM-00263  'Ocid  fort oral liquid 25 lit'
+  ITEM-00292  'SHIPPER [E] 5 pcs packet  [5 kg]'
+  ITEM-00480  'LABEL CRD  MINT ORAL LIQUID 5 LIT'
+  ITEM-00481  'LABEL CRD  MINT ORAL LIQUID 1 LIT'
+  ITEM-00511  'LABEL LEVO CARE ORAL  LIQUID 5 LIT'
+  ITEM-00512  'LABEL MYCO SHEILD  ORAL LIQUID 5 LIT'
+
+============================================================
+NO ISSUES FOUND
+============================================================
+- No negative purchase/selling prices.
+- No broken minimum/maximum stock values (no max < min, no negatives).
+- No empty item names or codes.
+- No non-ASCII / leading / trailing whitespace issues in names.
+
+============================================================
+STOCK STATUS
+============================================================
+- No stock batches exist yet (total batches = 0).
+- Current stock for all items = 0.
+- Ready for bulk opening stock entry via the Bulk Opening Stock dialog.
+
+============================================================
+INACTIVE ITEMS (11)
+============================================================
+  ITEM-00028  'GROWMORE 1 KG'                  KG   RAW_MATERIAL
+  ITEM-00032  'RED GOLD 100 G'                 GRAM FINISHED_GOOD
+  ITEM-00056  'Power plus 25 kg'               KG   FINISHED_GOOD
+  ITEM-00057  'Power Plus 5 kg'                KG   FINISHED_GOOD
+  ITEM-00234  'l.g mune liquid 1 lit'          ML   FINISHED_GOOD
+  ITEM-00287  'MB FCR Grow oral powder 25 kg'  KG   FINISHED_GOOD
+  ITEM-00365  'LABEL KIMCHI SAL 5 LIT'         UNIT PACKING_MATERIAL
+  ITEM-00398  'LABEL BOP ADEK 5 LIT'           UNIT PACKING_MATERIAL
+  ITEM-00440  'S+D GRLIMINT PLUS LIQUID 100 M' UNIT PACKING_MATERIAL
+  ITEM-00456  'LABEL BOP DAIRY TOX 25 KG'      UNIT PACKING_MATERIAL
+  ITEM-00587  '*(missing)*'                    KG   RAW_MATERIAL  (import placeholder)

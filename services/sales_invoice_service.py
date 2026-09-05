@@ -526,7 +526,13 @@ class SalesInvoiceService:
         warehouse_id: int = 1,
         bank_account_id: Optional[int] = None,
     ) -> SalesInvoice:
-        """Update an existing sales invoice."""
+        """Update an existing sales invoice.
+
+        The whole operation (journal reversal, stock restore, header update,
+        line replacement, stock deduction and new journal entry) runs inside
+        ONE transaction so a failure can never leave the invoice/journal/stock
+        in a partial state.
+        """
         # Get existing invoice
         existing_invoice = self.get_sales_invoice(invoice_id)
         if not existing_invoice:
@@ -548,58 +554,7 @@ class SalesInvoiceService:
                     f"Invoice number '{invoice_number}' already exists."
                 )
         
-        # Get the existing journal entry to reverse it
-        journal_entry = self.db.fetch_one("""
-            SELECT id, voucher_number, is_posted FROM journal_entries 
-            WHERE source_table = 'sales_invoices' AND source_id = ?
-        """, (invoice_id,))
-        
-        if journal_entry and journal_entry['is_posted']:
-            # Reverse the journal entry by creating a reversing entry
-            journal_lines = self.db.fetch_all("""
-                SELECT account_id, debit, credit, description, party_id 
-                FROM journal_entry_lines WHERE journal_entry_id = ?
-            """, (journal_entry['id'],))
-            
-            # Create reversing lines (swap debit/credit)
-            reverse_lines = []
-            for line in journal_lines:
-                reverse_lines.append(JournalLine(
-                    account_id=line['account_id'],
-                    debit=line['credit'],  # Swap
-                    credit=line['debit'],  # Swap
-                    party_id=line.get('party_id'),
-                    description=f"Reversal of {line['description']}"
-                ))
-            
-            self.accounting_service.post_journal_entry(
-                voucher_type=VoucherType.SALES,
-                entry_date=invoice_date,
-                lines=reverse_lines,
-                source_table="sales_invoices",
-                source_id=invoice_id,
-                narration=f"Reversal of sales invoice {existing_invoice.invoice_number} for update"
-            )
-            logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
-        
-        # Restore stock for existing invoice items
-        existing_items = self.item_repo.find_by_invoice_id(invoice_id)
-        batch_cache = {}
-        for item in existing_items:
-            # Add stock back (positive update)
-            self._update_stock(
-                item_id=item['item_id'],
-                warehouse_id=warehouse_id,
-                quantity=item['quantity'],
-                positive=True,
-                batch_cache=batch_cache
-            )
-        logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
-        
-        # Delete existing invoice items
-        self.db.execute("DELETE FROM sales_invoice_items WHERE invoice_id = ?", (invoice_id,))
-        
-        # Now create new entries with updated data (similar to create logic)
+        # Validate all items first (fail fast, no mutation on invalid input)
         validated_items = []
         subtotal = Decimal(0)
         discount_amount = Decimal(0)
@@ -642,81 +597,7 @@ class SalesInvoiceService:
         
         total_amount = subtotal - discount_amount + tax_amount
         
-        # Update invoice header
-        invoice_data = {
-            "invoice_number": invoice_number,
-            "customer_id": customer_id,
-            "invoice_date": invoice_date,
-            "payment_type": payment_type,
-            "bank_account_id": bank_account_id,
-            "subtotal": float(subtotal),
-            "discount_amount": float(discount_amount),
-            "tax_amount": float(tax_amount),
-            "total_amount": float(total_amount),
-            "notes": notes,
-            "status": status,
-            "company_id": company_id,
-            "warehouse_id": warehouse_id,
-        }
-        
-        self.invoice_repo.update(invoice_id, invoice_data)
-        logger.info(f"Updated invoice header for {invoice_number}")
-        
-        # Insert new invoice items
-        items_data = []
-        cogs_raw = Decimal('0')
-        cogs_packing = Decimal('0')
-        for item_data in validated_items:
-            cache_key = f"{item_data['item_id']}_{warehouse_id}"
-            if cache_key not in batch_cache:
-                batch = self.stock_repo.find_by_item_and_warehouse(
-                    item_data['item_id'],
-                    warehouse_id
-                )
-                batch_cache[cache_key] = batch
-            
-            batch = batch_cache[cache_key]
-            batch_id = batch['id'] if batch else None
-
-            # COGS split (same logic as create path).
-            if batch:
-                item_type = item_data.get("item_type", "FINISHED_GOOD")
-                qty = Decimal(str(item_data["quantity"]))
-                if item_type == "FINISHED_GOOD":
-                    raw_unit = batch.get('raw_unit_cost', 0) or 0
-                    packing_unit = batch.get('packing_unit_cost', 0) or 0
-                    if raw_unit == 0 and packing_unit == 0:
-                        raw_unit = float(batch.get('purchase_price', 0) or 0)
-                    cogs_raw += Decimal(str(raw_unit)) * qty
-                    cogs_packing += Decimal(str(packing_unit)) * qty
-                else:
-                    unit_cost = float(batch.get('purchase_price', 0) or 0)
-                    amount = Decimal(str(unit_cost)) * qty
-                    if item_type == "PACKING_MATERIAL":
-                        cogs_packing += amount
-                    else:  # RAW_MATERIAL
-                        cogs_raw += amount
-            
-            clean_item_data = {
-                "invoice_id": invoice_id,
-                "item_id": item_data["item_id"],
-                "batch_id": batch_id,
-                "quantity": item_data["quantity"],
-                "unit_price": item_data["unit_price"],
-                "discount_amount": item_data["discount_amount"],
-                "tax_amount": item_data["tax_amount"],
-                "line_total": item_data["line_total"],
-            }
-            items_data.append(clean_item_data)
-        
-        for item_data in items_data:
-            item = SalesInvoiceItem(**item_data)
-            self.item_repo.insert(item.to_dict())
-        
-        # Deduct stock for new items
-        self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
-        
-        # Create new journal entry
+        # Resolve accounts and build the new journal lines BEFORE mutating.
         account_codes_needed = ["4000"]
         if payment_type == "CREDIT":
             account_codes_needed.append("1100")
@@ -800,65 +681,192 @@ class SalesInvoiceService:
                     description="Sales tax"
                 )
             )
-
-        # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr Finished Goods (1220)
-        cogs_total = cogs_raw + cogs_packing
-        if cogs_total > 0 and account_cache.get("5000") and account_cache.get("1220"):
-            cogs_account_dict = account_cache.get("5000")
-            packing_cogs_account_dict = account_cache.get("5001")
-            inventory_finished_dict = account_cache.get("1220")
-            if cogs_raw > 0:
-                journal_lines.append(JournalLine(
-                    account_id=cogs_account_dict["id"],
-                    debit=float(cogs_raw),
-                    credit=0.0,
-                    description=f"COGS (raw materials) - {invoice_number}"
-                ))
-            if cogs_packing > 0 and packing_cogs_account_dict:
-                journal_lines.append(JournalLine(
-                    account_id=packing_cogs_account_dict["id"],
-                    debit=float(cogs_packing),
-                    credit=0.0,
-                    description=f"COGS (packing materials) - {invoice_number}"
-                ))
-            journal_lines.append(JournalLine(
-                account_id=inventory_finished_dict["id"],
-                debit=0.0,
-                credit=float(cogs_total),
-                description=f"Reduce finished goods inventory - {invoice_number}"
-            ))
-            logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s (update)",
-                        float(cogs_raw), float(cogs_packing), invoice_number)
-
-        self.accounting_service.post_journal_entry(
-            voucher_type=VoucherType.SALES,
-            entry_date=invoice_date,
-            lines=journal_lines,
-            source_table="sales_invoices",
-            source_id=invoice_id,
-            narration=f"Updated sales invoice {invoice_number} to {customer.name}"
-        )
         
-        # Record bank transaction if payment is BANK or CHEQUE
-        if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
-            self.db.execute("""
-                INSERT INTO bank_transactions (
+        # ---- Atomic mutation block ------------------------------------------
+        with self.db.transaction():
+            # Get the existing journal entry to reverse it
+            journal_entry = self.db.fetch_one("""
+                SELECT id, voucher_number, is_posted FROM journal_entries 
+                WHERE source_table = 'sales_invoices' AND source_id = ?
+            """, (invoice_id,))
+            
+            if journal_entry and journal_entry['is_posted']:
+                # Reverse the journal entry by creating a reversing entry
+                journal_lines_existing = self.db.fetch_all("""
+                    SELECT account_id, debit, credit, description, party_id 
+                    FROM journal_entry_lines WHERE journal_entry_id = ?
+                """, (journal_entry['id'],))
+                
+                # Create reversing lines (swap debit/credit)
+                reverse_lines = []
+                for line in journal_lines_existing:
+                    reverse_lines.append(JournalLine(
+                        account_id=line['account_id'],
+                        debit=line['credit'],  # Swap
+                        credit=line['debit'],  # Swap
+                        party_id=line.get('party_id'),
+                        description=f"Reversal of {line['description']}"
+                    ))
+                
+                self.accounting_service.post_journal_entry(
+                    voucher_type=VoucherType.SALES,
+                    entry_date=invoice_date,
+                    lines=reverse_lines,
+                    source_table="sales_invoices",
+                    source_id=invoice_id,
+                    narration=f"Reversal of sales invoice {existing_invoice.invoice_number} for update"
+                )
+                logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
+            
+            # Restore stock for existing invoice items
+            existing_items = self.item_repo.find_by_invoice_id(invoice_id)
+            batch_cache = {}
+            for item in existing_items:
+                # Add stock back (positive update)
+                self._update_stock(
+                    item_id=item['item_id'],
+                    warehouse_id=warehouse_id,
+                    quantity=item['quantity'],
+                    positive=True,
+                    batch_cache=batch_cache
+                )
+            logger.info(f"Restored stock for existing invoice {existing_invoice.invoice_number}")
+            
+            # Delete existing invoice items
+            self.db.execute("DELETE FROM sales_invoice_items WHERE invoice_id = ?", (invoice_id,))
+            
+            # Update invoice header
+            invoice_data = {
+                "invoice_number": invoice_number,
+                "customer_id": customer_id,
+                "invoice_date": invoice_date,
+                "payment_type": payment_type,
+                "bank_account_id": bank_account_id,
+                "subtotal": float(subtotal),
+                "discount_amount": float(discount_amount),
+                "tax_amount": float(tax_amount),
+                "total_amount": float(total_amount),
+                "notes": notes,
+                "status": status,
+                "company_id": company_id,
+                "warehouse_id": warehouse_id,
+            }
+            
+            self.invoice_repo.update(invoice_id, invoice_data)
+            logger.info(f"Updated invoice header for {invoice_number}")
+            
+            # Insert new invoice items
+            items_data = []
+            cogs_raw = Decimal('0')
+            cogs_packing = Decimal('0')
+            for item_data in validated_items:
+                cache_key = f"{item_data['item_id']}_{warehouse_id}"
+                if cache_key not in batch_cache:
+                    batch = self.stock_repo.find_by_item_and_warehouse(
+                        item_data['item_id'],
+                        warehouse_id
+                    )
+                    batch_cache[cache_key] = batch
+                
+                batch = batch_cache[cache_key]
+                batch_id = batch['id'] if batch else None
+
+                # COGS split (same logic as create path).
+                if batch:
+                    item_type = item_data.get("item_type", "FINISHED_GOOD")
+                    qty = Decimal(str(item_data["quantity"]))
+                    if item_type == "FINISHED_GOOD":
+                        raw_unit = batch.get('raw_unit_cost', 0) or 0
+                        packing_unit = batch.get('packing_unit_cost', 0) or 0
+                        if raw_unit == 0 and packing_unit == 0:
+                            raw_unit = float(batch.get('purchase_price', 0) or 0)
+                        cogs_raw += Decimal(str(raw_unit)) * qty
+                        cogs_packing += Decimal(str(packing_unit)) * qty
+                    else:
+                        unit_cost = float(batch.get('purchase_price', 0) or 0)
+                        amount = Decimal(str(unit_cost)) * qty
+                        if item_type == "PACKING_MATERIAL":
+                            cogs_packing += amount
+                        else:  # RAW_MATERIAL
+                            cogs_raw += amount
+                
+                clean_item_data = {
+                    "invoice_id": invoice_id,
+                    "item_id": item_data["item_id"],
+                    "batch_id": batch_id,
+                    "quantity": item_data["quantity"],
+                    "unit_price": item_data["unit_price"],
+                    "discount_amount": item_data["discount_amount"],
+                    "tax_amount": item_data["tax_amount"],
+                    "line_total": item_data["line_total"],
+                }
+                items_data.append(clean_item_data)
+            
+            for item_data in items_data:
+                item = SalesInvoiceItem(**item_data)
+                self.item_repo.insert(item.to_dict())
+            
+            # Deduct stock for new items
+            self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
+            
+            # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr Finished Goods (1220)
+            cogs_total = cogs_raw + cogs_packing
+            if cogs_total > 0 and account_cache.get("5000") and account_cache.get("1220"):
+                cogs_account_dict = account_cache.get("5000")
+                packing_cogs_account_dict = account_cache.get("5001")
+                inventory_finished_dict = account_cache.get("1220")
+                if cogs_raw > 0:
+                    journal_lines.append(JournalLine(
+                        account_id=cogs_account_dict["id"],
+                        debit=float(cogs_raw),
+                        credit=0.0,
+                        description=f"COGS (raw materials) - {invoice_number}"
+                    ))
+                if cogs_packing > 0 and packing_cogs_account_dict:
+                    journal_lines.append(JournalLine(
+                        account_id=packing_cogs_account_dict["id"],
+                        debit=float(cogs_packing),
+                        credit=0.0,
+                        description=f"COGS (packing materials) - {invoice_number}"
+                    ))
+                journal_lines.append(JournalLine(
+                    account_id=inventory_finished_dict["id"],
+                    debit=0.0,
+                    credit=float(cogs_total),
+                    description=f"Reduce finished goods inventory - {invoice_number}"
+                ))
+                logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s (update)",
+                            float(cogs_raw), float(cogs_packing), invoice_number)
+
+            self.accounting_service.post_journal_entry(
+                voucher_type=VoucherType.SALES,
+                entry_date=invoice_date,
+                lines=journal_lines,
+                source_table="sales_invoices",
+                source_id=invoice_id,
+                narration=f"Updated sales invoice {invoice_number} to {customer.name}"
+            )
+            
+            # Record bank transaction if payment is BANK or CHEQUE
+            if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
+                self.db.execute("""
+                    INSERT INTO bank_transactions (
+                        bank_account_id,
+                        transaction_type,
+                        amount,
+                        transaction_date,
+                        reference_no,
+                        notes,
+                        created_at
+                    ) VALUES (?, 'DEPOSIT', ?, ?, ?, ?, datetime('now'))
+                """, (
                     bank_account_id,
-                    transaction_type,
-                    amount,
-                    transaction_date,
-                    reference_no,
-                    notes,
-                    created_at
-                ) VALUES (?, 'DEPOSIT', ?, ?, ?, ?, datetime('now'))
-            """, (
-                bank_account_id,
-                float(total_amount),
-                invoice_date,
-                invoice_number,
-                f"Updated sales invoice {invoice_number} - {payment_type} payment"
-            ))
-            logger.info(f"Recorded bank deposit for updated invoice {invoice_number}")
+                    float(total_amount),
+                    invoice_date,
+                    invoice_number,
+                    f"Updated sales invoice {invoice_number} - {payment_type} payment"
+                ))
+                logger.info(f"Recorded bank deposit for updated invoice {invoice_number}")
         
         logger.info("Updated sales invoice %s for customer %s (id=%s)", 
                 invoice_number, customer_id, invoice_id)

@@ -23,6 +23,7 @@ class ProductionOrder:
     packing_material_cost: float = 0.0
     status: str = "DRAFT"  # DRAFT, IN_PROGRESS, COMPLETED, CANCELLED
     notes: Optional[str] = None
+    is_ghost: bool = False
     id: Optional[int] = None
     created_by: Optional[int] = None
     created_at: Optional[str] = None
@@ -49,6 +50,7 @@ class ProductionOrder:
             packing_material_cost=row.get("packing_material_cost", 0),
             status=row["status"],
             notes=row.get("notes"),
+            is_ghost=bool(row.get("is_ghost", 0)),
             created_by=row.get("created_by"),
             created_at=row.get("created_at"),
             completed_at=row.get("completed_at"),
