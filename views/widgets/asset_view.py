@@ -341,6 +341,12 @@ class AssetView(QWidget):
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         layout.addWidget(self.table)
 
+        # Live filter above the table (keyboard-friendly, Ctrl+F reachable).
+        from views.widgets.search_bar import install_search_bar
+        self.search_bar = install_search_bar(
+            layout, self.table, "Search assets by code, name, type or amount…"
+        )
+
     def _load_assets(self):
         """Load asset accounts into table with current balance."""
         assets = self.db.fetch_all("""

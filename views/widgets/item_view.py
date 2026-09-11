@@ -479,22 +479,6 @@ class ItemView(QWidget):
 
     def showEvent(self, event):
         """Called when the widget is shown - lazy load data."""
-        """Debug method to check stock query"""
-        try:
-            # Check if stock_batches table has data
-            count = self.controller.service.repo.db.fetch_one("""
-                SELECT COUNT(*) as count FROM stock_batches
-            """)
-            logger.info(f"Total stock batches: {count['count'] if count else 0}")
-            
-            # Check for any stock data
-            sample = self.controller.service.repo.db.fetch_one("""
-                SELECT * FROM stock_batches LIMIT 5
-            """)
-            logger.info(f"Sample stock: {sample}")
-            
-        except Exception as e:
-            logger.error(f"Debug error: {e}")
         super().showEvent(event)
         if not self._is_loaded:
             self._show_loading_state()
@@ -531,22 +515,26 @@ class ItemView(QWidget):
         self._load_items_async()
     
     def _on_items_loaded(self, items, error):
-        """Handle items loaded from background thread."""
+        """Handle items loaded from background thread.
+
+        Render the item rows immediately; current stock arrives separately in
+        the (faster) step after, so the table never sits on "Loading...".
+        """
         if error:
             QMessageBox.warning(self, "Load Error", error)
             return
-        
+
         logger.info(f"Loaded {len(items)} items")
         self._items_cache = items
-        
-        # Now load stocks in background
+        self._stocks_loaded = False
+        self._stocks_cache = {}
+
+        # Show rows right away (stock column shows a placeholder), then fill
+        # the real current stock asynchronously.
+        self._populate_table()
         item_ids = [item.id for item in items]
         if item_ids:
             self._load_stocks_async(item_ids)
-        else:
-            # No items, mark as loaded and populate empty table
-            self._stocks_loaded = True
-            self._populate_table()
     
     def _load_stocks_async(self, item_ids):
         """Load stock quantities asynchronously."""
@@ -566,8 +554,7 @@ class ItemView(QWidget):
     
     def _on_stocks_loaded(self, stocks):
         """Handle stocks loaded from background thread."""
-        logger.info(f"StockLoadThread callback: received stocks={stocks}")
-        logger.info(f"StockLoadThread callback: stocks keys types={[type(k) for k in stocks.keys()]}")
+        logger.debug(f"Stock load complete: {len(stocks)} items")
         self._stocks_cache = stocks
         self._stocks_loaded = True
         self._populate_table()
@@ -606,12 +593,13 @@ class ItemView(QWidget):
                     tax_rate_name = f"ID:{item.tax_rate_id}"
                 self.table.setItem(row, 9, QTableWidgetItem(tax_rate_name))
             self.table.resizeColumnsToContents()
-            # Trigger stock load if not already done
-            item_ids = [item.id for item in items]
-            self._load_stocks_async(item_ids)
+            # Items are visible now; real stock will patch in when ready
+            # (the background stock load is started by _on_items_loaded).
+            self._is_loaded = True
+            self._refresh_row_visibility()
             return
         
-        logger.info(f"Loaded stock for {len(stock_map)} items: {stock_map}")
+        logger.debug(f"Loaded current stock for {len(stock_map)} items")
 
         self.table.setRowCount(len(items))
         self.table.setColumnCount(10)
@@ -621,16 +609,9 @@ class ItemView(QWidget):
         ])
 
         for row, item in enumerate(items):
-            # Debug: Log item.id type and value
-            item_id_int = int(item.id)
-            logger.info(f"Row {row}: item.id={item.id} (type={type(item.id)}), item_id_int={item_id_int}")
-            logger.info(f"Row {row}: stock_map keys={list(stock_map.keys())}")
-            logger.info(f"Row {row}: stock_map key types={[type(k) for k in stock_map.keys()]}")
-            
             # Try both int and string lookup to handle type mismatches
+            item_id_int = int(item.id)
             current_stock = stock_map.get(item_id_int, stock_map.get(item.id, stock_map.get(str(item.id), 0.0)))
-            
-            logger.info(f"Row {row}: current_stock={current_stock} (type={type(current_stock)})")
 
             self.table.setItem(row, 0, QTableWidgetItem(item.item_code))
             self.table.setItem(row, 1, QTableWidgetItem(item.item_name))

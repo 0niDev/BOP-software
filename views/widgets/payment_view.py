@@ -54,6 +54,12 @@ class PaymentView(QWidget):
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         layout.addWidget(self.table, stretch=1)
 
+        # Live filter above the table (keyboard-friendly, Ctrl+F reachable).
+        from views.widgets.search_bar import install_search_bar
+        self.search_bar = install_search_bar(
+            layout, self.table, "Search payments by voucher no., party or method…"
+        )
+
         # Refresh button
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self._load_payments)

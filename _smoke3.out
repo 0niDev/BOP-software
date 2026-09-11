@@ -1,0 +1,16 @@
+2026-09-12 00:18:44,527 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-09-12 00:18:44,528 | INFO     | erp.database.connection | \u2705 SQLiteCloudConnection initialized (direct mode)
+2026-09-12 00:18:44,533 | INFO     | erp.views.widgets.dashboard_view | \U0001f504 LOADING DASHBOARD DATA
+2026-09-12 00:18:44,534 | INFO     | erp.views.widgets.dashboard_view | \U0001f504 Dashboard View refreshed on show
+2026-09-12 00:18:44,535 | ERROR    | erp.controllers.dashboard_controller | Unexpected error getting dashboard data
+Traceback (most recent call last):
+  File "F:\new software\BOP-software\controllers\dashboard_controller.py", line 20, in get_dashboard_data
+    print("\U0001f4ca DashboardController: Fetching data...")
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f4ca' in position 0: character maps to <undefined>
+2026-09-12 00:18:44,577 | ERROR    | erp.views.widgets.dashboard_view | \u274c Error: An unexpected error occurred.
+after Ctrl+K, _open_palette calls = 1
+after Ctrl+2, _goto calls = 0
+after Ctrl+K on nav_filter child, _open_palette calls = 2
+DONE

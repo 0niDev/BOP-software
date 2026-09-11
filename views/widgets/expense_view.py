@@ -311,6 +311,12 @@ class ExpenseView(QWidget):
         self.table.clicked.connect(self._on_table_clicked)
         layout.addWidget(self.table, stretch=1)
 
+        # Live filter above the table (keyboard-friendly, Ctrl+F reachable).
+        from views.widgets.search_bar import install_search_bar
+        self.search_bar = install_search_bar(
+            layout, self.table, "Search expenses by date, category or description…"
+        )
+
         # Buttons
         button_layout = QHBoxLayout()
 
