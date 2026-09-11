@@ -424,6 +424,8 @@ class BankingService:
         cheque = self.cheque_repo.get_by_id(cheque_id)
         if not cheque:
             raise ValidationError("Cheque not found.")
+        if cheque["status"] != "UNCLEARED":
+            raise ValidationError(f"Cheque is already {cheque['status']}.")
 
         self.cheque_repo.update(cheque_id, {"status": "LOST"})
         logger.info("Cheque #%s marked as lost", cheque["cheque_number"])

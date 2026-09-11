@@ -185,4 +185,38 @@ class PartyService:
 
     def _has_open_transactions(self, party_id: int) -> bool:
         """Helper: Checks if party has open invoices/payments"""
+        # Check for open sales invoices (customers)
+        open_sales = self.db.fetch_one("""
+            SELECT COUNT(*) as cnt FROM sales_invoices 
+            WHERE customer_id = ? AND status IN ('CONFIRMED', 'PENDING') 
+            AND (paid_amount < total_amount OR total_amount = 0)
+        """, (party_id,))
+        if open_sales and open_sales['cnt'] > 0:
+            return True
+        
+        # Check for open purchase invoices (suppliers)
+        open_purchases = self.db.fetch_one("""
+            SELECT COUNT(*) as cnt FROM purchase_invoices 
+            WHERE supplier_id = ? AND status IN ('CONFIRMED', 'PENDING')
+            AND (paid_amount < total_amount OR total_amount = 0)
+        """, (party_id,))
+        if open_purchases and open_purchases['cnt'] > 0:
+            return True
+        
+        # Check for any receipts linked to this party
+        open_receipts = self.db.fetch_one("""
+            SELECT COUNT(*) as cnt FROM receipts 
+            WHERE party_id = ?
+        """, (party_id,))
+        if open_receipts and open_receipts['cnt'] > 0:
+            return True
+        
+        # Check for any payments linked to this party
+        open_payments = self.db.fetch_one("""
+            SELECT COUNT(*) as cnt FROM payments 
+            WHERE party_id = ?
+        """, (party_id,))
+        if open_payments and open_payments['cnt'] > 0:
+            return True
+        
         return False

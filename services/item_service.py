@@ -7,7 +7,7 @@ from models.item import Item
 from repositories.item_repository import ItemRepository
 from repositories.tax_rate_repository import TaxRateRepository
 from repositories.journal_repository import JournalRepository
-from utils.exceptions import ValidationError
+from utils.exceptions import ValidationError, DuplicateRecordError
 from utils.logger import get_logger
 from utils.activity_logger import log_item_created, log_item_updated, log_item_deleted
 
@@ -259,46 +259,51 @@ class ItemService:
             raise ValidationError("Item does not exist.")
 
         if batch_number is None:
-            batch_number = f"OPEN-{item['item_code']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            batch_number = f"OPEN-{item['item_code']}-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
         stock_repo = StockBatchRepository(self.db)
         total_value = quantity * unit_cost
 
         with self.db.transaction():
-            stock_repo.create_batch(
-                item_id=item_id,
-                warehouse_id=warehouse_id,
-                batch_number=batch_number,
-                manufacturing_date=date.today().isoformat(),
-                expiry_date=expiry_date,
-                purchase_price=unit_cost,
-                quantity_in_stock=quantity,
-                raw_unit_cost=unit_cost,
-            )
-
-            # Audit trail
-            batch_row = self.db.fetch_one(
-                "SELECT id FROM stock_batches "
+            # Check for existing batch with same batch_number to avoid UNIQUE violation
+            existing_batch = self.db.fetch_one(
+                "SELECT id, quantity_in_stock FROM stock_batches "
                 "WHERE item_id = ? AND warehouse_id = ? AND batch_number = ?",
                 (item_id, warehouse_id, batch_number),
             )
-            if batch_row:
-                self.db.execute(
-                    """
-                    INSERT INTO stock_movements
-                        (item_id, batch_id, warehouse_id, movement_type, quantity,
-                         unit_cost, movement_date, notes)
-                    VALUES (?, ?, ?, 'OPENING', ?, ?, datetime('now'), ?)
-                    """,
-                    (
-                        item_id,
-                        batch_row["id"],
-                        warehouse_id,
-                        quantity,
-                        unit_cost,
-                        f"Opening stock - {item['item_name']}",
-                    ),
+            if existing_batch:
+                raise DuplicateRecordError(
+                    f"Batch '{batch_number}' already exists for this item in this warehouse."
                 )
+            else:
+                batch_id = stock_repo.create_batch(
+                    item_id=item_id,
+                    warehouse_id=warehouse_id,
+                    batch_number=batch_number,
+                    manufacturing_date=date.today().isoformat(),
+                    expiry_date=expiry_date,
+                    purchase_price=unit_cost,
+                    quantity_in_stock=quantity,
+                    raw_unit_cost=unit_cost,
+                )
+
+            # Audit trail
+            self.db.execute(
+                """
+                INSERT INTO stock_movements
+                    (item_id, batch_id, warehouse_id, movement_type, quantity,
+                     unit_cost, movement_date, notes)
+                VALUES (?, ?, ?, 'OPENING', ?, ?, datetime('now'), ?)
+                """,
+                (
+                    item_id,
+                    batch_id,
+                    warehouse_id,
+                    quantity,
+                    unit_cost,
+                    f"Opening stock - {item['item_name']}",
+                ),
+            )
 
             # Accounting: debit inventory, credit party to balance
             if party_id:

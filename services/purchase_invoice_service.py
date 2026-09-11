@@ -82,19 +82,19 @@ class PurchaseInvoiceService:
         # Use provided connection or get from pool
         db_conn = conn if conn else self.db
         
-        # Check for existing batch with same batch_number
+        # Check for existing batch with same batch_number (ignore is_active — UNIQUE constraint covers all)
         existing = db_conn.fetch_one("""
             SELECT id, quantity_in_stock 
             FROM stock_batches 
-            WHERE item_id = ? AND warehouse_id = ? AND batch_number = ? AND is_active = 1
+            WHERE item_id = ? AND warehouse_id = ? AND batch_number = ?
         """, (item_id, warehouse_id, batch_number))
         
         if existing:
-            # Update existing batch quantity
+            # Update existing batch quantity (also reactivate if it was inactive)
             new_quantity = existing["quantity_in_stock"] + quantity
             db_conn.execute("""
                 UPDATE stock_batches 
-                SET quantity_in_stock = ?, purchase_price = ?
+                SET quantity_in_stock = ?, purchase_price = ?, is_active = 1
                 WHERE id = ?
             """, (new_quantity, purchase_price, existing["id"]))
             logger.info(f"Updated existing batch {batch_number}: {new_quantity}")
@@ -324,13 +324,27 @@ class PurchaseInvoiceService:
 
         journal_lines = inventory_lines
         
+        # Add input tax as CREDIT (tax payable) if any tax
+        if tax_amount > 0 and tax_account_id:
+            journal_lines.append(
+                JournalLine(
+                    account_id=tax_account_id,
+                    debit=0.0,
+                    credit=float(tax_amount),
+                    description="Input tax on purchases"
+                )
+            )
+        
+        # Credit amount is net of tax (tax is handled separately as input tax credit)
+        credit_amount = float(total_amount) - float(tax_amount)
+        
         # Only add party_id for CREDIT purchases
         if credit_party_id is not None:
             journal_lines.append(
                 JournalLine(
                     account_id=credit_account_id,
                     debit=0.0,
-                    credit=float(total_amount),
+                    credit=credit_amount,
                     party_id=credit_party_id,
                     description=credit_description
                 )
@@ -340,18 +354,8 @@ class PurchaseInvoiceService:
                 JournalLine(
                     account_id=credit_account_id,
                     debit=0.0,
-                    credit=float(total_amount),
+                    credit=credit_amount,
                     description=credit_description
-                )
-            )
-        
-        if tax_amount > 0 and tax_account_id:
-            journal_lines.append(
-                JournalLine(
-                    account_id=tax_account_id,
-                    debit=0.0,
-                    credit=float(tax_amount),
-                    description="Purchase tax"
                 )
             )
 
@@ -559,7 +563,7 @@ class PurchaseInvoiceService:
         total_amount = subtotal - discount_amount + tax_amount
         
         # Resolve the credit account before mutating anything.
-        account_codes_needed = ["1200", "1210", "1220"]  # Inventory by type
+        account_codes_needed = ["1200", "1210", "1220", "2100"]  # Inventory by type + Tax
         if payment_type == "CREDIT":
             account_codes_needed.append("2000")  # Accounts Payable
         elif payment_type == "CASH":
@@ -580,6 +584,9 @@ class PurchaseInvoiceService:
         credit_account_id = None
         credit_description = ""
         credit_party_id = None
+        
+        tax_account_dict = account_cache.get("2100")
+        tax_account_id = tax_account_dict["id"] if tax_account_dict else None
         
         if payment_type == "CREDIT":
             ap_account_dict = account_cache.get("2000")
@@ -616,12 +623,14 @@ class PurchaseInvoiceService:
             raise ValidationError(f"Could not determine credit account for payment type: {payment_type}")
         
         # Inventory debit is split by item type: raw -> 1200, packing -> 1210, finished -> 1220.
+        # line_total includes tax, so we need to subtract tax to get net inventory value
         inventory_lines = []
         type_totals: dict[str, float] = {}
         type_codes = {"RAW_MATERIAL": "1200", "PACKING_MATERIAL": "1210", "FINISHED_GOOD": "1220"}
         for item_data in validated_items:
             itype = item_data.get("item_type", "RAW_MATERIAL")
-            type_totals[itype] = type_totals.get(itype, 0.0) + item_data["line_total"]
+            line_net = item_data["line_total"] - item_data["tax_amount"]  # Exclude tax from inventory
+            type_totals[itype] = type_totals.get(itype, 0.0) + line_net
         
         for itype, amount in type_totals.items():
             code = type_codes.get(itype, "1200")
@@ -634,13 +643,27 @@ class PurchaseInvoiceService:
         
         journal_lines = inventory_lines
         
+        # Add input tax as CREDIT (tax payable) if any tax
+        if tax_amount > 0 and tax_account_id:
+            journal_lines.append(
+                JournalLine(
+                    account_id=tax_account_id,
+                    debit=0.0,
+                    credit=float(tax_amount),
+                    description="Input tax on purchases"
+                )
+            )
+        
+        # Credit amount is net of tax (tax is handled separately as input tax credit)
+        credit_amount = float(total_amount) - float(tax_amount)
+        
         # Only add party_id for CREDIT purchases
         if credit_party_id is not None:
             journal_lines.append(
                 JournalLine(
                     account_id=credit_account_id,
                     debit=0.0,
-                    credit=float(total_amount),
+                    credit=credit_amount,
                     party_id=credit_party_id,
                     description=credit_description
                 )
@@ -650,55 +673,45 @@ class PurchaseInvoiceService:
                 JournalLine(
                     account_id=credit_account_id,
                     debit=0.0,
-                    credit=float(total_amount),
+                    credit=credit_amount,
                     description=credit_description
-                )
-            )
-        
-        tax_account_dict = account_cache.get("2100")
-        tax_account_id = tax_account_dict["id"] if tax_account_dict else None
-        
-        if tax_amount > 0 and tax_account_id:
-            journal_lines.append(
-                JournalLine(
-                    account_id=tax_account_id,
-                    debit=0.0,
-                    credit=float(tax_amount),
-                    description="Purchase tax"
                 )
             )
         
         # ---- Atomic mutation block ------------------------------------------
         with self.db.transaction() as conn:
-            # Reverse existing journal entry
-            existing_journal = self.accounting_service.get_journal_entry(
-                source_table="purchase_invoices",
-                source_id=invoice_id
-            )
+            # Reverse ALL existing journal entries for this invoice
+            journal_entries = self.db.fetch_all("""
+                SELECT id, voucher_number, is_posted FROM journal_entries 
+                WHERE source_table = 'purchase_invoices' AND source_id = ?
+            """, (invoice_id,))
             
-            if existing_journal:
-                journal_lines_existing = existing_journal.get('lines', [])
-                
-                # Create reversing lines (swap debit/credit)
-                reverse_lines = []
-                for line in journal_lines_existing:
-                    reverse_lines.append(JournalLine(
-                        account_id=line['account_id'],
-                        debit=line['credit'],  # Swap
-                        credit=line['debit'],  # Swap
-                        party_id=line.get('party_id'),
-                        description=f"Reversal of {line['description']}"
-                    ))
-                
-                self.accounting_service.post_journal_entry(
-                    voucher_type=VoucherType.PURCHASE,
-                    entry_date=invoice_date,
-                    lines=reverse_lines,
-                    source_table="purchase_invoices",
-                    source_id=invoice_id,
-                    narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} for update"
-                )
-                logger.info(f"Reversed journal entry for invoice {existing_invoice.invoice_number}")
+            for journal_entry in journal_entries:
+                if journal_entry['is_posted']:
+                    journal_lines_existing = self.db.fetch_all("""
+                        SELECT account_id, debit, credit, description, party_id 
+                        FROM journal_entry_lines WHERE journal_entry_id = ?
+                    """, (journal_entry['id'],))
+                    
+                    reverse_lines = []
+                    for line in journal_lines_existing:
+                        reverse_lines.append(JournalLine(
+                            account_id=line['account_id'],
+                            debit=line['credit'],
+                            credit=line['debit'],
+                            party_id=line.get('party_id'),
+                            description=f"Reversal of {line['description']}"
+                        ))
+                    
+                    self.accounting_service.post_journal_entry(
+                        voucher_type=VoucherType.PURCHASE,
+                        entry_date=invoice_date,
+                        lines=reverse_lines,
+                        source_table="purchase_invoices",
+                        source_id=invoice_id,
+                        narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} for update"
+                    )
+                    logger.info(f"Reversed journal entry {journal_entry['voucher_number']} for invoice {existing_invoice.invoice_number}")
             
             # Restore stock for existing invoice items
             existing_items = self.item_repo.find_by_invoice_id(invoice_id)
@@ -815,6 +828,13 @@ class PurchaseInvoiceService:
                 narration=f"Updated purchase invoice {invoice_number} from {supplier.name}"
             )
             
+            # Delete any existing bank transactions for this invoice first
+            # (handles BANK->CASH, BANK->BANK, and any amount changes)
+            self.db.execute(
+                "DELETE FROM bank_transactions WHERE reference_no = ?",
+                (existing_invoice.invoice_number,)
+            )
+            
             # Record bank transaction if payment is BANK or CHEQUE
             if payment_type in ["BANK", "CHEQUE"] and bank_account_id:
                 self.db.execute("""
@@ -853,6 +873,96 @@ class PurchaseInvoiceService:
         return self.get_purchase_invoice(invoice_id)
 
     def delete_purchase_invoice(self, invoice_id: int) -> bool:
-        """Delete a purchase invoice."""
-        # TODO: Implement delete logic with proper reversal of accounting entries
-        raise NotImplementedError("Delete purchase invoice not yet implemented")
+        """Delete a purchase invoice with proper reversal of accounting entries and stock."""
+        # Get existing invoice
+        existing_invoice = self.invoice_repo.get_by_id(invoice_id)
+        if not existing_invoice:
+            raise ValidationError(f"Purchase invoice {invoice_id} not found.")
+        
+        if isinstance(existing_invoice, dict):
+            existing_invoice = PurchaseInvoice(**existing_invoice)
+        
+        with self.db.transaction() as conn:
+            # Reverse ALL existing journal entries for this invoice
+            journal_entries = self.db.fetch_all("""
+                SELECT id, voucher_number, is_posted FROM journal_entries 
+                WHERE source_table = 'purchase_invoices' AND source_id = ?
+            """, (invoice_id,))
+            
+            for journal_entry in journal_entries:
+                if journal_entry['is_posted']:
+                    journal_lines_existing = self.db.fetch_all("""
+                        SELECT account_id, debit, credit, description, party_id 
+                        FROM journal_entry_lines WHERE journal_entry_id = ?
+                    """, (journal_entry['id'],))
+                    
+                    reverse_lines = []
+                    for line in journal_lines_existing:
+                        reverse_lines.append(JournalLine(
+                            account_id=line['account_id'],
+                            debit=line['credit'],
+                            credit=line['debit'],
+                            party_id=line.get('party_id'),
+                            description=f"Reversal of {line['description']}"
+                        ))
+                    
+                    self.accounting_service.post_journal_entry(
+                        voucher_type=VoucherType.PURCHASE,
+                        entry_date=existing_invoice.invoice_date,
+                        lines=reverse_lines,
+                        source_table="purchase_invoices",
+                        source_id=invoice_id,
+                        narration=f"Reversal of purchase invoice {existing_invoice.invoice_number} on deletion"
+                    )
+                    logger.info(f"Reversed journal entry {journal_entry['voucher_number']} for invoice {existing_invoice.invoice_number}")
+            
+            # Restore stock for existing invoice items (negative quantity to reverse)
+            existing_items = self.item_repo.find_by_invoice_id(invoice_id)
+            batch_cache = {}
+            item_cache = {}
+            for item in existing_items:
+                batch_id = self._get_or_create_batch(
+                    item_id=item['item_id'],
+                    warehouse_id=existing_invoice.warehouse_id,
+                    batch_number=item.get('batch_number'),
+                    manufacturing_date=item.get('manufacturing_date'),
+                    expiry_date=item.get('expiry_date'),
+                    purchase_price=item['unit_cost'],
+                    quantity=-item['quantity'],  # Negative to reverse the stock
+                    conn=conn,
+                )
+                item_data = self.item_master_repo.get_by_id(item['item_id'])
+                if item_data:
+                    self._update_stock(
+                        item_id=item['item_id'],
+                        warehouse_id=existing_invoice.warehouse_id,
+                        quantity=-item['quantity'],
+                        unit_cost=item['unit_cost'],
+                        batch_id=batch_id,
+                        batch_cache=batch_cache,
+                        item_cache=item_cache,
+                    )
+            logger.info(f"Restored stock for deleted invoice {existing_invoice.invoice_number}")
+            
+            # Delete bank transactions for this invoice
+            self.db.execute(
+                "DELETE FROM bank_transactions WHERE reference_no = ?", 
+                (existing_invoice.invoice_number,)
+            )
+            
+            # Delete invoice items
+            self.db.execute("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", (invoice_id,))
+            
+            # Mark invoice as CANCELLED (preserve record for audit trail)
+            self.invoice_repo.update(invoice_id, {"status": "CANCELLED"})
+            logger.info(f"Cancelled purchase invoice {existing_invoice.invoice_number}")
+        
+        # Log activity
+        log_purchase_invoice_deleted(
+            invoice_id=invoice_id,
+            invoice_number=existing_invoice.invoice_number,
+            supplier_name="",
+            total_amount=float(existing_invoice.total_amount),
+        )
+        
+        return True

@@ -273,6 +273,7 @@ def log_sales_invoice_deleted(
     invoice_id: int,
     invoice_number: str,
     customer_name: str,
+    total_amount: float = 0.0,
     user_id: Optional[int] = None,
     username: Optional[str] = None,
     company_id: int = 1,
@@ -286,7 +287,7 @@ def log_sales_invoice_deleted(
         entity_type="Sales Invoice",
         entity_id=invoice_id,
         entity_name=invoice_number,
-        details={"customer": customer_name},
+        details={"customer": customer_name, "total_amount": total_amount},
         company_id=company_id,
     )
 
@@ -353,6 +354,7 @@ def log_purchase_invoice_deleted(
     invoice_id: int,
     invoice_number: str,
     supplier_name: str,
+    total_amount: float = 0.0,
     user_id: Optional[int] = None,
     username: Optional[str] = None,
     company_id: int = 1,
@@ -366,7 +368,7 @@ def log_purchase_invoice_deleted(
         entity_type="Purchase Invoice",
         entity_id=invoice_id,
         entity_name=invoice_number,
-        details={"supplier": supplier_name},
+        details={"supplier": supplier_name, "total_amount": total_amount},
         company_id=company_id,
     )
 

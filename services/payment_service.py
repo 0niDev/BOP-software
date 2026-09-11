@@ -183,10 +183,15 @@ class PaymentService:
         # ============================================================
         if sales_invoice_id:
             invoice = self.db.fetch_one("""
-                SELECT total_amount, paid_amount FROM sales_invoices WHERE id = ?
+                SELECT total_amount, paid_amount, payment_type FROM sales_invoices WHERE id = ?
             """, (sales_invoice_id,))
             
             if invoice:
+                if invoice["payment_type"] == "CASH":
+                    raise ValidationError(
+                        "Cannot receive payment for a CASH invoice — "
+                        "payment was already recorded at invoice creation."
+                    )
                 outstanding = invoice["total_amount"] - invoice["paid_amount"]
                 if amount > outstanding:
                     raise ValidationError(

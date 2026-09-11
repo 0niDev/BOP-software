@@ -264,8 +264,45 @@ class ExpenseService:
 
     def delete_expense(self, expense_id: int) -> None:
         """Delete expense with journal reversal."""
-        self.expense_repo.delete(expense_id)
-        logger.info("Deleted expense ID: %s", expense_id)
+        # Get expense first to get details for reversal
+        expense = self.get_expense(expense_id)
+        if not expense:
+            raise ValidationError(f"Expense {expense_id} not found.")
+        
+        with self.db.transaction():
+            # Reverse the journal entry
+            existing_journal = self.accounting_service.get_journal_entry(
+                source_table="expenses",
+                source_id=expense_id
+            )
+            
+            if existing_journal:
+                journal_lines_existing = existing_journal.get('lines', [])
+                
+                # Create reversing lines (swap debit/credit)
+                reverse_lines = []
+                for line in journal_lines_existing:
+                    reverse_lines.append(JournalLine(
+                        account_id=line['account_id'],
+                        debit=line['credit'],
+                        credit=line['debit'],
+                        party_id=line.get('party_id'),
+                        description=f"Reversal of {line['description']}"
+                    ))
+                
+                self.accounting_service.post_journal_entry(
+                    voucher_type=VoucherType.JOURNAL,
+                    entry_date=expense.expense_date,
+                    lines=reverse_lines,
+                    source_table="expenses",
+                    source_id=expense_id,
+                    narration=f"Reversal of expense {expense.voucher_number} on deletion"
+                )
+                logger.info(f"Reversed journal entry for expense {expense.voucher_number}")
+            
+            # Delete expense
+            self.expense_repo.delete(expense_id)
+            logger.info("Deleted expense ID: %s", expense_id)
     def get_monthly_summary(self, year: int, month: int, company_id: int = 1) -> dict:
         """Get monthly expense summary by category."""
         import calendar
