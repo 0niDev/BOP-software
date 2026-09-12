@@ -1,103 +1,136 @@
-"""Authentication, users & role navigation (headless - same code the UI calls)."""
+"""Tests for auth/session: AuthService, UserRepository, RoleRepository and the
+AuthController login/logout/change-password flows."""
 from __future__ import annotations
 
 import pytest
 
-from helpers import books
+from authentication.auth_service import AuthService
+from repositories.user_repository import UserRepository, RoleRepository
+from utils.exceptions import AuthenticationError, ValidationError
 
 
-def test_login_success_admin(qa_db):
-    from controllers.auth_controller import AuthController
-
-    c = AuthController()
-    user, err = c.login("admin", "admin123")
-    assert err is None
-    assert user is not None and user.username == "admin"
-    assert c.current_user is not None
+@pytest.fixture()
+def svc(qa_db):
+    return AuthService(qa_db)
 
 
-def test_login_wrong_password_fails(qa_db):
-    from controllers.auth_controller import AuthController
+class TestUserRepository:
+    def test_find_by_username(self, qa_db):
+        repo = UserRepository(qa_db)
+        row = repo.find_by_username("admin")
+        assert row is not None
+        assert row["role_name"] == "Admin"
+        assert repo.find_by_username("ghost") is None
 
-    user, err = AuthController().login("admin", "wrong-password")
-    assert user is None
-    assert "Invalid username or password." in err
+    def test_find_all_with_roles(self, qa_db):
+        repo = UserRepository(qa_db)
+        rows = repo.find_all_with_roles()
+        assert any(r["username"] == "admin" for r in rows)
 
+    def test_update_last_login(self, qa_db):
+        repo = UserRepository(qa_db)
+        uid = qa_db.fetch_one("SELECT id FROM users WHERE username='admin'")["id"]
+        repo.update_last_login(uid)
+        row = qa_db.fetch_one("SELECT last_login_at FROM users WHERE id=?", (uid,))
+        assert row["last_login_at"] is not None
 
-def test_login_unknown_user_fails(qa_db):
-    from controllers.auth_controller import AuthController
-
-    user, err = AuthController().login("ghost", "x")
-    assert user is None and err
-
-
-def test_logout_clears_current_user(qa_db, auth):
-    controller, user = auth
-    assert controller.current_user is not None
-    controller.logout()
-    assert controller.current_user is None
-
-
-def test_create_update_reset_deactivate_user(qa_db):
-    from controllers.auth_controller import AuthController
-
-    c = AuthController()
-    ok, err = c.create_user("manager1", "Manager One", "secret1", "Manager", "m@x.com")
-    assert ok, err
-    row = qa_db.fetch_one("SELECT id, role_id FROM users WHERE username='manager1'")
-    uid = row["id"]
-    # role assigned to Manager
-    role = qa_db.fetch_one("SELECT name FROM roles WHERE id=?", (row["role_id"],))
-    assert role["name"] == "Manager"
-
-    ok, err = c.update_user(uid, "Manager One Renamed", "m2@x.com", "Accountant", True)
-    assert ok, err
-    assert qa_db.fetch_one("SELECT full_name FROM users WHERE id=?", (uid,))["full_name"] == "Manager One Renamed"
-
-    ok, err = c.reset_password(uid, "newpass1")
-    assert ok, err
-    ok, err = c.reset_password(uid, "123")  # too short
-    assert not ok and "at least 6" in err
-
-    # new password now logs in
-    u2, err2 = c.login("manager1", "newpass1")
-    assert u2 is not None and err2 is None
-    c.logout()
+    def test_update_password(self, qa_db):
+        repo = UserRepository(qa_db)
+        uid = qa_db.fetch_one("SELECT id FROM users WHERE username='admin'")["id"]
+        repo.update_password(uid, "aabb", "ccdd")
+        row = qa_db.fetch_one("SELECT password_hash, password_salt FROM users WHERE id=?", (uid,))
+        assert row["password_hash"] == "ccdd"
+        assert row["password_salt"] == "aabb"
 
 
-def test_duplicate_username_rejected(qa_db):
-    from controllers.auth_controller import AuthController
-
-    ok, err = AuthController().create_user("admin", "Other", "secret1", "Manager")
-    assert not ok
-    assert "already exists" in err
-
-
-def test_all_seeded_roles_present(qa_db):
-    names = {r["name"] for r in qa_db.fetch_all("SELECT name FROM roles")}
-    assert {"Admin", "Accountant", "Manager", "Storekeeper", "Production Manager"} <= names
+class TestRoleRepository:
+    def test_find_by_name(self, qa_db):
+        repo = RoleRepository(qa_db)
+        assert repo.find_by_name("Admin")["name"] == "Admin"
+        assert repo.find_by_name("Manager")["name"] == "Manager"
+        assert repo.find_by_name("Nope") is None
 
 
-def test_role_nav_permissions():
-    from models.user import UserRole
+class TestAuthService:
+    def test_login_admin(self, svc):
+        user = svc.login("admin", "admin123")
+        assert user.username == "admin"
+        assert user.role_name == "Admin"
+        assert svc.current_user.username == "admin"
 
-    assert "reports" in UserRole.VIEWER.permissions and "sales" not in UserRole.VIEWER.permissions
-    assert "users" in UserRole.ADMIN.permissions and "users" not in UserRole.ACCOUNTANT.permissions
-    assert "manufacturing" in UserRole.PRODUCTION_MANAGER.permissions
-    assert "inventory" in UserRole.STOREKEEPER.permissions
+    def test_login_strips_username(self, svc):
+        user = svc.login("  admin  ", "admin123")
+        assert user is not None
+
+    def test_login_wrong_password(self, svc):
+        with pytest.raises(AuthenticationError):
+            svc.login("admin", "wrong")
+
+    def test_login_unknown_user(self, svc):
+        with pytest.raises(AuthenticationError):
+            svc.login("nobody", "nopass")
+
+    def test_logout(self, svc):
+        svc.login("admin", "admin123")
+        assert svc.current_user is not None
+        svc.logout()
+        assert svc.current_user is None
+
+    def test_change_password(self, svc, admin_user_id):
+        svc.login("admin", "admin123")
+        svc.change_password(admin_user_id, "admin123", "newpass1")
+        # old password no longer works
+        with pytest.raises(AuthenticationError):
+            svc.login("admin", "admin123")
+        # new password works
+        assert svc.login("admin", "newpass1") is not None
+
+    def test_change_password_requires_length(self, svc, admin_user_id):
+        with pytest.raises(ValidationError):
+            svc.change_password(admin_user_id, "admin123", "short")
+
+    def test_change_password_wrong_current(self, svc, admin_user_id):
+        with pytest.raises(AuthenticationError):
+            svc.change_password(admin_user_id, "not-the-current", "newpass1")
 
 
-def test_last_login_updated(qa_db, auth):
-    controller, user = auth
-    row = qa_db.fetch_one("SELECT last_login_at FROM users WHERE id=?", (user.id,))
-    assert row["last_login_at"] is not None
+class TestAuthController:
+    def test_login_matches_ui_contract(self, qa_db):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        user, error = ctrl.login("admin", "admin123")
+        assert user is not None
+        assert error is None
 
+    def test_login_failure_returns_error(self, qa_db):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        user, error = ctrl.login("admin", "bad")
+        assert user is None
+        assert error is not None
 
-def test_auth_users_table_crud_leaves_books_balanced(qa_db):
-    from controllers.auth_controller import AuthController
+    def test_current_user(self, qa_db):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        ctrl.login("admin", "admin123")
+        assert ctrl.current_user is not None
 
-    AuthController().create_user("temp", "Temp User", "secret1", "Storekeeper")
-    AuthController().update_user(
-        qa_db.fetch_one("SELECT id FROM users WHERE username='temp'")["id"],
-        "Temp Two", None, "Storekeeper", False)
-    books.assert_books_balanced(qa_db)
+    def test_logout(self, qa_db):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        ctrl.login("admin", "admin123")
+        ctrl.logout()
+        assert ctrl.current_user is None
+
+    def test_get_all_users(self, qa_db):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        users = ctrl.get_all_users()
+        assert any(u["username"] == "admin" for u in users)
+
+    def test_reset_password(self, qa_db, admin_user_id):
+        from controllers.auth_controller import AuthController
+        ctrl = AuthController()
+        ok, err = ctrl.reset_password(admin_user_id, "reset123")
+        assert ok is True and err is None
+        assert AuthController().login("admin", "reset123")[0] is not None

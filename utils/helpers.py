@@ -28,6 +28,16 @@ logger = get_logger(__name__)
 cache_mgr = SessionCache()
 
 
+def get_current_company_id(db: Optional[BaseRepository]) -> int:
+    """Get the current company ID.
+    
+    For single-company deployments, this returns 1.
+    In multi-company setups, this could be extended to read from
+    session/context.
+    """
+    return 1
+
+
 # =============================================================================
 # DATABASE QUERY HELPERS
 # =============================================================================
@@ -75,15 +85,8 @@ def fetch_all_items_with_stock(
         ORDER BY i.item_name
     """
     
-    logger.debug(f"Fetching items with stock for company {company_id}")
-    logger.debug(f"Query: {query}")
-    
     # Don't clear cache - let it work normally
     items = db.fetch_all(query, (company_id,))
-    
-    logger.debug(f"fetch_all_items_with_stock: Retrieved {len(items)} items from database")
-    for item in items:
-        logger.debug(f"  Item {item['id']}: {item['name']} - stock_qty={item.get('stock_qty', 0)}, batch_count={item.get('batch_count', 0)}")
     
     # Ensure all items have proper types (keep stock_qty as float for precision)
     for item in items:
@@ -93,7 +96,7 @@ def fetch_all_items_with_stock(
     # Cache for 30 seconds
     cache_mgr.set(cache_key, items, ttl=30)
     
-    logger.info(f"Fetched {len(items)} items with stock data")
+    logger.debug(f"Fetched {len(items)} items with stock for company {company_id}")
     return items
 
 

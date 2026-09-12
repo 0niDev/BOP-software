@@ -74,9 +74,6 @@ class StockLoadThread(QThread):
             # Use centralized helper function for consistency
             from utils.helpers import fetch_all_items_with_stock
             
-            logger.debug(f"StockLoadThread: Fetching stock for item_ids={self.item_ids}")
-            logger.debug(f"StockLoadThread: item_ids types={[type(x) for x in self.item_ids]}")
-            
             # Fetch all items with stock in one optimized query
             items = fetch_all_items_with_stock(
                 db=self.controller.service.repo.db,
@@ -84,31 +81,22 @@ class StockLoadThread(QThread):
                 include_inactive=False
             )
             
-            logger.debug(f"StockLoadThread: fetch_all_items_with_stock returned {len(items)} items")
-            for item in items:
-                logger.debug(f"  Item {item['id']}: {item['name']} - stock_qty={item.get('stock_qty', 0)}")
-            
             # Build stock map for requested item IDs only
             stocks = {}
-            # Convert item_ids to set of ints for faster lookup
             requested_ids = set(int(x) for x in self.item_ids)
-            logger.debug(f"StockLoadThread: requested_ids={requested_ids}")
             
             for item in items:
                 item_id = int(item['id'])
                 if item_id in requested_ids:
                     stock_val = float(item.get('stock_qty', 0) or 0)
                     stocks[item_id] = stock_val
-                    logger.debug(f"StockLoadThread: Added item {item_id} to stocks map with value {stock_val}")
             
             # Ensure all requested item_ids have an entry (even if 0)
             for item_id in requested_ids:
                 if item_id not in stocks:
                     stocks[item_id] = 0.0
-                    logger.debug(f"StockLoadThread: Item {item_id} not in results, setting stock to 0.0")
             
-            logger.info(f"Loaded stocks for {len(stocks)} items using helper: {stocks}")
-            # Emit directly - the dict is already a new object
+            logger.debug(f"Loaded stocks for {len(stocks)} items")
             self.stocks_loaded.emit(stocks)
             
         except Exception as e:

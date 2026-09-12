@@ -127,6 +127,7 @@ class Migrator:
             self._seed_accounts()
             self._seed_numbering_sequences()
             self._seed_default_user()
+            self._seed_default_settings()
         logger.info("Default data seeding complete.")
 
     def _seed_company_and_warehouse(self) -> None:
@@ -189,6 +190,64 @@ class Migrator:
             "Seeded default user 'admin' with password 'admin123'. "
             "Change this password immediately after first login."
         )
+
+    def _seed_default_settings(self) -> None:
+        """Seed default appearance and shortcut settings."""
+        # Default theme
+        self._db.execute(
+            """
+            INSERT OR IGNORE INTO settings (company_id, setting_key, setting_value, setting_group)
+            VALUES (1, 'theme_name', 'dark', 'APPEARANCE')
+            """
+        )
+        
+        # Default shortcuts
+        default_shortcuts = [
+            ("module_jump_1", "Ctrl+1"),
+            ("module_jump_2", "Ctrl+2"),
+            ("module_jump_3", "Ctrl+3"),
+            ("module_jump_4", "Ctrl+4"),
+            ("module_jump_5", "Ctrl+5"),
+            ("module_jump_6", "Ctrl+6"),
+            ("module_jump_7", "Ctrl+7"),
+            ("module_jump_8", "Ctrl+8"),
+            ("module_jump_9", "Ctrl+9"),
+            ("module_jump_0", "Ctrl+0"),
+            ("module_next", "Ctrl+Tab"),
+            ("module_prev", "Ctrl+Shift+Tab"),
+            ("refresh", "Ctrl+R"),
+            ("search", "Ctrl+F"),
+            ("new_record", "Ctrl+N"),
+            ("command_palette", "Ctrl+K"),
+            ("close_tab", "Ctrl+W"),
+            ("save", "Ctrl+S"),
+            ("cancel", "Escape"),
+            ("copy", "Ctrl+C"),
+            ("paste", "Ctrl+V"),
+            ("cut", "Ctrl+X"),
+            ("undo", "Ctrl+Z"),
+            ("redo", "Ctrl+Y"),
+            ("toggle_sidebar", "Ctrl+B"),
+            ("fullscreen", "F11"),
+        ]
+        
+        import json
+        for action_id, default_seq in default_shortcuts:
+            config = {
+                "action_id": action_id,
+                "default_sequence": default_seq,
+                "current_sequence": default_seq,
+                "description": action_id.replace("_", " ").title(),
+                "context": "window",
+                "category": "Navigation" if "module" in action_id or action_id in ("module_next", "module_prev") else "General"
+            }
+            self._db.execute(
+                """
+                INSERT OR IGNORE INTO settings (company_id, setting_key, setting_value, setting_group)
+                VALUES (1, ?, ?, 'SHORTCUTS')
+                """,
+                (f"shortcut:{action_id}", json.dumps(config)),
+            )
 
 
 def run_migrations(db: DatabaseConnection) -> None:

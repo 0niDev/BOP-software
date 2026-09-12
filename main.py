@@ -693,7 +693,6 @@ QPushButton#helpButton:hover {
 class Application:
     def __init__(self) -> None:
         self.qt_app = QApplication(sys.argv)
-        self.qt_app.setStyleSheet(APP_STYLESHEET)
         
         # Set font - NO setPointSize
         font = QFont("Segoe UI", 16)
@@ -706,10 +705,39 @@ class Application:
         # Start auto-backup
         logger.info("Starting auto-backup service...")
         start_auto_backup(interval_hours=24)
+    def _apply_theme(self) -> None:
+        """Apply saved theme from database."""
+        try:
+            from utils.theme import get_theme_manager, apply_theme
+            from database.connection import get_db
+            
+            db = get_db()
+            theme_manager = get_theme_manager()
+            theme_manager.set_database(db)
+            theme_manager.load_from_db(db)
+            
+            theme = theme_manager.get_current_theme()
+            apply_theme(self.qt_app, theme)
+            
+            # Initialize shortcut manager
+            from utils.shortcut_manager import get_shortcut_manager
+            shortcut_manager = get_shortcut_manager()
+            shortcut_manager.set_database(db)
+            shortcut_manager.load_from_db(db)
+            
+            logger.info(f"Applied theme: {theme_manager.get_theme_name()}")
+        except Exception as e:
+            logger.warning(f"Failed to apply theme: {e}")
+            # Fallback to default stylesheet
+            self.qt_app.setStyleSheet(APP_STYLESHEET)
     def run(self) -> int:
         try:
             logger.info("Starting application...")
             self._initialize_database()
+            
+            # Apply theme after DB is initialized
+            self._apply_theme()
+            
             self._show_login()
 
             return self.qt_app.exec()

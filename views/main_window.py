@@ -24,8 +24,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QShortcut, QKeySequence
 
+from database.connection import get_db
+from repositories.settings_repository import SettingsRepository
+from services.settings_service import SettingsService
+
 from config.app_config import get_config
 from controllers.auth_controller import AuthController
+from controllers.settings_controller import SettingsController
 from models.user import User
 from utils.event_bus import event_bus
 from views.widgets.dashboard_view import DashboardView
@@ -40,8 +45,9 @@ from views.widgets.payment_view import PaymentView
 from views.widgets.banking_view import BankingView
 from views.widgets.report_view import ReportView
 from views.widgets.backup_view import BackupView
-from views.widgets.users_view import UsersView  # We'll create this next
+from views.widgets.users_view import UsersView
 from views.widgets.asset_view import AssetView
+from views.widgets.settings_view import SettingsView
 
 
 class MainWindow(QMainWindow):
@@ -62,7 +68,7 @@ class MainWindow(QMainWindow):
         ("Reports", "reports", ReportView),
         ("Backup", "backup", BackupView),
         ("Users", "users", UsersView),
-        ("Settings", "settings", None),
+        ("Settings", "settings", SettingsView),
     ]
 
     def __init__(self, user: User, auth_controller: AuthController, lazy_load: bool = True, parent=None):
@@ -235,6 +241,20 @@ class MainWindow(QMainWindow):
 
         if key in self._pages:
             return self._pages[key]
+
+        # Handle Settings page specially - needs controller with DB
+        if key == "settings":
+            if "settings" in self._pages:
+                return self._pages["settings"]
+            
+            db = get_db()
+            repo = SettingsRepository(db)
+            service = SettingsService(repo)
+            controller = SettingsController(service)
+            page = SettingsView(controller)
+            self._pages[key] = page
+            self.stack.addWidget(page)
+            return page
 
         # Find the view class for this key
         view_class = None
@@ -562,6 +582,7 @@ class ModuleJumpDialog(QDialog):
     # ------------------------------------------------------------------ #
     def _install_key_filter(self) -> None:
         from PySide6.QtCore import QEvent, QObject
+        from PySide6.QtGui import QKeyEvent
         from PySide6.QtWidgets import QApplication
 
         class _Filter(QObject):
@@ -574,7 +595,10 @@ class ModuleJumpDialog(QDialog):
                 if not d.isVisible():
                     return False
                 if event.type() == QEvent.Type.KeyPress:
-                    key = event.key()
+                    key_event = event if isinstance(event, QKeyEvent) else None
+                    if key_event is None:
+                        return False
+                    key = key_event.key()
                     if key == Qt.Key.Key_Down:
                         d._move(1); event.accept(); return True
                     if key == Qt.Key.Key_Up:

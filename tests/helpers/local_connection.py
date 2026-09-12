@@ -1,6 +1,6 @@
 """
 In-process SQLite implementation of the application's ``DatabaseConnection``
-interface, used ONLY by the automated GUI test-suite.
+interface, used ONLY by the automated test-suite.
 
 The desktop app talks to a hosted SQLite Cloud database through
 ``database.connection``.  Tests must never touch that live database, so this
