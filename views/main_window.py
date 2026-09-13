@@ -3,7 +3,7 @@ Main application window with role-based navigation.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import QTimer, Qt, Signal, QPropertyAnimation, QEasingCurve, QSettings, QByteArray
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -93,12 +93,19 @@ class MainWindow(QMainWindow):
         self._is_loaded = True
         self.statusBar().showMessage("Loading data...")
         
-        # Load the first page
+        # Load the last visited module for this user (fall back to first page)
         if self.nav_list.count() > 0:
-            current = self.nav_list.currentItem()
-            if current:
-                key = current.data(Qt.UserRole)
-                self._load_page(key)
+            last_key = self._qsettings.value(
+                f"mainwindow/{self.user.username}/last_module", "", str
+            ) or ""
+            row = self._nav_row_for_key(last_key) if last_key else -1
+            if row >= 0:
+                self.nav_list.setCurrentRow(row)
+            else:
+                current = self.nav_list.currentItem()
+                if current:
+                    key = current.data(Qt.UserRole)
+                    self._load_page(key)
         
         self.statusBar().showMessage(f"Logged in as {self.user.username} ({self.user.role_name})")
     def _get_filtered_nav_items(self) -> list[tuple[str, str, type | None]]:
@@ -113,6 +120,12 @@ class MainWindow(QMainWindow):
         cfg = get_config()
         self.setWindowTitle(f"{cfg.app_name} — {self.user.full_name} ({self.user.role_name})")
         self.resize(1400, 900)
+
+        # Restore last window geometry and last visited module (per user, local).
+        self._qsettings = QSettings("BOP", "BOPNutraceuticals")
+        geo = self._qsettings.value(f"mainwindow/{self.user.username}/geometry")
+        if isinstance(geo, QByteArray) and not geo.isNull():
+            self.restoreGeometry(geo)
 
         central = QWidget()
         root_layout = QHBoxLayout(central)
@@ -522,6 +535,19 @@ class MainWindow(QMainWindow):
         if confirm == QMessageBox.Yes:
             self.auth_controller.logout()
             self.close()
+
+    def closeEvent(self, event) -> None:
+        """Persist window geometry and the last visited module (local QSettings)."""
+        try:
+            current = self.nav_list.currentItem()
+            key = current.data(Qt.UserRole) if current else ""
+            self._qsettings.setValue(
+                f"mainwindow/{self.user.username}/last_module", key or "")
+            self._qsettings.setValue(
+                f"mainwindow/{self.user.username}/geometry", self.saveGeometry())
+        except Exception:
+            pass  # Persistence is best-effort; never block shutdown.
+        super().closeEvent(event)
 
 class ModuleJumpDialog(QDialog):
     """Compact command palette: type to filter modules, Enter to jump, Esc to close.

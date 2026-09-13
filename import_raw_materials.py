@@ -1,4 +1,4 @@
-"""One-off import of raw materials from 'list of raw material.txt' into inventory.
+﻿"""One-off import of raw materials from 'list of raw material.txt' into inventory.
 
 Reads the numbered list, skips '*(missing)*' entries, and creates each material
 via ItemService with defaults: unit=KG, item_type=RAW_MATERIAL, all prices and
@@ -10,10 +10,11 @@ import os
 import re
 
 os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = (
-    "sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/erp_backup_20260820_023705.db?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw"
-)
+os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
+
+from utils.env_loader import require_db_url
+
+os.environ["SQLITE_CLOUD_URL"] = require_db_url()
 
 from database.connection import get_db, close_db
 from services.item_service import ItemService

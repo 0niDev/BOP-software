@@ -686,12 +686,21 @@ class PurchaseInvoiceService:
                 WHERE source_table = 'purchase_invoices' AND source_id = ?
             """, (invoice_id,))
             
+            # Batch-load ALL lines for posted entries in ONE query instead of
+            # one query per entry (N+1 elimination for hosted/remote DBs).
+            posted_ids = [e['id'] for e in journal_entries if e['is_posted']]
+            lines_by_entry: dict[int, list] = {}
+            if posted_ids:
+                placeholders = ", ".join("?" * len(posted_ids))
+                for line in self.db.fetch_all(f"""
+                    SELECT journal_entry_id, account_id, debit, credit, description, party_id 
+                    FROM journal_entry_lines WHERE journal_entry_id IN ({placeholders})
+                """, tuple(posted_ids)):
+                    lines_by_entry.setdefault(line['journal_entry_id'], []).append(line)
+            
             for journal_entry in journal_entries:
                 if journal_entry['is_posted']:
-                    journal_lines_existing = self.db.fetch_all("""
-                        SELECT account_id, debit, credit, description, party_id 
-                        FROM journal_entry_lines WHERE journal_entry_id = ?
-                    """, (journal_entry['id'],))
+                    journal_lines_existing = lines_by_entry.get(journal_entry['id'], [])
                     
                     reverse_lines = []
                     for line in journal_lines_existing:
@@ -889,12 +898,21 @@ class PurchaseInvoiceService:
                 WHERE source_table = 'purchase_invoices' AND source_id = ?
             """, (invoice_id,))
             
+            # Batch-load ALL lines for posted entries in ONE query instead of
+            # one query per entry (N+1 elimination for hosted/remote DBs).
+            posted_ids = [e['id'] for e in journal_entries if e['is_posted']]
+            lines_by_entry: dict[int, list] = {}
+            if posted_ids:
+                placeholders = ", ".join("?" * len(posted_ids))
+                for line in self.db.fetch_all(f"""
+                    SELECT journal_entry_id, account_id, debit, credit, description, party_id 
+                    FROM journal_entry_lines WHERE journal_entry_id IN ({placeholders})
+                """, tuple(posted_ids)):
+                    lines_by_entry.setdefault(line['journal_entry_id'], []).append(line)
+            
             for journal_entry in journal_entries:
                 if journal_entry['is_posted']:
-                    journal_lines_existing = self.db.fetch_all("""
-                        SELECT account_id, debit, credit, description, party_id 
-                        FROM journal_entry_lines WHERE journal_entry_id = ?
-                    """, (journal_entry['id'],))
+                    journal_lines_existing = lines_by_entry.get(journal_entry['id'], [])
                     
                     reverse_lines = []
                     for line in journal_lines_existing:

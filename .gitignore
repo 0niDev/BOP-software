@@ -1,4 +1,3 @@
-```
 # Python
 __pycache__/
 *.pyc
@@ -45,4 +44,3 @@ dist/
 htmlcov/
 .mypy_cache/
 .pytest_cache/
-```

@@ -16,8 +16,24 @@ def _default_db_url() -> str:
     url = os.environ.get('SQLITE_CLOUD_URL')
     if url:
         return url
-    # Only used when the module runs standalone (main.py already sets this).
-    return 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+    # Standalone run: load credentials from the git-ignored .env file.
+    from pathlib import Path
+
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        url = os.environ.get('SQLITE_CLOUD_URL')
+        if url:
+            return url
+    raise RuntimeError(
+        "SQLITE_CLOUD_URL is not set. Copy .env.example to .env and fill in "
+        "your database credentials."
+    )
 
 
 DB_URL = _default_db_url()

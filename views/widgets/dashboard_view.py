@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import shiboken6
+import time
 from PySide6.QtCore import (
     QCoreApplication,
     QEvent,
@@ -86,13 +87,20 @@ class DashboardView(QWidget):
         # NOTE: Auto-refresh disabled to prevent connection pool conflicts with user operations
         # Users should manually click Refresh button to update dashboard
 
+    # Refresh when returning to the dashboard if data is older than this.
+    STALE_AFTER_MS = 5 * 60 * 1000
+
     def showEvent(self, event):
         """Called when the widget is shown (tab selected)."""
         super().showEvent(event)
-        # Only load if not already loaded or if user manually refreshed
+        now = time.monotonic() * 1000.0
         if not self._is_loaded:
             self._load_data()
             self._is_loaded = True
+        elif (now - getattr(self, "_last_loaded_ms", 0)) > self.STALE_AFTER_MS:
+            # Safe stale refresh: same code path as the manual Refresh button,
+            # no background timer (avoids connection-pool conflicts).
+            self._load_data(force=True)
         logger.info("🔄 Dashboard View refreshed on show")
 
     def _build_ui(self):
@@ -237,6 +245,7 @@ class DashboardView(QWidget):
         # Update last updated
         from datetime import datetime
         self.last_updated_label.setText(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
+        self._last_loaded_ms = time.monotonic() * 1000.0
         
         # Clear existing widgets
         self._clear_layout(self.content_layout)

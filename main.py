@@ -12,8 +12,24 @@ from __future__ import annotations
 
 import sys
 import os
-os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/erp_backup_20260820_023705.db?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+
+# Load database credentials from a local, git-ignored .env file.
+# Never hardcode API keys in source -- see .env.example for the format.
+from pathlib import Path
+
+def _load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+_load_dotenv(Path(__file__).resolve().parent / ".env")
+
+os.environ.setdefault('ERP_DB_ENGINE', 'sqlitecloud')
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 from views.main_window import MainWindow   # ← ADD THIS LINE

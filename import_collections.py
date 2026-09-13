@@ -22,10 +22,30 @@ import time
 from datetime import datetime
 
 os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = (
-    "sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/erp_backup_20260820_023705.db?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw"
-)
+os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
+
+# Load credentials from the git-ignored .env file instead of hardcoding keys.
+from pathlib import Path
+
+
+def _load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(Path(__file__).resolve().parent / ".env")
+
+if not os.environ.get("SQLITE_CLOUD_URL"):
+    raise RuntimeError(
+        "SQLITE_CLOUD_URL is not set. Copy .env.example to .env and fill in "
+        "your database credentials."
+    )
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository

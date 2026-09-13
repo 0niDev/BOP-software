@@ -1,4 +1,4 @@
-"""
+﻿"""
 One-off import of the remaining PharmaPro data gaps (A + B + C + D).
 
 Covered here:
@@ -28,10 +28,11 @@ import time
 from datetime import datetime
 
 os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = (
-    "sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/erp_backup_20260820_023705.db?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw"
-)
+os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
+
+from utils.env_loader import require_db_url
+
+os.environ["SQLITE_CLOUD_URL"] = require_db_url()
 
 sys.path.insert(0, r"F:\software\final\BOP-software")
 

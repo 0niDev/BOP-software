@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QThread, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDateEdit,
     QDialog,
@@ -80,6 +81,23 @@ _SHARED_CSS = """
 """
 
 
+class _ReportLoader(QThread):
+    """Runs a controller fetch off the UI thread; emits result back to UI thread."""
+    done = Signal(object, object)  # (data, error)
+
+    def __init__(self, fetch_fn, parent=None):
+        super().__init__(parent)
+        self._fetch_fn = fetch_fn
+
+    def run(self):
+        try:
+            data, error = self._fetch_fn()
+        except Exception as e:  # noqa: BLE001 - surface any failure to the UI
+            logger.exception("Report generation failed")
+            data, error = None, str(e)
+        self.done.emit(data, error)
+
+
 class ReportView(QWidget):
     """Widget for viewing and exporting reports."""
 
@@ -87,7 +105,27 @@ class ReportView(QWidget):
         super().__init__(parent)
         self.controller = ReportController()
         self.party_controller = PartyController()
+        self._load_thread = None
         self._build_ui()
+
+    def _run_async(self, fetch_fn, render_fn) -> None:
+        """Run a (data, error)-returning fetch in the background and render on completion.
+
+        Keeps the UI responsive during hosted-DB round trips; guards against
+        double-clicks by ignoring requests while a load is already running.
+        """
+        if self._load_thread is not None and self._load_thread.isRunning():
+            return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self._load_thread = _ReportLoader(fetch_fn, self)
+        self._load_thread.done.connect(
+            lambda data, error: self._on_report_loaded(render_fn, data, error)
+        )
+        self._load_thread.start()
+
+    def _on_report_loaded(self, render_fn, data, error) -> None:
+        QApplication.restoreOverrideCursor()
+        render_fn(data, error)
 
     def _set_report_font_size(self, text_edit: QTextEdit, size: int = 12):
         """Set font size for a report text edit."""
@@ -349,7 +387,9 @@ class ReportView(QWidget):
     # ============================================================
     def _show_trial_balance(self):
         """Show trial balance with 6 columns: Code, Name, ODR, OCR, CDR, CCR + Parties Summary."""
-        data, error = self.controller.get_trial_balance()
+        self._run_async(self.controller.get_trial_balance, self._render_trial_balance)
+
+    def _render_trial_balance(self, data, error):
         if error:
             QMessageBox.warning(self, "Error", error)
             return
@@ -554,7 +594,12 @@ class ReportView(QWidget):
         date_from = self.pl_date_from.date().toString("yyyy-MM-dd")
         date_to = self.pl_date_to.date().toString("yyyy-MM-dd")
 
-        data, error = self.controller.get_profit_loss(date_from, date_to)
+        self._run_async(
+            lambda: self.controller.get_profit_loss(date_from, date_to),
+            self._render_profit_loss,
+        )
+
+    def _render_profit_loss(self, data, error):
         if error:
             QMessageBox.warning(self, "Error", error)
             return
@@ -726,7 +771,9 @@ class ReportView(QWidget):
     # ============================================================
     def _show_balance_sheet(self):
         """Show balance sheet with table format for Excel export."""
-        data, error = self.controller.get_balance_sheet()
+        self._run_async(self.controller.get_balance_sheet, self._render_balance_sheet)
+
+    def _render_balance_sheet(self, data, error):
         if error:
             QMessageBox.warning(self, "Error", error)
             return
@@ -867,7 +914,12 @@ class ReportView(QWidget):
             QMessageBox.warning(self, "Selection Error", "Please select a party.")
             return
 
-        data, error = self.controller.get_party_ledger(party_id)
+        self._run_async(
+            lambda: self.controller.get_party_ledger(party_id),
+            self._render_party_ledger,
+        )
+
+    def _render_party_ledger(self, data, error):
         if error:
             QMessageBox.warning(self, "Error", error)
             return
@@ -985,7 +1037,12 @@ class ReportView(QWidget):
         date_from = self.cb_date_from.date().toString("yyyy-MM-dd")
         date_to = self.cb_date_to.date().toString("yyyy-MM-dd")
 
-        data, error = self.controller.get_cash_book(date_from, date_to)
+        self._run_async(
+            lambda: self.controller.get_cash_book(date_from, date_to),
+            self._render_cash_book,
+        )
+
+    def _render_cash_book(self, data, error):
         if error:
             QMessageBox.warning(self, "Error", error)
             return

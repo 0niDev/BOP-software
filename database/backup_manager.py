@@ -9,8 +9,22 @@ import glob
 import sys
 import sqlite3
 
-os.environ['ERP_DB_ENGINE'] = 'sqlitecloud'
-os.environ['SQLITE_CLOUD_URL'] = 'sqlitecloud://cjja8z6pvz.g4.sqlite.cloud:8860/flint-sync.sqlite?apikey=bmJZ0l1RTFCoxS0Au17c0iofzZmrDn2Db94v0YtV9Uw'
+os.environ.setdefault('ERP_DB_ENGINE', 'sqlitecloud')
+
+# Load credentials from the git-ignored .env file instead of hardcoding keys.
+from pathlib import Path
+
+def _load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+_load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DB_URL = os.environ.get('SQLITE_CLOUD_URL')
 

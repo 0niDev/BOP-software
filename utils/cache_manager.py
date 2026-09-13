@@ -9,6 +9,7 @@ Implements three-tier caching strategy:
 """
 from __future__ import annotations
 
+import threading
 import time
 from functools import wraps
 from typing import Any, Callable
@@ -25,70 +26,83 @@ class LRUCache:
     def __init__(self, maxsize: int = 1000):
         self._cache: OrderedDict = OrderedDict()
         self._maxsize = maxsize
+        self._lock = threading.Lock()
     
     def get(self, key: str) -> Any | None:
-        if key in self._cache:
-            # Move to end (most recently used)
-            self._cache.move_to_end(key)
-            return self._cache[key]
+        with self._lock:
+            if key in self._cache:
+                # Move to end (most recently used)
+                self._cache.move_to_end(key)
+                return self._cache[key]
         return None
     
     def set(self, key: str, value: Any) -> None:
-        if key in self._cache:
-            self._cache.move_to_end(key)
-        self._cache[key] = value
-        if len(self._cache) > self._maxsize:
-            # Remove least recently used
-            self._cache.popitem(last=False)
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = value
+            if len(self._cache) > self._maxsize:
+                # Remove least recently used
+                self._cache.popitem(last=False)
     
     def clear(self) -> None:
-        self._cache.clear()
+        with self._lock:
+            self._cache.clear()
     
     def __len__(self) -> int:
-        return len(self._cache)
+        with self._lock:
+            return len(self._cache)
 
 
 class SessionCache:
     """Session-level shared cache (L2) for cross-repository sharing."""
     
     _instance: SessionCache | None = None
+    _instance_lock = threading.Lock()
     
     def __new__(cls) -> SessionCache:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._session_cache: dict[str, dict] = {}
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._session_cache: dict[str, dict] = {}
+                cls._instance._lock = threading.Lock()
         return cls._instance
     
     def get(self, key: str) -> Any | None:
-        if key in self._session_cache:
-            entry = self._session_cache[key]
-            if time.time() < entry['expires']:
-                return entry['value']
-            else:
-                del self._session_cache[key]
+        with self._lock:
+            if key in self._session_cache:
+                entry = self._session_cache[key]
+                if time.time() < entry['expires']:
+                    return entry['value']
+                else:
+                    del self._session_cache[key]
         return None
     
     def set(self, key: str, value: Any, ttl: int = 60) -> None:
-        self._session_cache[key] = {
-            'value': value,
-            'expires': time.time() + ttl
-        }
+        with self._lock:
+            self._session_cache[key] = {
+                'value': value,
+                'expires': time.time() + ttl
+            }
     
     def invalidate_pattern(self, pattern: str) -> None:
         """Invalidate all keys matching pattern."""
-        keys_to_delete = [k for k in self._session_cache if pattern in k]
-        for key in keys_to_delete:
-            del self._session_cache[key]
+        with self._lock:
+            keys_to_delete = [k for k in self._session_cache if pattern in k]
+            for key in keys_to_delete:
+                del self._session_cache[key]
         logger.debug(f"Invalidated {len(keys_to_delete)} session cache entries matching '{pattern}'")
     
     def clear(self) -> None:
-        self._session_cache.clear()
+        with self._lock:
+            self._session_cache.clear()
     
     def stats(self) -> dict:
-        return {
-            'entries': len(self._session_cache),
-            'active_entries': sum(1 for e in self._session_cache.values() if time.time() < e['expires'])
-        }
+        with self._lock:
+            return {
+                'entries': len(self._session_cache),
+                'active_entries': sum(1 for e in self._session_cache.values() if time.time() < e['expires'])
+            }
 
 
 # Global L3 cache instance
