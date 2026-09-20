@@ -81,9 +81,12 @@ class ProfitLossReport(Report):
                     other_income.append(item)
                     total_other_income += amount
             else:  # EXPENSE
-                if code.startswith('5'):
+                if code in ('5000', '5001', '5002'):
                     cost_of_sales.append(item)
                     total_cogs += amount
+                elif code.startswith('5'):
+                    other_operating.append(item)
+                    total_other_operating += amount
                 elif code.startswith('6'):
                     general_admin.append(item)
                     total_general_admin += amount

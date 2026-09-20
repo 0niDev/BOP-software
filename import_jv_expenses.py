@@ -21,16 +21,13 @@ import re
 import sys
 import time
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = ""
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
-JVB_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\JournalVouchersBody.csv"
+JVB_FILE = "PharmaPro_FullExport/JournalVouchersBody.csv"
 
 # old account -> new expense account
 EXPENSE_MAP = {
@@ -54,6 +51,10 @@ def to_iso_date(d):
 
 
 def main():
+    if not os.path.exists(JVB_FILE):
+        log(f"FATAL: {JVB_FILE} not found. Ensure the PharmaPro_FullExport folder exists.")
+        sys.exit(1)
+
     # ---- parse JV body (expense debit lines only) ----
     lines = []  # (old_acct, new_code, date_iso, narration, amount)
     with open(JVB_FILE, newline="", encoding="utf-8-sig") as fh:

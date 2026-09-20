@@ -27,19 +27,13 @@ import sys
 import time
 from datetime import datetime
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
-EXPORT = r"F:\software\final\BOP-software\PharmaPro_Export"
+EXPORT = "PharmaPro_FullExport"
 
 COMPANY_TO_TYPE = {
     "00": "FINISHED_GOOD",
@@ -352,6 +346,12 @@ def import_expiries(db) -> int:
 # ============================================================================
 def main():
     t0 = time.time()
+    for f in ["Products.csv", "DebitVouchersBody.csv", "SaleReturns.csv",
+              "SaleReturnsBody.csv", "Expiries.csv", "ExpiriesBody.csv", "ExpiriesBatch.csv"]:
+        if not os.path.exists(f"{EXPORT}\\{f}"):
+            print(f"FATAL: {EXPORT}\\{f} not found. Ensure the PharmaPro_FullExport folder exists.")
+            sys.exit(1)
+
     db = get_db()
     journal_repo = JournalRepository(db)
 

@@ -22,21 +22,15 @@ import re
 import sys
 import time
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
-DVB_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\DebitVouchersBody.csv"
-JVB_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\JournalVouchersBody.csv"
-COA_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\ChartOfAccounts.csv"
+DVB_FILE = "PharmaPro_FullExport/DebitVouchersBody.csv"
+JVB_FILE = "PharmaPro_FullExport/JournalVouchersBody.csv"
+COA_FILE = "PharmaPro_FullExport/ChartOfAccounts.csv"
 
 BATCH_SIZE = 100
 
@@ -93,6 +87,11 @@ def map_expense_target(old_acct: str) -> str | None:
 
 def main():
     t0 = time.time()
+    for f in (DVB_FILE, JVB_FILE, COA_FILE):
+        if not os.path.exists(f):
+            log(f"FATAL: {f} not found. Ensure the PharmaPro_FullExport folder exists.")
+            sys.exit(1)
+
     acct_names = parse_account_names()
 
     # ---- parse DV body: non-party expense lines (6000/6100 only) ----

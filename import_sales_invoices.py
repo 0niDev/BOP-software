@@ -1,4 +1,4 @@
-﻿"""One-off import of historical sales invoices from PharmaPro_Export.
+﻿"""One-off import of historical sales invoices from PharmaPro_FullExport.
 
 Data sources:
   Products.csv       ProductId -> old product name + CompanyId (item type)
@@ -24,23 +24,20 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 import time
 from datetime import datetime
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 from services.accounting_service import AccountingService
 
-PRODUCTS_FILE = "PharmaPro_Export/Products.csv"
-SALES_FILE = "PharmaPro_Export/Sales.csv"
-BODIES_FILE = "PharmaPro_Export/SalesBody.csv"
+PRODUCTS_FILE = "PharmaPro_FullExport/Products.csv"
+SALES_FILE = "PharmaPro_FullExport/Sales.csv"
+BODIES_FILE = "PharmaPro_FullExport/SalesBody.csv"
 
 COMPANY_TO_TYPE = {
     "00": "FINISHED_GOOD",
@@ -109,6 +106,11 @@ def to_iso_date(date_str: str) -> str:
 
 def main() -> None:
     t0 = time.time()
+    for f in (PRODUCTS_FILE, SALES_FILE, BODIES_FILE):
+        if not os.path.exists(f):
+            log(f"FATAL: {f} not found. Ensure the PharmaPro_FullExport folder exists.")
+            sys.exit(1)
+
     products = parse_products(PRODUCTS_FILE)
     sales = parse_sales(SALES_FILE)
     bodies = parse_bodies(BODIES_FILE)
@@ -133,8 +135,9 @@ def main() -> None:
             imported_sales.add(row["notes"].split("SaleId=")[1].split(" ")[0])
     log(f"Already imported: {len(imported_sales)} sales (resumable skip)")
 
-    all_items = db.fetch_all("SELECT id, item_name, item_type FROM items WHERE company_id = 1")
+    all_items = db.fetch_all("SELECT id, item_code, item_name, item_type FROM items WHERE company_id = 1")
     item_id_by_name = {r["item_name"]: r["id"] for r in all_items}
+    item_id_by_code = {r["item_code"]: r["id"] for r in all_items}
     item_type_by_id = {r["id"]: r["item_type"] for r in all_items}
     log(f"Loaded {len(all_items)} existing items")
 
@@ -244,7 +247,10 @@ def main() -> None:
         items = []
         subtotal = 0.0
         for line in lines:
-            item_id = item_id_by_name.get(products.get(line["product_id"], {}).get("name", ""))
+            pid = line["product_id"]
+            item_id = item_id_by_name.get(products.get(pid, {}).get("name", ""))
+            if item_id is None:
+                item_id = item_id_by_code.get(pid)
             if item_id is None:
                 log(
                     f"  WARN  sale {sid}: no item for product {line['product_id']} "

@@ -1,4 +1,4 @@
-"""One-off import of historical customer collections from PharmaPro_Export.
+"""One-off import of historical customer collections from PharmaPro_FullExport.
 
 Data sources:
   CashCollection.csv   CollectionId -> collection date, cash account (111 = Cash In Hand)
@@ -18,40 +18,18 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 import time
 from datetime import datetime
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-# Load credentials from the git-ignored .env file instead of hardcoding keys.
-from pathlib import Path
-
-
-def _load_dotenv(path: Path) -> None:
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
-
-_load_dotenv(Path(__file__).resolve().parent / ".env")
-
-if not os.environ.get("SQLITE_CLOUD_URL"):
-    raise RuntimeError(
-        "SQLITE_CLOUD_URL is not set. Copy .env.example to .env and fill in "
-        "your database credentials."
-    )
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
-CASH_FILE = "PharmaPro_Export/CashCollection.csv"
-BODY_FILE = "PharmaPro_Export/CollectionBody.csv"
+CASH_FILE = "PharmaPro_FullExport/CashCollection.csv"
+BODY_FILE = "PharmaPro_FullExport/CollectionBody.csv"
 
 BATCH_SIZE = 200
 
@@ -100,6 +78,11 @@ def to_iso_date(date_str: str) -> str:
 
 def main() -> None:
     t0 = time.time()
+    for f in (CASH_FILE, BODY_FILE):
+        if not os.path.exists(f):
+            log(f"FATAL: {f} not found. Ensure the PharmaPro_FullExport folder exists.")
+            sys.exit(1)
+
     collections = parse_collections()
     log(f"Parsed {len(collections)} collection records")
 

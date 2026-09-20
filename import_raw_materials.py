@@ -8,13 +8,10 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from services.item_service import ItemService
@@ -36,6 +33,10 @@ def parse_materials(path: str) -> list[str]:
 
 
 def main() -> None:
+    if not os.path.exists(SOURCE_FILE):
+        print(f"FATAL: {SOURCE_FILE} not found.")
+        sys.exit(1)
+
     materials = parse_materials(SOURCE_FILE)
     print(f"Parsed {len(materials)} materials from {SOURCE_FILE}")
 

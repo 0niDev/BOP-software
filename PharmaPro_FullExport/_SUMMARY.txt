@@ -1,0 +1,55 @@
+
+PharmaPro Full Data Export
+Exported: 2026-09-13 00:50:44
+Source Databases: PC23241 (2023-Apr 2026) + PC26271 (May-Sep 2026)
+
+Table                         Rows  Status
+------------------------- --------  --------------------
+ActualSectors                    5  OK
+ActualTowns                     49  OK
+Companies                        4  OK
+CompIDs                       1036  OK
+Users                            1  OK
+Project_Registry               122  OK
+Project_Tasks                  258  OK
+Products                      1365  OK
+ChartOfAccounts                333  OK
+Parties                        136  OK
+AccountsBalances               202  OK
+FormulaHeader                  311  OK
+FormulaBody                   1726  OK
+FillingHeader                  364  OK
+FillingBody                    913  OK
+Sales                         2390  OK
+SalesBody                     4944  OK
+SalesBatch                    5209  OK
+Purchases                     2010  OK
+PurchasesBody                 4462  OK
+PurchasesBatch                4462  OK
+CashCollection                2538  OK
+CollectionBody                2538  OK
+DebitVouchers                 1114  OK
+DebitVouchersBody             4596  OK
+CreditVouchers                  19  OK
+CreditVouchersBody              17  OK
+JournalVouchers                 98  OK
+JournalVouchersBody            192  OK
+SaleReturns                     92  OK
+SaleReturnsBody                166  OK
+SaleReturnsBatch               166  OK
+Expiries                        93  OK
+ExpiriesBody                   284  OK
+ExpiriesBatch                  297  OK
+Productions                   3715  OK
+ProductionBody               19438  OK
+ProductionBatch              20054  OK
+PackingHeader                 4012  OK
+PackingBody                  12210  OK
+PackingBatch                 12701  OK
+AllVouchers                   1532  OK
+History                      79511  OK
+OpeningStock                   249  OK
+OpeningBatch                   309  OK
+CurrentStock                   297  OK
+
+TOTAL                       196540

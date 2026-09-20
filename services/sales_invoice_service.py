@@ -39,6 +39,108 @@ class SalesInvoiceService:
         self.accounting_service = AccountingService(self.db)
         self.stock_repo = StockBatchRepository(self.db)
 
+    def _resolve_unit_cost(self, batch: dict) -> tuple[Decimal, Decimal]:
+        raw = Decimal(str(batch.get('raw_unit_cost') or 0))
+        pack = Decimal(str(batch.get('packing_unit_cost') or 0))
+        if raw == 0 and pack == 0:
+            raw = Decimal(str(batch.get('purchase_price') or 0))
+        if raw == 0 and pack == 0:
+            raise ValidationError(
+                f"Stock batch {batch['id']} has no cost (raw_unit_cost / packing_unit_cost / purchase_price all zero). Cannot compute COGS."
+            )
+        return raw, pack
+
+    def _compute_item_cogs(self, item_data: dict, batch: dict) -> tuple[Decimal, Decimal, Decimal, dict[int, Decimal]]:
+        item_type = item_data.get("item_type", "FINISHED_GOOD")
+        qty = Decimal(str(item_data["quantity"]))
+        credits_by_account: dict[int, Decimal] = {}
+
+        if item_type == "FINISHED_GOOD":
+            raw_unit, packing_unit = self._resolve_unit_cost(batch)
+            cogs_finished = (raw_unit + packing_unit) * qty
+            cogs_packing = Decimal('0')
+            cogs_raw_mat = Decimal('0')
+            inv_account = self.account_repo.find_by_code("1220")
+            if inv_account:
+                credits_by_account[inv_account["id"]] = cogs_finished
+        elif item_type == "PACKING_MATERIAL":
+            unit = Decimal(str(batch.get('purchase_price') or 0))
+            if unit == 0:
+                raise ValidationError(
+                    f"Stock batch {batch['id']} has no cost (purchase_price is zero). Cannot compute COGS."
+                )
+            cogs_finished = Decimal('0')
+            cogs_packing = unit * qty
+            cogs_raw_mat = Decimal('0')
+            inv_account = self.account_repo.find_by_code("1210")
+            if inv_account:
+                credits_by_account[inv_account["id"]] = cogs_packing
+        else:
+            unit = Decimal(str(batch.get('purchase_price') or 0))
+            if unit == 0:
+                raise ValidationError(
+                    f"Stock batch {batch['id']} has no cost (purchase_price is zero). Cannot compute COGS."
+                )
+            cogs_finished = Decimal('0')
+            cogs_packing = Decimal('0')
+            cogs_raw_mat = unit * qty
+            inv_account = self.account_repo.find_by_code("1200")
+            if inv_account:
+                credits_by_account[inv_account["id"]] = cogs_raw_mat
+
+        return cogs_finished, cogs_packing, cogs_raw_mat, credits_by_account
+
+    def _append_cogs_lines(
+        self,
+        journal_lines: list,
+        account_cache: dict,
+        cogs_finished: Decimal,
+        cogs_packing: Decimal,
+        cogs_raw_mat: Decimal,
+        credits_by_account: dict[int, Decimal],
+        invoice_number: str,
+    ) -> None:
+        cogs_total = cogs_finished + cogs_packing + cogs_raw_mat
+        if cogs_total <= 0:
+            raise ValidationError(
+                f"Sales invoice {invoice_number} produced zero COGS. Check that stock batches have valid costs."
+            )
+
+        cogs_account_dict = account_cache.get("5000")
+        packing_cogs_account_dict = account_cache.get("5001")
+        raw_cogs_account_dict = account_cache.get("5002")
+
+        if cogs_finished > 0 and cogs_account_dict:
+            journal_lines.append(JournalLine(
+                account_id=cogs_account_dict["id"],
+                debit=float(cogs_finished),
+                credit=0.0,
+                description=f"COGS (finished goods) - {invoice_number}",
+            ))
+        if cogs_packing > 0 and packing_cogs_account_dict:
+            journal_lines.append(JournalLine(
+                account_id=packing_cogs_account_dict["id"],
+                debit=float(cogs_packing),
+                credit=0.0,
+                description=f"COGS (packing materials) - {invoice_number}",
+            ))
+        if cogs_raw_mat > 0 and raw_cogs_account_dict:
+            journal_lines.append(JournalLine(
+                account_id=raw_cogs_account_dict["id"],
+                debit=float(cogs_raw_mat),
+                credit=0.0,
+                description=f"COGS (raw materials) - {invoice_number}",
+            ))
+        for inv_id, amount in credits_by_account.items():
+            journal_lines.append(JournalLine(
+                account_id=inv_id,
+                debit=0.0,
+                credit=float(amount),
+                description=f"Reduce inventory - {invoice_number}",
+            ))
+
+        logger.info("Posted COGS for %s: finished=%.2f packing=%.2f raw=%.2f", invoice_number, float(cogs_finished), float(cogs_packing), float(cogs_raw_mat))
+
     def _update_stock(
         self,
         item_id: int,
@@ -84,9 +186,10 @@ class SalesInvoiceService:
 
             logger.debug(f"Updated stock for {item['item_code']}: {current_qty} -> {new_quantity}")
         else:
-            logger.warning(f"No stock found for {item['item_code']}")
-            if not positive:
-                raise ValidationError(f"No stock available for {item['item_name']}")
+            action = "restore" if positive else "deduct"
+            raise ValidationError(
+                f"No stock batch found for item {item['item_name']} in warehouse {warehouse_id}. Cannot {action} stock."
+            )
 
     def _bulk_update_stock(
         self,
@@ -191,7 +294,12 @@ class SalesInvoiceService:
                 stock_batch = self.stock_repo.find_by_item_and_warehouse(item_id, warehouse_id)
                 stock_cache[stock_key] = stock_batch
 
-            available_stock = stock_batch["quantity_in_stock"] if stock_batch else 0
+            if not stock_batch:
+                raise ValidationError(
+                    f"No stock batch found for {item_name} in warehouse {warehouse_id}. Cannot sell an item with no stock record."
+                )
+
+            available_stock = stock_batch["quantity_in_stock"]
 
             logger.debug(f"Stock check for {item_code}: Available: {available_stock}, Required: {quantity}")
 
@@ -207,7 +315,7 @@ class SalesInvoiceService:
 
             validated_items.append({
                 "item_id": item_id,
-                "batch_id": None,  # Will be set later from actual stock batch
+                "batch_id": stock_batch["id"],
                 "quantity": float(quantity),
                 "unit_price": float(unit_price),
                 "discount_amount": float(discount),
@@ -252,7 +360,7 @@ class SalesInvoiceService:
             account_codes_needed.append("1010")  # Bank
 
         # Cache for COGS entries
-        account_codes_needed.extend(["5000", "5001", "1220", "1200", "1210"])
+        account_codes_needed.extend(["5000", "5001", "5002", "1220", "1200", "1210"])
 
         # Batch fetch all needed accounts
         account_cache = {}
@@ -338,58 +446,31 @@ class SalesInvoiceService:
 
             # Prepare all invoice items data for batch insert
             items_data = []
-            batch_cache = {}  # Cache batches to reuse for same item/warehouse
-            cogs_raw = Decimal('0')
+            cogs_finished = Decimal('0')
             cogs_packing = Decimal('0')
+            cogs_raw_mat = Decimal('0')
             credits_by_account: dict[int, Decimal] = {}
 
             for item_data in validated_items:
-                # Find the batch that will be used for this item
-                cache_key = f"{item_data['item_id']}_{warehouse_id}"
-                if cache_key not in batch_cache:
-                    batch = self.stock_repo.find_by_item_and_warehouse(
-                        item_data['item_id'],
-                        warehouse_id
+                batch = self.stock_repo.find_by_item_and_warehouse(
+                    item_data['item_id'], warehouse_id
+                )
+                if not batch:
+                    raise ValidationError(
+                        f"No stock batch found for item {item_data['item_name']} in warehouse {warehouse_id}. Cannot sell an item with no stock record."
                     )
-                    batch_cache[cache_key] = batch
 
-                batch = batch_cache[cache_key]
-                batch_id = batch['id'] if batch else None
-
-                # COGS split by item type. Finished goods use the batch's
-                # raw/packing unit-cost split (raw -> 5000, packing -> 5001,
-                # credit 1220). Direct sales of raw/packing materials debit
-                # the matching COGS account and credit their own inventory
-                # account (1200 / 1210).
-                if batch:
-                    item_type = item_data.get("item_type", "FINISHED_GOOD")
-                    qty = Decimal(str(item_data["quantity"]))
-                    if item_type == "FINISHED_GOOD":
-                        raw_unit = batch.get('raw_unit_cost', 0) or 0
-                        packing_unit = batch.get('packing_unit_cost', 0) or 0
-                        if raw_unit == 0 and packing_unit == 0:
-                            raw_unit = float(batch.get('purchase_price', 0) or 0)
-                        cogs_raw += Decimal(str(raw_unit)) * qty
-                        cogs_packing += Decimal(str(packing_unit)) * qty
-                        fg_id = account_cache.get("1220")
-                        if fg_id:
-                            credits_by_account[fg_id["id"]] = credits_by_account.get(fg_id["id"], Decimal('0')) + (Decimal(str(raw_unit)) + Decimal(str(packing_unit))) * qty
-                    else:
-                        unit_cost = float(batch.get('purchase_price', 0) or 0)
-                        amount = Decimal(str(unit_cost)) * qty
-                        if item_type == "PACKING_MATERIAL":
-                            cogs_packing += amount
-                            inv_id = account_cache.get("1210")
-                        else:  # RAW_MATERIAL
-                            cogs_raw += amount
-                            inv_id = account_cache.get("1200")
-                        if inv_id:
-                            credits_by_account[inv_id["id"]] = credits_by_account.get(inv_id["id"], Decimal('0')) + amount
+                item_cogs_finished, item_cogs_packing, item_cogs_raw_mat, item_credits = self._compute_item_cogs(item_data, batch)
+                cogs_finished += item_cogs_finished
+                cogs_packing += item_cogs_packing
+                cogs_raw_mat += item_cogs_raw_mat
+                for k, v in item_credits.items():
+                    credits_by_account[k] = credits_by_account.get(k, Decimal('0')) + v
 
                 clean_item_data = {
                     "invoice_id": invoice.id,
                     "item_id": item_data["item_id"],
-                    "batch_id": batch_id,
+                    "batch_id": batch["id"],
                     "quantity": item_data["quantity"],
                     "unit_price": item_data["unit_price"],
                     "discount_amount": item_data["discount_amount"],
@@ -406,35 +487,11 @@ class SalesInvoiceService:
             # Bulk update stock with shared cache
             self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
 
-            # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr inventory account(s)
-            cogs_total = cogs_raw + cogs_packing
-            if cogs_total > 0:
-                cogs_account_dict = account_cache.get("5000")
-                packing_cogs_account_dict = account_cache.get("5001")
-                if cogs_account_dict:
-                    if cogs_raw > 0:
-                        journal_lines.append(JournalLine(
-                            account_id=cogs_account_dict["id"],
-                            debit=float(cogs_raw),
-                            credit=0.0,
-                            description=f"COGS (raw materials) - {invoice_number}"
-                        ))
-                    if cogs_packing > 0 and packing_cogs_account_dict:
-                        journal_lines.append(JournalLine(
-                            account_id=packing_cogs_account_dict["id"],
-                            debit=float(cogs_packing),
-                            credit=0.0,
-                            description=f"COGS (packing materials) - {invoice_number}"
-                        ))
-                    for inv_id, amount in credits_by_account.items():
-                        journal_lines.append(JournalLine(
-                            account_id=inv_id,
-                            debit=0.0,
-                            credit=float(amount),
-                            description=f"Reduce inventory - {invoice_number}"
-                        ))
-                    logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s",
-                                float(cogs_raw), float(cogs_packing), invoice_number)
+            # Post COGS journal lines
+            self._append_cogs_lines(
+                journal_lines, account_cache, cogs_finished, cogs_packing, cogs_raw_mat,
+                credits_by_account, invoice_number,
+            )
 
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.SALES,
@@ -606,7 +663,7 @@ class SalesInvoiceService:
             account_codes_needed.append("1000")
         elif payment_type in ["BANK", "CHEQUE"]:
             account_codes_needed.append("1010")
-        account_codes_needed += ["5000", "5001", "1220", "1200", "1210"]
+        account_codes_needed += ["5000", "5001", "5002", "1220", "1200", "1210"]
         account_cache = {}
         for code in set(account_codes_needed):
             account_dict = self.account_repo.find_by_code(code)
@@ -766,51 +823,34 @@ class SalesInvoiceService:
             
             # Insert new invoice items
             items_data = []
-            cogs_raw = Decimal('0')
+            cogs_finished = Decimal('0')
             cogs_packing = Decimal('0')
+            cogs_raw_mat = Decimal('0')
             credits_by_account: dict[int, Decimal] = {}
             for item_data in validated_items:
                 cache_key = f"{item_data['item_id']}_{warehouse_id}"
                 if cache_key not in batch_cache:
-                    batch = self.stock_repo.find_by_item_and_warehouse(
-                        item_data['item_id'],
-                        warehouse_id
+                    batch_cache[cache_key] = self.stock_repo.find_by_item_and_warehouse(
+                        item_data['item_id'], warehouse_id
                     )
-                    batch_cache[cache_key] = batch
-                
-                batch = batch_cache[cache_key]
-                batch_id = batch['id'] if batch else None
 
-                # COGS split by item type (same as create path).
-                if batch:
-                    item_type = item_data.get("item_type", "FINISHED_GOOD")
-                    qty = Decimal(str(item_data["quantity"]))
-                    if item_type == "FINISHED_GOOD":
-                        raw_unit = batch.get('raw_unit_cost', 0) or 0
-                        packing_unit = batch.get('packing_unit_cost', 0) or 0
-                        if raw_unit == 0 and packing_unit == 0:
-                            raw_unit = float(batch.get('purchase_price', 0) or 0)
-                        cogs_raw += Decimal(str(raw_unit)) * qty
-                        cogs_packing += Decimal(str(packing_unit)) * qty
-                        fg_id = account_cache.get("1220")
-                        if fg_id:
-                            credits_by_account[fg_id["id"]] = credits_by_account.get(fg_id["id"], Decimal('0')) + (Decimal(str(raw_unit)) + Decimal(str(packing_unit))) * qty
-                    else:
-                        unit_cost = float(batch.get('purchase_price', 0) or 0)
-                        amount = Decimal(str(unit_cost)) * qty
-                        if item_type == "PACKING_MATERIAL":
-                            cogs_packing += amount
-                            inv_id = account_cache.get("1210")
-                        else:  # RAW_MATERIAL
-                            cogs_raw += amount
-                            inv_id = account_cache.get("1200")
-                        if inv_id:
-                            credits_by_account[inv_id["id"]] = credits_by_account.get(inv_id["id"], Decimal('0')) + amount
-                
+                batch = batch_cache[cache_key]
+                if not batch:
+                    raise ValidationError(
+                        f"No stock batch found for item {item_data['item_name']} in warehouse {warehouse_id}. Cannot sell an item with no stock record."
+                    )
+
+                item_cogs_finished, item_cogs_packing, item_cogs_raw_mat, item_credits = self._compute_item_cogs(item_data, batch)
+                cogs_finished += item_cogs_finished
+                cogs_packing += item_cogs_packing
+                cogs_raw_mat += item_cogs_raw_mat
+                for k, v in item_credits.items():
+                    credits_by_account[k] = credits_by_account.get(k, Decimal('0')) + v
+
                 clean_item_data = {
                     "invoice_id": invoice_id,
                     "item_id": item_data["item_id"],
-                    "batch_id": batch_id,
+                    "batch_id": batch["id"],
                     "quantity": item_data["quantity"],
                     "unit_price": item_data["unit_price"],
                     "discount_amount": item_data["discount_amount"],
@@ -826,35 +866,11 @@ class SalesInvoiceService:
             # Deduct stock for new items
             self._bulk_update_stock(items_data, warehouse_id, batch_cache={})
             
-            # Post COGS: Dr COGS-Raw (5000), Dr COGS-Packing (5001), Cr inventory account(s)
-            cogs_total = cogs_raw + cogs_packing
-            if cogs_total > 0:
-                cogs_account_dict = account_cache.get("5000")
-                packing_cogs_account_dict = account_cache.get("5001")
-                if cogs_account_dict:
-                    if cogs_raw > 0:
-                        journal_lines.append(JournalLine(
-                            account_id=cogs_account_dict["id"],
-                            debit=float(cogs_raw),
-                            credit=0.0,
-                            description=f"COGS (raw materials) - {invoice_number}"
-                        ))
-                    if cogs_packing > 0 and packing_cogs_account_dict:
-                        journal_lines.append(JournalLine(
-                            account_id=packing_cogs_account_dict["id"],
-                            debit=float(cogs_packing),
-                            credit=0.0,
-                            description=f"COGS (packing materials) - {invoice_number}"
-                        ))
-                    for inv_id, amount in credits_by_account.items():
-                        journal_lines.append(JournalLine(
-                            account_id=inv_id,
-                            debit=0.0,
-                            credit=float(amount),
-                            description=f"Reduce inventory - {invoice_number}"
-                        ))
-                    logger.info(f"Posted COGS: raw=%.2f packing=%.2f for invoice %s (update)",
-                                float(cogs_raw), float(cogs_packing), invoice_number)
+            # Post COGS journal lines
+            self._append_cogs_lines(
+                journal_lines, account_cache, cogs_finished, cogs_packing, cogs_raw_mat,
+                credits_by_account, invoice_number,
+            )
 
             self.accounting_service.post_journal_entry(
                 voucher_type=VoucherType.SALES,
@@ -994,3 +1010,5 @@ class SalesInvoiceService:
         )
         
         return True
+
+

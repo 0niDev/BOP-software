@@ -1,0 +1,259 @@
+﻿TaskKey,TaskName,TaskGroup,IsAutoPost,IsPosting,Edition,ApplicationMode
+AccountsBalances,Accounts Balances,Accounts Reports,True,False,Pro,0
+AccountsLedger,Account Ledger,Accounts Reports,True,False,Lit,0
+AccountsOpeningBalances,Opening Balances for Accounts,Defination,True,False,Lit,0
+AccountsPayable,Accounts Payable,Accounts Reports,True,False,Lit,0
+AccountsReceivables,Accounts Receiveable,Accounts Reports,True,False,Lit,0
+AddressBook,Address Book,Listings,True,False,Lit,0
+AdjustPurchaseRates,Adjust Purchase Rates,Invoicing,True,False,Pro,0
+AllowBackDataEntry,Allow Back Date Entry to Users,Invoicing,True,False,Pro,0
+AllowBonusInPurchase,Enter Bonus Qty In Purchase,Invoicing,True,False,Pro,0
+AllowBonusInSale,Enter Bonus Qty In Sale,Invoicing,True,False,Pro,0
+AllowChangeDiscInPurchase,Change Discount In Purchase,Invoicing,True,False,Pro,0
+AllowChangeDiscInSale,Change Discount In Sale,Invoicing,True,False,Pro,0
+AllowChangePriceInPurchase,Change Price In Purchase,Invoicing,True,False,Pro,0
+AllowChangePriceInSale,Change Price In Sale,Invoicing,True,False,Pro,0
+AllowDigitalSignatureonPrint,Allow Digital Signature on Print,Invoicing,True,False,Lit,0
+AllowEditVouchers,Allow Vouchers Update to Users,Transaction,True,False,Pro,0
+AllowUnderPurchaseSale,Allow Under Purchase Sale,Invoicing,True,False,Pro,0
+AmsonData,Generate Amson Data,AddOn,True,False,Pro,0
+ASM,ASM Form,Defination,True,False,Pro,0
+AsmSaleStatement,ASM SaleStatement(Spo Wise),AddOn,True,False,Ent,0
+AssignAccountsToUser,Assign Accounts To User,System,True,False,Ent,0
+AssignCustomersToCompanyTowns,AssignCustomers To Company Towns,Defination,True,False,Pro,0
+AssignCustomersToSPOs,Assign Customers To SPOs,Defination,True,False,Pro,0
+AssignProductsToSPOs,Assign Products To SPOs,Defination,True,False,Pro,0
+AutoFillingFormulation,Auto Filling Filling/Packing,Manufacturing,True,False,Pro,0
+AutoFormulation,Auto Formulation,Manufacturing,True,False,Ent,0
+AutoPurchaseOrder,Auto Purchase Order,Stock Reports,True,False,Lit,0
+BackupDB,Backup,System,True,False,Lit,0
+BalanceSheet,Balance Sheet,Accounts Reports,True,False,Lit,0
+BalanceSheetSettings,Balance Sheet Settings,Transaction,True,False,Pro,0
+BanksPosition,Banks Position,Accounts Reports,True,False,Pro,0
+BankStatement,Bank Statement,Accounts Reports,True,False,Pro,0
+BatchSearching,Batch Searching,Other Reports,True,False,Lit,0
+BonusClaimReport,Discount Claim Report,AddOn,True,False,Pro,0
+BoschData,Generate Bosch Data,AddOn,True,False,Pro,0
+BouncedCheques,Bounced Cheques,Accounts Reports,True,False,Pro,0
+BusinessSummary,Daily Business Activity,Daily Activity Reports,True,False,Lit,0
+Cashbook,Cash Book,Accounts Reports,True,False,Lit,0
+CashDeposit,Cash Deposit In Bank,Transaction,True,False,Pro,0
+CashPaymentChart,Cash Payment Chart,Accounts Reports,True,False,Pro,0
+CashPaymentVoucher,Cash Payment Voucher,Transaction,True,False,Pro,0
+CashReceivingVoucher,Cash Receiving Voucher,Transaction,True,False,Pro,0
+ChangeDateInCreditVoucher,Change Date in Credit Voucher,Transaction,True,False,Lit,0
+ChangeDateInDebitVoucher,Change Date in Debit Voucher,Transaction,True,False,Lit,0
+ChangeDateInJournalVoucher,Change Date in Journal Voucher,Transaction,True,False,Lit,0
+ChangeExpiryDamagesClaimsFromCustomer,Change Expiry/Damages Claims From Customer,Invoicing,True,False,Pro,0
+ChangeExpiryDamagesClaimsToVendor,Change Expiry/Damages Claims To Vendor,Invoicing,True,False,Pro,0
+ChangeExpiryDates,Change Expiry Dates,Invoicing,True,False,Lit,0
+ChangePurchaseInvoice,Change Purchase Invoice,Invoicing,True,False,Lit,0
+ChangePurchaseOrder,Change Purchase Order,Invoicing,True,False,Lit,0
+ChangePurchaseReturnWithInvoice,Change Purchase Return With Invoice,Invoicing,True,False,Lit,0
+ChangePurchaseReturnWithOutInvoice,Change Purchase Return WithOut Invoice,Invoicing,True,False,Pro,0
+ChangeRecoveryCompanyWise,Change Recovery Company Wise,Transaction,True,False,Ent,0
+ChangeRecoveryCustomerWise,Change Recovery Customer Wise,Transaction,True,False,Ent,0
+ChangeRecoveryInvoiceWise,Change Recovery Invoice Wise,Transaction,True,False,Lit,0
+ChangeRecoveryInvoiceWiseAuto,Change Recovery Customer Wise Auto,Transaction,True,False,Ent,0
+ChangeRecoveryReceipt,Change Recovery Receipt,Transaction,True,False,Pro,0
+ChangeRecoveryReceivableWise,Change Recovery Receivable Wise,Transaction,True,False,Lit,0
+ChangeSaleInvoice,Change Sale Invoice,Invoicing,True,False,Lit,0
+ChangeSaleReturnWithInvoice,Change Sale Return With Invoice,Invoicing,True,False,Pro,0
+ChangeSaleReturnWithOutInvoice,Change Sale Return With Out Invoice,Invoicing,True,False,Pro,0
+ChangeSalesOrder,Change Sales Order,Invoicing,True,False,Pro,0
+ChangeSeasonCompany,Change Season/Company,System,True,False,Ent,0
+ChangeStockExpiryInvoice,Change Stock Expiry Invoice,Invoicing,True,False,Lit,0
+ChartofAccounts,Accounts Management,Defination,True,False,Lit,0
+ChartofAccountsReports,Chart of Accounts,Accounts Reports,True,False,Lit,0
+ChequeDeposit,Cheque Deposit In Bank,Transaction,True,False,Pro,0
+ChequesIssuing,Bank Cheque issuing,Transaction,True,False,Pro,0
+ChequesReconcilation,Bank Cheques Reconciliation,Transaction,True,False,Pro,0
+Companies,Companies,Defination,True,False,Lit,0
+CompaniesList,Companies List,Listings,True,False,Lit,0
+CompanySector,Company Sector,Defination,True,False,Pro,0
+CompanySectorWiseSale,Company Sector Wise Sale,Sale Reports,True,False,Pro,0
+CompanyTowns,Company Towns,Defination,True,False,Pro,0
+CompanyTownWiseSale,Company Town Wise Sale,Sale Reports,True,False,Lit,0
+CompanyWisePurchase,Company Wise Purchase,Purchase Reports,True,False,Pro,0
+CompanyWiseSale,Company Wise Sale,Sale Reports,True,False,Lit,0
+comwisprofit,Company Wise Profits,Profit Reports,True,False,Pro,0
+Configuration,System Configuration,System,True,False,Lit,0
+CreateUser,Create New User,System,True,False,Lit,0
+CreditVoucher,Cash Receiving Voucher,Transaction,True,False,Lit,0
+crruntstockcost,Current Stock (Cost wise),Stock Reports,True,False,Lit,0
+CurrentStockCompanyWise,Current Stock Company Wise,Stock Reports,True,False,Ent,0
+CurrentStockDateWise,Current Stock Date Wise,Stock Reports,True,False,Ent,0
+CurrentStockWithoutValue,CurrentStock (Without Value),Stock Reports,True,False,Ent,0
+currenttp,Current Stock (TP wise),Stock Reports,True,False,Pro,0
+Customer,Customers,Defination,True,False,Lit,0
+CustomerBalancesChart,Customer Balances Chart,Analysis Reports,True,False,Ent,0
+CustomerClaim,Expiry Claim From Customer,Invoicing,True,False,Pro,0
+CustomerProductWiseSale,Customer Product Wise Sale Chart,Sale Reports,True,False,Ent,0
+CustomerReceivables,Customer Receivables,Daily Activity Reports,True,False,Pro,0
+CustomerReceivablesCompanyWise,Customer Receivables (Company Wise),Recovery Reports,True,False,Ent,0
+CustomerReceivablesInv,Customer Receivables (Inv. wise),Daily Activity Reports,True,False,Lit,0
+CustomerReceivablesSalesmanWise,Customer Receivables (Salesman Wise),Recovery Reports,True,False,Ent,0
+CustomerReply,Claim Reply To Customer,Invoicing,True,False,Pro,0
+CustomersList,Customers List,Listings,True,False,Lit,0
+CustomerTownSectorWiseSale,Customer/Town/Sector Wise Sale,Sale Reports,True,False,Lit,0
+cuswiseprofit,Customer Wise Profits,Profit Reports,True,False,Pro,0
+DailyProfits,Daily Profits,Profit Reports,True,False,Lit,0
+DayBook,Day Book,Accounts Reports,True,False,Pro,0
+DeadPartiesList,Dead Parties List,Listings,True,False,Pro,0
+DebitVoucher,Cash Payment Voucher,Transaction,True,False,Lit,0
+DeliveryChallan,Delivery Challan,Invoicing,True,False,Ent,0
+DeliveryNoteAccumulative,Delivery Note (Accumulative),Daily Activity Reports,True,False,Pro,0
+DepositReconcilation,Deposit Reconciliation,Transaction,True,False,Pro,0
+DiscountClaimInvoiceWise,Discount Claim Invoice Wise,Sale Reports,True,False,Pro,0
+DiscountClaimReport,Discount Claim Report,AddOn,True,False,Pro,0
+DiscountClaimSummary,Discount Claim Summary,Sale Reports,True,False,Ent,0
+DueDateRecoveryPromises,Due Date Sale Recovery Promises,Recovery Reports,True,False,Pro,0
+DummySalesInvoice,Dummy Sales Invoice,Invoicing,True,False,Lit,0
+EnableDateSaleInvoice,Enable Date Sale Invoice,Invoicing,True,False,Pro,0
+EnableSaleIDInSale,Enable SaleID In Sale Invoice,Invoicing,True,False,Pro,0
+ExpenseReportSetting,Expense Report Setting,Transaction,True,False,Pro,0
+ExpiryInvoice,Expiry / Damages Invoice,Invoicing,True,False,Lit,0
+FrequentTasks,Frequent Tasks,System,True,False,Pro,0
+GenixData,Generate Genix Data,AddOn,True,False,Pro,0
+GetzData,Generate Getz Data,AddOn,True,False,Pro,0
+GLJournal,G/L Journal,Accounts Reports,True,False,Lit,0
+HotColdCustomers,Ho & Cold Customers,Daily Activity Reports,True,False,Pro,0
+HotColdProducts,Ho & Cold Products,Daily Activity Reports,True,False,Pro,0
+IMSData,Generate IMS Data,AddOn,True,False,Pro,0
+InvoiceDetailedProfits,Invoice Detailed Profits,Profit Reports,True,False,Pro,0
+InvoiceWiseProfits,Invoice Wise Profits,Profit Reports,True,False,Pro,0
+JournalVouchers,Journal Voucher,Transaction,True,False,Lit,0
+LicensedCustomersList,Licensed Customer List,Listings,True,False,Ent,0
+LocalPurchaseInvoice,Local Purchae Invoice,Invoicing,True,False,Pro,0
+LostCheques,Lost Cheques,Accounts Reports,True,False,Pro,0
+MacterData,Generate Macter Data,AddOn,True,False,Pro,0
+MeijiData,Generate Meiji Data,AddOn,True,False,Pro,0
+MerckData,Generate Merck Data,AddOn,True,False,Pro,0
+MonthlyExpenseChart,Monthly Expense Chart,Accounts Reports,True,False,Pro,0
+MonthlySaleChartCustomerWise,Monthly Sale Chart Customer Wise,Sale Reports,True,False,Ent,0
+MonthlySaleChartProductWise,Monthly Sale Chart Product Wise,Sale Reports,True,False,Ent,0
+MonthlySaleTable,Monthly Sale Table,Sale Reports,True,False,Pro,0
+OpBalReport,Opening Balances,Accounts Reports,True,False,Lit,0
+OpeningStock,Opening Stock,Defination,True,False,Lit,0
+OpeningStockReport,Opening Stock,Stock Reports,True,False,Lit,0
+OverStock,Over Stock Report,Stock Reports,True,False,Ent,0
+Paidreportpartywise,Sales Reports,Sale Reports,True,False,Pro,0
+PartyDetailLedger,Party Detail Ledger,Accounts Reports,True,False,Ent,0
+PartyPurchaseLedger,Party Purchase Ledger,Purchase Reports,True,False,Pro,0
+PartySaleReturnLedger,Party Sale Return Ledger,Sales Return Reports,True,False,Pro,0
+PartyWiseProductPurchases,Party Wise Product Purchases,Purchase Reports,True,False,Pro,0
+PendingPurchaseOrder,Pending Purchase Order,Purchase Reports,True,False,Pro,0
+PostAvailabilityInvoices,Post Availability Invoices,Invoicing,True,False,Ent,0
+PostSalesOrder,Post Sales Order,Invoicing,True,False,Pro,0
+PriceList,Price List,Listings,True,False,Lit,0
+PrintInvoicesInBatch,Print Invoices in Batch,Daily Activity Reports,True,False,Lit,0
+ProcessCurrentStock,Process Current Stock,Manufacturing,True,False,Ent,0
+ProcessIssueRegister,Process Issue Register,Manufacturing,True,False,Ent,0
+Product,Products,Defination,True,False,Lit,0
+ProductDivisions,Product Divisions,Defination,True,False,Pro,0
+ProductFilling,Product Filling/Packing,Manufacturing,True,False,Pro,0
+ProductGroups,Product Groups,Defination,True,False,Lit,0
+Production,Production,Manufacturing,True,False,Ent,0
+ProductionAssessmentSummary,Production Assessment Summary,Daily Activity Reports,True,False,Pro,0
+ProductionRegister,Production Register,Manufacturing,True,False,Ent,0
+ProductionSummary,Production Summary,Manufacturing,True,False,Ent,0
+ProductLedger,Product Ledger,Daily Activity Reports,True,False,Ent,0
+ProductSaleLedgerBatchWise,Product Sales Ledger (Batch Wise),Sale Reports,True,False,Ent,0
+Productsaleledgerpartywise,Sales Reports,Sale Reports,True,False,Pro,0
+ProductSaleReturnLedger,Product Sale Return Ledger,Sales Return Reports,True,False,Pro,0
+ProductSalesLedger,Product Sales Ledger Report,Sale Reports,True,False,Pro,0
+ProductTownWiseSale,Product Town Wise Sale,Sale Reports,True,False,Ent,0
+ProductWiseDailySaleChart,Product Wise Daily Sale Chart,Analysis Reports,True,False,Ent,0
+ProductWiseProfits,Product Wise Profits,Profit Reports,True,False,Pro,0
+ProductwiseSales,Product Wise Sale,Sale Reports,True,False,Lit,0
+ProductWiseSalesSummary,Product Wise Sales Summary,Sale Reports,True,False,Ent,0
+ProfitAndLossSettings,Profit and Loss Settings,Transaction,True,False,Lit,0
+ProfitLossStatement,Profit and Loss Statement,Accounts Reports,True,False,Lit,0
+propurledger,Product Purchase Ledger,Purchase Reports,True,False,Pro,0
+prowisepurchases,Product Wise Purchases,Purchase Reports,True,False,Lit,0
+purchasedetail,Purchase Detailed,Purchase Reports,True,False,Lit,0
+PurchaseOrder,Purchase Order,Invoicing,True,False,Lit,0
+PurchaseWithoutOrder,Allow User To Make Purchase Without Order,Invoicing,True,False,Pro,0
+PurInvoice,Purchase Invoice,Invoicing,True,False,Lit,0
+PurRetLedger,Purchase Return Ledger,Sales Return Reports,True,False,Pro,0
+Purretsummery,Purchase Return Summary,Sales Return Reports,True,False,Lit,0
+pursummery,Purchase Summary,Purchase Reports,True,False,Lit,0
+PurWInvoice,Purchase Return (With Invoice),Invoicing,True,False,Lit,0
+PurWOInvoice,Purchase Return (Without Invoice),Invoicing,True,False,Pro,0
+RecoveryAnalysis,Recovery Analysis,Analysis Reports,True,False,Ent,0
+RecoveryAutoInvoicewise,Recovery Auto (Invoice wise),Transaction,True,False,Pro,0
+RecoveryCombined,Sale Recovery Combined,Transaction,True,False,Pro,0
+RecoveryCompanyWise,Recovery Report(Company Wise),Recovery Reports,True,False,Pro,0
+RecoveryCustomerwise,Recovery (Customer Wise),Transaction,True,False,Lit,0
+RecoveryInvoicewise,Recovery (Invoice Wise),Transaction,True,False,Lit,0
+RecoveryReceipt,Recovery Receipt,Transaction,True,False,Pro,0
+RecoveryReceivableWise,Recovery (ReceivableWise),Transaction,True,False,Pro,0
+RecoveryReport,Recovery Report,Daily Activity Reports,True,False,Lit,0
+ReIndexingDatabase,Re-Indexing Database,System,True,False,Pro,0
+ReturnNote,Sale Return Note,Sales Return Reports,True,False,Pro,0
+SaleAndStockStatementJS,Sale And Stock Statement For JS Ent,AddOn,True,False,Pro,0
+SaleInvoiceAutoBatch,Sale Invoice (Auto Batch),Invoicing,True,False,Lit,0
+SaleInvoiceManualBatch,Sales Invoice (Manual Batch),Invoicing,True,False,Lit,0
+SaleInvoicePending,Make Sale Invoice Pending,Invoicing,True,False,Pro,0
+Saleman,Salesmen,Defination,True,False,Lit,0
+SaleRegisterAccumulative,Sale Register Accumulative,Analysis Reports,True,False,Ent,0
+SaleReturnRegister,Sales Return Register,Sales Return Reports,True,False,Lit,0
+SaleReturnSummary,Sales Return Summary,Sales Return Reports,True,False,Lit,0
+SaleReturnsWI,Sales Return (With Invoice),Invoicing,True,False,Lit,0
+SaleReturnsWoI,Sales Return (Without Invoice),Invoicing,True,False,Pro,0
+SalesandStockStatement,Sales and Stock Statement,Sale Reports,True,False,Lit,0
+SalesandStockStatementSami,Sales and Stock Statement Sami,AddOn,True,False,Pro,0
+SalesandStockStatementTP,Sales and Stock Statement TP Wise,Sale Reports,True,False,Pro,0
+salesdetail,Sale Detailed,Sale Reports,True,False,Lit,0
+SalesmanBonusProductDetailed,Salesman Bonus Product Detailed,Salesman Reports,True,False,Pro,0
+SalesmanCommission,Salesman Commission Report,Salesman Reports,True,False,Pro,0
+SalesmanMonthlyPerformance,Salesman Monthly Performance Report,Salesman Reports,True,False,Pro,0
+SalesmanSaleProductWise,Salesman Sale Product Wise,Salesman Reports,True,False,Pro,0
+SalesmanSummary,Salesman Summary Report,Salesman Reports,True,False,Lit,0
+SalesmanwiseSales,Salesmanwise Sales Report,Salesman Reports,True,False,Pro,0
+SalesmenParties,Salesmen Parties,Listings,True,False,Pro,0
+SalesOrder,Sales Order,Invoicing,True,False,Pro,0
+salesummery,Sales Summary,Sale Reports,True,False,Lit,0
+SamiData,Generate Sami Data,AddOn,True,False,Pro,0
+Sector,Sectors,Defination,True,False,Lit,0
+SectorsList,Sectors List,Listings,True,False,Lit,0
+SendPurOrder,Send Purchase Order,Invoicing,True,False,Ent,0
+SetPrices,SetProduct Prices,Defination,True,False,Lit,0
+ShortStockPosting,Post Sale Invoice (Short Stock),Invoicing,True,False,Pro,0
+ShortStockSale,Sale Invoice (Short Stock),Invoicing,True,False,Pro,0
+ShortStockSummary,Short Stock Summary,Daily Activity Reports,True,False,Pro,0
+ShowCost,Show cost to User,Invoicing,True,False,Pro,0
+SMSalessummary,Salesman Sales Summary,Sale Reports,True,False,Lit,0
+SPOProductsIncentive,SPO Products Incentive,Defination,True,False,Ent,0
+SPOProductWiseIncentiveReport,SPO Product Wise Incentive Report,AddOn,True,False,Ent,0
+SPOs,SPOs,Defination,True,False,Pro,0
+SPOTargets,SPO Targets,Defination,True,False,Pro,0
+SpoTownList,SpoTownList,Listings,True,False,Ent,0
+SpoTownSaleSharing,Spo Town Wise Sale Sharing,Defination,True,False,Pro,0
+SpoTownWiseReport,Spo Town Wise Statement,AddOn,True,False,Pro,0
+StockCountSheet,Stock Count Sheet,Stock Reports,True,False,Lit,0
+StockDeliveryNote,Stock Delivery Note,Daily Activity Reports,True,False,Pro,0
+StockExpiryRegister,Stock Expiry Register,Stock Reports,True,False,Pro,0
+StockGoingToExp,Stock Going To Exp,Stock Reports,True,False,Lit,0
+StockGoingToShort,Stock Going To Shortt,Stock Reports,True,False,Pro,0
+StockIssueRegister,Stock Issue Register,Stock Reports,True,False,Ent,0
+StockIssueToProcess,Stock Issue To Process,Manufacturing,True,False,Ent,0
+StockIssueToStore,Stock Issue To Store,Invoicing,True,False,Ent,0
+StockReceiveFromStore,Stock Receive From Store,Invoicing,True,False,Ent,0
+StockReceiveRegister,Stock Receive Register,Stock Reports,True,False,Ent,0
+StoreCurrentStock,Store Current Stock,Stock Reports,True,False,Ent,0
+Stores,Stores,Defination,True,False,Ent,0
+TaskAssignment,Task Assignment to User,System,True,False,Lit,0
+TownList,Town List,Listings,True,False,Pro,0
+Towns,Towns,Defination,True,False,Lit,0
+TownsList,Towns List,Listings,True,False,Lit,0
+TrialBalance,Trial Balance,Accounts Reports,True,False,Pro,0
+TrialBalSummary,Trial Balance Summary,Accounts Reports,True,False,Lit,0
+UnclearedCheques,Uncleared Cheques,Accounts Reports,True,False,Pro,0
+USBBackUp,Back Up On USB Drive,System,True,False,Pro,0
+Vendor,Vendors,Defination,True,False,Lit,0
+VendorClaim,Expiry Claim To Vendor,Invoicing,True,False,Pro,0
+VendorReply,Claim Reply From Vendor,Invoicing,True,False,Pro,0
+WithholdingTaxDetails,With Holding Tax Details,Purchase Reports,True,False,Ent,0
+WithholdingTaxSummary,With Holding Tax Summary,Purchase Reports,True,False,Ent,0
+YearlyComparisonReports,Yearly Comparison Reports,Analysis Reports,True,False,Pro,0

@@ -34,3 +34,21 @@ def require_db_url() -> str:
             "your database credentials."
         )
     return url
+
+
+def setup_import_env() -> str:
+    """Load .env and configure environment for import scripts.
+
+    Sets ERP_LOG_LEVEL=CRITICAL, ERP_DB_ENGINE=sqlitecloud, and
+    SQLITE_CLOUD_URL from the .env file. Returns the DB URL.
+    """
+    load_dotenv()
+    os.environ.setdefault("ERP_LOG_LEVEL", "CRITICAL")
+    os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
+    url = os.environ.get("SQLITE_CLOUD_URL")
+    if not url:
+        raise RuntimeError(
+            "SQLITE_CLOUD_URL is not set. Copy .env.example to .env and fill in "
+            "your database credentials."
+        )
+    return url

@@ -99,7 +99,7 @@ class TestSalesInvoice:
     def test_no_stock_raises(self, qa_db, sales_svc):
         cust = seed_helpers.customer(qa_db, "NoStock Cust")
         item = seed_helpers.make_item(qa_db, "Unstocked Item")
-        with pytest.raises(InsufficientStockError):
+        with pytest.raises(ValidationError):
             sales_svc.create_sales_invoice(
                 invoice_number="SI-NOSTOCK", customer_id=cust.id, invoice_date="2026-01-01",
                 payment_type="CREDIT",

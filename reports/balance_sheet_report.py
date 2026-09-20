@@ -14,13 +14,28 @@ class BalanceSheetReport(Report):
         self.title = "Balance Sheet"
 
     def generate(self) -> dict:
-        """Generate Balance Sheet with ONE query."""
+        """Generate Balance Sheet with ONE query.
+
+        If self.date_to is set, the statement is produced AS AT that date
+        (balance-sheet position at the end of a period). Otherwise it uses
+        all posted entries (as of today), preserving legacy behaviour.
+        """
         company_id = 1
 
-        # ONE QUERY - gets all accounts with balances
-        # For ASSET/EXPENSE accounts: balance = debit - credit (debit is positive)
-        # For LIABILITY/EQUITY/REVENUE accounts: balance = credit - debit (credit is positive)
-        rows = self.db.fetch_all("""
+        # Optional as-of date filter
+        date_filter = ""
+        params = [company_id]
+        as_at_dt = datetime.now()
+        if self.date_to:
+            # Include OPENING vouchers regardless of their (arbitrary) entry date.
+            date_filter = "AND (je.entry_date <= ? OR je.voucher_type = 'OPENING')"
+            params.insert(0, self.date_to)
+            try:
+                as_at_dt = datetime.fromisoformat(self.date_to)
+            except Exception:
+                as_at_dt = datetime.now()
+
+        rows = self.db.fetch_all(f"""
             SELECT 
                 a.account_code,
                 a.account_name,
@@ -30,13 +45,13 @@ class BalanceSheetReport(Report):
                     ELSE COALESCE(SUM(jel.credit - jel.debit), 0)
                 END as balance
             FROM accounts a
-            LEFT JOIN journal_entries je ON je.is_posted = 1
+            LEFT JOIN journal_entries je ON je.is_posted = 1 {date_filter}
             LEFT JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id AND jel.account_id = a.id
             WHERE a.company_id = ? AND a.is_active = 1
             GROUP BY a.id
             HAVING balance != 0
             ORDER BY a.account_code
-        """, (company_id,))
+        """, tuple(params))
 
         assets = []
         liabilities = []
@@ -61,12 +76,10 @@ class BalanceSheetReport(Report):
             elif row['account_type'] == 'EXPENSE':
                 expenses.append(item)
 
-        # Calculate retained earnings (profit/loss)
         total_revenue = sum(r['balance'] for r in revenue)
         total_expenses = sum(e['balance'] for e in expenses)
         retained_earnings = total_revenue - total_expenses
 
-        # Separate current and non-current assets (code < 2000 = current)
         current_assets = []
         non_current_assets = []
         for a in assets:
@@ -79,7 +92,6 @@ class BalanceSheetReport(Report):
             else:
                 non_current_assets.append(a)
 
-        # Separate current and non-current liabilities (code < 3000 = current)
         current_liabilities = []
         non_current_liabilities = []
         for l in liabilities:
@@ -103,7 +115,6 @@ class BalanceSheetReport(Report):
         total_equity = sum(e['balance'] for e in equity) + retained_earnings
         total_liabilities_and_equity = total_liabilities + total_equity
 
-        # Calculate share capital
         share_capital = 0
         for eq in equity:
             if 'owner' in eq['name'].lower() or 'share capital' in eq['name'].lower():
@@ -113,7 +124,7 @@ class BalanceSheetReport(Report):
 
         return {
             "title": "Balance Sheet",
-            "as_at": datetime.now().strftime("%B %d, %Y"),
+            "as_at": as_at_dt.strftime("%B %d, %Y"),
             "non_current_assets": non_current_assets,
             "total_non_current_assets": round(total_non_current_assets, 2),
             "current_assets": current_assets,

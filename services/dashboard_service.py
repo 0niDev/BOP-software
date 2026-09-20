@@ -170,10 +170,19 @@ class DashboardService:
                     AND je.entry_date >= ? AND je.entry_date <= ?
                 ),
                 inventory_total AS (
-                    SELECT COALESCE(SUM(sb.quantity_in_stock * sb.purchase_price), 0) as inventory_value
-                    FROM stock_batches sb
-                    JOIN items i ON i.id = sb.item_id
-                    WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+                    SELECT COALESCE(
+                        (SELECT SUM(sb.quantity_in_stock * sb.purchase_price)
+                         FROM stock_batches sb
+                         JOIN items i ON i.id = sb.item_id
+                         WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+                         AND sb.quantity_in_stock > 0),
+                        (SELECT COALESCE(SUM(jel.debit - jel.credit), 0)
+                         FROM journal_entry_lines jel
+                         JOIN journal_entries je ON je.id = jel.journal_entry_id
+                         JOIN accounts a ON a.id = jel.account_id
+                         WHERE je.is_posted = 1 AND je.company_id = ?
+                         AND a.account_code IN ('1200', '1210', '1220'))
+                    ) as inventory_value
                 ),
                 total_items_count AS (
                     SELECT COUNT(*) as count
@@ -192,7 +201,8 @@ class DashboardService:
             """, (
                 company_id,  # balances
                 company_id, month_start, today,  # monthly_pl
-                company_id,  # inventory_total
+                company_id,  # inventory_total (stock_batches)
+                company_id,  # inventory_total (GL fallback)
                 company_id,  # total_items_count
             ))
             

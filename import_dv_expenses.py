@@ -20,32 +20,30 @@ import re
 import sys
 import time
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = ""
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
 BATCH_SIZE = 100
 
-DVB_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\DebitVouchersBody.csv"
+DVB_FILE = "PharmaPro_FullExport/DebitVouchersBody.csv"
 
 # old account -> new account code
 G_A_ACCOUNTS = {
     "54001", "52023", "64002", "52014", "52009", "52010", "52005",
     "52002", "52062", "52001", "52055", "64008", "5211001", "52054",
     "546", "540001", "55001", "52024", "520907", "52022", "5113",
-    "540", "547",
+    "540", "547", "5209",
 }
 SELLING_ACCOUNTS = {
-    "52015", "548", "549", "519", "544",
+    "52015", "548", "549", "519", "544", "5121",
 }
 # old account -> new asset account (keep each asset separate)
 FIXED_ASSET_MAP = {  # old account -> new asset account code
     "12001": "1501",  # HBL Instalment
+    "12002": "1503",  # Instalment of Motor Bike -> Auto Vehicles
     "12003": "1502",  # Instalment of Motor Car
     "1211": "1503",   # Auto Vehicles
     "1221": "1504",   # Furniture & Fixtures
@@ -73,6 +71,9 @@ def to_iso_date(d):
 
 def main():
     t0 = time.time()
+    if not os.path.exists(DVB_FILE):
+        log(f"FATAL: {DVB_FILE} not found. Ensure the PharmaPro_FullExport folder exists.")
+        sys.exit(1)
 
     # ---- parse DV body (non-party lines only) ----
     lines = []  # (old_acct, date_iso, narration, amount)

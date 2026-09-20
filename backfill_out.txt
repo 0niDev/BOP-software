@@ -1,0 +1,111 @@
+2026-09-14 11:55:24,217 | INFO     | erp.database.connection | Connection pool initialized with 20 connections
+2026-09-14 11:55:24,217 | INFO     | erp.database.connection | \u2705 SQLiteCloudConnection initialized (direct mode)
+2026-09-14 11:55:56,608 | WARNING  | erp.database.connection | Connection error on attempt 1/3: An error occurred while reading command length from the socket. | sql=
+    SELECT po.id, po.order_number, po.actual_quantity, po.manufacturing_date, po.is_ghost,
+           COALESCE(SUM(CASE WHEN i.item_type = 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS pack_ext,
+           COALESCE(SUM(CASE WHEN i.item_type != 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS raw_ext
+    FROM production_orders po
+    JOIN production_consumption pc ON pc.production_order_id = po.id
+    JOIN items i ON i.id = pc.component_item_id
+    WHERE po.actual_quantity > 0
+      AND NOT EXISTS (
+          SELECT 1 FROM journal_entries je
+          WHERE je.voucher_type = 'MANUFACTURING' AND je.source_table = 'production_orders'
+            AND je.source_id = po.id AND je.is_posted = 1
+      )
+    GROUP BY po.id
+    ORDER BY po.manufacturing_date, po.id
+    
+2026-09-14 11:55:56,609 | INFO     | erp.database.connection | Retrying in 1.0s...
+2026-09-14 11:56:28,708 | WARNING  | erp.database.connection | Connection error on attempt 2/3: An error occurred while reading command length from the socket. | sql=
+    SELECT po.id, po.order_number, po.actual_quantity, po.manufacturing_date, po.is_ghost,
+           COALESCE(SUM(CASE WHEN i.item_type = 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS pack_ext,
+           COALESCE(SUM(CASE WHEN i.item_type != 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS raw_ext
+    FROM production_orders po
+    JOIN production_consumption pc ON pc.production_order_id = po.id
+    JOIN items i ON i.id = pc.component_item_id
+    WHERE po.actual_quantity > 0
+      AND NOT EXISTS (
+          SELECT 1 FROM journal_entries je
+          WHERE je.voucher_type = 'MANUFACTURING' AND je.source_table = 'production_orders'
+            AND je.source_id = po.id AND je.is_posted = 1
+      )
+    GROUP BY po.id
+    ORDER BY po.manufacturing_date, po.id
+    
+2026-09-14 11:56:28,709 | INFO     | erp.database.connection | Retrying in 2.0s...
+2026-09-14 11:57:01,825 | WARNING  | erp.database.connection | Connection error on attempt 3/3: An error occurred while reading command length from the socket. | sql=
+    SELECT po.id, po.order_number, po.actual_quantity, po.manufacturing_date, po.is_ghost,
+           COALESCE(SUM(CASE WHEN i.item_type = 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS pack_ext,
+           COALESCE(SUM(CASE WHEN i.item_type != 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS raw_ext
+    FROM production_orders po
+    JOIN production_consumption pc ON pc.production_order_id = po.id
+    JOIN items i ON i.id = pc.component_item_id
+    WHERE po.actual_quantity > 0
+      AND NOT EXISTS (
+          SELECT 1 FROM journal_entries je
+          WHERE je.voucher_type = 'MANUFACTURING' AND je.source_table = 'production_orders'
+            AND je.source_id = po.id AND je.is_posted = 1
+      )
+    GROUP BY po.id
+    ORDER BY po.manufacturing_date, po.id
+    
+2026-09-14 11:57:01,825 | ERROR    | erp.database.connection | Failed after 3 retries: An error occurred while reading command length from the socket. | sql=
+    SELECT po.id, po.order_number, po.actual_quantity, po.manufacturing_date, po.is_ghost,
+           COALESCE(SUM(CASE WHEN i.item_type = 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS pack_ext,
+           COALESCE(SUM(CASE WHEN i.item_type != 'PACKING_MATERIAL'
+                             THEN pc.unit_cost * pc.quantity_consumed ELSE 0 END), 0) AS raw_ext
+    FROM production_orders po
+    JOIN production_consumption pc ON pc.production_order_id = po.id
+    JOIN items i ON i.id = pc.component_item_id
+    WHERE po.actual_quantity > 0
+      AND NOT EXISTS (
+          SELECT 1 FROM journal_entries je
+          WHERE je.voucher_type = 'MANUFACTURING' AND je.source_table = 'production_orders'
+            AND je.source_id = po.id AND je.is_posted = 1
+      )
+    GROUP BY po.id
+    ORDER BY po.manufacturing_date, po.id
+    
+Items with weighted-avg production cost: 555
+Traceback (most recent call last):
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 540, in _internal_socket_read
+    data = sock.recv(1)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1227, in recv
+    return self.read(buflen)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\ssl.py", line 1102, in read
+    return self._sslobj.read(len)
+socket.timeout: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\new software\BOP-software\database\connection.py", line 238, in fetch_all
+    cursor = conn.execute(sql, params)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 277, in execute
+    return cursor.execute(sql, parameters)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\dbapi2.py", line 583, in execute
+    result = self._driver.execute_statement(
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 109, in execute_statement
+    result = self._internal_run_command(connection, command)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 487, in _internal_run_command
+    return self._internal_socket_read(connection, main_socket)
+  File "C:\Users\famal\AppData\Local\Programs\Python\Python39\lib\site-packages\sqlitecloud\driver.py", line 546, in _internal_socket_read
+    raise SQLiteCloudException(
+sqlitecloud.exceptions.SQLiteCloudException: An error occurred while reading command length from the socket.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "F:\new software\BOP-software\backfill_cogs.py", line 126, in <module>
+    prod_rows = db.fetch_all(
+  File "F:\new software\BOP-software\database\connection.py", line 264, in fetch_all
+    raise DatabaseError(str(last_error)) from last_error
+utils.exceptions.DatabaseError: An error occurred while reading command length from the socket.

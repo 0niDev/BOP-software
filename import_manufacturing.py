@@ -1,5 +1,5 @@
 ﻿"""
-Import historical manufacturing / formula / BOM data from PharmaPro_Export
+Import historical manufacturing / formula / BOM data from PharmaPro_FullExport
 into the current system as logs only (no inventory/stock/batch effect).
 
 Data sources (all IsPosted=False in old books -> no financial impact):
@@ -29,19 +29,13 @@ import time
 from collections import defaultdict
 from datetime import datetime
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
 
-EXPORT = r"F:\software\final\BOP-software\PharmaPro_Export"
+EXPORT = "PharmaPro_FullExport"
 
 COMPANY_TO_TYPE = {
     "00": "FINISHED_GOOD",
@@ -71,6 +65,17 @@ def to_iso_date(d: str) -> str:
 
 def main() -> None:
     t0 = time.time()
+
+    # ---- check required files -----------------------------------------------
+    required_files = [
+        "Products.csv", "FormulaHeader.csv", "FormulaBody.csv",
+        "FillingHeader.csv", "FillingBody.csv", "Productions.csv",
+        "ProductionBody.csv", "PackingHeader.csv", "PackingBody.csv",
+    ]
+    missing = [f for f in required_files if not os.path.exists(f"{EXPORT}\\{f}")]
+    if missing:
+        log(f"FATAL: Missing files in {EXPORT}: {', '.join(missing)}")
+        sys.exit(1)
 
     # ---- parse source files ------------------------------------------------
     products = {r["ProductId"].strip(): r for r in load_csv("Products.csv")}
@@ -334,87 +339,96 @@ def main() -> None:
         close_db()
         return
 
-    # ---- insert production orders + consumption + ghost batches ------------
+    # ---- insert production orders + consumption + ghost batches (batched) ---
+    BATCH_SIZE = 200
     created_orders = 0
     ghost_batches = 0
     try:
-        with db.transaction():
-            codes = journal_repo.next_voucher_numbers(1, "PRODUCTION_ORDER", len(all_orders))
-            now = datetime.now().isoformat()
-            # 1) bulk-insert order headers
-            order_rows = []
-            for i, o in enumerate(all_orders):
-                order_number = codes[i]
-                mfg_date = o["mfg_date"] or now[:10]
-                notes = f"Imported from PharmaPro {o['src']}"
-                if o["remarks"]:
-                    notes += f" | {o['remarks']}"
-                order_rows.append(
-                    (
-                        1, order_number, o["bom_id"],
-                        o["planned"], o["actual"],
-                        o["batch"] or None, mfg_date, o["expiry"] or None,
-                        o["cost"], notes, now, now, now,
-                    )
-                )
-            db.executemany(
-                """INSERT INTO production_orders (
-                    company_id, order_number, bom_id,
-                    planned_quantity, actual_quantity,
-                    output_batch_number, manufacturing_date, expiry_date,
-                    production_cost, notes,
-                    warehouse_id, wastage_quantity, status, created_by,
-                    created_at, updated_at, completed_at,
-                    raw_material_cost, packing_material_cost, is_ghost
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 'COMPLETED', NULL, ?, ?, ?, 0, 0, 1)""",
-                order_rows,
-            )
-            last_order_id = db.last_insert_id()
-            first_order_id = last_order_id - len(order_rows) + 1
+        now = datetime.now().isoformat()
+        total_batches_count = (len(all_orders) + BATCH_SIZE - 1) // BATCH_SIZE
+        for batch_idx in range(total_batches_count):
+            start = batch_idx * BATCH_SIZE
+            end = min(start + BATCH_SIZE, len(all_orders))
+            chunk = all_orders[start:end]
 
-            # 2) bulk-insert ghost stock batches (FK for consumption.batch_id)
-            batch_rows = []
-            batch_map = []  # (order_index, consumption_index) -> batch id
-            for i, o in enumerate(all_orders):
-                order_id = first_order_id + i
-                mfg_date = o["mfg_date"] or now[:10]
-                for c in o["consumption"]:
-                    cid = item_id_for(c["ProductID"].strip())
-                    if cid is None:
-                        continue
-                    batch_rows.append(
-                        (cid, f"GHOST-{order_id}-{o['src']}", mfg_date,
-                         o["expiry"] or None, now[:10], now)
-                    )
-                    batch_map.append((i, cid, float(c.get("Quantity") or 0),
-                                      float(c.get("Cost") or 0)))
-            if batch_rows:
-                db.executemany(
-                    """INSERT INTO stock_batches (
-                        item_id, warehouse_id, batch_number, manufacturing_date,
-                        expiry_date, purchase_price, quantity_in_stock, received_date,
-                        is_active, created_at, raw_unit_cost, packing_unit_cost
-                    ) VALUES (?, 1, ?, ?, ?, 0, 0, ?, 0, ?, 0, 0)""",
-                    batch_rows,
-                )
-                last_batch_id = db.last_insert_id()
-                first_batch_id = last_batch_id - len(batch_rows) + 1
-                ghost_batches = len(batch_rows)
-
-                # 3) bulk-insert consumption rows
-                cons_rows = []
-                for idx, (i, cid, qty, cost) in enumerate(batch_map):
-                    cons_rows.append(
-                        (first_order_id + i, cid, first_batch_id + idx, qty, cost)
+            with db.transaction():
+                codes = journal_repo.next_voucher_numbers(1, "PRODUCTION_ORDER", len(chunk))
+                # 1) bulk-insert order headers
+                order_rows = []
+                for i, o in enumerate(chunk):
+                    order_number = codes[i]
+                    mfg_date = o["mfg_date"] or now[:10]
+                    notes = f"Imported from PharmaPro {o['src']}"
+                    if o["remarks"]:
+                        notes += f" | {o['remarks']}"
+                    order_rows.append(
+                        (
+                            1, order_number, o["bom_id"] if o["bom_id"] is not None else 1,
+                            o["planned"], o["actual"],
+                            o["batch"] or None, mfg_date, o["expiry"] or None,
+                            o["cost"], notes, now, now, now,
+                        )
                     )
                 db.executemany(
-                    """INSERT INTO production_consumption (
-                        production_order_id, component_item_id, batch_id,
-                        quantity_consumed, unit_cost
-                    ) VALUES (?, ?, ?, ?, ?)""",
-                    cons_rows,
+                    """INSERT INTO production_orders (
+                        company_id, order_number, bom_id,
+                        planned_quantity, actual_quantity,
+                        output_batch_number, manufacturing_date, expiry_date,
+                        production_cost, notes,
+                        warehouse_id, wastage_quantity, status, created_by,
+                        created_at, updated_at, completed_at,
+                        raw_material_cost, packing_material_cost, is_ghost
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 'COMPLETED', NULL, ?, ?, ?, 0, 0, 1)""",
+                    order_rows,
                 )
-            created_orders = len(order_rows)
+                last_order_id = db.last_insert_id()
+                first_order_id = last_order_id - len(order_rows) + 1
+
+                # 2) bulk-insert ghost stock batches (FK for consumption.batch_id)
+                batch_rows = []
+                batch_map = []  # (order_index, component_item_id, qty, cost)
+                for i, o in enumerate(chunk):
+                    order_id = first_order_id + i
+                    mfg_date = o["mfg_date"] or now[:10]
+                    for c in o["consumption"]:
+                        cid = item_id_for(c["ProductID"].strip())
+                        if cid is None:
+                            continue
+                        batch_rows.append(
+                            (cid, f"GHOST-{order_id}-{o['src']}", mfg_date,
+                             o["expiry"] or None, now[:10], now)
+                        )
+                        batch_map.append((i, cid, float(c.get("Quantity") or 0),
+                                          float(c.get("Cost") or 0)))
+                if batch_rows:
+                    db.executemany(
+                        """INSERT INTO stock_batches (
+                            item_id, warehouse_id, batch_number, manufacturing_date,
+                            expiry_date, purchase_price, quantity_in_stock, received_date,
+                            is_active, created_at, raw_unit_cost, packing_unit_cost
+                        ) VALUES (?, 1, ?, ?, ?, 0, 0, ?, 0, ?, 0, 0)""",
+                        batch_rows,
+                    )
+                    last_batch_id = db.last_insert_id()
+                    first_batch_id = last_batch_id - len(batch_rows) + 1
+                    ghost_batches += len(batch_rows)
+
+                    # 3) bulk-insert consumption rows
+                    cons_rows = []
+                    for idx, (i, cid, qty, cost) in enumerate(batch_map):
+                        cons_rows.append(
+                            (first_order_id + i, cid, first_batch_id + idx, qty, cost)
+                        )
+                    db.executemany(
+                        """INSERT INTO production_consumption (
+                            production_order_id, component_item_id, batch_id,
+                            quantity_consumed, unit_cost
+                        ) VALUES (?, ?, ?, ?, ?)""",
+                        cons_rows,
+                    )
+                created_orders += len(order_rows)
+            if (batch_idx + 1) % 5 == 0 or (batch_idx + 1) == total_batches_count:
+                log(f"  Batch {batch_idx+1}/{total_batches_count}: {created_orders} orders, {ghost_batches} ghost batches so far")
         log(f"Created {created_orders} production orders ({ghost_batches} ghost batches)")
     except Exception as exc:
         log(f"FATAL: production order creation failed: {exc}")

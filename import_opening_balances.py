@@ -18,11 +18,8 @@ import os
 import sys
 import time
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ["ERP_DB_ENGINE"] = "sqlitecloud"
-os.environ["SQLITE_CLOUD_URL"] = ""
-
-sys.path.insert(0, r"F:\software\final\BOP-software")
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from repositories.journal_repository import JournalRepository
@@ -30,7 +27,7 @@ from repositories.journal_repository import JournalRepository
 BATCH_SIZE = 50
 ENTRY_DATE = "2026-05-01"
 
-ACC_FILE = r"F:\software\final\BOP-software\PharmaPro_Export\AccountsBalances.csv"
+ACC_FILE = "PharmaPro_FullExport/AccountsBalances.csv"
 
 
 def log(msg: str):
@@ -53,6 +50,10 @@ def read_old_balances() -> dict[str, float]:
 
 def main():
     t0 = time.time()
+    if not os.path.exists(ACC_FILE):
+        log(f"FATAL: {ACC_FILE} not found. Ensure the PharmaPro_FullExport folder exists.")
+        sys.exit(1)
+
     old = read_old_balances()
     log(f"Old balances loaded: {len(old)} party accounts")
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QDate, QThread, Signal
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -167,6 +169,19 @@ class ReportView(QWidget):
         tb_layout.addWidget(tb_desc)
 
         tb_controls = QHBoxLayout()
+
+        tb_controls.addWidget(QLabel("From:"))
+        self.tb_date_from = QDateEdit()
+        self.tb_date_from.setDate(QDate.currentDate().addMonths(-1))
+        self.tb_date_from.setDisplayFormat("yyyy-MM-dd")
+        tb_controls.addWidget(self.tb_date_from)
+
+        tb_controls.addWidget(QLabel("To:"))
+        self.tb_date_to = QDateEdit()
+        self.tb_date_to.setDate(QDate.currentDate())
+        self.tb_date_to.setDisplayFormat("yyyy-MM-dd")
+        tb_controls.addWidget(self.tb_date_to)
+
         tb_btn = QPushButton("Generate Trial Balance")
         tb_btn.setObjectName("primary")
         tb_btn.clicked.connect(self._show_trial_balance)
@@ -356,6 +371,52 @@ class ReportView(QWidget):
         cb_layout.addWidget(self.cb_text)
         self.tabs.addTab(cb_tab, "Cash Book")
 
+        # ============================================================
+        # EXPORT ALL (Monthly / Yearly)
+        # ============================================================
+        export_tab = QWidget()
+        export_layout = QVBoxLayout(export_tab)
+
+        export_desc = QLabel(
+            "Generate every report for a selected month or year and export all of them "
+            "at once.\nIncludes Trial Balance, Profit & Loss, Balance Sheet, and Cash Book."
+        )
+        export_desc.setStyleSheet("color: #6c757d; font-size: 12px; padding: 0 0 6px 0;")
+        export_layout.addWidget(export_desc)
+
+        export_controls = QHBoxLayout()
+        export_controls.addWidget(QLabel("Frequency:"))
+        self.export_freq = QComboBox()
+        self.export_freq.addItem("Monthly")
+        self.export_freq.addItem("Yearly")
+        self.export_freq.currentIndexChanged.connect(self._populate_export_periods)
+        export_controls.addWidget(self.export_freq)
+
+        export_controls.addWidget(QLabel("Period:"))
+        self.export_period = QComboBox()
+        export_controls.addWidget(self.export_period)
+
+        export_pdf_btn = QPushButton("📄 Export All → PDF")
+        export_pdf_btn.setObjectName("primary")
+        export_pdf_btn.clicked.connect(self._export_all_pdf)
+        export_controls.addWidget(export_pdf_btn)
+
+        export_excel_btn = QPushButton("📊 Export All → Excel")
+        export_excel_btn.clicked.connect(self._export_all_excel)
+        export_controls.addWidget(export_excel_btn)
+
+        export_controls.addStretch()
+        export_layout.addLayout(export_controls)
+
+        self.export_log = QTextEdit()
+        self.export_log.setReadOnly(True)
+        self.export_log.setPlaceholderText("Export results will appear here.")
+        export_layout.addWidget(self.export_log)
+
+        self.tabs.addTab(export_tab, "Export All")
+
+        self._populate_export_periods()
+
         layout.addWidget(self.tabs)
 
         self._load_parties()
@@ -383,11 +444,168 @@ class ReportView(QWidget):
         return f"Rs. {amount:,.2f}"
 
     # ============================================================
+    # EXPORT ALL (Monthly / Yearly)
+    # ============================================================
+    def _populate_export_periods(self) -> None:
+        """Rebuild the period dropdown for Monthly / Yearly selections."""
+        if not hasattr(self, 'export_period'):
+            return
+        self.export_period.clear()
+        now = QDate.currentDate()
+        start = QDate(2022, 8, 1)
+        freq = self.export_freq.currentText()
+
+        if freq == "Yearly":
+            for year in range(start.year(), now.year() + 1):
+                self.export_period.addItem(
+                    f"{year}",
+                    (f"{year}-01-01", f"{year}-12-31"),
+                )
+        else:
+            y = start.year()
+            m = start.month()
+            while y < now.year() or (y == now.year() and m <= now.month()):
+                first = QDate(y, m, 1)
+                last_day = first.daysInMonth()
+                label = f"{y}-{m:02d}  ({first.toString('MMM yyyy')})"
+                self.export_period.addItem(
+                    label,
+                    (f"{y}-{m:02d}-01", f"{y}-{m:02d}-{last_day:02d}"),
+                )
+                m += 1
+                if m > 12:
+                    m = 1
+                    y += 1
+
+        idx = self.export_period.count() - 1
+        if idx >= 0:
+            self.export_period.setCurrentIndex(idx)
+
+    def _selected_export_period(self) -> tuple[str, str] | None:
+        """Return (date_from, date_to) for the selected period, or None."""
+        if not hasattr(self, 'export_period') or self.export_period.count() == 0:
+            return None
+        data = self.export_period.currentData()
+        return (data[0], data[1]) if data else None
+
+    def _generate_all_report_html(self, date_from: str, date_to: str) -> list[tuple[str, str]]:
+        """Generate each report's HTML synchronously for the given period.
+
+        Reuses the existing renderers so the exported output matches exactly
+        what the individual report tabs show.
+        """
+        results: list[tuple[str, str]] = []
+
+        tb_data, tb_err = self.controller.get_trial_balance(date_from, date_to)
+        if tb_data and not tb_err:
+            self._render_trial_balance(tb_data, tb_err)
+            results.append(("Trial Balance", getattr(self.tb_text, '_raw_source_html', None) or self.tb_text.toHtml()))
+
+        pl_data, pl_err = self.controller.get_profit_loss(date_from, date_to)
+        if pl_data and not pl_err:
+            self._render_profit_loss(pl_data, pl_err)
+            results.append(("Profit & Loss", getattr(self.pl_text, '_raw_source_html', None) or self.pl_text.toHtml()))
+
+        bs_data, bs_err = self.controller.get_balance_sheet(date_to)
+        if bs_data and not bs_err:
+            self._render_balance_sheet(bs_data, bs_err)
+            results.append(("Balance Sheet", getattr(self.bs_text, '_raw_source_html', None) or self.bs_text.toHtml()))
+
+        cb_data, cb_err = self.controller.get_cash_book(date_from, date_to)
+        if cb_data and not cb_err:
+            self._render_cash_book(cb_data, cb_err)
+            results.append(("Cash Book", getattr(self.cb_text, '_raw_source_html', None) or self.cb_text.toHtml()))
+
+        return results
+
+    def _export_all_pdf(self) -> None:
+        """Generate all reports for the selected period and save each as PDF."""
+        period = self._selected_export_period()
+        if not period:
+            QMessageBox.information(self, "No Period", "Please select a period first.")
+            return
+        date_from, date_to = period
+
+        folder = QFileDialog.getExistingDirectory(self, "Choose folder to save reports")
+        if not folder:
+            return
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            reports = self._generate_all_report_html(date_from, date_to)
+            if not reports:
+                QMessageBox.information(self, "No Data", "No reports could be generated for this period.")
+                return
+            saved: list[str] = []
+            failures: list[str] = []
+            for title, html in reports:
+                safe = title.replace(" ", "_").replace("&", "and").replace("/", "_")
+                file_path = os.path.join(folder, f"{safe}_{date_from}_to_{date_to}.pdf")
+                if ReportExporter.save_pdf_html(html, file_path):
+                    saved.append(file_path)
+                else:
+                    failures.append(file_path)
+            self._log_export_result(date_from, date_to, saved, failures, "PDF")
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def _export_all_excel(self) -> None:
+        """Generate all reports for the selected period into ONE Excel workbook."""
+        period = self._selected_export_period()
+        if not period:
+            QMessageBox.information(self, "No Period", "Please select a period first.")
+            return
+        date_from, date_to = period
+
+        default_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        default = os.path.join(default_dir, f"All_Reports_{date_from}_to_{date_to}.xlsx")
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save All Reports as Excel", default, "Excel Files (*.xlsx)"
+        )
+        if not file_path:
+            return
+        if not file_path.endswith('.xlsx'):
+            file_path += '.xlsx'
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            reports = self._generate_all_report_html(date_from, date_to)
+            if not reports:
+                QMessageBox.information(self, "No Data", "No reports could be generated for this period.")
+                return
+            ok = ReportExporter.save_excel_reports(reports, file_path)
+            self._log_export_result(
+                date_from, date_to,
+                [file_path] if ok else [],
+                [] if ok else [file_path],
+                "Excel",
+            )
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def _log_export_result(self, date_from: str, date_to: str, saved: list, failures: list, fmt: str) -> None:
+        """Append an export result summary to the Export All log pane."""
+        lines = [f"[{datetime.now().strftime('%H:%M:%S')}] Exported {fmt} for {date_from} to {date_to}"]
+        if saved:
+            lines.append(f"Saved ({len(saved)}):")
+            lines += [f"  - {p}" for p in saved]
+        if failures:
+            lines.append(f"Failed ({len(failures)}):")
+            lines += [f"  - {p}" for p in failures]
+        self.export_log.append("\n".join(lines))
+
+    # ============================================================
     # TRIAL BALANCE
     # ============================================================
     def _show_trial_balance(self):
         """Show trial balance with 6 columns: Code, Name, ODR, OCR, CDR, CCR + Parties Summary."""
-        self._run_async(self.controller.get_trial_balance, self._render_trial_balance)
+        date_from = self.tb_date_from.date().toString("yyyy-MM-dd")
+        date_to = self.tb_date_to.date().toString("yyyy-MM-dd")
+
+        self._run_async(
+            lambda: self.controller.get_trial_balance(date_from, date_to),
+            self._render_trial_balance,
+        )
 
     def _render_trial_balance(self, data, error):
         if error:
@@ -556,7 +774,7 @@ class ReportView(QWidget):
                 </tr>
                 '''
 
-            total_net = total_cur_dr - total_cur_cr
+            total_net = (total_op_dr + total_cur_dr) - (total_op_cr + total_cur_cr)
             total_net_class = 'positive' if total_net >= 0 else 'negative'
             html += f'''
             <tr class="total-row">
@@ -583,6 +801,7 @@ class ReportView(QWidget):
         </body></html>
         '''
 
+        self.tb_text._raw_source_html = html  # preserve classes for Excel/CSV export
         self.tb_text.setHtml(html)
         self._set_report_font_size(self.tb_text, 14)
 
@@ -648,7 +867,7 @@ class ReportView(QWidget):
             <div class="subtitle">Pharmaceutical Manufacturing</div>
         </div>
         <div class="report-title">Profit & Loss Statement</div>
-        <div class="report-period">Period: {date_from} to {date_to}</div>
+        <div class="report-period">Period: {data['date_from']} to {data['date_to']}</div>
         <table>
         """
 
@@ -763,6 +982,7 @@ class ReportView(QWidget):
         </body></html>
         """
 
+        self.pl_text._raw_source_html = html  # preserve classes for Excel/CSV export
         self.pl_text.setHtml(html)
         self._set_report_font_size(self.pl_text, 14)
 
@@ -901,6 +1121,7 @@ class ReportView(QWidget):
         </body></html>
         """
 
+        self.bs_text._raw_source_html = html  # preserve classes for Excel/CSV export
         self.bs_text.setHtml(html)
         self._set_report_font_size(self.bs_text, 14)
 
@@ -1101,5 +1322,6 @@ class ReportView(QWidget):
         </body></html>
         """
 
+        self.cb_text._raw_source_html = html  # preserve classes for Excel/CSV export
         self.cb_text.setHtml(html)
         self._set_report_font_size(self.cb_text, 14)

@@ -1,4 +1,4 @@
-﻿"""One-off import of parties from PharmaPro_Export/Parties.csv.
+﻿"""One-off import of parties from PharmaPro_FullExport/Parties.csv.
 
 Maps old PharmaPro party records to the new ERP schema:
   AccountNo      -> code
@@ -18,20 +18,19 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
+import time
 
-os.environ["ERP_LOG_LEVEL"] = "CRITICAL"
-os.environ.setdefault("ERP_DB_ENGINE", "sqlitecloud")
-
-from utils.env_loader import require_db_url
-
-os.environ["SQLITE_CLOUD_URL"] = require_db_url()
+from utils.env_loader import setup_import_env
+setup_import_env()
 
 from database.connection import get_db, close_db
 from models.enums import PartyType
 from services.party_service import PartyService
 from repositories.account_repository import AccountRepository
+from utils.exceptions import DatabaseError
 
-SOURCE_FILE = "PharmaPro_Export/Parties.csv"
+SOURCE_FILE = "PharmaPro_FullExport/Parties.csv"
 
 CUSTOMER_CATEGORY_MAP = {
     "RETAILER": "BUSINESS",
@@ -95,6 +94,10 @@ def parse_parties(path: str) -> list[dict]:
 
 
 def main() -> None:
+    if not os.path.exists(SOURCE_FILE):
+        print(f"FATAL: {SOURCE_FILE} not found. Ensure the PharmaPro_FullExport folder exists.")
+        sys.exit(1)
+
     parties = parse_parties(SOURCE_FILE)
     print(f"Parsed {len(parties)} parties from {SOURCE_FILE}")
 
@@ -120,43 +123,55 @@ def main() -> None:
     created = 0
     skipped = 0
     failed = 0
+    MAX_RETRIES = 5
 
     for p in parties:
         if (p["code"], p["party_type"].value) in existing:
             print(f"  SKIP  {p['code']} {p['name']} (already exists)")
             skipped += 1
             continue
-        try:
-            account_id = None
-            if p["party_type"] == PartyType.CUSTOMER:
-                account_id = ar_id
-            elif p["party_type"] == PartyType.SUPPLIER:
-                account_id = ap_id
 
-            party = service.create_party(
-                name=p["name"],
-                party_type=p["party_type"],
-                credit_limit=p["credit_limit"],
-                account_id=account_id,
-                code=p["code"],
-            )
+        for attempt in range(MAX_RETRIES):
+            try:
+                account_id = None
+                if p["party_type"] == PartyType.CUSTOMER:
+                    account_id = ar_id
+                elif p["party_type"] == PartyType.SUPPLIER:
+                    account_id = ap_id
 
-            service.repo.update(
-                party.id,
-                {
-                    "phone": p["phone"],
-                    "email": p["email"],
-                    "address": p["address"],
-                    "customer_category": p["customer_category"],
-                    "is_active": int(p["is_active"]),
-                },
-            )
-            print(f"  ADD   {p['code']} {p['name']}")
-            created += 1
-            existing.add((p["code"], p["party_type"].value))
-        except Exception as exc:
-            print(f"  FAIL  {p['code']} {p['name']}: {exc}")
-            failed += 1
+                party = service.create_party(
+                    name=p["name"],
+                    party_type=p["party_type"],
+                    credit_limit=p["credit_limit"],
+                    account_id=account_id,
+                    code=p["code"],
+                )
+
+                service.repo.update(
+                    party.id,
+                    {
+                        "phone": p["phone"],
+                        "email": p["email"],
+                        "address": p["address"],
+                        "customer_category": p["customer_category"],
+                        "is_active": int(p["is_active"]),
+                    },
+                )
+                print(f"  ADD   {p['code']} {p['name']}")
+                created += 1
+                existing.add((p["code"], p["party_type"].value))
+                break
+            except DatabaseError as exc:
+                if "locked" in str(exc) and attempt < MAX_RETRIES - 1:
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                print(f"  FAIL  {p['code']} {p['name']}: {exc}")
+                failed += 1
+                break
+            except Exception as exc:
+                print(f"  FAIL  {p['code']} {p['name']}: {exc}")
+                failed += 1
+                break
 
     print("\n===== SUMMARY =====")
     print(f"Created: {created}")

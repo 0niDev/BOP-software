@@ -1,0 +1,123 @@
+﻿RegistryKey,ParentRegistryKey,Narration,Value,IsEditable
+AccAsset,,,1,False
+AccBankAccount,,,112,False
+AccCashAccount,,,111,False
+AccCurrentAsset,,,11,False
+AccCurrentEarnings,,,49,False
+AccEquity,,,3,False
+AccExpense,,,5,False
+AccFiscalYear,,,2026-27,False
+AccFixedAsset,,,12,False
+AccIsEnablePosting,,,0,False
+AccLiability,,,2,False
+AccNewVoucherSerialNo,,,Yearly,False
+AccOtherIncome,,,48,False
+AccParty,,,6,False
+ACCPURRETURNCOSTDIFF,,Purchase Return Cost Difference,515,False
+AccRevenue,,,4,False
+BackupPath,,,e:\PCBackupHome,True
+BlockExpLicCustomer,,0,0,False
+CompanyAddress,,,"Plot No A-2, Phase 1-A, M-3 Industrial City, ChakJhumra, Faisalabad",False
+CompanyCity,,,YourCity,False
+CompanyDescription,,,,False
+CompanyEmail,,,,False
+CompanyFax,,,,False
+CompanyMobileNo,,,,False
+CompanyName,,,BOP NUTRACEUTICALS,False
+CompanyNTN,,,,False
+CompanyPhone1,,,,False
+CompanyPhone2,,,,False
+CompanySTN,,,,False
+CompanyWeb,,,,False
+CustomerCreditDays,,,0,False
+DBVersion,,,1.050,True
+DistributionCode,,,,False
+Edition,,,Ent,False
+EnableAutoSaveInvoice,,,0,False
+EnableInvoiceTypeInSale,,,1,False
+EnableIsClaimableInSale,,,1,False
+EnableProductDetailinInvoicing,,,0,False
+EnableSmartSearch,,Enable Smart Search,1,False
+EnableUserAccounsAssignment,,User Accounts Assignments,0,False
+ExpLicCustWarningDays,,Expired License Customer Warning Days,10,False
+FullPageVoucherPrinting,,,0,False
+IsLocalPurchaseEnabled,,,0,False
+LastLoginUser,,,Admin,False
+NTNNo,,,,False
+OldDatabase4History,,Old Database for History,PC23241,False
+PartyAccountLength,,Party Account No Length,4,False
+PhrAutoPrintInvoices,,,0,False
+PhrAutoSaveTimeInterval,,,5,False
+PhrBackupEnabled,,,1,False
+PhrBackupFrequency,,,180,False
+PhrCashCollectionDescAccount,,,5123,False
+PhrCClaimRepliedStockValueAccount,,,513,False
+PhrCClaimValueAccount,,,1134,False
+PhrCompanyWarranter,,,ABDUL RAZZAK,False
+PhrCostOfSaleAccount,,,5111,False
+PhrCostOfSaleReturnAccount,,,5112,False
+PhrCounterSaleInvType,,,C,False
+PhrCustomersAccount,,,62,False
+PhrDefaultCustomerId,,,,False
+PhrDefaultExpiryDate,,,3000,False
+PhrDesktopRefreshTime,,,60,False
+PhrDoNotPrintWarranty,,,0,False
+PhrExpiredStockValueAccount,,,1136,False
+PhrExpiryLossAccount,,,514,False
+PhrExpiryWarningDays,,,30,False
+PhrFTRatio,,,3,False
+PhrInvoiceNote,,,,False
+PhrInvoicePrintingDriver,,,EPSON Generic 24Pin With Euro,False
+PhrInvoiceRemarks,,,,True
+PhrIsCashInvoice,,,False,False
+PhrIsLaserPrint,,,1,False
+PhrIsNearExpiryStockBlocked,,,1,False
+PhrIsPrintedPaperForInvoice,,,0,False
+PhrIsPrintGrouped,,,0,False
+PhrIsPrintInColor,,,1,False
+PhrLastBackupDate,,,4/11/2005,False
+PhrOpeningStockAccount,,,1131,False
+PhrOpeningStockSTAccount,,,1311,False
+PhrPrintHerbalWarranty,,,0,True
+PhrPrintInvoiceCondenseMode,,,0,False
+PhrPrintReportsBodyLines,,,1,False
+PhrPurchaseAccount,,,11321,False
+PhrPurchaseExpValueAccount,,,551,False
+PhrPurchaseReturnAccount,,,11322,False
+PhrPurchaseReturnSTAccount,,,1313,False
+PhrPurchaseSTAccount,,,1312,False
+PhrSaleAccount,,,411,False
+PhrSaleReturnAccount,,,412,False
+PhrSaleReturnSpecialDiscountAccount,,,5122,False
+PhrSaleReturnSTAccount,,,1315,False
+PhrSaleReturnStockValueAccount,,,11332,False
+PhrSalesMenAccount,,,63,False
+PhrSaleSpecialDiscountAccount,,,5121,False
+PhrSaleSTAccount,,,1314,False
+PhrSearchMinChar,,,3,False
+PhrShowExpiryStatement,,,1,False
+PhrShowRemarksInInvoice,,,1,False
+PhrShowReportBodyLines,,,0,False
+PhrShowSearchFormByEnter,,,1,False
+PhrSoldStockValueAccount,,,11331,False
+PhrSortProductsCompanyWise,,,0,False
+PhrSTSaleInvType,,,T,False
+PhrSupplySaleInvType,,,S,False
+PhrVClaimRepliedStockValueAccount,,,42,False
+PhrVClaimValueAccount,,,1135,False
+PhrVendorsAccount,,,61,False
+PhrVouchersAll,,,,False
+PrintAccordingToInvoice,,,0,False
+PrintDosThermalInvoice,,,0,False
+PrintingCharges,,,0,False
+PrintInvoiceDetail,,,0,False
+PrintSurgicalInvoice,,,0,False
+PrintThermalSaleInvoice,,,0,False
+PromptForWarranty,,,1,False
+PurchaseOrderAler,,Purchase Order Aler,,False
+ReportZoom,,,120,False
+ShowPrevBalInInvoicePrint,,,1,False
+ShowPriceTagInInvoicePrint,,Show Price Tag In Invoice Printing,0,False
+STNNo,,,,False
+USBBackUpPath,,Null,K:\UltraBizDataBackup,False
+ViewPrintingOptionsInSale,,,1,False

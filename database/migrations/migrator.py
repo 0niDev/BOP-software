@@ -44,6 +44,12 @@ SYSTEM_ACCOUNTS: list[tuple[str, str, str, str | None]] = [
     ("1210", "Inventory - Packing Materials","ASSET",    "CURRENT_ASSET"),
     ("1220", "Inventory - Finished Goods",  "ASSET",     "CURRENT_ASSET"),
     ("1300", "Withholding Tax Receivable",  "ASSET",     "CURRENT_ASSET"),
+    ("1500", "Fixed Assets",                "ASSET",     "NON_CURRENT_ASSET"),
+    ("1501", "HBL Instalment",              "ASSET",     "NON_CURRENT_ASSET"),
+    ("1502", "Motor Car Instalment",        "ASSET",     "NON_CURRENT_ASSET"),
+    ("1503", "Auto Vehicles",               "ASSET",     "NON_CURRENT_ASSET"),
+    ("1504", "Furniture & Fixtures",        "ASSET",     "NON_CURRENT_ASSET"),
+    ("1505", "Car Sale & Purchase",         "ASSET",     "NON_CURRENT_ASSET"),
     ("2000", "Accounts Payable",            "LIABILITY", "CURRENT_LIABILITY"),
     ("2100", "Sales Tax Payable",           "LIABILITY", "CURRENT_LIABILITY"),
     ("2200", "Withholding Tax Payable",     "LIABILITY", "CURRENT_LIABILITY"),
@@ -57,6 +63,7 @@ SYSTEM_ACCOUNTS: list[tuple[str, str, str, str | None]] = [
     ("5200", "Manufacturing Wastage Expense","EXPENSE",  None),
     ("5300", "Inventory Loss / Expiry Expense","EXPENSE", None),
     ("6000", "General & Administrative Expenses", "EXPENSE", None),
+    ("6100", "Selling Expenses",            "EXPENSE",   None),
 ]
 
 # database/migrations/migrator.py

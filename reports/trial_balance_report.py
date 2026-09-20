@@ -36,32 +36,74 @@ class TrialBalanceReport(Report):
     # =================================================================
     def generate(self) -> dict:
         """Generate Trial Balance with 6-column format and parties summary."""
-        
+
         # OPTIMIZED: ONE QUERY for all accounts with their balances
-        rows = self.db.fetch_all("""
+        #
+        # Without a date range (legacy behaviour):
+        #   - ODR/OCR = OPENING voucher totals
+        #   - CDR/CCR = all other posted entries
+        # With a date range:
+        #   - ODR/OCR = everything posted BEFORE date_from (incl. OPENING vouchers)
+        #   - CDR/CCR = posted non-OPENING entries within [date_from, date_to]
+        #
+        # FIX: both CTEs now consistently filter by company_id, and params
+        # are bound in the exact order the placeholders appear.
+        has_range = bool(self.date_from and self.date_to)
+
+        if has_range:
+            opening_cte = """
+                WHERE je.is_posted = 1
+                AND je.company_id = ?
+                AND (je.voucher_type = 'OPENING' OR je.entry_date < ?)
+            """
+            current_cte = """
+                WHERE je.is_posted = 1
+                AND je.company_id = ?
+                AND je.voucher_type != 'OPENING'
+                AND je.entry_date >= ?
+                AND je.entry_date <= ?
+            """
+            params: tuple = (
+                self.company_id, self.date_from,                 # opening CTE
+                self.company_id, self.date_from, self.date_to,    # current CTE
+                self.company_id,                                  # outer accounts filter
+            )
+        else:
+            opening_cte = """
+                WHERE je.is_posted = 1
+                AND je.company_id = ?
+                AND je.voucher_type = 'OPENING'
+            """
+            current_cte = """
+                WHERE je.is_posted = 1
+                AND je.company_id = ?
+                AND je.voucher_type != 'OPENING'
+            """
+            # FIX: three company_id params — opening CTE, current CTE, outer filter
+            params = (self.company_id, self.company_id, self.company_id)
+
+        rows = self.db.fetch_all(f"""
             WITH opening_balances AS (
-                SELECT 
+                SELECT
                     jel.account_id,
                     COALESCE(SUM(jel.debit), 0) as odr,
                     COALESCE(SUM(jel.credit), 0) as ocr
                 FROM journal_entry_lines jel
                 JOIN journal_entries je ON je.id = jel.journal_entry_id
-                WHERE je.voucher_type = 'OPENING' AND je.is_posted = 1
+                {opening_cte}
                 GROUP BY jel.account_id
             ),
             current_balances AS (
-                SELECT 
+                SELECT
                     jel.account_id,
                     COALESCE(SUM(jel.debit), 0) as total_debit,
                     COALESCE(SUM(jel.credit), 0) as total_credit
                 FROM journal_entry_lines jel
                 JOIN journal_entries je ON je.id = jel.journal_entry_id
-                WHERE je.is_posted = 1 
-                AND je.company_id = ?
-                AND je.voucher_type != 'OPENING'
+                {current_cte}
                 GROUP BY jel.account_id
             )
-            SELECT 
+            SELECT
                 a.id,
                 a.account_code,
                 a.account_name,
@@ -75,39 +117,55 @@ class TrialBalanceReport(Report):
             LEFT JOIN current_balances cb ON cb.account_id = a.id
             WHERE a.company_id = ? AND a.is_active = 1
             ORDER BY a.account_code
-        """, (self.company_id, self.company_id))
-        
+        """, params)
+
         result_rows = []
         total_odr = Decimal('0')
         total_ocr = Decimal('0')
         total_cdr = Decimal('0')
         total_ccr = Decimal('0')
         grouped = {}
-        
+
         for row in rows:
             odr = Decimal(str(row['odr']))
             ocr = Decimal(str(row['ocr']))
             total_debit = Decimal(str(row['total_debit']))
             total_credit = Decimal(str(row['total_credit']))
-            
+
+            if odr == 0 and ocr == 0 and total_debit == 0 and total_credit == 0:
+                continue
+
             acc_type = row['account_type']
-            
-            # CDR/CCR should ONLY contain current period transactions, NOT opening balances
-            # Opening balances stay in ODR/OCR columns
+
+            # FIX: Opening balances stay in ODR/OCR.
+            # CDR/CCR must contain ONLY the net current-period movement,
+            # reported in the account's normal-balance column. This ensures
+            # accounts whose period debits equal period credits (e.g. Cost of
+            # Goods Sold cleared against inventory) still appear correctly.
             if acc_type in ['ASSET', 'EXPENSE']:
-                # For assets/expenses: normal balance is debit
-                cdr = total_debit
-                ccr = total_credit
+                # Debit-normal accounts
+                net = total_debit - total_credit
+                if net >= 0:
+                    cdr = net
+                    ccr = Decimal('0')
+                else:
+                    cdr = Decimal('0')
+                    ccr = -net
             else:
-                # For liabilities/equity/revenue: normal balance is credit
-                cdr = total_debit
-                ccr = total_credit
-            
+                # Credit-normal accounts (LIABILITY, EQUITY, REVENUE)
+                net = total_credit - total_debit
+                if net >= 0:
+                    cdr = Decimal('0')
+                    ccr = net
+                else:
+                    cdr = -net
+                    ccr = Decimal('0')
+
             total_odr += odr
             total_ocr += ocr
             total_cdr += cdr
             total_ccr += ccr
-            
+
             r = {
                 "code": row['account_code'],
                 "name": row['account_name'],
@@ -120,17 +178,19 @@ class TrialBalanceReport(Report):
                 "normal_balance": "DEBIT" if acc_type in ["ASSET", "EXPENSE"] else "CREDIT",
             }
             result_rows.append(r)
-            
+
             if acc_type not in grouped:
                 grouped[acc_type] = []
             grouped[acc_type].append(r)
-        
+
         # Build parties summary
         parties_summary = self._build_parties_summary()
-        
-        # Check if balanced
-        is_balanced = abs(float(total_cdr) - float(total_ccr)) < 0.01
-        
+
+        # Check if balanced (compare combined opening + current on each side)
+        grand_dr = float(total_odr + total_cdr)
+        grand_cr = float(total_ocr + total_ccr)
+        is_balanced = abs(grand_dr - grand_cr) < 0.01
+
         return {
             "title": self.title,
             "period_label": self._get_period_label(),
@@ -142,8 +202,10 @@ class TrialBalanceReport(Report):
             "total_ocr": float(total_ocr),
             "total_cdr": float(total_cdr),
             "total_ccr": float(total_ccr),
+            "grand_total_dr": grand_dr,
+            "grand_total_cr": grand_cr,
             "is_balanced": is_balanced,
-            "balance_diff": float(abs(total_cdr - total_ccr)),
+            "balance_diff": float(abs(grand_dr - grand_cr)),
         }
 
     # =================================================================
@@ -151,79 +213,104 @@ class TrialBalanceReport(Report):
     # =================================================================
 
     def _build_parties_summary(self) -> list[dict]:
-        """
-        Build parties summary from journal entries.
-        Note: Opening balances at account level don't have party information,
-        so we only show current period transactions for parties.
-        """
-        params = [self.company_id]
-        date_filter = ""
-        if self.date_from and self.date_to:
-            date_filter = "AND je.entry_date >= ? AND je.entry_date <= ?"
-            params.extend([self.date_from, self.date_to])
+        """Build parties summary from journal entries.
 
-        parties_data = self.db.fetch_all(f"""
-            SELECT 
+        OPENING-voucher party lines (per-party opening balances imported from
+        PharmaPro) are shown in the Opening columns; all other posted party lines
+        (optionally date-filtered) are shown in the Current columns.
+        Net Balance = (Opening + Current) Dr - (Opening + Current) Cr.
+        """
+        # ---- Opening balances: OPENING vouchers that carry a party ----
+        opening_rows = self.db.fetch_all("""
+            SELECT
                 p.id as party_id,
                 p.code as party_code,
                 p.name as party_name,
                 p.party_type,
-                jel.account_id,
-                jel.debit,
-                jel.credit,
-                je.entry_date,
-                a.account_type
+                COALESCE(SUM(jel.debit), 0) as odr,
+                COALESCE(SUM(jel.credit), 0) as ocr
             FROM journal_entry_lines jel
             JOIN journal_entries je ON je.id = jel.journal_entry_id
             JOIN parties p ON p.id = jel.party_id
-            JOIN accounts a ON a.id = jel.account_id
             WHERE je.is_posted = 1
-            AND je.company_id = ?
-            AND jel.party_id IS NOT NULL
-            {date_filter}
-            ORDER BY p.name, je.entry_date
+              AND je.company_id = ?
+              AND jel.party_id IS NOT NULL
+              AND je.voucher_type = 'OPENING'
+            GROUP BY p.id
+        """, (self.company_id,))
+
+        # ---- Current balances: all posted non-OPENING party lines ----
+        params = [self.company_id]
+        current_filter = ""
+        if self.date_from and self.date_to:
+            current_filter = "AND je.entry_date >= ? AND je.entry_date <= ?"
+            params.extend([self.date_from, self.date_to])
+
+        current_rows = self.db.fetch_all(f"""
+            SELECT
+                p.id as party_id,
+                p.code as party_code,
+                p.name as party_name,
+                p.party_type,
+                COALESCE(SUM(jel.debit), 0) as tdr,
+                COALESCE(SUM(jel.credit), 0) as tcr
+            FROM journal_entry_lines jel
+            JOIN journal_entries je ON je.id = jel.journal_entry_id
+            JOIN parties p ON p.id = jel.party_id
+            WHERE je.is_posted = 1
+              AND je.company_id = ?
+              AND jel.party_id IS NOT NULL
+              AND je.voucher_type != 'OPENING'
+              {current_filter}
+            GROUP BY p.id
         """, tuple(params))
-        
-        if not parties_data:
+
+        if not opening_rows and not current_rows:
             return []
-        
-        # Group by party
+
         party_map = {}
-        
-        for row in parties_data:
-            party_id = row['party_id']
-            
-            if party_id not in party_map:
-                party_map[party_id] = {
-                    'party_id': party_id,
-                    'party_code': row['party_code'],
-                    'party_name': row['party_name'],
-                    'party_type': row['party_type'],
-                    'opening_debit': 0.0,  # Cannot determine opening balance by party
-                    'opening_credit': 0.0,  # Opening balances don't have party info
-                    'current_debit': 0.0,
-                    'current_credit': 0.0,
-                }
-            
-            # Current period transactions only (opening balances don't have party info)
-            debit = row['debit'] or 0.0
-            credit = row['credit'] or 0.0
-            
-            party_map[party_id]['current_debit'] += debit
-            party_map[party_id]['current_credit'] += credit
-        
-        # Build result list
+        for row in opening_rows:
+            pid = row['party_id']
+            d = party_map.setdefault(pid, {
+                'party_id': pid,
+                'party_code': row['party_code'],
+                'party_name': row['party_name'],
+                'party_type': row['party_type'],
+                'opening_debit': 0.0,
+                'opening_credit': 0.0,
+                'current_debit': 0.0,
+                'current_credit': 0.0,
+            })
+            d['opening_debit'] += row['odr'] or 0.0
+            d['opening_credit'] += row['ocr'] or 0.0
+
+        for row in current_rows:
+            pid = row['party_id']
+            d = party_map.setdefault(pid, {
+                'party_id': pid,
+                'party_code': row['party_code'],
+                'party_name': row['party_name'],
+                'party_type': row['party_type'],
+                'opening_debit': 0.0,
+                'opening_credit': 0.0,
+                'current_debit': 0.0,
+                'current_credit': 0.0,
+            })
+            d['current_debit'] += row['tdr'] or 0.0
+            d['current_credit'] += row['tcr'] or 0.0
+
         result = []
-        for party_id, data in party_map.items():
-            net = data['current_debit'] - data['current_credit']
-            
+        for pid, data in party_map.items():
+            net = (data['opening_debit'] + data['current_debit']) - \
+                  (data['opening_credit'] + data['current_credit'])
+
             if net > 0.01:
                 balance_type = 'Receivable'
             elif net < -0.01:
                 balance_type = 'Payable'
             else:
                 balance_type = 'Zero'
-            
+
             result.append({
                 'party_id': data['party_id'],
                 'party_code': data['party_code'],
@@ -236,7 +323,7 @@ class TrialBalanceReport(Report):
                 'net_balance': round(net, 2),
                 'balance_type': balance_type,
             })
-        
+
         result.sort(key=lambda x: x['party_name'])
         return result
 
