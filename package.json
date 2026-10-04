@@ -1,5 +1,11 @@
 {
   "devDependencies": {
-    "@omniroute/opencode-provider": "^0.1.0"
+    "@dietrichgebert/ponytail": "^4.10.3",
+    "@morphllm/opencode-morph-plugin": "^2.0.17",
+    "@omniroute/opencode-provider": "^0.1.0",
+    "@sentropic/engram": "^0.19.1",
+    "opencode-command-hooks": "^0.8.0",
+    "opencode-mem": "^2.28.3",
+    "opencode-models-discovery": "^1.7.1"
   }
 }

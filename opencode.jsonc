@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "@dietrichgebert/ponytail@latest",
+    "@sentropic/engram@latest",
+    "opencode-command-hooks@latest",
+    "opencode-mem@latest",
+    "opencode-models-discovery@latest",
+    "@morphllm/opencode-morph-plugin@latest"
+  ],
+  "instructions": [
+    "node_modules/@morphllm/opencode-morph-plugin/instructions/morph-tools.md"
+  ],
+  "agent": {
+    "plan": {
+      "model": "openrouter/free"
+    }
+  }
+}
