@@ -20,6 +20,8 @@ from repositories.stock_batch_repository import StockBatchRepository
 from services.accounting_service import AccountingService
 from services.account_service import AccountService
 from utils.exceptions import ValidationError
+from utils.dates import parse_date
+from utils.cache_manager import invalidate_on_change
 from utils.logger import get_logger
 from utils.activity_logger import log_purchase_invoice_created, log_purchase_invoice_updated, log_purchase_invoice_deleted
 
@@ -97,6 +99,7 @@ class PurchaseInvoiceService:
                 SET quantity_in_stock = ?, purchase_price = ?, is_active = 1
                 WHERE id = ?
             """, (new_quantity, purchase_price, existing["id"]))
+            invalidate_on_change("stock_batches")
             logger.info(f"Updated existing batch {batch_number}: {new_quantity}")
             return existing["id"]
         else:
@@ -109,6 +112,7 @@ class PurchaseInvoiceService:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             """, (item_id, warehouse_id, batch_number, manufacturing_date, 
                   expiry_date, purchase_price, quantity))
+            invalidate_on_change("stock_batches")
             
             # Get last insert ID using the same connection
             if hasattr(db_conn, 'last_insert_id'):
@@ -165,6 +169,7 @@ class PurchaseInvoiceService:
             raise ValidationError("Supplier is required.")
         if not invoice_date:
             raise ValidationError("Invoice date is required.")
+        invoice_date = parse_date(invoice_date, "invoice_date")
         if payment_type not in ["CASH", "BANK", "CHEQUE", "CREDIT"]:
             raise ValidationError("Invalid payment type.")
         if not items:
@@ -505,6 +510,7 @@ class PurchaseInvoiceService:
         existing_invoice = self.invoice_repo.get_by_id(invoice_id)
         if not existing_invoice:
             raise ValidationError(f"Purchase invoice {invoice_id} not found.")
+        invoice_date = parse_date(invoice_date, "invoice_date")
         
         # Convert dict to PurchaseInvoice object if needed
         if isinstance(existing_invoice, dict):

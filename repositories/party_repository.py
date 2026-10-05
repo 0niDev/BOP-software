@@ -32,9 +32,10 @@ class PartyRepository(BaseRepository):
         self, 
         company_id: int = 1, 
         active_only: bool = True,
-        party_type: str | None = None
+        party_type: str | None = None,
+        search: str | None = None
     ) -> list[dict]:
-        """Gets parties with optional type filter."""
+        """Gets parties with optional type filter and name/code search."""
         sql = "SELECT * FROM parties WHERE company_id = ?"
         params: list = [company_id]
         
@@ -43,6 +44,9 @@ class PartyRepository(BaseRepository):
         if party_type:
             sql += " AND party_type = ?"
             params.append(party_type)
+        if search:
+            sql += " AND (name LIKE ? OR code LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
             
         sql += " ORDER BY code"
         return self.db.fetch_all(sql, tuple(params))

@@ -30,7 +30,7 @@
             │                     │
 ┌───────────▼─────────────────────▼─────────────────────────────────┐
 │                       REPOSITORY LAYER                            │
-│  BaseRepository (with 30s TTL Cache) + 20+ Specific Repositories │
+│  BaseRepository (with 120s TTL Cache) + 20+ Specific Repositories │
 └────────────────────────────┼──────────────────────────────────────┘
                              │
 ┌────────────────────────────▼──────────────────────────────────────┐
@@ -791,7 +791,7 @@ When recreating this project from scratch:
 3. **All money movement via AccountingService** - Never insert journal_entries manually
 4. **Transactions wrap related operations** - Invoice + Stock + JE in one transaction
 5. **Validate early, validate often** - At UI, controller, and service layers
-6. **Cache with TTL** - 30-second cache for reads, invalidate on writes
+6. **Cache with TTL** - 120-second cache for reads, invalidate on writes
 7. **Role-based everything** - Menu items, buttons, API calls
 8. **Audit every change** - Who, what, when, old vs new values
 9. **Graceful degradation** - If backup fails, log but continue; if report generation fails, show error but don't crash

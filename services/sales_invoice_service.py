@@ -20,6 +20,7 @@ from repositories.account_repository import AccountRepository
 from repositories.stock_batch_repository import StockBatchRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError, InsufficientStockError, DuplicateRecordError
+from utils.dates import parse_date
 from utils.logger import get_logger
 from utils.activity_logger import log_sales_invoice_created, log_sales_invoice_updated, log_sales_invoice_deleted
 
@@ -231,6 +232,7 @@ class SalesInvoiceService:
             raise ValidationError("Customer is required.")
         if not invoice_date:
             raise ValidationError("Invoice date is required.")
+        invoice_date = parse_date(invoice_date, "invoice_date")
         if payment_type not in ["CASH", "BANK", "CHEQUE", "CREDIT"]:
             raise ValidationError("Invalid payment type.")
         if not items:
@@ -595,6 +597,7 @@ class SalesInvoiceService:
         existing_invoice = self.get_sales_invoice(invoice_id)
         if not existing_invoice:
             raise ValidationError(f"Sales invoice {invoice_id} not found.")
+        invoice_date = parse_date(invoice_date, "invoice_date")
         
         # Get customer for narration
         customer_dict = self.party_repo.get_by_id(customer_id)

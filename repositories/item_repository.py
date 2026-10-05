@@ -38,14 +38,18 @@ class ItemRepository(BaseRepository):
     def find_all_for_company(
         self, 
         company_id: int = 1, 
-        active_only: bool = True
+        active_only: bool = True,
+        search: str | None = None
     ) -> list[dict]:
-        """Gets items with optional active filter"""
+        """Gets items with optional active filter and name/code search."""
         sql = "SELECT * FROM items WHERE company_id = ?"
         params: list = [company_id]
         
         if active_only:
             sql += " AND is_active = 1"
+        if search:
+            sql += " AND (item_name LIKE ? OR item_code LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
             
         sql += " ORDER BY item_code"
         return self.db.fetch_all(sql, tuple(params))

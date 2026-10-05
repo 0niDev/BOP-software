@@ -33,81 +33,46 @@ class AuthController:
     
     def get_all_users(self) -> list[dict]:
         """Get all users (for admin)."""
-        from database.connection import get_db
-        db = get_db()
-        return db.fetch_all("""
-            SELECT u.*, r.name as role_name
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            ORDER BY u.username
-        """)
-    
-    def create_user(self, username: str, full_name: str, password: str, 
-                    role_name: str, email: str | None = None) -> tuple[bool, str | None]:
+        return self.auth_service.list_users()
+
+    def get_user(self, user_id: int) -> dict | None:
+        """Get one user (with role name) or None."""
+        return self.auth_service.get_user(user_id)
+
+    def create_user(self, username: str, full_name: str, password: str,
+                    role_name: str, email: str | None = None,
+                    is_active: bool = True) -> tuple[bool, str | None]:
         """Create a new user."""
-        from database.connection import get_db
-        from utils.security import hash_password
-        
-        db = get_db()
-        
-        # Check if username exists
-        existing = db.fetch_one("SELECT id FROM users WHERE username = ?", (username,))
-        if existing:
-            return False, f"Username '{username}' already exists."
-        
-        # Get role
-        role = db.fetch_one("SELECT id FROM roles WHERE name = ?", (role_name,))
-        if not role:
-            return False, f"Role '{role_name}' not found."
-        
-        # Hash password
-        salt, pwd_hash = hash_password(password)
-        
-        # Insert user
-        db.execute("""
-            INSERT INTO users (username, full_name, email, password_hash, password_salt, role_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (username, full_name, email, pwd_hash, salt, role["id"]))
-        
-        logger.info(f"Created user: {username} ({role_name})")
-        return True, None
-    
+        try:
+            self.auth_service.create_user(username, full_name, password,
+                                          role_name, email, is_active)
+            return True, None
+        except ERPException as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("Unexpected error creating user")
+            return False, "An unexpected error occurred."
+
     def update_user(self, user_id: int, full_name: str, email: str | None,
                     role_name: str, is_active: bool) -> tuple[bool, str | None]:
         """Update a user."""
-        from database.connection import get_db
-        
-        db = get_db()
-        
-        # Get role
-        role = db.fetch_one("SELECT id FROM roles WHERE name = ?", (role_name,))
-        if not role:
-            return False, f"Role '{role_name}' not found."
-        
-        db.execute("""
-            UPDATE users 
-            SET full_name = ?, email = ?, role_id = ?, is_active = ?
-            WHERE id = ?
-        """, (full_name, email, role["id"], 1 if is_active else 0, user_id))
-        
-        logger.info(f"Updated user id={user_id}")
-        return True, None
-    
+        try:
+            self.auth_service.update_user(user_id, full_name, email,
+                                          role_name, is_active)
+            return True, None
+        except ERPException as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("Unexpected error updating user")
+            return False, "An unexpected error occurred."
+
     def reset_password(self, user_id: int, new_password: str) -> tuple[bool, str | None]:
         """Reset user password."""
-        from database.connection import get_db
-        from utils.security import hash_password
-        
-        if len(new_password) < 6:
-            return False, "Password must be at least 6 characters."
-        
-        db = get_db()
-        salt, pwd_hash = hash_password(new_password)
-        
-        db.execute("""
-            UPDATE users SET password_hash = ?, password_salt = ?
-            WHERE id = ?
-        """, (pwd_hash, salt, user_id))
-        
-        logger.info(f"Reset password for user id={user_id}")
-        return True, None
+        try:
+            self.auth_service.reset_password(user_id, new_password)
+            return True, None
+        except ERPException as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("Unexpected error resetting password")
+            return False, "An unexpected error occurred."

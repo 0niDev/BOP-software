@@ -161,9 +161,10 @@ class PartyService:
         self, 
         company_id: int = 1, 
         active_only: bool = True,
-        party_type: PartyType | str | None = None
+        party_type: PartyType | str | None = None,
+        search: str | None = None
     ) -> list[Party]:
-        """Lists parties with optional filtering."""
+        """Lists parties with optional filtering and search."""
         # Convert to string if enum
         if isinstance(party_type, PartyType):
             party_type_str = party_type.value
@@ -171,11 +172,13 @@ class PartyService:
             party_type_str = party_type
         else:
             party_type_str = None
-        
+        search = (search or "").strip() or None
+
         rows = self.repo.find_all_for_company(
             company_id, 
             active_only=active_only,
-            party_type=party_type_str
+            party_type=party_type_str,
+            search=search
         )
         return [Party.from_row(r) for r in rows]
 

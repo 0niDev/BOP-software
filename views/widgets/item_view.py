@@ -44,14 +44,16 @@ class ItemLoadThread(QThread):
     
     data_loaded = Signal(list, str)  # items, error
     
-    def __init__(self, controller, active_only=True):
+    def __init__(self, controller, active_only=True, search=None):
         super().__init__()
         self.controller = controller
         self.active_only = active_only
+        self.search = search
     
     def run(self):
         try:
-            items, error = self.controller.list_items(active_only=self.active_only)
+            items, error = self.controller.list_items(
+                active_only=self.active_only, search=self.search)
             self.data_loaded.emit(items or [], error or "")
         except Exception as e:
             logger.exception(f"Error in item load thread: {e}")
@@ -494,7 +496,9 @@ class ItemView(QWidget):
         self._stocks_loaded = False
         self._stocks_cache = {}
         
-        self._load_thread = ItemLoadThread(self.controller, active_only=True)
+        self._load_thread = ItemLoadThread(
+            self.controller, active_only=True,
+            search=self.search_input.text().strip() or None)
         self._load_thread.data_loaded.connect(self._on_items_loaded)
         self._load_thread.start()
     
@@ -645,8 +649,8 @@ class ItemView(QWidget):
         self.category_input.addItem("None", None)
 
     def _on_search_changed(self, text: str) -> None:
-        """Filters table based on search text"""
-        self._refresh_row_visibility()
+        """Reloads items from the server with the search term."""
+        self._load_items_async()
 
     def _refresh_row_visibility(self) -> None:
         """Hides/shows table rows based on type filter and search text."""

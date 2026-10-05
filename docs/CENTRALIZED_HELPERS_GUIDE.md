@@ -567,7 +567,7 @@ except Exception as e:
 ### 5. Leverage Caching
 
 All query helpers automatically cache results:
-- L1 cache: Per-repository (30s TTL)
+- L1 cache: Per-repository (120s TTL)
 - L2 cache: Session-wide (60s TTL)
 - L3 cache: Global for expensive ops (300s TTL)
 

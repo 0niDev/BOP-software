@@ -43,17 +43,19 @@ class PartyLoadThread(QThread):
     
     data_loaded = Signal(list, str)  # parties, error
     
-    def __init__(self, controller, active_only=False, party_type=None):
+    def __init__(self, controller, active_only=False, party_type=None, search=None):
         super().__init__()
         self.controller = controller
         self.active_only = active_only
         self.party_type = party_type
+        self.search = search
     
     def run(self):
         try:
             parties, error = self.controller.list_parties(
                 active_only=self.active_only,
-                party_type=self.party_type
+                party_type=self.party_type,
+                search=self.search
             )
             self.data_loaded.emit(parties or [], error or "")
         except Exception as e:
@@ -216,7 +218,8 @@ class PartyView(QWidget):
         self._load_thread = PartyLoadThread(
             self.controller, 
             active_only=False,
-            party_type=self.type_filter.currentData()
+            party_type=self.type_filter.currentData(),
+            search=self.search_input.text().strip() or None
         )
         self._load_thread.data_loaded.connect(self._on_parties_loaded)
         self._load_thread.start()
@@ -261,15 +264,8 @@ class PartyView(QWidget):
         self._clear_form()
 
     def _on_search_changed(self, text: str) -> None:
-        """Filters table based on search text"""
-        for row in range(self.table.rowCount()):
-            matches = False
-            for col in [0, 1]:  # Code and Name columns
-                item = self.table.item(row, col)
-                if item and text.lower() in item.text().lower():
-                    matches = True
-                    break
-            self.table.setRowHidden(row, not matches)
+        """Reloads parties from the server with the search term."""
+        self._load_parties_async()
 
     def _on_filter_changed(self, index: int) -> None:
         """Reloads when party type filter changes"""

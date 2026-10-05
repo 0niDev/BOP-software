@@ -1135,8 +1135,11 @@ class ReportView(QWidget):
             QMessageBox.warning(self, "Selection Error", "Please select a party.")
             return
 
+        date_from = self.pl_date_from_ledger.date().toString("yyyy-MM-dd")
+        date_to = self.pl_date_to_ledger.date().toString("yyyy-MM-dd")
+
         self._run_async(
-            lambda: self.controller.get_party_ledger(party_id),
+            lambda: self.controller.get_party_ledger(party_id, date_from, date_to),
             self._render_party_ledger,
         )
 

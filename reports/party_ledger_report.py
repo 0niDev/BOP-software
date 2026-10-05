@@ -19,13 +19,11 @@ class PartyLedgerReport(Report):
 
     def generate(self) -> dict:
         """Generate party ledger with correct balance calculation - OPTIMIZED."""
-        # ONE QUERY for party details AND opening balance
+        # ONE QUERY for party details
         party = self.db.fetch_one("""
             SELECT 
-                p.id, p.code, p.name, p.party_type, p.account_id,
-                COALESCE(a.opening_balance, 0) as opening_balance
+                p.id, p.code, p.name, p.party_type, p.account_id
             FROM parties p
-            LEFT JOIN accounts a ON a.id = p.account_id
             WHERE p.id = ?
         """, (self.party_id,))
 
@@ -36,22 +34,22 @@ class PartyLedgerReport(Report):
         is_customer = party["party_type"] in ["CUSTOMER", "BOTH"]
         is_supplier = party["party_type"] in ["SUPPLIER", "BOTH"]
 
-        # If no opening balance found, try by account code
-        opening_balance = Decimal(str(party.get("opening_balance") or 0))
-        
-        if opening_balance == 0 and party.get("account_id") is None:
-            if is_customer:
-                acc = self.db.fetch_one(
-                    "SELECT opening_balance FROM accounts WHERE account_code = '1100'"
-                )
-            elif is_supplier:
-                acc = self.db.fetch_one(
-                    "SELECT opening_balance FROM accounts WHERE account_code = '2000'"
-                )
-            else:
-                acc = None
-            if acc:
-                opening_balance = Decimal(str(acc["opening_balance"] or 0))
+        # Opening balance = this party's own pre-period OPENING vouchers - the
+        # same journal-only source TB/BS use (the accounts opening-balance
+        # column is legacy and those reports ignore it; reading it here made
+        # the report families disagree). In-range OPENING lines appear in
+        # transactions.
+        opening_balance = Decimal("0")
+        if self.date_from:
+            row = self.db.fetch_one("""
+                SELECT COALESCE(SUM(jel.debit - jel.credit), 0) AS ob
+                FROM journal_entry_lines jel
+                JOIN journal_entries je ON je.id = jel.journal_entry_id
+                WHERE jel.party_id = ? AND je.voucher_type = 'OPENING'
+                  AND je.is_posted = 1 AND je.entry_date < ?
+            """, (self.party_id, self.date_from))
+            net = Decimal(str(row["ob"] if row else 0))
+            opening_balance = net if is_customer else -net
 
         # ONE QUERY for ALL transactions
         params = [self.party_id]

@@ -1,0 +1,29 @@
+cat << 'EOF' > audit_prompt.txt
+Perform an exhaustive, end-to-end functional, chaos, and performance audit of the BOP-software system. Apply the project's active skills to maintain strict layered architecture compliance and track system state throughout the process.
+
+Execute the following testing strategy and output a comprehensive diagnostic report upon completion:
+
+1. Architecture & Map Synchronization:
+   - Index all modules, API endpoints, services, and reporting layers before making changes.
+   - Trace all data flows from database entities up to report generation endpoints.
+
+2. CRUD Chaos & Edge-Case Testing:
+   - Perform full CRUD operations across all entities (Create, Read, Update, Delete).
+   - Inject edge cases: empty strings, null values, maximum string lengths, invalid formats, duplicate entries, concurrent requests, and extreme numerical boundaries.
+   - Use custom, historical, and future leap-year dates (e.g., 1900-01-01, 2024-02-29, 2038-01-19, 2099-12-31) to test timezone handling and date calculations.
+
+3. Complete Reporting & Filtering Audit:
+   - Generate and verify every available report in the system across multiple date ranges (single-day, month-to-date, leap years, cross-fiscal-year).
+   - Test every filter parameter individually and in combination (e.g., category + date range + status + search terms).
+   - Verify report data accuracy against underlying database records down to exact totals, subtotals, and calculated metrics.
+
+4. Latency & Performance Profiling:
+   - Measure and log execution duration for every major action, database query, and report compilation.
+   - Highlight any slow endpoints, queries, or functions exceeding expected thresholds (e.g., >200ms API response or >500ms report aggregation).
+   - Identify performance bottlenecks that impact system responsiveness or cause UI/API lag.
+
+5. Deliverables & Quality Report:
+   - Provide an itemized defect log categorized by severity (Critical, Major, Minor).
+   - Include a performance summary table mapping [Endpoint/Action | Execution Time | Threshold | Status].
+   - Detail any broken filter behaviors, date calculation flaws, state leakage, or architectural rule violations.
+EOF

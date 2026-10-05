@@ -46,6 +46,7 @@ class CashBookReport(Report):
             WHERE je.is_posted = 1
             AND a.account_code IN ('1000', '1010')
             AND je.entry_date >= ? AND je.entry_date <= ?
+            AND je.voucher_type != 'OPENING'
             ORDER BY je.entry_date, je.id
         """, (date_from, date_to))
 

@@ -233,7 +233,11 @@ class BaseRepository(Generic[T]):
         set_clause = ", ".join(f"{col} = ?" for col in data.keys())
         sql = f"UPDATE {self.table_name} SET {set_clause} WHERE {self.pk_column} = ?"
         try:
-            self.db.execute(sql, tuple(data.values()) + (record_id,))
+            rowcount = self.db.execute(sql, tuple(data.values()) + (record_id,))
+            if rowcount == 0:
+                raise RecordNotFoundError(
+                    f"{self.table_name} record with id {record_id} not found."
+                )
             self._invalidate_cache()  # Clear cache after update
             invalidate_on_change(self.table_name)
         except DatabaseError:

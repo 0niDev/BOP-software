@@ -2639,7 +2639,7 @@ invoices_with_customers = invoice_repo.get_all_with_customers()
 ### Caching
 
 **Multi-level caching:**
-1. Repository-level cache (30s TTL)
+1. Repository-level cache (120s TTL)
 2. Dashboard cache (60s TTL)
 3. Account lookup cache (in AccountingService)
 

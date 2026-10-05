@@ -207,12 +207,15 @@ class ItemService:
     def list_items(
         self, 
         company_id: int = 1, 
-        active_only: bool = True
+        active_only: bool = True,
+        search: str | None = None
     ) -> list[Item]:
-        """Lists items with optional filtering"""
+        """Lists items with optional filtering and search"""
+        search = (search or "").strip() or None
         rows = self.repo.find_all_for_company(
             company_id, 
-            active_only=active_only
+            active_only=active_only,
+            search=search
         )
         return [Item.from_row(r) for r in rows]
 

@@ -75,7 +75,8 @@ class PartyController:
     def list_parties(
         self, 
         active_only: bool = True,
-        party_type: str | None = None
+        party_type: str | None = None,
+        search: str | None = None
     ) -> tuple[list[Party], str | None]:
         """Lists parties."""
         try:
@@ -90,7 +91,8 @@ class PartyController:
             
             parties = self.service.list_parties(
                 active_only=active_only, 
-                party_type=party_type_enum
+                party_type=party_type_enum,
+                search=search
             )
             return parties, None
         except ERPException as exc:

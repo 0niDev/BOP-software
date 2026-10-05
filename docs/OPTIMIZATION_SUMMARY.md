@@ -70,7 +70,7 @@ balances_data = self.db.fetch_all("""
 
 **Problem:** Repeated identical queries hit the network every time
 
-**Solution:** 30-second TTL cache for all repository reads
+**Solution:** 120-second TTL cache for all repository reads
 
 **Cached Operations:**
 - `find_by_id()`, `find_all()`, `find_by_code()`
@@ -148,9 +148,9 @@ App Exit  → Close all pooled connections
 
 ### Cache Flow
 ```
-First request for account_id=5 → Query DB → Cache result (TTL=30s)
-Request within 30s → Return cached value (0ms network)
-After 30s → Expire cache → Query DB again
+First request for account_id=5 → Query DB → Cache result (TTL=120s)
+Request within 120s → Return cached value (0ms network)
+After 120s → Expire cache → Query DB again
 Update account → Invalidate cache → Next request refreshes
 ```
 
@@ -190,7 +190,7 @@ INFO | Initialized 20 pooled connections
 ## 🎯 Next Steps (Optional Future Optimizations)
 
 If further performance is needed:
-1. Increase cache TTL from 30s to 60s for less volatile data
+1. Increase cache TTL beyond 120s for less volatile data
 2. Add lazy loading for very large account hierarchies
 3. Implement query result compression for network transfer
 4. Add prepared statement caching for repeated queries

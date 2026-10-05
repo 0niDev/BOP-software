@@ -55,7 +55,7 @@ Views (Qt GUI) → Controllers → Services → Repositories → Database
 ### 3. **Repositories** (`/repositories`)
 Extend `BaseRepository` with:
 - CRUD operations (`find_by_id`, `get_all`, `insert`, `update`, `delete`)
-- **In-memory cache** (30s TTL, clearable via `CacheManager`)
+- **In-memory cache** (120s TTL, clearable via `CacheManager`)
 - Transaction support via `db.transaction()` context manager
 
 **Key Repositories:**
@@ -284,7 +284,7 @@ atexit.register(cleanup)  # Backup + close connections
 3. **Audit Trail**: Every JE links to source document
 4. **Soft Deletes**: `is_active` flag preserves history
 5. **Multi-Tenant Ready**: `company_id` on all business tables
-6. **Caching**: Repository-level (30s) + Dashboard-level (60s)
+6. **Caching**: Repository-level (120s) + Dashboard-level (60s)
 7. **Transaction Safety**: Related writes wrapped in `db.transaction()`
 
 ---

@@ -132,7 +132,7 @@ def _load_async(self):
 - Added connection cleanup on exit
 
 ### Repository Caching
-- 30-second TTL cache on all read operations
+- 120-second TTL cache on all read operations
 - Automatic invalidation on writes
 - Cache Manager utility for global control
 

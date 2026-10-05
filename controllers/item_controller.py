@@ -101,11 +101,12 @@ class ItemController:
 
     def list_items(
         self, 
-        active_only: bool = True
+        active_only: bool = True,
+        search: str | None = None
     ) -> tuple[list[Item], str | None]:
         """Lists items"""
         try:
-            return self.service.list_items(active_only=active_only), None
+            return self.service.list_items(active_only=active_only, search=search), None
         except ERPException as exc:
             return [], str(exc)
         except Exception:

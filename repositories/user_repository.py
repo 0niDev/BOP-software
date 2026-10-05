@@ -8,8 +8,16 @@ class UserRepository(BaseRepository):
     table_name = "users"
 
     def find_by_username(self, username: str) -> dict | None:
-        sql = f"SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.username = '{username}'"
-        return self.db.fetch_one(sql)
+        return self.db.fetch_one(
+            "SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.username = ?",
+            (username,),
+        )
+
+    def find_with_role_by_id(self, user_id: int) -> dict | None:
+        return self.db.fetch_one(
+            "SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?",
+            (user_id,),
+        )
 
     def find_all_with_roles(self) -> list[dict]:
         return self.db.fetch_all(

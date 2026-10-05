@@ -1,0 +1,1899 @@
+{
+  "meta": {
+    "started_at": "2026-10-05T07:33:48.557489",
+    "python": "3.9.13",
+    "db_path": "C:\\Users\\famal\\AppData\\Local\\Temp\\bop_audit_87subfgb\\audit.db",
+    "phase1_s": 0.86,
+    "stored_dates": {
+      "AUD-DT-97156": "1900-01-01",
+      "AUD-DT-18673": "1904-02-29",
+      "AUD-DT-41076": "2000-02-29",
+      "AUD-DT-96067": "2024-02-29",
+      "AUD-DT-97211": "2026-02-28",
+      "AUD-DT-16061": "2038-01-19",
+      "AUD-DT-27884": "2099-12-31"
+    },
+    "phase2_s": 0.12,
+    "accounts_opening_balance_sum": -5000.0,
+    "phase3_s": 0.07,
+    "phase4_s": 0.01,
+    "dashboard_cached_vs_forced": {
+      "cached_keys": [
+        "alerts",
+        "balances",
+        "inventory",
+        "monthly_trend",
+        "profit_loss",
+        "receivables_payables",
+        "recent_transactions",
+        "today"
+      ],
+      "forced_keys": [
+        "alerts",
+        "balances",
+        "inventory",
+        "monthly_trend",
+        "profit_loss",
+        "receivables_payables",
+        "recent_transactions",
+        "today"
+      ]
+    },
+    "phase5_s": 0.3,
+    "scaled_journal_lines": 20094,
+    "phase6_s": 4.01,
+    "finished_at": "2026-10-05T07:33:54.609985",
+    "total_debits": 2001000256020.0,
+    "total_credits": 2001000256020.0,
+    "books_balanced": true
+  },
+  "cases": [
+    {
+      "phase": "1-chaos",
+      "name": "party: empty name rejected",
+      "result": "PASS",
+      "detail": "rejected: Party name is required.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: whitespace-only name",
+      "result": "PASS",
+      "detail": "rejected: Party name is required.",
+      "ms": 0.0
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: 100k-char name",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 6.13
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: SQL-injection name",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 5.93
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: emoji/unicode name",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 5.49
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: negative credit limit rejected",
+      "result": "PASS",
+      "detail": "rejected: Credit limit cannot be negative.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: credit limit 1e15",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 5.19
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: credit limit NaN",
+      "result": "INFO",
+      "detail": "ok=False err=NOT NULL constraint failed: parties.credit_limit | sql=INSERT INTO parties (company_id, code, name, party_type, credit_limit, account_id, phone, address, email, is_active, opening_balance, customer_category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) value=False",
+      "ms": 2.33
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: credit limit +inf",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 6.15
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: duplicate code rejected",
+      "result": "PASS",
+      "detail": "",
+      "ms": 5.93
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: duplicate code (2nd) rejected",
+      "result": "PASS",
+      "detail": "rejected: Party code 'DUPE-1' already exists.",
+      "ms": 0.29
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: duplicate NAME allowed (2nd)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 6.77
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: update nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: parties record with id=999999 not found",
+      "ms": 0.34
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: deactivate nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: parties record with id=999999 not found",
+      "ms": 0.17
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: update to empty name rejected",
+      "result": "PASS",
+      "detail": "rejected: Party name is required.",
+      "ms": 0.19
+    },
+    {
+      "phase": "1-chaos",
+      "name": "party: NULL name (None)",
+      "result": "PASS",
+      "detail": "rejected: An unexpected error occurred while creating the party.",
+      "ms": 0.04
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: empty name rejected",
+      "result": "PASS",
+      "detail": "rejected: Item name is required.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: NULL name rejected",
+      "result": "PASS",
+      "detail": "rejected: An unexpected error occurred while creating the item.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: negative purchase price rejected",
+      "result": "PASS",
+      "detail": "rejected: Purchase price cannot be negative.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: invalid unit rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid unit: PARSECS. Use TABLET, CAPSULE, ML, etc.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: min>max stock rejected",
+      "result": "PASS",
+      "detail": "rejected: Maximum stock must be >= minimum stock.",
+      "ms": 0.0
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: invalid item_type rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid item type: MAGIC",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: duplicate item_code rejected",
+      "result": "PASS",
+      "detail": "",
+      "ms": 6.48
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: duplicate item_code (2nd) rejected",
+      "result": "PASS",
+      "detail": "rejected: Item code 'DUPE-IT' already exists.",
+      "ms": 0.4
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: price 1e12 accepted",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 6.68
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: 100k-char name",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.41
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: update nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: items record with id 999999 not found.",
+      "ms": 0.33
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: opening stock qty=0 rejected",
+      "result": "PASS",
+      "detail": "rejected: Quantity must be greater than 0.",
+      "ms": 0.04
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: opening stock qty=-5 rejected",
+      "result": "PASS",
+      "detail": "rejected: Quantity must be greater than 0.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "item: opening stock qty=1e9",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 5.86
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: duplicate code rejected",
+      "result": "PASS",
+      "detail": "",
+      "ms": 5.72
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: duplicate code (2nd) rejected",
+      "result": "PASS",
+      "detail": "rejected: Account code '9999' already exists.",
+      "ms": 0.47
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: empty name rejected",
+      "result": "PASS",
+      "detail": "rejected: Account name is required.",
+      "ms": 0.04
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: invalid type rejected",
+      "result": "PASS",
+      "detail": "rejected: An unexpected error occurred while creating the account.",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: negative opening balance (asset)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 16.0
+    },
+    {
+      "phase": "1-chaos",
+      "name": "account: update nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: accounts record with id=999999 not found",
+      "ms": 0.29
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: category created",
+      "result": "PASS",
+      "detail": "None",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: category empty name rejected",
+      "result": "PASS",
+      "detail": "rejected: Category name is required.",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: amount=0 accepted?",
+      "result": "INFO",
+      "detail": "ok=False err=Amount must be greater than 0. value=False",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: negative amount rejected",
+      "result": "PASS",
+      "detail": "rejected: Amount must be greater than 0.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: invalid date format",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '15/01/2026'). value=False",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: non-existent date (2026-02-30)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '2026-02-30'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: invalid payment method rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid payment method.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: duplicate voucher number",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.77
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: amount 1e12",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.45
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: amount NaN rejected?",
+      "result": "INFO",
+      "detail": "ok=False err=NOT NULL constraint failed: expenses.amount | sql=INSERT INTO expenses (company_id, voucher_number, category_id, expense_date, amount, payment_method, bank_account_id, cheque_id, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) value=False",
+      "ms": 0.8
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: category_id=999999 rejected",
+      "result": "INFO",
+      "detail": "ok=False err=expense_categories record with id=999999 not found value=False",
+      "ms": 0.3
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: update nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: expense_categories record with id 999999 not found.",
+      "ms": 0.29
+    },
+    {
+      "phase": "1-chaos",
+      "name": "expense: delete category nonexistent rejected",
+      "result": "PASS",
+      "detail": "rejected: expense_categories record with id 999999 not found.",
+      "ms": 0.64
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: create account",
+      "result": "PASS",
+      "detail": "None",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: duplicate account_number rejected",
+      "result": "INFO",
+      "detail": "ok=False err=Bank account number 'AUD-0001' already exists. value=False",
+      "ms": 0.34
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: negative deposit rejected",
+      "result": "PASS",
+      "detail": "rejected: Amount must be greater than 0.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: withdraw 1e9 (over balance)",
+      "result": "INFO",
+      "detail": "raised: UnicodeEncodeError: 'charmap' codec can't encode character '\\U0001f3e6' in position 0: character maps to <undefined>",
+      "ms": 0.53
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: deposit amount=0",
+      "result": "INFO",
+      "detail": "ok=False err=Amount must be greater than 0. value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "bank: deposit invalid date",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.28
+    },
+    {
+      "phase": "1-chaos",
+      "name": "cheque: zero amount rejected",
+      "result": "PASS",
+      "detail": "rejected: Amount must be greater than 0.",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "cheque: negative amount rejected",
+      "result": "PASS",
+      "detail": "rejected: Amount must be greater than 0.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "cheque: duplicate cheque number",
+      "result": "PASS",
+      "detail": "",
+      "ms": 5.44
+    },
+    {
+      "phase": "1-chaos",
+      "name": "cheque: duplicate cheque number (2nd)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 4.54
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: empty invoice number rejected",
+      "result": "PASS",
+      "detail": "rejected: Invoice number is required.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: NULL customer rejected",
+      "result": "PASS",
+      "detail": "rejected: Customer is required.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: seed base invoice",
+      "result": "PASS",
+      "detail": "",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: duplicate invoice number rejected",
+      "result": "INFO",
+      "detail": "ok=False err=Invoice number 'AUD-S-BASE1' already exists. value=False",
+      "ms": 1.18
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: empty item list rejected",
+      "result": "PASS",
+      "detail": "rejected: At least one item is required.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: quantity=0 rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid quantity for item 1",
+      "ms": 0.07
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: quantity=-5 rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid quantity for item 1",
+      "ms": 0.04
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: unit_price=-1 rejected",
+      "result": "PASS",
+      "detail": "rejected: Unit price cannot be negative for item 1",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: invalid payment_type rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid payment type.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: non-numeric quantity (string)",
+      "result": "PASS",
+      "detail": "rejected: An unexpected error occurred while creating the sales invoice.",
+      "ms": 0.05
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: quantity=1e9 (over stock)",
+      "result": "PASS",
+      "detail": "rejected: Insufficient stock for Audit FG Item. Available: 499.0, Required: 1000000000.0",
+      "ms": 0.06
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: unit_price=1e12 (allowed?)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 10.64
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: discount > line total rejected",
+      "result": "PASS",
+      "detail": "rejected: Line total cannot be negative for item Audit FG Item",
+      "ms": 0.94
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: 100k-char invoice number",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 18.55
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: get nonexistent -> graceful",
+      "result": "INFO",
+      "detail": "ok=False err=Sales invoice not found. value=None",
+      "ms": 0.39
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: delete nonexistent -> graceful",
+      "result": "INFO",
+      "detail": "ok=False err=Sales invoice 999999 not found. value=False",
+      "ms": 0.21
+    },
+    {
+      "phase": "1-chaos",
+      "name": "purchase: empty invoice number rejected",
+      "result": "PASS",
+      "detail": "rejected: Invoice number is required.",
+      "ms": 0.02
+    },
+    {
+      "phase": "1-chaos",
+      "name": "purchase: invalid date 'garbage'",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got 'garbage'). value=False",
+      "ms": 0.04
+    },
+    {
+      "phase": "1-chaos",
+      "name": "purchase: duplicate invoice number (2nd)",
+      "result": "PASS",
+      "detail": "",
+      "ms": 10.82
+    },
+    {
+      "phase": "1-chaos",
+      "name": "purchase: duplicate invoice number (3rd, expect dup)",
+      "result": "PASS",
+      "detail": "",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "payment: receive amount=0 rejected?",
+      "result": "INFO",
+      "detail": "ok=False err=Amount must be greater than 0. value=False",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "payment: receive negative rejected",
+      "result": "PASS",
+      "detail": "rejected: Amount must be greater than 0.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "payment: pay supplier 1e9 (over AP)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "payment: receive invalid method rejected",
+      "result": "PASS",
+      "detail": "rejected: Invalid payment method.",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "payment: invalid date rejected/accepted",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.19
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: BOM output_quantity=0 rejected",
+      "result": "PASS",
+      "detail": "rejected: Output quantity must be greater than 0.",
+      "ms": 0.29
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: BOM negative output rejected",
+      "result": "PASS",
+      "detail": "rejected: Output quantity must be greater than 0.",
+      "ms": 0.13
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: production order planned_qty=0 rejected",
+      "result": "PASS",
+      "detail": "rejected: Planned quantity must be greater than 0.",
+      "ms": 0.03
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: production order bad date",
+      "result": "INFO",
+      "detail": "ok=False err=bill_of_materials record with id=1 not found value=False",
+      "ms": 0.2
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: duplicate order number",
+      "result": "INFO",
+      "detail": "ok=False err=bill_of_materials record with id=1 not found value=False",
+      "ms": 0.12
+    },
+    {
+      "phase": "1-chaos",
+      "name": "mfg: get nonexistent order",
+      "result": "INFO",
+      "detail": "ok=False err=production_orders record with id=999999 not found value=None",
+      "ms": 0.33
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: empty username rejected",
+      "result": "PASS",
+      "detail": "rejected: Username is required.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: empty password rejected",
+      "result": "PASS",
+      "detail": "rejected: Password is required.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: create ok",
+      "result": "PASS",
+      "detail": "",
+      "ms": 229.14
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: duplicate username rejected",
+      "result": "PASS",
+      "detail": "rejected: Username 'aud_user1' already exists.",
+      "ms": 0.28
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: invalid role rejected",
+      "result": "INFO",
+      "detail": "ok=False err=Role 'SUPERADMIN' not found. value=False",
+      "ms": 0.31
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: login wrong password",
+      "result": "PASS",
+      "detail": "rejected: Invalid username or password.",
+      "ms": 224.52
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: login unknown user",
+      "result": "PASS",
+      "detail": "rejected: Invalid username or password.",
+      "ms": 0.2
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: login with empty password account",
+      "result": "PASS",
+      "detail": "rejected: Invalid username or password.",
+      "ms": 0.11
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user: create with 1-char password",
+      "result": "PASS",
+      "detail": "rejected: Password must be at least 6 characters.",
+      "ms": 0.01
+    },
+    {
+      "phase": "1-chaos",
+      "name": "user management SQL lives in repository layer",
+      "result": "PASS",
+      "detail": "controller/view delegate to AuthService",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "settings: set/get/delete roundtrip",
+      "result": "PASS",
+      "detail": "",
+      "ms": 9.79
+    },
+    {
+      "phase": "1-chaos",
+      "name": "settings: dict value handling",
+      "result": "INFO",
+      "detail": "roundtrip ok",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "concurrency: 10x duplicate-code party create",
+      "result": "PASS",
+      "detail": "successes=1",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "concurrency: 10x voucher-number generation unique",
+      "result": "PASS",
+      "detail": "10 unique",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "concurrency: 6x duplicate invoice_number create",
+      "result": "PASS",
+      "detail": "successes=1, rows=1",
+      "ms": null
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: delete existing invoice",
+      "result": "PASS",
+      "detail": "",
+      "ms": 8.32
+    },
+    {
+      "phase": "1-chaos",
+      "name": "sales: delete same invoice twice",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.73
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='1900-01-01' (historical)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.71
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='1900-01-01' (historical)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.71
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='1900-02-29' (non-leap 1900 (invalid))",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '1900-02-29'). value=False",
+      "ms": 0.03
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='1900-02-29' (non-leap 1900 (invalid))",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '1900-02-29'). value=False",
+      "ms": 0.02
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='1904-02-29' (leap 1904)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.7
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='1904-02-29' (leap 1904)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.23
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2000-02-29' (leap 2000 (divisible by 400))",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.1
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2000-02-29' (leap 2000 (divisible by 400))",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.13
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2024-02-29' (leap 2024)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.09
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2024-02-29' (leap 2024)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.6
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2026-02-28' (non-leap 2026)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 8.88
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2026-02-28' (non-leap 2026)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 6.72
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2038-01-19' (int32 overflow boundary)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 9.03
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2038-01-19' (int32 overflow boundary)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.87
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2099-12-31' (far future)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 10.32
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2099-12-31' (far future)",
+      "result": "INFO",
+      "detail": "ok=True err=None value=True",
+      "ms": 7.93
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2100-02-29' (non-leap 2100 (invalid))",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '2100-02-29'). value=False",
+      "ms": 0.03
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2100-02-29' (non-leap 2100 (invalid))",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '2100-02-29'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2026-1-5' (non-zero-padded)",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '2026-1-5'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2026-1-5' (non-zero-padded)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '2026-1-5'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='05/01/2026' (US format)",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '05/01/2026'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='05/01/2026' (US format)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '05/01/2026'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2026-01-05T23:30:00-05:00' (ISO w/ tz offset)",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '2026-01-05T23:30:00-05:00'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2026-01-05T23:30:00-05:00' (ISO w/ tz offset)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '2026-01-05T23:30:00-05:00'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='2026-01-05T23:30:00' (ISO datetime)",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got '2026-01-05T23:30:00'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='2026-01-05T23:30:00' (ISO datetime)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got '2026-01-05T23:30:00'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='not-a-date' (garbage)",
+      "result": "INFO",
+      "detail": "ok=False err=invoice_date must be a valid date in YYYY-MM-DD format (got 'not-a-date'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='not-a-date' (garbage)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date must be a valid date in YYYY-MM-DD format (got 'not-a-date'). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "sales invoice_date='' (empty)",
+      "result": "INFO",
+      "detail": "ok=False err=Invoice date is required. value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "expense_date='' (empty)",
+      "result": "INFO",
+      "detail": "ok=False err=expense_date is required (YYYY-MM-DD). value=False",
+      "ms": 0.01
+    },
+    {
+      "phase": "2-dates",
+      "name": "service-level date validation",
+      "result": "PASS",
+      "detail": "all invalid/empty dates rejected at the service layer",
+      "ms": null
+    },
+    {
+      "phase": "2-dates",
+      "name": "filters: reversed date range (from>to) on list_expenses",
+      "result": "INFO",
+      "detail": "ok=True err=None value=[]",
+      "ms": 0.45
+    },
+    {
+      "phase": "2-dates",
+      "name": "leap day 2024-02-29 entries present",
+      "result": "INFO",
+      "detail": "2",
+      "ms": null
+    }
+  ],
+  "report_checks": [
+    {
+      "check": "TrialBalance 1900-01-01..1900-01-01",
+      "result": "PASS",
+      "detail": "rows=10 dr=155050.0 cr=155050.0",
+      "ms": 2.34
+    },
+    {
+      "check": "TrialBalance 2024-02-01..2024-02-29",
+      "result": "PASS",
+      "detail": "rows=10 dr=155200.0 cr=155200.0",
+      "ms": 2.15
+    },
+    {
+      "check": "TrialBalance 2024-06-15..2025-01-15",
+      "result": "PASS",
+      "detail": "rows=10 dr=155200.0 cr=155200.0",
+      "ms": 2.17
+    },
+    {
+      "check": "TrialBalance 2024-07-01..2025-06-30",
+      "result": "PASS",
+      "detail": "rows=10 dr=155200.0 cr=155200.0",
+      "ms": 2.29
+    },
+    {
+      "check": "TrialBalance 2026-10-05..2026-10-05",
+      "result": "PASS",
+      "detail": "rows=10 dr=2001000155730.0 cr=2001000155730.0",
+      "ms": 2.45
+    },
+    {
+      "check": "TrialBalance 2038-01-19..2038-01-19",
+      "result": "PASS",
+      "detail": "rows=10 dr=2001000155790.0 cr=2001000155790.0",
+      "ms": 2.61
+    },
+    {
+      "check": "TrialBalance 2099-12-31..2099-12-31",
+      "result": "PASS",
+      "detail": "rows=10 dr=2001000155840.0 cr=2001000155840.0",
+      "ms": 2.52
+    },
+    {
+      "check": "TrialBalance 2025-01-01..2024-01-01",
+      "result": "PASS",
+      "detail": "rows=10 dr=155200.0 cr=155200.0",
+      "ms": 2.07
+    },
+    {
+      "check": "TrialBalance 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "rows=10 dr=2001000155490.0 cr=2001000155490.0",
+      "ms": 1.82
+    },
+    {
+      "check": "ProfitLoss 1900-01-01..1900-01-01",
+      "result": "PASS",
+      "detail": "net: report=-20.0 expected=-20.0; sales: report=15.0 expected=15.0",
+      "ms": 0.67
+    },
+    {
+      "check": "ProfitLoss 2024-02-01..2024-02-29",
+      "result": "PASS",
+      "detail": "net: report=-20.0 expected=-20.0; sales: report=15.0 expected=15.0",
+      "ms": 0.5
+    },
+    {
+      "check": "ProfitLoss 2024-06-15..2025-01-15",
+      "result": "PASS",
+      "detail": "net: report=0.0 expected=0.0; sales: report=0.0 expected=0.0",
+      "ms": 0.4
+    },
+    {
+      "check": "ProfitLoss 2024-07-01..2025-06-30",
+      "result": "PASS",
+      "detail": "net: report=0.0 expected=0.0; sales: report=0.0 expected=0.0",
+      "ms": 0.23
+    },
+    {
+      "check": "ProfitLoss 2026-10-05..2026-10-05",
+      "result": "PASS",
+      "detail": "net: report=0.0 expected=0.0; sales: report=0.0 expected=0.0",
+      "ms": 0.2
+    },
+    {
+      "check": "ProfitLoss 2038-01-19..2038-01-19",
+      "result": "PASS",
+      "detail": "net: report=-20.0 expected=-20.0; sales: report=15.0 expected=15.0",
+      "ms": 0.25
+    },
+    {
+      "check": "ProfitLoss 2099-12-31..2099-12-31",
+      "result": "PASS",
+      "detail": "net: report=-20.0 expected=-20.0; sales: report=15.0 expected=15.0",
+      "ms": 0.24
+    },
+    {
+      "check": "ProfitLoss 2025-01-01..2024-01-01",
+      "result": "PASS",
+      "detail": "net: report=0.0 expected=0.0; sales: report=0.0 expected=0.0",
+      "ms": 0.2
+    },
+    {
+      "check": "ProfitLoss 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "net: report=-140.0 expected=-140.0; sales: report=1000000000205.0 expected=1000000000205.0",
+      "ms": 0.21
+    },
+    {
+      "check": "BalanceSheet as-at 2024-06-30",
+      "result": "PASS",
+      "detail": "assets report=144920.0 expected=144920.0; L+E report=144920.0 expected=144920.0; balanced=True",
+      "ms": 0.79
+    },
+    {
+      "check": "BalanceSheet as-at 2024-12-31",
+      "result": "PASS",
+      "detail": "assets report=144920.0 expected=144920.0; L+E report=144920.0 expected=144920.0; balanced=True",
+      "ms": 0.56
+    },
+    {
+      "check": "BalanceSheet as-at 2026-10-05",
+      "result": "PASS",
+      "detail": "assets report=-999855050.0 expected=-999855050.0; L+E report=-999855050.0 expected=-999855050.0; balanced=True",
+      "ms": 0.75
+    },
+    {
+      "check": "BalanceSheet as-at 2099-12-31",
+      "result": "PASS",
+      "detail": "assets report=-999855090.0 expected=-999855090.0; L+E report=-999855090.0 expected=-999855090.0; balanced=True",
+      "ms": 1.37
+    },
+    {
+      "check": "CashBook 2024-07-01..2025-06-30",
+      "result": "PASS",
+      "detail": "open=99980.0 (report convention); in 0.0/0; out 0.0/0; close 99980.0/99980.0",
+      "ms": 0.77
+    },
+    {
+      "check": "CashBook 2026-10-05..2026-10-05",
+      "result": "PASS",
+      "detail": "open=-1000999900025.0 (report convention); in 0.0/0; out 0.0/0; close -1000999900025.0/-1000999900025.0; OPENING rows in range=100000.0",
+      "ms": 0.69
+    },
+    {
+      "check": "CashBook 2038-01-19..2038-01-19",
+      "result": "PASS",
+      "detail": "open=-1000999900025.0 (report convention); in 0.0/0; out 5.0/5.0; close -1000999900030.0/-1000999900030.0",
+      "ms": 0.73
+    },
+    {
+      "check": "CashBook 2099-12-31..2099-12-31",
+      "result": "PASS",
+      "detail": "open=-1000999900030.0 (report convention); in 0.0/0; out 5.0/5.0; close -1000999900035.0/-1000999900035.0",
+      "ms": 0.71
+    },
+    {
+      "check": "CashBook 2025-01-01..2024-01-01",
+      "result": "PASS",
+      "detail": "open=99980.0 (report convention); in 0.0/0; out 0.0/0; close 99980.0/99980.0",
+      "ms": 0.63
+    },
+    {
+      "check": "CashBook 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "open=100000.0 (report convention); in 20.0/20.0; out 1001000000055.0/1001000000055.0; close -1000999900035.0/-1000999900035.0; OPENING rows in range=100000.0",
+      "ms": 0.96
+    },
+    {
+      "check": "PartyLedger #1 (CUSTOMER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=1000000000255.0/1000000000255.0 cr=60.0/60.0 close=1000000000195.0/1000000000195.0",
+      "ms": 1.17
+    },
+    {
+      "check": "PartyLedger #1 (CUSTOMER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=15.0/15.0 cr=0.0/0 close=15.0/15.0",
+      "ms": 0.88
+    },
+    {
+      "check": "PartyLedger #2 (SUPPLIER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=1000000000.0/1000000000.0 cr=50050.0/50050.0 close=-999949950.0/-999949950.0",
+      "ms": 0.96
+    },
+    {
+      "check": "PartyLedger #2 (SUPPLIER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.83
+    },
+    {
+      "check": "PartyLedger #3 (CUSTOMER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.91
+    },
+    {
+      "check": "PartyLedger #3 (CUSTOMER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 1.42
+    },
+    {
+      "check": "PartyLedger #4 (CUSTOMER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.59
+    },
+    {
+      "check": "PartyLedger #4 (CUSTOMER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.57
+    },
+    {
+      "check": "PartyLedger #5 (CUSTOMER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.66
+    },
+    {
+      "check": "PartyLedger #5 (CUSTOMER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.56
+    },
+    {
+      "check": "PartyLedger #6 (CUSTOMER) 1900-01-01..2099-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.69
+    },
+    {
+      "check": "PartyLedger #6 (CUSTOMER) 2024-01-01..2024-12-31",
+      "result": "PASS",
+      "detail": "dr=0.0/0 cr=0.0/0 close=0.0/0.0",
+      "ms": 0.5
+    },
+    {
+      "check": "controller TB (no range)",
+      "result": "PASS",
+      "detail": "",
+      "ms": 1.74
+    },
+    {
+      "check": "controller TB (range)",
+      "result": "PASS",
+      "detail": "",
+      "ms": 1.47
+    },
+    {
+      "check": "controller P&L",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.25
+    },
+    {
+      "check": "controller Balance sheet",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.65
+    },
+    {
+      "check": "controller Cash book",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.57
+    },
+    {
+      "check": "controller Party ledger",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.73
+    },
+    {
+      "check": "controller Party ledger nonexistent",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.14
+    },
+    {
+      "check": "controller TB reversed range",
+      "result": "PASS",
+      "detail": "",
+      "ms": 1.36
+    },
+    {
+      "check": "controller P&L reversed range",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.3
+    },
+    {
+      "check": "controller P&L garbage dates",
+      "result": "PASS",
+      "detail": "",
+      "ms": 0.21
+    },
+    {
+      "check": "controller Cash book garbage dates",
+      "result": "PASS",
+      "detail": "",
+      "ms": 1.02
+    },
+    {
+      "check": "controller Balance sheet garbage date",
+      "result": "PASS",
+      "detail": "",
+      "ms": 1.23
+    },
+    {
+      "check": "HierarchicalTrialBalance.generate",
+      "result": "PASS",
+      "detail": "keys=['title', 'period_label', 'generated_at', 'rows', 'total_odr', 'total_ocr']",
+      "ms": 1.22
+    },
+    {
+      "check": "PharmaProTrialBalance.generate",
+      "result": "PASS",
+      "detail": "keys=['title', 'period_label', 'generated_at', 'rows', 'total_odr', 'total_ocr']",
+      "ms": 2.22
+    },
+    {
+      "check": "exact_pharmapro.generate_exact_report",
+      "result": "PASS",
+      "detail": "rows=? (writes 60 lines to stdout)",
+      "ms": null
+    },
+    {
+      "check": "party ledger date filter wiring",
+      "result": "PASS",
+      "detail": "params=True view_passes=True dead_removed=True full_txns=15 window1950_txns=0",
+      "ms": null
+    },
+    {
+      "check": "party ledger opening is party-specific (no control-account fallback)",
+      "result": "PASS",
+      "detail": "opening from party's own account/OPENING vouchers only",
+      "ms": null
+    },
+    {
+      "check": "party ledger opening sourced from journal (consistent with TB/BS)",
+      "result": "PASS",
+      "detail": "journal-only opening, matches TB/BS",
+      "ms": null
+    }
+  ],
+  "filter_checks": [
+    {
+      "check": "expenses: date range only",
+      "result": "PASS",
+      "detail": "got=9 expected=9 missing=[] extra=[]",
+      "ms": 0.4
+    },
+    {
+      "check": "expenses: single-day range",
+      "result": "PASS",
+      "detail": "got=1 expected=1 missing=[] extra=[]",
+      "ms": 0.18
+    },
+    {
+      "check": "expenses: category only",
+      "result": "PASS",
+      "detail": "got=9 expected=9 missing=[] extra=[]",
+      "ms": 0.29
+    },
+    {
+      "check": "expenses: category + date range",
+      "result": "PASS",
+      "detail": "got=9 expected=9 missing=[] extra=[]",
+      "ms": 0.3
+    },
+    {
+      "check": "expenses: empty range (all)",
+      "result": "PASS",
+      "detail": "got=9 expected=9 missing=[] extra=[]",
+      "ms": 0.28
+    },
+    {
+      "check": "expenses: reversed range",
+      "result": "PASS",
+      "detail": "got=0 expected=0 missing=[] extra=[]",
+      "ms": 0.14
+    },
+    {
+      "check": "expenses: far-future range",
+      "result": "PASS",
+      "detail": "got=1 expected=1 missing=[] extra=[]",
+      "ms": 0.13
+    },
+    {
+      "check": "expenses: empty date_to rejected or strict",
+      "result": "PASS",
+      "detail": "rejected: date_to is required (YYYY-MM-DD).",
+      "ms": 0.01
+    },
+    {
+      "check": "sales status=CANCELLED",
+      "result": "PASS",
+      "detail": "got=1 expected=1",
+      "ms": 0.43
+    },
+    {
+      "check": "sales status=CONFIRMED",
+      "result": "PASS",
+      "detail": "got=10 expected=10",
+      "ms": 0.65
+    },
+    {
+      "check": "sales status=<invalid>",
+      "result": "PASS",
+      "detail": "returned 0 rows for invalid status",
+      "ms": 0.19
+    },
+    {
+      "check": "parties active_only=True type=None",
+      "result": "PASS",
+      "detail": "got=10 expected=10",
+      "ms": 0.36
+    },
+    {
+      "check": "parties active_only=True type=CUSTOMER",
+      "result": "PASS",
+      "detail": "got=9 expected=9",
+      "ms": 0.6
+    },
+    {
+      "check": "parties active_only=True type=SUPPLIER",
+      "result": "PASS",
+      "detail": "got=1 expected=1",
+      "ms": 0.33
+    },
+    {
+      "check": "parties active_only=True type=BOTH",
+      "result": "PASS",
+      "detail": "got=0 expected=0",
+      "ms": 0.14
+    },
+    {
+      "check": "parties active_only=True type=INVALID",
+      "result": "PASS",
+      "detail": "got=0 rows for invalid type (expect 0)",
+      "ms": 0.13
+    },
+    {
+      "check": "parties active_only=False type=None",
+      "result": "PASS",
+      "detail": "got=10 expected=10",
+      "ms": 0.35
+    },
+    {
+      "check": "parties active_only=False type=CUSTOMER",
+      "result": "PASS",
+      "detail": "got=9 expected=9",
+      "ms": 0.39
+    },
+    {
+      "check": "parties active_only=False type=SUPPLIER",
+      "result": "PASS",
+      "detail": "got=1 expected=1",
+      "ms": 0.15
+    },
+    {
+      "check": "parties active_only=False type=BOTH",
+      "result": "PASS",
+      "detail": "got=0 expected=0",
+      "ms": 0.11
+    },
+    {
+      "check": "parties active_only=False type=INVALID",
+      "result": "PASS",
+      "detail": "got=0 rows for invalid type (expect 0)",
+      "ms": 0.13
+    },
+    {
+      "check": "items active_only=True",
+      "result": "PASS",
+      "detail": "got=5 expected=5",
+      "ms": 0.31
+    },
+    {
+      "check": "items active_only=False",
+      "result": "PASS",
+      "detail": "got=5 expected=5",
+      "ms": 0.28
+    },
+    {
+      "check": "cheques status=UNCLEARED",
+      "result": "PASS",
+      "detail": "got=2 expected=2",
+      "ms": 0.17
+    },
+    {
+      "check": "production orders status=DRAFT",
+      "result": "PASS",
+      "detail": "got=0 expected=0",
+      "ms": 0.18
+    },
+    {
+      "check": "search term filter (service layer)",
+      "result": "PASS",
+      "detail": "parties[term='CONC-1' hits=1/10 miss=0 like_sql=True err=None] items[term='DUPE-IT' hits=1/5 miss=0 like_sql=True err=None]",
+      "ms": null
+    }
+  ],
+  "state_checks": [
+    {
+      "check": "stock caches fresh after purchase into existing batch (raw SQL path)",
+      "result": "PASS",
+      "detail": "create_ok=True err=None before=490.0 truth=497.0 find_by_id=497.0 find_by_item_and_warehouse=497.0",
+      "ms": null
+    },
+    {
+      "check": "find_by_id per-row cache fresh after sale",
+      "result": "PASS",
+      "detail": "batches=3 create_ok=True err=None all fresh",
+      "ms": null
+    },
+    {
+      "check": "dashboard force_refresh reflects latest data",
+      "result": "PASS",
+      "detail": "cached_ms=0.0 forced_ms=2.6",
+      "ms": null
+    },
+    {
+      "check": "dashboard non-forced read is intentionally stale",
+      "result": "PASS",
+      "detail": "cached dashboard data does not auto-invalidate on new invoices (documented 60s TTL); UI must call refresh_dashboard_data.",
+      "ms": null
+    },
+    {
+      "check": "party list fresh after create (write-through invalidation)",
+      "result": "PASS",
+      "detail": "found=1 err=None",
+      "ms": null
+    },
+    {
+      "check": "logout clears current_user",
+      "result": "PASS",
+      "detail": "current_user after logout=None",
+      "ms": null
+    },
+    {
+      "check": "repository cache TTL matches documentation",
+      "result": "PASS",
+      "detail": "_cache_ttl=120s; docs still claiming 30s: none",
+      "ms": null
+    }
+  ],
+  "perf": [
+    {
+      "action": "startup migrations (cold)",
+      "ms": 270.57,
+      "threshold_ms": 3000,
+      "kind": "startup",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:TB (no range)",
+      "ms": 1.74,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:TB (range)",
+      "ms": 1.47,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:P&L",
+      "ms": 0.25,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Balance sheet",
+      "ms": 0.65,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Cash book",
+      "ms": 0.57,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Party ledger",
+      "ms": 0.73,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Party ledger nonexistent",
+      "ms": 0.14,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:TB reversed range",
+      "ms": 1.36,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:P&L reversed range",
+      "ms": 0.3,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:P&L garbage dates",
+      "ms": 0.21,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Cash book garbage dates",
+      "ms": 1.02,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report:Balance sheet garbage date",
+      "ms": 1.23,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "dashboard: cold get_dashboard_data",
+      "ms": 2.77,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "dashboard: cached read after new invoice",
+      "ms": 0.01,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "dashboard: force_refresh after new invoice",
+      "ms": 2.64,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "auth.login",
+      "ms": 191.29,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "party.list (warm)",
+      "ms": 0.29,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "item.list (warm)",
+      "ms": 0.24,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "sales.list (warm)",
+      "ms": 1.02,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "purchase.list (warm)",
+      "ms": 0.72,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "expense.list (warm)",
+      "ms": 0.19,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "account.list (warm)",
+      "ms": 0.01,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "dashboard.get (cached)",
+      "ms": 0.0,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "dashboard.refresh (force)",
+      "ms": 0.0,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.trial_balance (range)",
+      "ms": 1.48,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.trial_balance (all history)",
+      "ms": 1.51,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.profit_loss",
+      "ms": 0.2,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.balance_sheet",
+      "ms": 0.82,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.cash_book",
+      "ms": 0.54,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "report.party_ledger",
+      "ms": 1.27,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "seed 10000 journal entries (2 lines each)",
+      "ms": 1766.67,
+      "threshold_ms": 60000,
+      "kind": "seed",
+      "error": null,
+      "status": "INFO"
+    },
+    {
+      "action": "SCALED report.trial_balance",
+      "ms": 46.97,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED report.profit_loss",
+      "ms": 5.84,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED report.balance_sheet",
+      "ms": 233.9,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED report.cash_book",
+      "ms": 152.19,
+      "threshold_ms": 500.0,
+      "kind": "report",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED dashboard.refresh",
+      "ms": 0.01,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED party.list",
+      "ms": 0.34,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    },
+    {
+      "action": "SCALED sales.list (1000 invoices)",
+      "ms": 27.16,
+      "threshold_ms": 200.0,
+      "kind": "api",
+      "error": null,
+      "status": "PASS"
+    }
+  ],
+  "defects": []
+}

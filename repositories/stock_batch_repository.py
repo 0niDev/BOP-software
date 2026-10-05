@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from repositories.base_repository import BaseRepository
+from utils.cache_manager import invalidate_on_change
 
 
 class StockBatchRepository(BaseRepository):
@@ -111,7 +112,7 @@ class StockBatchRepository(BaseRepository):
             """,
             (quantity, round(new_purchase, 6), round(new_raw, 6), round(new_packing, 6), batch_id),
         )
-        self._invalidate_cache(pattern=f"stock_batches:find_by_item_and_warehouse")
+        invalidate_on_change(self.table_name)
 
     def update_quantity(self, batch_id: int, quantity_change: float, use_cache: bool = True) -> None:
         """Update batch quantity (positive or negative)."""
@@ -125,8 +126,8 @@ class StockBatchRepository(BaseRepository):
         )
         # Only invalidate cache if explicitly requested (to avoid redundant cache clearing in batch operations)
         if use_cache:
-            # Invalidate only the specific batch cache, not all cache
-            self._invalidate_cache(pattern=f"stock_batches:find_by_item_and_warehouse")
+            # Clear every cached read for this table (find_by_id, find_by_item_and_warehouse, ...)
+            invalidate_on_change(self.table_name)
 
     def get_expiring_batches(self, days_threshold: int = 30) -> list[dict]:
         """Get batches expiring within the threshold."""

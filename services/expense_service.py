@@ -12,6 +12,7 @@ from repositories.account_repository import AccountRepository
 # REMOVE: from repositories.bank_account_repository import BankAccountRepository
 from services.accounting_service import AccountingService, JournalLine
 from utils.exceptions import ValidationError
+from utils.dates import parse_date
 from utils.logger import get_logger
 from utils.activity_logger import log_expense_created
 
@@ -118,6 +119,7 @@ class ExpenseService:
             raise ValidationError("Amount must be greater than 0.")
         if payment_method not in ["CASH", "BANK", "CHEQUE"]:
             raise ValidationError("Invalid payment method.")
+        expense_date = parse_date(expense_date, "expense_date")
 
         # Validate category
         category = self.get_category(category_id)
@@ -227,6 +229,10 @@ class ExpenseService:
         category_id: int | None = None,
     ) -> list[dict]:
         """List expenses with filters."""
+        if date_from is not None:
+            date_from = parse_date(date_from, "date_from")
+        if date_to is not None:
+            date_to = parse_date(date_to, "date_to")
         return self.expense_repo.find_all_for_company(
             company_id,
             date_from,
@@ -247,6 +253,7 @@ class ExpenseService:
         description: str | None = None,
     ) -> None:
         """Update expense with journal reversal."""
+        expense_date = parse_date(expense_date, "expense_date")
         self.expense_repo.update(
             expense_id,
             {

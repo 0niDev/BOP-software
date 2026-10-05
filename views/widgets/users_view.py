@@ -21,10 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from controllers.auth_controller import AuthController
-from database.connection import get_db
 from models.user import User, UserRole
 from utils.help_utils import create_help_button
-from utils.security import hash_password
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -130,7 +128,7 @@ class UsersView(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.db = get_db()
+        self.controller = AuthController()
         self._selected_user_id: int | None = None
         self._build_ui()
         self._load_users()
@@ -205,12 +203,7 @@ class UsersView(QWidget):
 
     def _load_users(self):
         """Load users into table."""
-        users = self.db.fetch_all("""
-            SELECT u.*, r.name as role_name
-            FROM users u
-            JOIN roles r ON r.id = u.role_id
-            ORDER BY u.username
-        """)
+        users = self.controller.get_all_users()
 
         self.table.setRowCount(len(users))
         self.table.setColumnCount(5)
@@ -246,7 +239,7 @@ class UsersView(QWidget):
         if not username_item:
             return
         
-        users = self.db.fetch_all("SELECT id, username FROM users")
+        users = self.controller.get_all_users()
         for u in users:
             if u["username"] == username_item.text():
                 self._selected_user_id = u["id"]
@@ -257,7 +250,7 @@ class UsersView(QWidget):
 
     def _get_user(self, user_id: int) -> dict | None:
         """Get user by ID."""
-        return self.db.fetch_one("SELECT * FROM users WHERE id = ?", (user_id,))
+        return self.controller.get_user(user_id)
 
     def _on_add_user(self):
         """Add new user."""
@@ -273,36 +266,17 @@ class UsersView(QWidget):
                 QMessageBox.warning(self, "Input Error", "Password must be at least 6 characters.")
                 return
             
-            # Check if username exists
-            existing = self.db.fetch_one(
-                "SELECT id FROM users WHERE username = ?", (data["username"],)
+            ok, err = self.controller.create_user(
+                username=data["username"],
+                full_name=data["full_name"],
+                password=data["password"],
+                role_name=data["role"],
+                email=data["email"],
+                is_active=data["is_active"],
             )
-            if existing:
-                QMessageBox.warning(self, "Error", f"Username '{data['username']}' already exists.")
+            if not ok:
+                QMessageBox.warning(self, "Error", err)
                 return
-            
-            # Get role ID
-            role = self.db.fetch_one("SELECT id FROM roles WHERE name = ?", (data["role"],))
-            if not role:
-                QMessageBox.warning(self, "Error", "Role not found.")
-                return
-            
-            # Hash password
-            salt, pwd_hash = hash_password(data["password"])
-            
-            # Insert user
-            self.db.execute("""
-                INSERT INTO users (username, full_name, email, password_hash, password_salt, role_id, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data["username"],
-                data["full_name"],
-                data["email"],
-                pwd_hash,
-                salt,
-                role["id"],
-                1 if data["is_active"] else 0,
-            ))
             
             self._load_users()
             QMessageBox.information(self, "Success", f"User '{data['username']}' created successfully!")
@@ -316,15 +290,12 @@ class UsersView(QWidget):
         if not user_data:
             return
         
-        # Get role name
-        role = self.db.fetch_one("SELECT name FROM roles WHERE id = ?", (user_data["role_id"],))
-        
         user = User(
             id=user_data["id"],
             username=user_data["username"],
             full_name=user_data["full_name"],
             role_id=user_data["role_id"],
-            role_name=role["name"] if role else None,
+            role_name=user_data.get("role_name"),
             email=user_data["email"],
             is_active=bool(user_data["is_active"]),
             last_login_at=user_data.get("last_login_at"),
@@ -338,31 +309,17 @@ class UsersView(QWidget):
                 QMessageBox.warning(self, "Input Error", "Full Name is required.")
                 return
             
-            # Get role ID
-            role = self.db.fetch_one("SELECT id FROM roles WHERE name = ?", (data["role"],))
-            if not role:
-                QMessageBox.warning(self, "Error", "Role not found.")
+            ok, err = self.controller.update_user(
+                self._selected_user_id,
+                data["full_name"],
+                data["email"],
+                data["role"],
+                data["is_active"],
+                password=data["password"] or None,
+            )
+            if not ok:
+                QMessageBox.warning(self, "Error", err)
                 return
-            
-            # Update user
-            update_data = {
-                "full_name": data["full_name"],
-                "email": data["email"],
-                "role_id": role["id"],
-                "is_active": 1 if data["is_active"] else 0,
-            }
-            
-            # Update password if provided
-            if data["password"] and len(data["password"]) >= 6:
-                salt, pwd_hash = hash_password(data["password"])
-                update_data["password_hash"] = pwd_hash
-                update_data["password_salt"] = salt
-            
-            # Build SQL
-            set_clause = ", ".join([f"{k} = ?" for k in update_data.keys()])
-            values = list(update_data.values()) + [self._selected_user_id]
-            
-            self.db.execute(f"UPDATE users SET {set_clause} WHERE id = ?", tuple(values))
             
             self._load_users()
             QMessageBox.information(self, "Success", f"User '{user.username}' updated successfully!")
@@ -386,15 +343,10 @@ class UsersView(QWidget):
         )
         
         if ok and password:
-            if len(password) < 6:
-                QMessageBox.warning(self, "Error", "Password must be at least 6 characters.")
+            ok2, err = self.controller.reset_password(self._selected_user_id, password)
+            if not ok2:
+                QMessageBox.warning(self, "Error", err)
                 return
-            
-            salt, pwd_hash = hash_password(password)
-            self.db.execute(
-                "UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?",
-                (pwd_hash, salt, self._selected_user_id)
-            )
             
             QMessageBox.information(self, "Success", f"Password reset for '{user['username']}'!")
 
@@ -421,11 +373,17 @@ class UsersView(QWidget):
         )
         
         if reply == QMessageBox.Yes:
-            new_status = 0 if user["is_active"] else 1
-            self.db.execute(
-                "UPDATE users SET is_active = ? WHERE id = ?",
-                (new_status, self._selected_user_id)
+            new_status = not user["is_active"]
+            ok, err = self.controller.update_user(
+                self._selected_user_id,
+                user["full_name"],
+                user["email"],
+                user["role_name"],
+                new_status,
             )
+            if not ok:
+                QMessageBox.warning(self, "Error", err)
+                return
             self._load_users()
             status = "activated" if new_status else "deactivated"
             QMessageBox.information(self, "Success", f"User '{user['username']}' {status}!")

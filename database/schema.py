@@ -167,6 +167,7 @@ SCHEMA_STATEMENTS: list[str] = [
     # New indexes for hosted database performance - Journal Entry Lines
     """
     CREATE INDEX IF NOT EXISTS idx_jel_account_je ON journal_entry_lines(account_id, journal_entry_id);
+    CREATE INDEX IF NOT EXISTS idx_jel_je ON journal_entry_lines(journal_entry_id);
     """,
     # ------------------------------------------------------------------
     # Parties (Customers / Suppliers share one physical table)

@@ -14,7 +14,7 @@ This document summarizes the comprehensive optimization rebuild of the BOP Pharm
 
 #### L1 Cache (Instance-Level)
 - **Purpose:** Fastest cache for per-repository instance data
-- **TTL:** 30 seconds (configurable)
+- **TTL:** 120 seconds
 - **Implementation:** Dictionary-based with timestamp validation
 - **Methods:** `_get_cached()`, `_set_cached()`
 
@@ -317,7 +317,7 @@ def load_complex_data(self):
 ### Cache Invalidation
 - Cache is automatically invalidated on INSERT/UPDATE/DELETE
 - For bulk operations, manually call `CacheManager.invalidate_table('table_name')`
-- Short TTL (30s) ensures stale data is quickly refreshed
+- Short TTL (120s) ensures stale data is quickly refreshed
 
 ### Memory Management
 - L1 cache: Per-instance, cleared on repository destruction
