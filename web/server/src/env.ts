@@ -42,6 +42,19 @@ function readEngine(): DbEngine {
   return raw === "sqlitecloud" ? "sqlitecloud" : "local";
 }
 
+/** Backup directory (mirrors the Python app's `backups/` folder). */
+const backupDir = path.resolve(webRoot, process.env.ERP_BACKUP_DIR ?? "backups");
+
+/**
+ * Auto-backup interval in hours. 0 (the default) disables the scheduler; the
+ * Python app defaulted to every 24 hours, so set ERP_AUTO_BACKUP_HOURS=24 to
+ * match it. Kept opt-in so a dev machine does not start writing snapshots.
+ */
+function readAutoBackupHours(): number {
+  const raw = Number(process.env.ERP_AUTO_BACKUP_HOURS ?? 0);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+}
+
 export const env = {
   dbEngine: readEngine(),
   localDbPath: path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite"),
@@ -50,6 +63,8 @@ export const env = {
   companyId: Number(process.env.ERP_COMPANY_ID ?? 1),
   warehouseId: Number(process.env.ERP_WAREHOUSE_ID ?? 1),
   currency: process.env.ERP_CURRENCY ?? "PKR",
+  backupDir,
+  autoBackupHours: readAutoBackupHours(),
 } as const;
 
 export { serverRoot, webRoot };

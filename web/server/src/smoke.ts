@@ -44,7 +44,10 @@ async function main(): Promise<void> {
 
   const db = getDb();
   const ids = await seedDemoData(db);
-  const app = createApp(db, env.companyId);
+  // Snapshots go to a throwaway directory so the smoke run never litters
+  // web/backups.
+  const backupDir = path.resolve(process.cwd(), "data", `smoke-backups-${process.pid}`);
+  const app = createApp(db, env.companyId, { engine: "local", backupDir });
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
   const port = (server.address() as AddressInfo).port;
@@ -317,6 +320,21 @@ async function main(): Promise<void> {
     });
     check(badTheme.status === 400, `invalid theme is rejected (${badTheme.status})`);
 
+    // Company profile (GENERAL group) round-trips like the desktop Settings tab.
+    const putGeneral = await fetch(`${base}/api/settings`, {
+      method: "PUT",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        group: "GENERAL",
+        settings: { company_name: "Smoke Labs", currency: "USD", date_format: "dd/MM/yyyy" },
+      }),
+    });
+    const general = (await json(putGeneral)) as Record<string, unknown>;
+    check(
+      putGeneral.status === 200 && general.company_name === "Smoke Labs" && general.currency === "USD",
+      `company profile saves and reads back (${putGeneral.status})`,
+    );
+
     // --- master data: accounts, parties, items ---------------------------
     const post = (path: string, body: unknown) =>
       fetch(`${base}${path}`, {
@@ -370,7 +388,7 @@ async function main(): Promise<void> {
       name: "Smoke Supplier",
       partyType: "SUPPLIER",
     });
-    const supplier = (await json(supplierRes)) as { code: string };
+    const supplier = (await json(supplierRes)) as { id: number; code: string };
     check(
       supplierRes.status === 201 && /^SUPP-\d{5}$/.test(supplier.code),
       `supplier code auto-generated (${supplier.code})`,
@@ -454,12 +472,239 @@ async function main(): Promise<void> {
       await fetch(`${base}/api/reports/trial-balance`, { headers }),
     )) as { balanced: boolean };
     check(tb5.balanced === true, "trial balance still balanced after master-data changes");
+
+    // --- dashboard --------------------------------------------------------
+    const dashboardRes = await fetch(`${base}/api/dashboard`, { headers });
+    check(dashboardRes.status === 200, `GET /api/dashboard returns 200 (${dashboardRes.status})`);
+    const dashboard = (await json(dashboardRes)) as {
+      balances: { inventory: number };
+      inventory: { totalItems: number };
+      recentTransactions: Array<{ type: string }>;
+      alerts: { count: number };
+      monthlyTrend: Array<{ month: string }>;
+    };
+    check(
+      dashboard.balances.inventory > 0 && dashboard.inventory.totalItems >= 1,
+      `dashboard reports inventory value (${dashboard.balances.inventory})`,
+    );
+    check(
+      dashboard.recentTransactions.some((t) => t.type === "Sales"),
+      "dashboard lists the smoke sale in recent transactions",
+    );
+    check(dashboard.alerts.count >= 1, `dashboard returns alerts (${dashboard.alerts.count})`);
+    check(
+      Array.isArray(dashboard.monthlyTrend) && dashboard.monthlyTrend.length === 6,
+      `dashboard returns a 6-month trend (${dashboard.monthlyTrend?.length})`,
+    );
+
+    // --- opening stock ----------------------------------------------------
+    const openingStockRes = await post(`/api/items/${item.id}/opening-stock`, {
+      quantity: 25,
+      unitCost: 12,
+    });
+    check(
+      openingStockRes.status === 201,
+      `POST /api/items/:id/opening-stock creates a batch (${openingStockRes.status})`,
+    );
+    const openingStock = (await json(openingStockRes)) as {
+      batchNumber: string;
+      totalValue: number;
+      journalEntryId: number | null;
+    };
+    check(
+      openingStock.journalEntryId === null && openingStock.totalValue === 300,
+      `opening stock without a supplier posts no entry (${openingStock.totalValue})`,
+    );
+
+    const openingStockPartyRes = await post(`/api/items/${item.id}/opening-stock`, {
+      quantity: 10,
+      unitCost: 20,
+      partyId: supplier.id,
+    });
+    const openingStockParty = (await json(openingStockPartyRes)) as { journalEntryId: number | null };
+    check(
+      openingStockPartyRes.status === 201 && Number(openingStockParty.journalEntryId) > 0,
+      `opening stock with a supplier posts an OPENING entry (${openingStockParty.journalEntryId})`,
+    );
+
+    // --- bulk opening balances -------------------------------------------
+    const openingBalancesRes = await post("/api/accounts/opening-balances", {
+      entries: [
+        { accountId: accountList.find((a) => a.account_code === "1100")!.id, debit: 5_000 },
+        { accountId: accountList.find((a) => a.account_code === "3100")!.id, credit: 5_000 },
+      ],
+    });
+    check(
+      openingBalancesRes.status === 201,
+      `POST /api/accounts/opening-balances posts (${openingBalancesRes.status})`,
+    );
+
+    const unbalancedRes = await post("/api/accounts/opening-balances", {
+      entries: [{ accountId: accountList.find((a) => a.account_code === "1100")!.id, debit: 100 }],
+    });
+    check(unbalancedRes.status === 400, `unbalanced opening balances rejected (${unbalancedRes.status})`);
+
+    // --- recurring expense items ("Pay Items") ---------------------------
+    const expenseItemRes = await post("/api/expense-items", {
+      categoryId: category.id,
+      name: "Smoke Payee",
+      amount: 0,
+    });
+    check(
+      expenseItemRes.status === 201,
+      `POST /api/expense-items creates an item (${expenseItemRes.status})`,
+    );
+    const expenseItem = (await json(expenseItemRes)) as { id: number; name: string };
+
+    const dupExpenseItemRes = await post("/api/expense-items", {
+      categoryId: category.id,
+      name: "Smoke Payee",
+    });
+    check(
+      dupExpenseItemRes.status === 409,
+      `duplicate expense item rejected (${dupExpenseItemRes.status})`,
+    );
+
+    const listExpenseItems = (await json(
+      await fetch(`${base}/api/expense-items?categoryId=${category.id}`, { headers }),
+    )) as Array<{ id: number }>;
+    check(
+      listExpenseItems.some((i) => i.id === expenseItem.id),
+      "GET /api/expense-items lists items for the category",
+    );
+
+    const payItemsRes = await post("/api/expense-items/pay", {
+      categoryId: category.id,
+      paymentMethod: "CASH",
+      expenseDate: "2026-10-09",
+      selections: [
+        { itemId: expenseItem.id, amount: 1_500 },
+        { itemId: expenseItem.id, amount: 0 },
+      ],
+    });
+    check(payItemsRes.status === 201, `POST /api/expense-items/pay pays items (${payItemsRes.status})`);
+    const payItems = (await json(payItemsRes)) as { voucherNumbers: string[]; totalPaid: number };
+    check(
+      payItems.voucherNumbers.length === 1 && payItems.totalPaid === 1_500,
+      `bulk payment created 1 voucher for ${payItems.totalPaid} (zero amount skipped)`,
+    );
+    // The paid amount is remembered on the item.
+    const refreshedItems = (await json(
+      await fetch(`${base}/api/expense-items?categoryId=${category.id}`, { headers }),
+    )) as Array<{ id: number; amount: number | null }>;
+    check(
+      refreshedItems.find((i) => i.id === expenseItem.id)?.amount === 1_500,
+      "paid amount is stored on the expense item",
+    );
+
+    // --- fixed assets -----------------------------------------------------
+    const assetRes = await post("/api/assets", {
+      assetName: "Smoke Machinery",
+      assetCode: "1503",
+      amount: 120_000,
+      purchaseDate: "2026-10-09",
+      paymentType: "CREDIT",
+      classification: "NON_CURRENT",
+      supplierId: supplier.id,
+    });
+    check(assetRes.status === 201, `POST /api/assets records an asset (${assetRes.status})`);
+    const asset = (await json(assetRes)) as {
+      account_code: string;
+      current_balance: number;
+      purchase_amount: number;
+    };
+    check(
+      asset.current_balance === 120_000 && asset.purchase_amount === 120_000,
+      `asset book value is 120000 (${asset.current_balance})`,
+    );
+
+    const badAssetRes = await post("/api/assets", {
+      assetName: "Bad Asset",
+      assetCode: "1503",
+      amount: 0,
+      purchaseDate: "2026-10-09",
+    });
+    check(badAssetRes.status === 400, `zero-amount asset rejected (${badAssetRes.status})`);
+
+    const assetsList = (await json(await fetch(`${base}/api/assets`, { headers }))) as Array<{
+      account_code: string;
+      current_balance: number;
+    }>;
+    check(
+      assetsList.some((a) => a.account_code === "1503" && a.current_balance === 120_000),
+      "GET /api/assets lists the asset with its book value",
+    );
+
+    // --- backups ----------------------------------------------------------
+    const backupBefore = (await json(
+      await fetch(`${base}/api/backup/status`, { headers }),
+    )) as { supported: boolean; count: number };
+    check(
+      backupBefore.supported === true && backupBefore.count === 0,
+      "GET /api/backup/status starts empty",
+    );
+
+    const backupRes = await post("/api/backup", {});
+    check(backupRes.status === 201, `POST /api/backup writes a snapshot (${backupRes.status})`);
+    const backup = (await json(backupRes)) as { file: string; bytes: number };
+    check(backup.bytes > 0, `snapshot has content (${backup.bytes} bytes)`);
+
+    const backupAfter = (await json(
+      await fetch(`${base}/api/backup/status`, { headers }),
+    )) as { count: number; latest: string | null; backups: Array<{ file: string }> };
+    check(backupAfter.count === 1, `backup status counts the snapshot (${backupAfter.count})`);
+    check(backupAfter.latest === backup.file, `latest backup is ${backupAfter.latest}`);
+
+    const downloadRes = await fetch(`${base}/api/backups/${backup.file}/download`, { headers });
+    check(downloadRes.status === 200, `snapshot downloads (${downloadRes.status})`);
+    check(
+      /attachment/.test(downloadRes.headers.get("content-disposition") ?? ""),
+      "download is sent as an attachment",
+    );
+
+    const restoreRes = await post(`/api/backups/${backup.file}/restore`, {});
+    check(
+      restoreRes.status === 400,
+      `restore is refused while the server is live (${restoreRes.status})`,
+    );
+    const badRestoreRes = await post("/api/backups/not-a-backup.txt/restore", {});
+    check(badRestoreRes.status === 400, `invalid backup name rejected (${badRestoreRes.status})`);
+
+    // --- export all reports (single CSV) ----------------------------------
+    const exportRes = await fetch(
+      `${base}/api/reports/export-all.csv?from=2026-10-01&to=2026-10-31`,
+      { headers },
+    );
+    const exportCsv = await exportRes.text();
+    check(
+      exportRes.status === 200 && exportRes.headers.get("content-type")?.includes("text/csv") === true,
+      `GET /api/reports/export-all.csv returns CSV (${exportRes.status})`,
+    );
+    check(
+      ["Trial Balance", "Profit & Loss", "Balance Sheet", "Cash Book"].every((section) =>
+        exportCsv.includes(section),
+      ),
+      "the export contains all four reports",
+    );
+    check(
+      exportCsv.includes(",YES"),
+      "the exported balance sheet is marked balanced",
+    );
+
+    const tbFinal = (await json(
+      await fetch(`${base}/api/reports/trial-balance`, { headers }),
+    )) as { balanced: boolean; totalDebit: number; totalCredit: number };
+    check(
+      tbFinal.balanced === true && tbFinal.totalDebit === tbFinal.totalCredit,
+      `trial balance balanced after every module ran (${tbFinal.totalDebit} = ${tbFinal.totalCredit})`,
+    );
   } finally {
     server.close();
     await closeDb();
     for (const suffix of ["", "-wal", "-shm"]) {
       await rm(`${dbFile}${suffix}`, { force: true }).catch(() => undefined);
     }
+    await rm(backupDir, { recursive: true, force: true }).catch(() => undefined);
   }
 
   console.log("");

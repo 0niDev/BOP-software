@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
-import type { Item, TaxRate } from "../types";
+import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
 interface Draft {
@@ -53,18 +53,30 @@ export default function ItemsPage() {
   const [editing, setEditing] = useState<Item | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Opening stock
+  const [suppliers, setSuppliers] = useState<Party[]>([]);
+  const [stockItemId, setStockItemId] = useState<number | null>(null);
+  const [stockQty, setStockQty] = useState(0);
+  const [stockCost, setStockCost] = useState(0);
+  const [stockBatch, setStockBatch] = useState("");
+  const [stockExpiry, setStockExpiry] = useState("");
+  const [stockPartyId, setStockPartyId] = useState<number | null>(null);
+
   async function refresh(): Promise<void> {
     try {
-      const [itemList, rates] = await Promise.all([
+      const [itemList, rates, supplierList] = await Promise.all([
         api.items({
           search: search || undefined,
           type: (typeFilter || undefined) as Item["item_type"] | undefined,
           activeOnly: !showInactive,
         }),
         api.taxRates(),
+        api.parties({ type: "SUPPLIER" }),
       ]);
       setItems(itemList);
       setTaxRates(rates);
+      setSuppliers(supplierList);
+      setStockItemId((current) => current ?? itemList[0]?.id ?? null);
     } catch (err) {
       setError(message(err, "Failed to load items."));
     }
@@ -144,6 +156,42 @@ export default function ItemsPage() {
     }
   }
 
+  async function submitOpeningStock(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (stockItemId == null) {
+      setError("Select an item.");
+      return;
+    }
+    if (stockQty <= 0) {
+      setError("Quantity must be greater than 0.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.addOpeningStock(stockItemId, {
+        quantity: stockQty,
+        unitCost: stockCost,
+        batchNumber: stockBatch.trim() || null,
+        expiryDate: stockExpiry || null,
+        partyId: stockPartyId,
+      });
+      setNotice(
+        `Opening stock ${result.batchNumber}: ${stockQty} unit(s), value ${money(result.totalValue)}` +
+          (result.journalEntryId ? " (posted to the ledger)" : ""),
+      );
+      setStockQty(0);
+      setStockBatch("");
+      setStockExpiry("");
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to add opening stock."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deactivate(item: Item): Promise<void> {
     setError(null);
     setNotice(null);
@@ -163,7 +211,13 @@ export default function ItemsPage() {
           <h2 style={{ flex: 1, margin: 0 }}>Items</h2>
           <div>
             <label>Search</label>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input
+              data-search
+              className="filter-box"
+              placeholder="Search name or code…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <div>
             <label>Type</label>
@@ -238,6 +292,85 @@ export default function ItemsPage() {
           </tbody>
         </table>
       </div>
+
+      <form className="card" onSubmit={submitOpeningStock}>
+        <h2>Opening stock</h2>
+        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label>Item</label>
+            <select
+              value={stockItemId ?? ""}
+              onChange={(e) => setStockItemId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Select…</option>
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.item_code} — {item.item_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={stockQty}
+              onChange={(e) => setStockQty(Number(e.target.value))}
+              style={{ width: 110 }}
+            />
+          </div>
+          <div>
+            <label>Unit cost</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={stockCost}
+              onChange={(e) => setStockCost(Number(e.target.value))}
+              style={{ width: 110 }}
+            />
+          </div>
+          <div>
+            <label>Batch number (blank = auto)</label>
+            <input
+              value={stockBatch}
+              onChange={(e) => setStockBatch(e.target.value)}
+              placeholder="OPEN-…"
+            />
+          </div>
+          <div>
+            <label>Expiry</label>
+            <input
+              type="date"
+              value={stockExpiry}
+              onChange={(e) => setStockExpiry(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Supplier (credits A/P)</label>
+            <select
+              value={stockPartyId ?? ""}
+              onChange={(e) => setStockPartyId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">None — stock only</option>
+              {suppliers.map((party) => (
+                <option key={party.id} value={party.id}>
+                  {party.code} — {party.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="primary" type="submit" disabled={busy}>
+            Add opening stock
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+          Value {money(stockQty * stockCost)}. With a supplier the value is posted as an OPENING
+          entry (Dr inventory / Cr A/P); without one only the batch and stock movement are created.
+        </p>
+      </form>
 
       <form className="card" onSubmit={submit}>
         <h2>{editing ? `Edit item — ${editing.item_code}` : "Add item"}</h2>

@@ -46,6 +46,10 @@ export default function AccountsPage() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Opening-balance grid: amount per account id.
+  const [opening, setOpening] = useState<Record<number, number>>({});
+  const [openingBusy, setOpeningBusy] = useState(false);
+
   async function refresh(): Promise<void> {
     try {
       setAccounts(await api.accounts(!showInactive));
@@ -123,6 +127,62 @@ export default function AccountsPage() {
       setError(message(err, "Failed to save the account."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  const openingRows = accounts.filter((account) => account.is_active === 1);
+  const totalDebit = openingRows
+    .filter((account) => account.account_type === "ASSET")
+    .reduce((sum, account) => sum + (opening[account.id] ?? 0), 0);
+  const totalCredit = openingRows
+    .filter((account) => account.account_type === "LIABILITY" || account.account_type === "EQUITY")
+    .reduce((sum, account) => sum + (opening[account.id] ?? 0), 0);
+  const difference = Math.round((totalDebit - totalCredit) * 100) / 100;
+
+  function calculateEquity(): void {
+    const equity = accounts.find((account) => account.account_type === "EQUITY");
+    if (!equity) {
+      setError("No EQUITY account exists to absorb the difference.");
+      return;
+    }
+    setError(null);
+    setOpening((current) => {
+      const next = { ...current };
+      next[equity.id] = Math.round(((current[equity.id] ?? 0) + difference) * 100) / 100;
+      return next;
+    });
+  }
+
+  async function saveOpeningBalances(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    const entries = openingRows
+      .filter((account) => (opening[account.id] ?? 0) !== 0)
+      .map((account) =>
+        account.account_type === "ASSET"
+          ? { accountId: account.id, debit: opening[account.id] ?? 0 }
+          : account.account_type === "LIABILITY" || account.account_type === "EQUITY"
+            ? { accountId: account.id, credit: opening[account.id] ?? 0 }
+            : { accountId: account.id, debit: opening[account.id] ?? 0 },
+      );
+    if (entries.length === 0) {
+      setError("Enter at least one opening balance.");
+      return;
+    }
+    setOpeningBusy(true);
+    try {
+      const result = await api.postOpeningBalances(entries);
+      setNotice(
+        `Posted opening balances: debit ${money(result.totalDebit)} / credit ${money(result.totalCredit)} ` +
+          `across ${result.accountsUpdated} account(s).`,
+      );
+      setOpening({});
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to post opening balances."));
+    } finally {
+      setOpeningBusy(false);
     }
   }
 
@@ -208,6 +268,70 @@ export default function AccountsPage() {
           </tbody>
         </table>
       </div>
+
+      <form className="card" onSubmit={saveOpeningBalances}>
+        <h2>Opening balances</h2>
+        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label>Debit total (assets)</label>
+            <div style={{ fontSize: 18 }}>{money(totalDebit)}</div>
+          </div>
+          <div>
+            <label>Credit total (liabilities + equity)</label>
+            <div style={{ fontSize: 18 }}>{money(totalCredit)}</div>
+          </div>
+          <div>
+            <label>Difference</label>
+            <div className="badge" style={{ display: "inline-block", fontSize: 14 }}>
+              {money(difference)}
+            </div>
+          </div>
+          <button type="button" onClick={calculateEquity}>
+            Calculate equity
+          </button>
+          <button className="primary" type="submit" disabled={openingBusy}>
+            {openingBusy ? "Posting…" : "Post opening balances"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12 }}>
+          Enter an amount against the accounts you are opening. Assets are debited, liabilities and
+          equity credited; use “Calculate equity” to absorb the difference, then post — all amounts
+          go into a single balanced OPENING journal entry.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Account</th>
+              <th>Type</th>
+              <th className="num">Opening amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {openingRows.map((account) => (
+              <tr key={account.id}>
+                <td>{account.account_code}</td>
+                <td>{account.account_name}</td>
+                <td>{account.account_type}</td>
+                <td className="num">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={opening[account.id] ?? 0}
+                    onChange={(e) =>
+                      setOpening((current) => ({
+                        ...current,
+                        [account.id]: Number(e.target.value),
+                      }))
+                    }
+                    style={{ width: 140, textAlign: "right" }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </form>
 
       <form className="card" onSubmit={submit}>
         <h2>{editing ? `Edit account — ${editing.account_code}` : "Add account"}</h2>

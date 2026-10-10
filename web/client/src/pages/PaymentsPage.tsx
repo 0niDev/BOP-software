@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import type { Party, Payment, Receipt, SettlementMethod } from "../types";
 
 function money(value: number): string {
@@ -22,6 +23,7 @@ export default function PaymentsPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
 
   async function refresh() {
     try {
@@ -69,6 +71,16 @@ export default function PaymentsPage() {
 
   const partyOptions = tab === "payments" ? suppliers : customers;
   const rows = tab === "payments" ? payments : receipts;
+  const visibleRows = rows.filter((row) =>
+    matchesQuery(query, [
+      row.voucher_number,
+      row.party_name,
+      row.party_code,
+      "payment_date" in row ? row.payment_date : row.receipt_date,
+      row.payment_method,
+      row.amount,
+    ]),
+  );
 
   return (
     <>
@@ -136,6 +148,13 @@ export default function PaymentsPage() {
       </form>
 
       <div className="card">
+        <div className="row" style={{ alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ flex: 1, margin: 0 }}>
+            {tab === "payments" ? "Payments" : "Receipts"}{" "}
+            <span className="badge">{visibleRows.length} of {rows.length}</span>
+          </h2>
+          <FilterBox value={query} onChange={setQuery} />
+        </div>
         <table>
           <thead>
             <tr>
@@ -147,7 +166,7 @@ export default function PaymentsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const rowDate = "payment_date" in row ? row.payment_date : row.receipt_date;
               return (
                 <tr key={row.id}>
@@ -159,9 +178,13 @@ export default function PaymentsPage() {
                 </tr>
               );
             })}
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={5}>Nothing recorded yet.</td>
+                <td colSpan={5}>
+                  {rows.length === 0
+                    ? "Nothing recorded yet."
+                    : "No vouchers match this filter."}
+                </td>
               </tr>
             )}
           </tbody>

@@ -9,7 +9,36 @@
   --accent-2: #a83248;
   --ok: #27ae60;
   --danger: #e74c3c;
+  --input-bg: #222;
+  --input-border: #3a3a3a;
+  --sidebar-bg: linear-gradient(#000, #151515);
+  --login-bg: linear-gradient(#1c1c1c, #141414);
+  --on-accent: #fff;
+  --error-text: #f08a8a;
+  --error-bg: #3a1a1a;
+  --badge-bg: #123a24;
+  --badge-text: #7ee2a8;
   font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* Light palette (Settings → Appearance → Light). */
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --panel-2: #eceef2;
+  --border: #d7dbe2;
+  --text: #1b1d21;
+  --muted: #5c6675;
+  --accent: #8b1a2b;
+  --accent-2: #a83248;
+  --input-bg: #ffffff;
+  --input-border: #c9cfd8;
+  --sidebar-bg: linear-gradient(#2a1216, #1b1b1f);
+  --login-bg: linear-gradient(#ffffff, #f1f2f5);
+  --error-text: #8a1c1c;
+  --error-bg: #fdeaea;
+  --badge-bg: #e2f4e9;
+  --badge-text: #1c6b3c;
 }
 
 * {
@@ -49,9 +78,9 @@ button:disabled {
 input,
 select,
 textarea {
-  background: #222;
+  background: var(--input-bg);
   color: var(--text);
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 14px;
@@ -64,13 +93,17 @@ select:focus {
 
 .layout {
   display: grid;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: 230px minmax(0, 1fr);
   min-height: 100vh;
 }
 .sidebar {
-  background: linear-gradient(#000, #151515);
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   padding: 16px 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .brand {
   font-weight: 700;
@@ -87,10 +120,21 @@ select:focus {
 }
 .nav button.active {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  color: #fff;
+  color: var(--on-accent);
+}
+.nav-filter {
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.nav-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 12px;
 }
 .main {
   padding: 24px;
+  min-width: 0;
 }
 .topbar {
   display: flex;
@@ -105,6 +149,11 @@ select:focus {
   border-radius: 12px;
   padding: 18px;
   margin-bottom: 18px;
+  overflow-x: auto;
+}
+/* Tables never squeeze their columns below the readable minimum. */
+.card table {
+  min-width: 520px;
 }
 .card h2 {
   margin-top: 0;
@@ -139,6 +188,11 @@ tr.total td {
   display: grid;
   gap: 12px;
 }
+.filter-box {
+  min-width: 240px;
+  flex: 1;
+  max-width: 420px;
+}
 .row {
   display: flex;
   gap: 10px;
@@ -159,7 +213,7 @@ label {
 }
 .login-card {
   width: 360px;
-  background: linear-gradient(#1c1c1c, #141414);
+  background: var(--login-bg);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 28px;
@@ -175,8 +229,8 @@ label {
 }
 
 .error {
-  color: #f08a8a;
-  background: #3a1a1a;
+  color: var(--error-text);
+  background: var(--error-bg);
   border-left: 4px solid var(--danger);
   padding: 8px 12px;
   border-radius: 6px;
@@ -186,6 +240,6 @@ label {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
-  background: #123a24;
-  color: #7ee2a8;
+  background: var(--badge-bg);
+  color: var(--badge-text);
 }

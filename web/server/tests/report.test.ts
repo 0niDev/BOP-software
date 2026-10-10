@@ -87,11 +87,85 @@ describe("ReportService", () => {
     expect(entry.balance).toBe(750);
   });
 
-  it("renders a trial balance CSV with totals", async () => {
+  it("renders a trial balance CSV with opening/period/closing columns and totals", async () => {
     await seedActivity();
     const csv = await reports.trialBalanceCsv();
     const lines = csv.split("\n");
-    expect(lines[0]).toBe("Account Code,Account Name,Type,Debit,Credit");
+    expect(lines[0]).toBe(
+      "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
+    );
     expect(lines[lines.length - 1]).toContain("TOTAL");
+    // One header + one line per account + the TOTAL line.
+    const { rows } = await reports.trialBalance();
+    expect(lines).toHaveLength(rows.length + 2);
+  });
+
+  it("scopes the trial balance to a period and carries earlier entries as opening", async () => {
+    await seedActivity(); // cash sale 750 on 2026-10-08, credit sale 300 on 2026-10-09
+
+    const scoped = await reports.trialBalance({ from: "2026-10-09", to: "2026-10-09" });
+    expect(scoped.balanced).toBe(true);
+    expect(scoped.totalDebit).toBe(scoped.totalCredit);
+
+    const cash = scoped.rows.find((r) => r.accountCode === "1000")!;
+    expect(cash.openingDebit).toBe(750);
+    expect(cash.debit).toBe(0);
+    expect(cash.credit).toBe(0);
+    expect(cash.closingDebit).toBe(750);
+
+    const receivable = scoped.rows.find((r) => r.accountCode === "1100")!;
+    expect(receivable.openingDebit).toBe(0);
+    expect(receivable.debit).toBe(300); // the credit sale lands in the period
+    expect(receivable.closingDebit).toBe(300);
+
+    // A range ending on the last posting date carries every entry, so its
+    // closing columns must equal the unbounded report account by account.
+    const all = await reports.trialBalance();
+    const upToLast = await reports.trialBalance({ to: "2026-10-09" });
+    expect(upToLast.totalDebit).toBe(all.totalDebit);
+    expect(upToLast.totalCredit).toBe(all.totalCredit);
+    expect(upToLast.rows.map((r) => r.closingDebit)).toEqual(
+      all.rows.map((r) => r.closingDebit),
+    );
+
+    // A range stopping on day one excludes day two's entries.
+    const firstDay = await reports.trialBalance({ to: "2026-10-08" });
+    expect(firstDay.balanced).toBe(true);
+    expect(firstDay.totalDebit).toBeLessThan(all.totalDebit);
+    expect(firstDay.rows.find((r) => r.accountCode === "1100")!.closingDebit).toBe(0);
+  });
+
+  it("reports P&L for the requested period only", async () => {
+    await seedActivity();
+
+    const firstDay = await reports.profitAndLoss({ from: "2026-10-08", to: "2026-10-08" });
+    expect(firstDay.revenue).toBe(750);
+    expect(firstDay.expenses).toBe(500); // COGS of the 5-unit cash sale
+    expect(firstDay.netProfit).toBe(250);
+
+    const secondDay = await reports.profitAndLoss({ from: "2026-10-09", to: "2026-10-09" });
+    expect(secondDay.revenue).toBe(300);
+    expect(secondDay.expenses).toBe(200);
+    expect(secondDay.netProfit).toBe(100);
+
+    // Both days together equal the unbounded report.
+    const all = await reports.profitAndLoss();
+    expect(all.revenue).toBe(firstDay.revenue + secondDay.revenue);
+    expect(all.expenses).toBe(firstDay.expenses + secondDay.expenses);
+    expect(all.netProfit).toBe(firstDay.netProfit + secondDay.netProfit);
+  });
+
+  it("values the balance sheet as at a date and stays balanced", async () => {
+    await seedActivity();
+
+    const asAtFirst = await reports.balanceSheet("2026-10-08");
+    expect(asAtFirst.balanced).toBe(true);
+    expect(asAtFirst.assets).toBeCloseTo(asAtFirst.liabilities + asAtFirst.equity, 2);
+    expect(asAtFirst.netProfit).toBe(250); // only day one
+
+    const asAtSecond = await reports.balanceSheet("2026-10-09");
+    expect(asAtSecond.balanced).toBe(true);
+    expect(asAtSecond.netProfit).toBe(350); // 250 + 100
+    expect(asAtSecond.assets).toBeGreaterThan(asAtFirst.assets);
   });
 });

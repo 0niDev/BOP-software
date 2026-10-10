@@ -37,6 +37,19 @@ export interface UpdateAccountInput {
   isActive?: boolean;
 }
 
+export interface OpeningBalanceEntry {
+  accountId: number;
+  debit?: number;
+  credit?: number;
+}
+
+export interface OpeningBalanceResult {
+  journalEntryId: number;
+  totalDebit: number;
+  totalCredit: number;
+  accountsUpdated: number;
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -158,6 +171,78 @@ export class AccountService {
       );
     }
     await this.accounts.deactivate(id);
+  }
+
+  /**
+   * Bulk opening balances, ported from views/widgets/opening_balance_dialog.py:
+   * the entered amounts are posted as ONE balanced OPENING journal entry and the
+   * `accounts.opening_balance` display column is refreshed for each account.
+   * (The display column is still never added into balances -- the posted entry
+   * is the single source of truth, see the class comment.)
+   */
+  async postOpeningBalances(entries: readonly OpeningBalanceEntry[]): Promise<OpeningBalanceResult> {
+    const clean = entries
+      .map((entry) => ({
+        accountId: entry.accountId,
+        debit: Math.abs(entry.debit ?? 0),
+        credit: Math.abs(entry.credit ?? 0),
+      }))
+      .filter((entry) => entry.debit !== 0 || entry.credit !== 0);
+
+    if (clean.length === 0) {
+      throw new ValidationError("No opening balances to save.");
+    }
+
+    let totalDebit = 0;
+    let totalCredit = 0;
+    const resolved: Array<{ entry: (typeof clean)[number]; account: AccountRow }> = [];
+    for (const entry of clean) {
+      if (entry.debit !== 0 && entry.credit !== 0) {
+        throw new ValidationError("An opening balance line cannot be both debit and credit.");
+      }
+      const account = await this.accounts.findById(entry.accountId);
+      if (!account || account.company_id !== this.companyId) {
+        throw new ValidationError(`Account ${entry.accountId} does not exist.`);
+      }
+      totalDebit += entry.debit;
+      totalCredit += entry.credit;
+      resolved.push({ entry, account });
+    }
+
+    if (Math.abs(totalDebit - totalCredit) > 0.01 || totalDebit === 0) {
+      throw new ValidationError(
+        `Opening balances are not balanced: debit=${totalDebit.toFixed(2)}, credit=${totalCredit.toFixed(2)}.`,
+      );
+    }
+
+    const journalEntryId = await this.db.transaction(async () => {
+      const id = await this.accounting.postJournalEntry({
+        voucherType: "OPENING",
+        entryDate: today(),
+        lines: resolved.map(({ entry }) => ({
+          accountId: entry.accountId,
+          debit: entry.debit,
+          credit: entry.credit,
+          description: "Opening balance",
+        })),
+        narration: "Opening balances",
+        sourceTable: "accounts",
+        companyId: this.companyId,
+      });
+      for (const { entry, account } of resolved) {
+        const debitNormal = isDebitNormal(account.account_type);
+        const signed = debitNormal ? entry.debit - entry.credit : entry.credit - entry.debit;
+        await this.accounts.update(account.id, { opening_balance: signed });
+      }
+      return id;
+    });
+
+    return {
+      journalEntryId,
+      totalDebit,
+      totalCredit,
+      accountsUpdated: resolved.length,
+    };
   }
 
   /** OPENING entry: this account +/- against Retained Earnings (3100). */

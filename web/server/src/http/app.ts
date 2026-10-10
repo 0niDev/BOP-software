@@ -3,14 +3,18 @@ import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import type { SqlDatabase } from "../db/types.js";
+import { env } from "../env.js";
 import { AppError, UnauthorizedError, ValidationError } from "../domain/errors.js";
 import { AccountingService } from "../services/accountingService.js";
 import { AccountService } from "../services/accountService.js";
+import { AssetService } from "../services/assetService.js";
+import { BackupService } from "../services/backupService.js";
 import { AuthService } from "../services/authService.js";
 import { DashboardService } from "../services/dashboardService.js";
 import { ItemService } from "../services/itemService.js";
 import { PartyService } from "../services/partyService.js";
 import { BankingService } from "../services/bankingService.js";
+import { ExpenseItemService } from "../services/expenseItemService.js";
 import { ExpenseService } from "../services/expenseService.js";
 import { ManufacturingService } from "../services/manufacturingService.js";
 import { PaymentService } from "../services/paymentService.js";
@@ -52,7 +56,18 @@ const returnSchema = z.object({
     .min(1),
 });
 
-export function createApp(db: SqlDatabase, companyId = 1): express.Express {
+export interface AppOptions {
+  /** Database engine name, so the backup routes know whether snapshots apply. */
+  engine?: string;
+  /** Where snapshots are written. */
+  backupDir?: string;
+}
+
+export function createApp(
+  db: SqlDatabase,
+  companyId = 1,
+  options: AppOptions = {},
+): express.Express {
   const app = express();
   const sessions = new Map<string, Session>();
 
@@ -72,6 +87,13 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
   const users = new UserService(db);
   const settings = new SettingsService(db);
   const dashboard = new DashboardService(db, companyId);
+  const expenseItems = new ExpenseItemService(db, companyId);
+  const assets = new AssetService(db, companyId);
+  const backups = new BackupService(
+    db,
+    options.engine ?? env.dbEngine,
+    options.backupDir ?? env.backupDir,
+  );
 
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
@@ -158,6 +180,71 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
   app.post("/api/accounts/:id/deactivate", requireAuth, async (req, res) => {
     await accounts.deactivate(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  /** Bulk opening balances -> one balanced OPENING journal entry. */
+  app.post("/api/accounts/opening-balances", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        entries: z
+          .array(
+            z.object({
+              accountId: z.number().int().positive(),
+              debit: z.number().optional(),
+              credit: z.number().optional(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.status(201).json(await accounts.postOpeningBalances(body.entries));
+  });
+
+  // --- backups -----------------------------------------------------------
+  app.get("/api/backup/status", requireAuth, async (_req, res) => {
+    res.json(await backups.status());
+  });
+
+  app.post("/api/backup", requireAuth, async (_req, res) => {
+    res.status(201).json(await backups.run());
+  });
+
+  app.get("/api/backups/:file/download", requireAuth, (req, res) => {
+    const target = backups.resolve(String(req.params.file));
+    res.download(target);
+  });
+
+  app.post("/api/backups/:file/restore", requireAuth, (req, res) => {
+    backups.restore(String(req.params.file));
+    res.json({ ok: true });
+  });
+
+  // --- fixed assets ------------------------------------------------------
+  app.get("/api/assets", requireAuth, async (_req, res) => {
+    res.json(await assets.list());
+  });
+
+  app.get("/api/asset-codes", requireAuth, (_req, res) => {
+    res.json(assets.codes());
+  });
+
+  app.post("/api/assets", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        assetName: z.string().min(1),
+        assetCode: z.string().min(1),
+        amount: z.number().positive(),
+        purchaseDate: z.string().min(1),
+        paymentType: z.enum(["CREDIT", "CASH", "BANK", "CHEQUE"]).optional(),
+        classification: z.enum(["CURRENT", "NON_CURRENT"]).optional(),
+        supplierId: z.number().int().positive().nullish(),
+        dueDate: z.string().nullish(),
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    res.status(201).json(await assets.create(body));
   });
 
   // --- parties (customers / suppliers) -----------------------------------
@@ -275,6 +362,23 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
   app.post("/api/items/:id/deactivate", requireAuth, async (req, res) => {
     await items.deactivate(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  /** Opening stock: creates the batch + OPENING movement, and an OPENING entry
+   *  against A/P when a supplier is supplied. */
+  app.post("/api/items/:id/opening-stock", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        quantity: z.number().positive(),
+        unitCost: z.number().nonnegative().optional(),
+        batchNumber: z.string().nullish(),
+        expiryDate: z.string().nullish(),
+        partyId: z.number().int().positive().nullish(),
+        warehouseId: z.number().int().positive().optional(),
+      }),
+      req.body,
+    );
+    res.status(201).json(await items.addOpeningStock({ itemId: Number(req.params.id), ...body }));
   });
 
   app.get("/api/sales-invoices", requireAuth, async (req, res) => {
@@ -503,6 +607,70 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
     res.json(await expenses.listExpenses());
   });
 
+  // --- recurring expense items ("Pay Items") -----------------------------
+  app.get("/api/expense-items", requireAuth, async (req, res) => {
+    const categoryId =
+      typeof req.query.categoryId === "string" && req.query.categoryId
+        ? Number(req.query.categoryId)
+        : undefined;
+    res.json(
+      await expenseItems.list({ categoryId, activeOnly: activeOnlyFlag(req) }),
+    );
+  });
+
+  app.post("/api/expense-items", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        categoryId: z.number().int().positive(),
+        name: z.string().min(1),
+        amount: z.number().nonnegative().nullish(),
+      }),
+      req.body,
+    );
+    res.status(201).json(await expenseItems.create(body));
+  });
+
+  app.put("/api/expense-items/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        name: z.string().nullish(),
+        amount: z.number().nonnegative().nullish(),
+      }),
+      req.body,
+    );
+    res.json(await expenseItems.update(Number(req.params.id), body));
+  });
+
+  app.post("/api/expense-items/:id/deactivate", requireAuth, async (req, res) => {
+    await expenseItems.deactivate(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  /** Bulk payment: one expense voucher per selected item. */
+  app.post("/api/expense-items/pay", requireAuth, async (req, res) => {
+    const session = (req as Request & { user?: Session }).user;
+    const body = parseBody(
+      z.object({
+        categoryId: z.number().int().positive(),
+        paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        expenseDate: z.string().min(1),
+        selections: z
+          .array(
+            z.object({
+              itemId: z.number().int().positive(),
+              amount: z.number(),
+              description: z.string().nullish(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.status(201).json(
+      await expenseItems.payItems({ ...body, createdBy: session?.userId ?? null }),
+    );
+  });
+
   app.post("/api/expenses", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
@@ -629,16 +797,21 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
     res.json(entry);
   });
 
-  app.get("/api/reports/trial-balance", requireAuth, async (_req, res) => {
-    res.json(await reports.trialBalance());
+  const asAtQuery = (req: Request): string | null =>
+    typeof req.query.asAt === "string" && req.query.asAt ? req.query.asAt : null;
+
+  app.get("/api/reports/trial-balance", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.trialBalance({ from, to }));
   });
 
-  app.get("/api/reports/profit-and-loss", requireAuth, async (_req, res) => {
-    res.json(await reports.profitAndLoss());
+  app.get("/api/reports/profit-and-loss", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.profitAndLoss({ from, to }));
   });
 
-  app.get("/api/reports/balance-sheet", requireAuth, async (_req, res) => {
-    res.json(await reports.balanceSheet());
+  app.get("/api/reports/balance-sheet", requireAuth, async (req, res) => {
+    res.json(await reports.balanceSheet(asAtQuery(req)));
   });
 
   const dateRangeQuery = (req: Request): { from?: string; to?: string } => ({
@@ -663,8 +836,17 @@ export function createApp(db: SqlDatabase, companyId = 1): express.Express {
     res.json(await reports.cashBook(from, to));
   });
 
-  app.get("/api/reports/trial-balance.csv", requireAuth, async (_req, res) => {
-    res.type("text/csv").send(await reports.trialBalanceCsv());
+  app.get("/api/reports/trial-balance.csv", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.type("text/csv").send(await reports.trialBalanceCsv({ from, to }));
+  });
+
+  // "Export all reports" for one period (trial balance + P&L + balance sheet +
+  // cash book) in a single CSV — the web counterpart of the desktop export of
+  // every report for a month/year.
+  app.get("/api/reports/export-all.csv", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.type("text/csv").send(await reports.exportAllCsv({ from, to }));
   });
 
   // --- administration: users, roles, settings ---------------------------

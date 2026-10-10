@@ -172,7 +172,13 @@ export default function PartiesPage() {
           <h2 style={{ flex: 1, margin: 0 }}>Customers &amp; Suppliers</h2>
           <div>
             <label>Search</label>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input
+              data-search
+              className="filter-box"
+              placeholder="Search name, code or phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <div>
             <label>Type</label>

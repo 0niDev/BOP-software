@@ -42,8 +42,36 @@ export interface TrialBalanceRow {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
+  /** Balance carried into the period (`from` exclusive). */
+  openingDebit: number;
+  openingCredit: number;
+  /** Movement inside the period (the classic trial-balance columns). */
   debit: number;
   credit: number;
+  /** Opening + period, placed in the account's normal column. */
+  closingDebit: number;
+  closingCredit: number;
+}
+
+export interface DateRangeOptions {
+  from?: string | null;
+  to?: string | null;
+}
+
+/** Place a signed normal balance into the debit/credit columns. */
+function place(
+  normal: Decimal,
+  debitNormal: boolean,
+): { debit: Decimal; credit: Decimal } {
+  if (normal.greaterThanOrEqualTo(0)) {
+    return debitNormal
+      ? { debit: normal, credit: new Decimal(0) }
+      : { debit: new Decimal(0), credit: normal };
+  }
+  const positive = normal.negated();
+  return debitNormal
+    ? { debit: new Decimal(0), credit: positive }
+    : { debit: positive, credit: new Decimal(0) };
 }
 
 export class AccountingService {
@@ -131,7 +159,9 @@ export class AccountingService {
   }
 
   /**
-   * One query returns every account with its posted debit/credit totals.
+   * One query returns every account with its posted opening / period / closing
+   * figures. Passing `from`/`to` scopes the *movement* columns to that period
+   * while the opening columns carry everything before `from`.
    *
    * Active accounts are always listed; deactivated accounts are listed only
    * while they still carry posted movement. The original Python app filtered
@@ -139,18 +169,39 @@ export class AccountingService {
    * balance as soon as an account with a balance was deactivated (its journal
    * lines stayed behind but the account disappeared from the report).
    */
-  async getTrialBalance(companyId = this.companyId): Promise<TrialBalanceRow[]> {
+  async getTrialBalance(
+    companyId = this.companyId,
+    opts: DateRangeOptions = {},
+  ): Promise<TrialBalanceRow[]> {
+    const from = opts.from ?? null;
+    const to = opts.to ?? null;
     const rows = await this.db.all<{
       id: number;
       account_code: string;
       account_name: string;
       account_type: AccountType;
-      total_debit: number;
-      total_credit: number;
+      period_debit: number;
+      period_credit: number;
+      opening_debit: number;
+      opening_credit: number;
     }>(
+      // Plain `?` placeholders only (the hosted SQLite Cloud driver is not
+      // exercised by the local tests, and `?NNN` support there is unverified).
       `SELECT a.id, a.account_code, a.account_name, a.account_type,
-              COALESCE(SUM(CASE WHEN je.is_posted = 1 THEN jel.debit ELSE 0 END), 0) AS total_debit,
-              COALESCE(SUM(CASE WHEN je.is_posted = 1 THEN jel.credit ELSE 0 END), 0) AS total_credit
+              COALESCE(SUM(CASE WHEN je.is_posted = 1
+                  AND (? IS NULL OR je.entry_date >= ?)
+                  AND (? IS NULL OR je.entry_date <= ?)
+                  THEN jel.debit ELSE 0 END), 0) AS period_debit,
+              COALESCE(SUM(CASE WHEN je.is_posted = 1
+                  AND (? IS NULL OR je.entry_date >= ?)
+                  AND (? IS NULL OR je.entry_date <= ?)
+                  THEN jel.credit ELSE 0 END), 0) AS period_credit,
+              COALESCE(SUM(CASE WHEN je.is_posted = 1
+                  AND ? IS NOT NULL AND je.entry_date < ?
+                  THEN jel.debit ELSE 0 END), 0) AS opening_debit,
+              COALESCE(SUM(CASE WHEN je.is_posted = 1
+                  AND ? IS NOT NULL AND je.entry_date < ?
+                  THEN jel.credit ELSE 0 END), 0) AS opening_credit
        FROM accounts a
        LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
        LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -160,33 +211,45 @@ export class AccountingService {
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.debit ELSE 0 END) <> 0
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.credit ELSE 0 END) <> 0
        ORDER BY a.account_code`,
-      [companyId],
+      [from, from, to, to, from, from, to, to, from, from, from, from, companyId],
     );
 
     return rows.map((row) => {
-      const raw = new Decimal(row.total_debit).minus(new Decimal(row.total_credit));
       const debitNormal = isDebitNormal(row.account_type);
-      // Balance expressed with the account's normal sign (assets/expenses are
-      // debit-positive, everything else credit-positive), then placed in the
-      // matching column -- a positive revenue balance is a *credit*.
-      const normal = debitNormal ? raw : raw.negated();
-      let debit = new Decimal(0);
-      let credit = new Decimal(0);
-      if (normal.greaterThanOrEqualTo(0)) {
-        if (debitNormal) debit = normal;
-        else credit = normal;
-      } else if (debitNormal) {
-        credit = normal.negated();
-      } else {
-        debit = normal.negated();
-      }
+      const normalise = (debit: number, credit: number): Decimal => {
+        // Balance in the account's normal sign (assets/expenses debit-positive,
+        // everything else credit-positive).
+        const raw = new Decimal(debit).minus(new Decimal(credit));
+        return debitNormal ? raw : raw.negated();
+      };
+
+      const opening = place(
+        normalise(Number(row.opening_debit ?? 0), Number(row.opening_credit ?? 0)),
+        debitNormal,
+      );
+      const period = place(
+        normalise(Number(row.period_debit ?? 0), Number(row.period_credit ?? 0)),
+        debitNormal,
+      );
+      const closing = place(
+        normalise(
+          Number(row.opening_debit ?? 0) + Number(row.period_debit ?? 0),
+          Number(row.opening_credit ?? 0) + Number(row.period_credit ?? 0),
+        ),
+        debitNormal,
+      );
+
       return {
         accountId: row.id,
         accountCode: row.account_code,
         accountName: row.account_name,
         accountType: row.account_type,
-        debit: toStorage(debit),
-        credit: toStorage(credit),
+        openingDebit: toStorage(opening.debit),
+        openingCredit: toStorage(opening.credit),
+        debit: toStorage(period.debit),
+        credit: toStorage(period.credit),
+        closingDebit: toStorage(closing.debit),
+        closingCredit: toStorage(closing.credit),
       };
     });
   }

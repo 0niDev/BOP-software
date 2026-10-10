@@ -4,11 +4,40 @@
  * transaction as the insert so a failure leaves no gap in the sequence.
  */
 import type { SqlDatabase } from "../db/types.js";
-import { NotFoundError, ValidationError } from "../domain/errors.js";
-import type { ItemType } from "../domain/enums.js";
+import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
+import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
+import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
+import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { TaxRateRepository, type TaxRateRow } from "../repositories/taxRateRepository.js";
+import { AccountingService } from "./accountingService.js";
+
+/** Inventory account per item type (mirrors accounting/system_accounts.py). */
+const INVENTORY_ACCOUNT_BY_TYPE: Record<string, string> = {
+  RAW_MATERIAL: "1200",
+  PACKING_MATERIAL: "1210",
+  FINISHED_GOOD: "1220",
+};
+
+export interface AddOpeningStockInput {
+  itemId: number;
+  quantity: number;
+  unitCost?: number;
+  batchNumber?: string | null;
+  expiryDate?: string | null;
+  partyId?: number | null;
+  warehouseId?: number;
+}
+
+export interface OpeningStockResult {
+  batchId: number;
+  batchNumber: string;
+  quantity: number;
+  unitCost: number;
+  totalValue: number;
+  journalEntryId: number | null;
+}
 
 export const ITEM_UNITS = [
   "TABLET",
@@ -89,13 +118,21 @@ export class ItemService {
   private readonly taxes: TaxRateRepository;
   private readonly journal: JournalRepository;
 
+  private readonly batches: StockBatchRepository;
+  private readonly accounts: SystemAccountResolver;
+  private readonly accounting: AccountingService;
+
   constructor(
     private readonly db: SqlDatabase,
     private readonly companyId = 1,
+    private readonly warehouseId = 1,
   ) {
     this.items = new ItemRepository(db);
     this.taxes = new TaxRateRepository(db);
     this.journal = new JournalRepository(db);
+    this.batches = new StockBatchRepository(db);
+    this.accounts = new SystemAccountResolver(db, companyId);
+    this.accounting = new AccountingService(db, companyId);
   }
 
   async list(
@@ -201,6 +238,88 @@ export class ItemService {
     const item = await this.items.findById(id);
     if (!item) throw new NotFoundError("Item not found.");
     await this.items.deactivate(id);
+  }
+
+  /**
+   * Opening stock for an item, ported from ItemService.add_opening_stock:
+   * creates a batch plus an OPENING stock movement, and -- when a supplier is
+   * given -- posts an OPENING journal entry debiting the item's inventory
+   * account (1200/1210/1220 by item type) and crediting Accounts Payable (2000)
+   * for the party, so the books stay balanced.
+   */
+  async addOpeningStock(input: AddOpeningStockInput): Promise<OpeningStockResult> {
+    const quantity = input.quantity;
+    const unitCost = input.unitCost ?? 0;
+    if (quantity <= 0) throw new ValidationError("Quantity must be greater than 0.");
+    if (unitCost < 0) throw new ValidationError("Unit cost cannot be negative.");
+
+    const item = await this.items.findById(input.itemId);
+    if (!item) throw new ValidationError("Item does not exist.");
+
+    const warehouseId = input.warehouseId ?? this.warehouseId;
+    const totalValue = quantity * unitCost;
+    const batchNumber =
+      input.batchNumber?.trim() ||
+      `OPEN-${item.item_code}-${new Date().toISOString().replace(/\D/g, "").slice(0, 17)}`;
+
+    return this.db.transaction(async () => {
+      if (await this.batches.findByNumber(item.id, warehouseId, batchNumber)) {
+        throw new ConflictError(
+          `Batch '${batchNumber}' already exists for this item in this warehouse.`,
+        );
+      }
+
+      const batchId = await this.batches.insert({
+        item_id: item.id,
+        warehouse_id: warehouseId,
+        batch_number: batchNumber,
+        manufacturing_date: new Date().toISOString().slice(0, 10),
+        expiry_date: input.expiryDate ?? null,
+        purchase_price: unitCost,
+        raw_unit_cost: unitCost,
+        packing_unit_cost: 0,
+        quantity_in_stock: quantity,
+        received_date: new Date().toISOString().slice(0, 10),
+        is_active: 1,
+      });
+
+      await this.db.run(
+        `INSERT INTO stock_movements
+           (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, movement_date, notes)
+         VALUES (?, ?, ?, 'OPENING', ?, ?, datetime('now'), ?)`,
+        [item.id, batchId, warehouseId, quantity, unitCost, `Opening stock - ${item.item_name}`],
+      );
+
+      let journalEntryId: number | null = null;
+      if (input.partyId != null && totalValue > 0) {
+        const inventoryCode = INVENTORY_ACCOUNT_BY_TYPE[item.item_type] ?? "1200";
+        const inventoryAccount = await this.accounts.idFor(inventoryCode);
+        const payableAccount = await this.accounts.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
+        journalEntryId = await this.accounting.postJournalEntry({
+          voucherType: "OPENING",
+          entryDate: new Date().toISOString().slice(0, 10),
+          lines: [
+            {
+              accountId: inventoryAccount,
+              debit: totalValue,
+              description: `Opening stock - ${item.item_name}`,
+            },
+            {
+              accountId: payableAccount,
+              credit: totalValue,
+              partyId: input.partyId,
+              description: `Opening stock credit - ${item.item_name}`,
+            },
+          ],
+          narration: `Opening stock for ${item.item_name}`,
+          sourceTable: "stock_batches",
+          sourceId: batchId,
+          companyId: this.companyId,
+        });
+      }
+
+      return { batchId, batchNumber, quantity, unitCost, totalValue, journalEntryId };
+    });
   }
 
   private async validateTaxRate(taxRateId: number | null): Promise<void> {

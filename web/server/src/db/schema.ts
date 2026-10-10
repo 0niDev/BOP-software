@@ -585,4 +585,18 @@ CREATE TABLE IF NOT EXISTS numbering_sequences (
     padding             INTEGER NOT NULL DEFAULT 5,
     UNIQUE (company_id, document_type)
 );
+
+-- Added by database/migrations/add_expense_items.py ("Pay Items" feature):
+-- a per-category list of recurring expense payees/bills.
+CREATE TABLE IF NOT EXISTS expense_items (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id          INTEGER NOT NULL REFERENCES companies(id),
+    category_id         INTEGER NOT NULL REFERENCES expense_categories(id),
+    name                TEXT NOT NULL,
+    amount              REAL,
+    is_active           INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT,
+    UNIQUE (company_id, category_id, name)
+);
 `;

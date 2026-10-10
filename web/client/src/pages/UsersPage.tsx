@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import type { Role, UserRow } from "../types";
 
 interface Draft {
@@ -40,6 +41,7 @@ export default function UsersPage() {
   const [resetFor, setResetFor] = useState<UserRow | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
 
   async function refresh(): Promise<void> {
     try {
@@ -157,13 +159,29 @@ export default function UsersPage() {
     }
   }
 
+  const visibleUsers = users.filter((user) =>
+    matchesQuery(query, [
+      user.username,
+      user.full_name,
+      user.email,
+      user.role_name,
+      user.is_active ? "Active" : "Disabled",
+      when(user.last_login_at),
+    ]),
+  );
+
   return (
     <>
       <div className="card">
-        <h2>Users &amp; Roles</h2>
-        {error && <div className="error">{error}</div>}
+        <div className="row" style={{ alignItems: "center" }}>
+          <h2 style={{ flex: 1, margin: 0 }}>
+            Users &amp; Roles <span className="badge">{visibleUsers.length} of {users.length}</span>
+          </h2>
+          <FilterBox value={query} onChange={setQuery} />
+        </div>
+        {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
         {notice && (
-          <div className="badge" style={{ display: "inline-block" }}>
+          <div className="badge" style={{ display: "inline-block", marginTop: 12 }}>
             {notice}
           </div>
         )}
@@ -180,7 +198,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {visibleUsers.map((user) => (
               <tr key={user.id}>
                 <td>{user.username}</td>
                 <td>{user.full_name}</td>
@@ -205,9 +223,11 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {users.length === 0 && !error && (
+            {visibleUsers.length === 0 && !error && (
               <tr>
-                <td colSpan={7}>No users.</td>
+                <td colSpan={7}>
+                  {users.length === 0 ? "No users." : "No users match this filter."}
+                </td>
               </tr>
             )}
           </tbody>

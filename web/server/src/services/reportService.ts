@@ -1,6 +1,10 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { Decimal, toStorage } from "../domain/money.js";
-import { AccountingService, type TrialBalanceRow } from "./accountingService.js";
+import {
+  AccountingService,
+  type DateRangeOptions,
+  type TrialBalanceRow,
+} from "./accountingService.js";
 
 export interface TrialBalanceResult {
   rows: TrialBalanceRow[];
@@ -33,6 +37,10 @@ export interface LedgerEntry {
   balance: number;
 }
 
+function csvEscape(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
 export class ReportService {
   private readonly accounting: AccountingService;
 
@@ -43,10 +51,15 @@ export class ReportService {
     this.accounting = new AccountingService(db, companyId);
   }
 
-  async trialBalance(): Promise<TrialBalanceResult> {
-    const rows = await this.accounting.getTrialBalance(this.companyId);
-    const totalDebit = rows.reduce((acc, r) => acc.plus(r.debit), new Decimal(0));
-    const totalCredit = rows.reduce((acc, r) => acc.plus(r.credit), new Decimal(0));
+  /**
+   * Totals come from the **closing** columns so a scoped report still balances
+   * (opening + period movement), while `rows[].debit/credit` remain the
+   * movement inside the requested period.
+   */
+  async trialBalance(opts: DateRangeOptions = {}): Promise<TrialBalanceResult> {
+    const rows = await this.accounting.getTrialBalance(this.companyId, opts);
+    const totalDebit = rows.reduce((acc, r) => acc.plus(r.closingDebit), new Decimal(0));
+    const totalCredit = rows.reduce((acc, r) => acc.plus(r.closingCredit), new Decimal(0));
     return {
       rows,
       totalDebit: toStorage(totalDebit),
@@ -55,8 +68,9 @@ export class ReportService {
     };
   }
 
-  async profitAndLoss(): Promise<ProfitAndLossResult> {
-    const rows = await this.accounting.getTrialBalance(this.companyId);
+  /** Revenue and expenses for the period (P&L is a period statement). */
+  async profitAndLoss(opts: DateRangeOptions = {}): Promise<ProfitAndLossResult> {
+    const rows = await this.accounting.getTrialBalance(this.companyId, opts);
     let revenue = new Decimal(0);
     let expenses = new Decimal(0);
     for (const row of rows) {
@@ -70,15 +84,19 @@ export class ReportService {
     };
   }
 
-  async balanceSheet(): Promise<BalanceSheetResult> {
-    const rows = await this.accounting.getTrialBalance(this.companyId);
+  /**
+   * Position as at a date (cumulative, so the *closing* columns are used).
+   * Without `asAt` this is the position as of everything posted.
+   */
+  async balanceSheet(asAt?: string | null): Promise<BalanceSheetResult> {
+    const rows = await this.accounting.getTrialBalance(this.companyId, { to: asAt ?? null });
     let assets = new Decimal(0);
     let liabilities = new Decimal(0);
     let equity = new Decimal(0);
     let netProfit = new Decimal(0);
     for (const row of rows) {
-      const debit = new Decimal(row.debit);
-      const credit = new Decimal(row.credit);
+      const debit = new Decimal(row.closingDebit);
+      const credit = new Decimal(row.closingCredit);
       switch (row.accountType) {
         case "ASSET":
           assets = assets.plus(debit).minus(credit);
@@ -174,24 +192,120 @@ export class ReportService {
     });
   }
 
-  /** Trial balance rendered as CSV for download/export. */
-  async trialBalanceCsv(): Promise<string> {
-    const { rows, totalDebit, totalCredit } = await this.trialBalance();
-    const escape = (value: string): string =>
-      /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-    const lines = ["Account Code,Account Name,Type,Debit,Credit"];
+  /**
+   * Trial balance rendered as CSV for download/export, including the opening,
+   * period and closing columns an accountant expects.
+   */
+  async trialBalanceCsv(opts: DateRangeOptions = {}): Promise<string> {
+    const { rows, totalDebit, totalCredit } = await this.trialBalance(opts);
+    const escape = csvEscape;
+    const lines = [
+      "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
+    ];
     for (const row of rows) {
       lines.push(
         [
           escape(row.accountCode),
           escape(row.accountName),
           row.accountType,
+          row.openingDebit.toFixed(2),
+          row.openingCredit.toFixed(2),
           row.debit.toFixed(2),
           row.credit.toFixed(2),
+          row.closingDebit.toFixed(2),
+          row.closingCredit.toFixed(2),
         ].join(","),
       );
     }
-    lines.push(["", "", "TOTAL", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(","));
+    lines.push(
+      ["", "", "TOTAL", "", "", "", "", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(
+        ",",
+      ),
+    );
+    return lines.join("\n");
+  }
+
+  /**
+   * "Export all reports" ported from report_view._generate_all_report_html:
+   * the four tab reports for one period, concatenated into a single CSV (the
+   * web equivalent of the Python "one workbook" export). Every section is
+   * produced by the same services the individual tabs use, so the numbers
+   * cannot drift.
+   */
+  async exportAllCsv(opts: DateRangeOptions = {}): Promise<string> {
+    const from = opts.from ?? null;
+    const to = opts.to ?? null;
+    const periodLabel = `${from ?? "start"} to ${to ?? "today"}`;
+    const lines: string[] = [
+      `BOP Nutraceuticals ERP — all reports,${csvEscape(periodLabel)}`,
+      "",
+    ];
+
+    // --- Trial balance -------------------------------------------------
+    const { rows, totalDebit, totalCredit } = await this.trialBalance(opts);
+    lines.push(`Trial Balance (${csvEscape(periodLabel)})`);
+    lines.push(
+      "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
+    );
+    for (const row of rows) {
+      lines.push(
+        [
+          csvEscape(row.accountCode),
+          csvEscape(row.accountName),
+          row.accountType,
+          row.openingDebit.toFixed(2),
+          row.openingCredit.toFixed(2),
+          row.debit.toFixed(2),
+          row.credit.toFixed(2),
+          row.closingDebit.toFixed(2),
+          row.closingCredit.toFixed(2),
+        ].join(","),
+      );
+    }
+    lines.push(
+      ["", "", "TOTAL", "", "", "", "", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(","),
+    );
+    lines.push("");
+
+    // --- Profit & loss (period movement) -------------------------------
+    const pl = await this.profitAndLoss(opts);
+    lines.push(`Profit & Loss (${csvEscape(periodLabel)})`);
+    lines.push("Revenue,Expenses,Net Profit");
+    lines.push([pl.revenue.toFixed(2), pl.expenses.toFixed(2), pl.netProfit.toFixed(2)].join(","));
+    lines.push("");
+
+    // --- Balance sheet (position as at the period end) ------------------
+    const bs = await this.balanceSheet(to);
+    lines.push(`Balance Sheet (as at ${csvEscape(to ?? "today")})`);
+    lines.push("Assets,Liabilities,Equity (incl. net profit),Net Profit,Balanced");
+    lines.push(
+      [
+        bs.assets.toFixed(2),
+        bs.liabilities.toFixed(2),
+        bs.equity.toFixed(2),
+        bs.netProfit.toFixed(2),
+        bs.balanced ? "YES" : "NO",
+      ].join(","),
+    );
+    lines.push("");
+
+    // --- Cash book -----------------------------------------------------
+    const cash = await this.cashBook(from ?? undefined, to ?? undefined);
+    lines.push(`Cash Book (${csvEscape(periodLabel)})`);
+    lines.push("Date,Voucher,Type,Description,Debit,Credit,Balance");
+    for (const entry of cash) {
+      lines.push(
+        [
+          entry.date,
+          csvEscape(entry.voucherNumber),
+          csvEscape(entry.voucherType),
+          csvEscape(entry.description ?? ""),
+          entry.debit.toFixed(2),
+          entry.credit.toFixed(2),
+          entry.balance.toFixed(2),
+        ].join(","),
+      );
+    }
     return lines.join("\n");
   }
 }

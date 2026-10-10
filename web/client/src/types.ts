@@ -54,6 +54,22 @@ export interface Item {
   is_active: number;
 }
 
+export interface Asset {
+  account_id: number;
+  account_code: string;
+  account_name: string;
+  account_subtype: string | null;
+  opening_balance: number;
+  created_at: string;
+  asset_type: string | null;
+  purchase_amount: number | null;
+  purchase_date: string | null;
+  supplier_id: number | null;
+  due_date: string | null;
+  notes: string | null;
+  current_balance: number;
+}
+
 export interface TaxRate {
   id: number;
   name: string;
@@ -205,6 +221,18 @@ export interface ExpenseResult {
   journalEntryId: number;
 }
 
+/** A recurring expense payee/bill within a category ("Pay Items"). */
+export interface ExpenseItem {
+  id: number;
+  company_id: number;
+  category_id: number;
+  name: string;
+  amount: number | null;
+  is_active: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export interface Bom {
   id: number;
   bom_name: string;
@@ -255,8 +283,12 @@ export interface TrialBalanceRow {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
+  openingDebit: number;
+  openingCredit: number;
   debit: number;
   credit: number;
+  closingDebit: number;
+  closingCredit: number;
 }
 
 export interface TrialBalance {
@@ -310,6 +342,23 @@ export interface Role {
 
 /** GET /api/settings: group name -> { key -> value }. */
 export type SettingsGroups = Record<string, Record<string, unknown>>;
+
+export interface BackupFile {
+  file: string;
+  bytes: number;
+  modifiedAt: string;
+}
+
+export interface BackupStatus {
+  engine: string;
+  directory: string;
+  supported: boolean;
+  exists: boolean;
+  count: number;
+  latest: string | null;
+  totalBytes: number;
+  backups: BackupFile[];
+}
 
 export interface DashboardData {
   today: {

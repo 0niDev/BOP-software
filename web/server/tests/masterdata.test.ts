@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { NotFoundError, ValidationError } from "../src/domain/errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../src/domain/errors.js";
 import { AccountService } from "../src/services/accountService.js";
 import { ItemService } from "../src/services/itemService.js";
 import { PartyService } from "../src/services/partyService.js";
@@ -174,6 +174,132 @@ describe("PartyService", () => {
     expect(updated.name).toBe("New Name");
     expect(updated.credit_limit).toBe(5000);
     expect(updated.phone).toBe("0300-1234567");
+  });
+});
+
+describe("opening balances (bulk)", () => {
+  it("posts one balanced OPENING entry and refreshes the display column", async () => {
+    const reports = new ReportService(ctx.db);
+    const cash = await accountId(ctx.db, "1000");
+    const retained = await accountId(ctx.db, "3100");
+
+    const result = await accounts.postOpeningBalances([
+      { accountId: cash, debit: 1_000 },
+      { accountId: retained, credit: 1_000 },
+    ]);
+    expect(result.totalDebit).toBe(1_000);
+    expect(result.totalCredit).toBe(1_000);
+    expect(result.accountsUpdated).toBe(2);
+
+    const tb = await reports.trialBalance();
+    expect(tb.balanced).toBe(true);
+    const cashRow = tb.rows.find((r) => r.accountId === cash)!;
+    expect(cashRow.closingDebit).toBe(1_000);
+
+    // The display column is refreshed (signed by the account's normal balance).
+    const cashAccount = await accounts.get(cash);
+    expect(cashAccount.opening_balance).toBe(1_000);
+    const retainedAccount = await accounts.get(retained);
+    expect(retainedAccount.opening_balance).toBe(1_000);
+
+    const entries = await ctx.db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM journal_entries WHERE voucher_type = 'OPENING'",
+    );
+    expect(Number(entries?.count)).toBe(1);
+  });
+
+  it("rejects unbalanced, empty and unknown-account input", async () => {
+    const cash = await accountId(ctx.db, "1000");
+    await expect(
+      accounts.postOpeningBalances([{ accountId: cash, debit: 100 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      accounts.postOpeningBalances([{ accountId: cash, debit: 0, credit: 0 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      accounts.postOpeningBalances([{ accountId: 999_999, debit: 100 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      accounts.postOpeningBalances([{ accountId: cash, debit: 5, credit: 5 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("opening stock", () => {
+  it("creates a batch and an OPENING stock movement without touching the books", async () => {
+    const result = await items.addOpeningStock({
+      itemId: ctx.ids.itemId,
+      quantity: 40,
+      unitCost: 75,
+      batchNumber: "OPEN-1",
+    });
+    expect(result.batchNumber).toBe("OPEN-1");
+    expect(result.totalValue).toBe(3_000);
+    expect(result.journalEntryId).toBeNull();
+
+    const batch = await ctx.db.get<{ quantity_in_stock: number; purchase_price: number }>(
+      "SELECT quantity_in_stock, purchase_price FROM stock_batches WHERE id = ?",
+      [result.batchId],
+    );
+    expect(Number(batch?.quantity_in_stock)).toBe(40);
+    expect(Number(batch?.purchase_price)).toBe(75);
+
+    const movement = await ctx.db.get<{ movement_type: string; quantity: number }>(
+      "SELECT movement_type, quantity FROM stock_movements WHERE batch_id = ?",
+      [result.batchId],
+    );
+    expect(movement?.movement_type).toBe("OPENING");
+    expect(Number(movement?.quantity)).toBe(40);
+  });
+
+  it("posts Dr inventory / Cr A-P when a supplier is given", async () => {
+    const reports = new ReportService(ctx.db);
+    const result = await items.addOpeningStock({
+      itemId: ctx.ids.itemId,
+      quantity: 10,
+      unitCost: 100,
+      partyId: ctx.ids.supplierId,
+    });
+    expect(result.journalEntryId).toBeGreaterThan(0);
+
+    const inventory = await accountId(ctx.db, "1220");
+    const payable = await accountId(ctx.db, "2000");
+    const lines = await ctx.db.all<{ account_id: number; debit: number; credit: number; party_id: number | null }>(
+      "SELECT account_id, debit, credit, party_id FROM journal_entry_lines WHERE journal_entry_id = ?",
+      [result.journalEntryId],
+    );
+    const dr = lines.find((l) => l.account_id === inventory)!;
+    const cr = lines.find((l) => l.account_id === payable)!;
+    expect(Number(dr.debit)).toBe(1_000);
+    expect(Number(cr.credit)).toBe(1_000);
+    expect(cr.party_id).toBe(ctx.ids.supplierId);
+    expect((await reports.trialBalance()).balanced).toBe(true);
+  });
+
+  it("rejects a duplicate batch, a bad quantity and a missing item", async () => {
+    await items.addOpeningStock({
+      itemId: ctx.ids.itemId,
+      quantity: 5,
+      unitCost: 10,
+      batchNumber: "DUP-1",
+    });
+    await expect(
+      items.addOpeningStock({
+        itemId: ctx.ids.itemId,
+        quantity: 5,
+        unitCost: 10,
+        batchNumber: "DUP-1",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      items.addOpeningStock({ itemId: ctx.ids.itemId, quantity: 0 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      items.addOpeningStock({ itemId: ctx.ids.itemId, quantity: 5, unitCost: -1 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      items.addOpeningStock({ itemId: 999_999, quantity: 5 }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });
 

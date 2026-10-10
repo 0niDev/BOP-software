@@ -1,6 +1,8 @@
 import type {
   Account,
   AccountType,
+  Asset,
+  BackupStatus,
   BalanceSheet,
   BankAccount,
   BankTransaction,
@@ -14,6 +16,7 @@ import type {
   DashboardData,
   Expense,
   ExpenseCategory,
+  ExpenseItem,
   ExpenseResult,
   Item,
   Party,
@@ -35,6 +38,15 @@ import type {
 } from "./types";
 
 const TOKEN_KEY = "bop-erp.token";
+
+/** `?from=&to=` for the report endpoints, omitting empty values. */
+function periodQuery(from?: string, to?: string): string {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const suffix = params.toString();
+  return suffix ? `?${suffix}` : "";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -66,6 +78,17 @@ async function requestText(path: string): Promise<string> {
     throw new ApiError(text || res.statusText, res.status);
   }
   return text;
+}
+
+async function requestBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set("authorization", `Bearer ${token}`);
+  const res = await fetch(path, { headers });
+  if (!res.ok) {
+    throw new ApiError((await res.text()) || res.statusText, res.status);
+  }
+  return res.blob();
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -113,6 +136,16 @@ export const api = {
   ) => request<Account>(`/api/accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateAccount: (id: number) =>
     request<{ ok: boolean }>(`/api/accounts/${id}/deactivate`, { method: "POST" }),
+  postOpeningBalances: (entries: Array<{ accountId: number; debit?: number; credit?: number }>) =>
+    request<{
+      journalEntryId: number;
+      totalDebit: number;
+      totalCredit: number;
+      accountsUpdated: number;
+    }>("/api/accounts/opening-balances", {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    }),
   parties: (opts: { type?: "CUSTOMER" | "SUPPLIER"; search?: string; activeOnly?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (opts.type) params.set("type", opts.type);
@@ -188,6 +221,22 @@ export const api = {
   ) => request<Item>(`/api/items/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateItem: (id: number) =>
     request<{ ok: boolean }>(`/api/items/${id}/deactivate`, { method: "POST" }),
+  addOpeningStock: (
+    itemId: number,
+    body: {
+      quantity: number;
+      unitCost?: number;
+      batchNumber?: string | null;
+      expiryDate?: string | null;
+      partyId?: number | null;
+    },
+  ) =>
+    request<{
+      batchId: number;
+      batchNumber: string;
+      totalValue: number;
+      journalEntryId: number | null;
+    }>(`/api/items/${itemId}/opening-stock`, { method: "POST", body: JSON.stringify(body) }),
   salesInvoices: (search?: string) =>
     request<SalesInvoice[]>(
       `/api/sales-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
@@ -289,6 +338,26 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   expenses: () => request<Expense[]>("/api/expenses"),
+  expenseItems: (categoryId?: number) =>
+    request<ExpenseItem[]>(
+      `/api/expense-items${categoryId ? `?categoryId=${categoryId}` : ""}`,
+    ),
+  createExpenseItem: (body: { categoryId: number; name: string; amount?: number | null }) =>
+    request<ExpenseItem>("/api/expense-items", { method: "POST", body: JSON.stringify(body) }),
+  updateExpenseItem: (id: number, body: { name?: string | null; amount?: number | null }) =>
+    request<ExpenseItem>(`/api/expense-items/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deactivateExpenseItem: (id: number) =>
+    request<{ ok: boolean }>(`/api/expense-items/${id}/deactivate`, { method: "POST" }),
+  payExpenseItems: (body: {
+    categoryId: number;
+    paymentMethod: SettlementMethod;
+    expenseDate: string;
+    selections: Array<{ itemId: number; amount: number; description?: string | null }>;
+  }) =>
+    request<{ voucherNumbers: string[]; totalPaid: number }>("/api/expense-items/pay", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   createExpense: (body: {
     categoryId: number;
     expenseDate: string;
@@ -319,9 +388,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  trialBalance: () => request<TrialBalance>("/api/reports/trial-balance"),
-  profitAndLoss: () => request<ProfitAndLoss>("/api/reports/profit-and-loss"),
-  balanceSheet: () => request<BalanceSheet>("/api/reports/balance-sheet"),
+  trialBalance: (from?: string, to?: string) =>
+    request<TrialBalance>(`/api/reports/trial-balance${periodQuery(from, to)}`),
+  profitAndLoss: (from?: string, to?: string) =>
+    request<ProfitAndLoss>(`/api/reports/profit-and-loss${periodQuery(from, to)}`),
+  balanceSheet: (asAt?: string) =>
+    request<BalanceSheet>(
+      `/api/reports/balance-sheet${asAt ? `?asAt=${encodeURIComponent(asAt)}` : ""}`,
+    ),
   partyLedger: (partyId: number, from?: string, to?: string) => {
     const params = new URLSearchParams({ partyId: String(partyId) });
     if (from) params.set("from", from);
@@ -335,8 +409,26 @@ export const api = {
     const suffix = params.toString();
     return request<LedgerEntry[]>(`/api/reports/cash-book${suffix ? `?${suffix}` : ""}`);
   },
-  trialBalanceCsv: () => requestText("/api/reports/trial-balance.csv"),
+  trialBalanceCsv: (from?: string, to?: string) =>
+    requestText(`/api/reports/trial-balance.csv${periodQuery(from, to)}`),
+  exportAllCsv: (from?: string, to?: string) =>
+    requestText(`/api/reports/export-all.csv${periodQuery(from, to)}`),
   dashboard: () => request<DashboardData>("/api/dashboard"),
+
+  // --- fixed assets -----------------------------------------------------
+  assets: () => request<Asset[]>("/api/assets"),
+  assetCodes: () => request<Array<{ code: string; label: string }>>("/api/asset-codes"),
+  createAsset: (body: {
+    assetName: string;
+    assetCode: string;
+    amount: number;
+    purchaseDate: string;
+    paymentType?: "CREDIT" | "CASH" | "BANK" | "CHEQUE";
+    classification?: "CURRENT" | "NON_CURRENT";
+    supplierId?: number | null;
+    dueDate?: string | null;
+    notes?: string | null;
+  }) => request<Asset>("/api/assets", { method: "POST", body: JSON.stringify(body) }),
 
   // --- administration: users, roles, settings -------------------------
   users: () => request<UserRow[]>("/api/users"),
@@ -370,6 +462,13 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
   settings: () => request<SettingsGroups>("/api/settings"),
+
+  // --- backups ----------------------------------------------------------
+  backupStatus: () => request<BackupStatus>("/api/backup/status"),
+  runBackup: () =>
+    request<{ file: string; bytes: number; createdAt: string }>("/api/backup", { method: "POST" }),
+  downloadBackup: (file: string) =>
+    requestBlob(`/api/backups/${encodeURIComponent(file)}/download`),
   saveSettings: (group: string, settings: Record<string, unknown>) =>
     request<Record<string, unknown>>("/api/settings", {
       method: "PUT",
