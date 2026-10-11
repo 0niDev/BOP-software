@@ -72,7 +72,22 @@ npm run typecheck   # tsc for server and client
 npm test            # vitest, incl. the rich-demo acceptance audit
 npm run smoke       # boots the API against a throwaway DB and drives it over HTTP
 npm run build       # production build of the client
+npm run test:e2e    # browser UI audit (Chromium; see below)
 ```
+
+### Browser UI audit
+
+`npm run test:e2e` drives every page in Chromium against a throwaway database
+seeded with the rich demo data (`data/e2e.sqlite`, ports 4100/5273 so it never
+collides with `npm run dev`) and fails on console/API errors, horizontal
+overflow, text clipped by a fixed-size container, controls that overlap or are
+too small to hit, tables without header cells, `.num` columns that are not
+right-aligned, and pages that stay empty although the demo data has content. It
+also types a nonsense filter into every page that has one to check the empty
+states, and exercises the keyboard shortcuts in a real browser. A full-page
+screenshot per page is written to `web/e2e/.artifacts/` for review.
+
+One-time setup: `npx playwright install chromium`.
 
 The same four commands run in CI (`.github/workflows/ci.yml`) on every push to
 `main` and every pull request.

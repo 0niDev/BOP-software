@@ -3,6 +3,7 @@
 Compact single-file summary of the whole session. Everything verified:
 `typecheck=0`, **117 passed + 5 skipped** (19 files — the skips are the opt-in
 hosted-database test), smoke **OK** (108 checks,
+
 trial balance balanced 127175 = 127175), client build **0**. The Python project
 was **never modified** and the hosted SQLite Cloud DB was **never written to**.
 
@@ -15,9 +16,50 @@ was **never modified** and the hosted SQLite Cloud DB was **never written to**.
 > ported.** Every headline report figure is **independently recomputed from raw
 > SQL** by `tests/acceptance.test.ts`, so the services are checked against the
 > ledger rather than against themselves. A GitHub Actions workflow runs
-> typecheck/test/smoke/build. Outstanding: only the **UI audit** (component
-> placement/sizing/overflow/empty states across every page) — there is no Chrome
-> on this machine, so it needs a real browser or a headless one.
+> typecheck/test/smoke/build (plus the browser audit). The **UI audit is done**
+> — `npm run test:e2e` drives every page in Chromium and checks placement,
+> sizing, overflow, empty states, number alignment and hit targets (21 tests).
+>
+> Outstanding: the hosted SQLite Cloud engine is still unverified (the opt-in
+> test exists but had no credentials), CI has never actually run (no GitHub
+> runner here), and the commits are **not pushed**.
+
+## Browser UI audit (item 1, done)
+
+Playwright is now a dev dependency of `web/` (`@playwright/test` 1.64, Chromium
+installed with `npx playwright install chromium`), and `web/playwright.config.ts`
+boots the real stack for the audit — the Express API on **port 4100** against a
+throwaway `data/e2e.sqlite` seeded with `seed:rich`, and the Vite dev server on
+**port 5273**. Both ports are non-default on purpose so an audit never collides
+with a `npm run dev` you already have open; `data/e2e.sqlite` is git-ignored.
+
+`web/e2e/ui-audit.spec.ts` (21 tests, all green) checks, per page:
+- no console errors, page errors, or 4xx/failed `/api/` calls;
+- no horizontal page overflow, and no element pushed past the viewport unless it
+  sits in a scrollable container;
+- no text clipped by a `hidden`/`clip` container, no control under 18x6px, and no
+  two controls overlapping by more than 6px in both axes;
+- the page actually shows data from the rich demo (amounts or table rows);
+- across all pages: ≥11px text, `.num` columns right-aligned, populated tables
+  have header cells (`thead th` or row `th`), and buttons/selects/inputs ≥24px
+  tall;
+- a nonsense term in every page's filter box produces the page's empty-state
+  message and no error banner;
+- no horizontal overflow at 1280 or 1024px;
+- keyboard shortcuts in a real browser: `Ctrl+5`/`Ctrl+2` switch modules,
+  `Ctrl+F` focuses the page filter when there is one and otherwise the module
+  finder, and the Shortcuts editor rebinds + resets a key through the UI.
+
+Full-page screenshots land in `web/e2e/.artifacts/` (git-ignored); CI uploads them
+as the `ui-audit-screenshots` artifact. `npm run typecheck` now also typechecks
+the audit (`tsconfig.e2e.json`).
+
+**Audit result on the rich demo data: no defects found.** The only initial
+failure was the audit's own table-header rule, which wrongly demanded column
+headers on the Database card's row-header (`tbody th`) key/value table; the rule
+now accepts either. Two other first-run failures were test bugs too (a
+`toContainText("BOM")` check that matched the temporary-production help text, and
+a search-focus assertion that assumed Sales Invoices has a filter box).
 
 ## Settings tabs + temporary BOM + CI (this batch)
 
@@ -187,9 +229,11 @@ The context was updated from this chat; all source files remain on disk.
 - Client `tsc --noEmit && vite build` → clean (332.41 kB, gzip 88.76 kB).
 
 ### Not finished
-- **UI audit** of every page (placement/sizing/overflow/empty states) — needs a
-  real browser; Chrome is not installed here, so only vite compile + HTTP checks
-  were possible. Everything else in the acceptance audit is done.
+- **UI audit** — done in a later batch with Playwright + Chromium (see the
+  browser-audit section at the top). The acceptance audit is therefore complete.
+- Still open elsewhere: the hosted SQLite Cloud engine is **unverified** (no
+  credentials), CI has **never run** (no GitHub runner on this machine), and the
+  commits are **not pushed**.
 
 The next agent should re-read the smoke checks and the report/interrogation code
 before writing demo data or writing monetary assertions, because the routes,
@@ -569,7 +613,9 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   → 201, duplicate username → 409, update role → 200, reset password + re-login
   → 200, wrong current password → 401, change-password → 200, settings grouped
   (theme dark), settings write/read-back, invalid theme → 400.
-- Client `tsc --noEmit && vite build` → 332.41 kB (gzip 88.76 kB).
+- Client `tsc --noEmit && vite build` → 340.34 kB (gzip 90.73 kB).
+- `npm run test:e2e` → **21/21 pass** (~1.5 min), 15 page screenshots written to
+  `web/e2e/.artifacts/`.
 - `npm run seed:rich` + the acceptance suite also verified the rich dataset
   through the real services (see the acceptance-audit section above).
 - `tests/sqliteCloud.test.ts` → **5 skipped** in a normal run (correct: no

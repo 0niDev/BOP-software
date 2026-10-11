@@ -4,3 +4,8 @@ data/*.sqlite
 data/*.sqlite-*
 .env
 *.log
+
+# browser UI audit (npm run test:e2e) — screenshots are review artifacts
+e2e/.artifacts/
+playwright-report/
+test-results/

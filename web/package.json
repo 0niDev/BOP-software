@@ -13,13 +13,16 @@
     "dev:server": "npm -w @bop-erp/server run dev",
     "dev:client": "npm -w @bop-erp/client run dev",
     "build": "npm -w @bop-erp/server run build && npm -w @bop-erp/client run build",
-    "typecheck": "npm -w @bop-erp/server run typecheck && npm -w @bop-erp/client run typecheck",
+    "typecheck": "npm -w @bop-erp/server run typecheck && npm -w @bop-erp/client run typecheck && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "test": "npm -w @bop-erp/server run test",
     "seed": "npm -w @bop-erp/server run seed",
     "seed:rich": "npm -w @bop-erp/server run seed:rich",
-    "smoke": "npm -w @bop-erp/server run smoke"
+    "smoke": "npm -w @bop-erp/server run smoke",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "concurrently": "^10.0.5"
   }
 }
