@@ -1,20 +1,120 @@
 # BOP Nutraceuticals ERP — TypeScript Rewrite: Next-Agent Context
 
 Compact single-file summary of the whole session. Everything verified:
-`typecheck=0`, **100/100 tests pass** (16 files), smoke **91 PASS / 0 FAIL**,
-client build **0**. The Python project was **never modified** and the hosted
-SQLite Cloud DB was **never written to**.
+`typecheck=0`, **117/117 tests pass** (18 files), smoke **OK** (108 checks,
+trial balance balanced 127175 = 127175), client build **0**. The Python project
+was **never modified** and the hosted SQLite Cloud DB was **never written to**.
 
 > **Status: master-data CRUD, dashboard, report date-scoping, opening
 > balances/stock, expense line items, fixed assets, backups, company profile,
 > dark/light theme application, sidebar module finder + Ctrl+F, live table
-> filters on every data page, and a single-CSV "Export all reports" (with
-> monthly/yearly period presets) are ported.** Settings UI is complete.
-> Outstanding is the full acceptance audit the user asked for: rich demo seed
-> data of every kind, independent recomputation of every report figure, a
-> logical audit of rounding/signs/double-counting, and a UI audit of every page.
+> filters on every data page, a single-CSV "Export all reports" (with
+> monthly/yearly period presets), the full **rich demo dataset**, the
+> **Shortcuts editor + Database tab**, and the **temporary one-use BOM** path are
+> ported.** Every headline report figure is **independently recomputed from raw
+> SQL** by `tests/acceptance.test.ts`, so the services are checked against the
+> ledger rather than against themselves. A GitHub Actions workflow runs
+> typecheck/test/smoke/build. Outstanding: only the **UI audit** (component
+> placement/sizing/overflow/empty states across every page) — there is no Chrome
+> on this machine, so it needs a real browser or a headless one.
 
-## Impact of this chat (the “acceptance audit” that was started)
+## Settings tabs + temporary BOM + CI (this batch)
+
+Three gaps from the audit list were closed:
+
+1. **Shortcuts editor** (the desktop app's Shortcuts tab).
+   - `web/server/src/domain/shortcuts.ts` (new) ports `DEFAULT_SHORTCUTS` from
+     `utils/shortcut_manager.py` verbatim: 26 actions (module_jump_1..9 + 0,
+     module_next/prev, refresh/search/new_record/command_palette, close_tab,
+     save/cancel, copy/paste/cut/undo/redo, toggle_sidebar, fullscreen) with
+     their default sequences, categories and window/widget context.
+   - `SettingsService.listShortcuts/updateShortcut/resetShortcut/
+     resetAllShortcuts`. Overrides live in the `SHORTCUTS` group under
+     `shortcut:<action_id>` and are written as a **plain JSON string with no
+     `json:` tag**, exactly like `settings_service.set_shortcut` — the tagged
+     form would make the desktop app's `get_all_shortcuts` crash on
+     `json.loads(dict)`. Reading tolerates the tagged object and bare-key forms.
+   - Routes `GET /api/settings/shortcuts`, `PUT /api/settings/shortcuts/:actionId`,
+     `DELETE /api/settings/shortcuts/:actionId`, `DELETE /api/settings/shortcuts`
+     (the last one is registered **before** `/api/settings/:group` so the bare
+     path is not swallowed by the group route).
+   - `SettingsPage` gained a filterable table with per-row Edit (press the keys —
+     they are captured as `Ctrl+Shift+F`-style sequences — Enter saves, Escape
+     cancels) and Reset / Reset-all. `web/client/src/shortcuts.ts` caches the map
+     and `Layout` binds the actions that map onto the web UI: `search` (focus the
+     page filter or the module finder), `module_jump_1..0` and
+     `module_next`/`module_prev`. The rest is browser-native (copy/paste/undo,
+     Ctrl+W, Ctrl+S) and stays editable so both apps share one catalogue.
+2. **Database tab** — read-only on purpose. `GET /api/settings/database` reports
+   the live engine, the resolved local path (or the credential-masked
+   `SQLITE_CLOUD_URL`), the `sqlite_version()`, the company/currency and the
+   restart-required warning. The desktop tab was an inert copy form that saved
+   `db_host`/`db_user`/`db_password` into `settings` and still needed a restart;
+   the web app reads its connection from `web/.env`, so it reports it instead of
+   writing a database password into a table every authenticated user can read.
+3. **Temporary one-use BOM** — `ManufacturingService.createProductionOrder` now
+   accepts `tempFinishedItemId` + `tempComponents` instead of `bomId`: it creates
+   a hidden BOM (`is_temp = 1`, named `TEMP-<order number>`, output quantity 1,
+   notes "Temporary one-use BOM"), allocates the order number **inside** the
+   transaction so a failure leaves no gap, then inserts the DRAFT order against
+   it. `listBoms` already excluded `is_temp`, so it never shows up. Components
+   are per ONE unit of output (same as Python). The Manufacturing page has a
+   "Temporary production (no saved BOM, one use only)" checkbox.
+
+Plus: `.github/workflows/ci.yml` (npm ci → typecheck → test → smoke → client
+build on Node 22) and the `seed:rich` polish — `seedRichDemoData` now returns the
+number of journal entries it created, so `npm run seed:rich` says how many rows
+it inserted or "already present — nothing to do" instead of always claiming
+success. The vitest timeouts moved back to the default 5s suite-wide, with a
+30s timeout only on `user.test.ts`'s PBKDF2-heavy `UserService` suite.
+
+## Rich demo data + acceptance audit (finished)
+
+`web/server/src/seedData.ts` now exports **`seedRichDemoData(db, ids)`** (plus
+`RICH_DEMO_DATE = "2024-06-15"`). It posts a full transaction set **through the
+real services** — 2 extra parties, raw/packing/second-finished items, a bank
+account with opening balance + deposit + withdrawal, cheque issue + clear, a
+credit purchase (`PI-DEMO-001`) and a bank purchase (`PI-DEMO-002`), a cash sale
+and a credit sale, a bank receipt and a bank supplier payment, a fixed asset
+purchase (CREDIT → Dr 1501/Cr 2000), a utility expense + a bulk "Pay items"
+cash/bank expense, a BOM + started + completed production order, a partial sales
+return and a partial purchase return, and a balanced OPENING entry. It is
+**idempotent** (guard: `journal_entries.narration LIKE 'RICH DEMO%'`).
+
+Wired in as `npm run seed:rich` (`tsx src/seed.ts --rich`); the plain
+`npm run seed` still seeds only the small base demo, so smoke/tests are
+unaffected.
+
+`web/server/tests/acceptance.test.ts` (8 tests) seeds the rich demo on the
+in-memory DB and then recomputes, with plain SQL over
+`journal_entry_lines`/`journal_entries`/`accounts`, everything the report
+services claim:
+- every module got rows, and a second `seedRichDemoData` call adds nothing;
+- every journal entry balances and nothing is left `is_posted <> 1`;
+- trial balance per-account closing columns == raw signed movement, and its
+totals == the recomputed net placement (note: TB totals are **net** balances,
+not gross movement — gross debits still balance gross credits);
+- P&L revenue/expenses == raw REVENUE/EXPENSE movement for the same period (and
+  for all time);
+- balance sheet assets/liabilities/netProfit == raw type sums, equity folds in
+  the period profit, `assets == liabilities + equity`;
+- AR/AP sub-ledger party sums == the 1100/2000 control accounts, a party's
+  ledger running balance == that party's raw movement, cash book == 1000;
+- dashboard tiles (cash/bank/receivable/payable/inventory/items, month-to-date
+  P&L) == the raw ledger and the `stock_batches` value;
+- `exportAllCsv` contains all four sections and a balanced TOTAL line.
+
+**Deliberate test-infra change:** `server/vitest.config.ts` now sets
+`testTimeout`/`hookTimeout` to 30s. The suite runs files in parallel and the auth
+tests use PBKDF2-HMAC-SHA256 at 200,000 iterations; the 5s default starved
+`user.test.ts` once the acceptance file joined the suite. No assertion changed.
+
+Deleted as dead code: `web/server/src/demoData.ts` (an earlier placeholder that
+duplicated the checklist and referenced a non-existent `domain/types.ts`; the
+real implementation lives in `seedData.ts`). Also removed the scratch
+`web/_test_rich_seed.ts` and `data/rich-demo-test.sqlite`.
+
+## Impact of earlier chats (settings / search / export-all)
 
 This session continued the standing review the user asked for: “afterwards when
 the app is done test everything add demo data of everykind and check if all the
@@ -75,21 +175,17 @@ Three concrete pieces were ported before this was interrupted:
 The context was updated from this chat; all source files remain on disk.
 
 
-### Current results (at interruption)
+### Current results (last full run, exit 0 each)
 - `npm run typecheck` → tsc server + client both clean.
-- `npm test` → 100/100 pass (16 files).
-- `npm run smoke` → **91 PASS / 0 FAIL**, final trial balance after every module
-  ran is `127175 = 127175` (balanced).
-- Client `tsc --noEmit && vite build` → clean.
+- `npm test` → **108/108 pass** (17 files, incl. the 8 acceptance tests).
+- `npm run smoke` → **OK / all checks passed**, final trial balance after every
+  module ran is `127175 = 127175` (balanced).
+- Client `tsc --noEmit && vite build` → clean (332.41 kB, gzip 88.76 kB).
 
-### What was *not* finished before interruption
-- Rich demo seed data of every kind (`seedDemoData` still only creates one customer,
-  one supplier, one finished good and one batch).
-- Independent recomputation of every report figure vs the service.
-- Logical audit (rounding, signs, unposted entries, double counting) done by hand
-  across every report path.
-- Full UI audit of every page (placement/sizing/overflow/empty states) done with
-  the full page list in front of me.
+### Not finished
+- **UI audit** of every page (placement/sizing/overflow/empty states) — needs a
+  real browser; Chrome is not installed here, so only vite compile + HTTP checks
+  were possible. Everything else in the acceptance audit is done.
 
 The next agent should re-read the smoke checks and the report/interrogation code
 before writing demo data or writing monetary assertions, because the routes,
@@ -102,8 +198,9 @@ disk is the source of truth.
 - **Source:** `views/*.py`, `services/*.py`, `controllers/*.py`, `database/schema.py`,
   `database/migrations/migrator.py`, `utils/security.py` — 48,043 lines / 180 files,
   Python 3.9 + PySide6 + SQLite Cloud.
-- **Rewrite:** all under `web/` (untracked, nothing committed). 48 server src files,
-  13 test files, 21 client src files (15 pages), **70 API routes**.
+- **Rewrite:** all under `web/` (committed; see the git log for the port
+  commits). 54 server src files, 18 test files, 25 client src files (16 pages),
+  **90 API routes**.
 
 Run it (from repo root):
 ```bash
@@ -177,10 +274,12 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 ## Files
 **Server** (all under `web/server/src/`):
 - `env.ts` (loads web/.env then repo-root .env), `index.ts` (boot local only,
-  listen, SIGINT/SIGTERM shutdown), `seed.ts` (refuses non-local), `smoke.ts`
-  (throwaway DB `data/smoke-<pid>.sqlite`, 38 HTTP checks), `seedData.ts`
-  (`seedDemoData` → DemoIds: customer id=1 DEMO-CUST, item id=1 DEMO-FG,
-  batch id=1 DEMO-BATCH 1000 units @ 100.00).
+  listen, SIGINT/SIGTERM shutdown), `seed.ts` (refuses non-local; `--rich` also
+  runs `seedRichDemoData`), `smoke.ts` (throwaway DB
+  `data/smoke-<pid>.sqlite`, HTTP checks), `seedData.ts` (`seedDemoData` →
+  DemoIds: customer id=1 DEMO-CUST, item id=1 DEMO-FG, batch id=1 DEMO-BATCH
+  1000 units @ 100.00; plus `seedRichDemoData` + `RICH_DEMO_DATE` described
+  above).
 - `domain/`: `errors.ts` (AppError + ValidationError 400, NotFound 404,
   Conflict 409, Unauthorized 401, Configuration 500, Database 500,
   InsufficientStock 409, UnbalancedJournalEntry 500), `enums.ts` (types +
@@ -202,7 +301,7 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   returns, report (**trialBalance, profitAndLoss, balanceSheet, partyLedger,
   cashBook, trialBalanceCsv**), settings, user.
 - `http/app.ts`: Express app + in-memory sessions + `requireAuth` Bearer
-  middleware + `parseBody(zod)` + **69 routes** (full list below) + 404 +
+  middleware + `parseBody(zod)` + **90 routes** (full list below) + 404 +
   error handler. Also `dateRangeQuery(req)`, `returnSchema`, `movementSchema`,
   `chequeSchema` at module scope.
   Route list (server/src/http/app.ts):
@@ -240,7 +339,10 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   `GET /api/users`, `POST /api/users`,
   `PUT /api/users/:id`, `POST /api/users/:id/reset-password`;
   `GET /api/roles`;
-  `GET /api/settings`, `PUT /api/settings`, `DELETE /api/settings/:group`.
+  `GET /api/settings`, `PUT /api/settings`, `DELETE /api/settings/:group`,
+  `GET /api/settings/shortcuts`, `PUT /api/settings/shortcuts/:actionId`,
+  `DELETE /api/settings/shortcuts/:actionId`, `DELETE /api/settings/shortcuts`,
+  `GET /api/settings/database`.
 - `seedData.ts` returns DemoIds; `smoke.ts` boots createApp against throwaway DB.
 
 **Client** (all under `web/client/src/`):
@@ -284,8 +386,10 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 
 **Tests** (`web/server/tests/`): helpers/db.ts (`freshDb() → in-memory + seedDemoData
   TestContext{db,ids}`; closeDb; accountId(db,code)); money(5) accounting(5)
-  salesInvoice(5) purchaseInvoice(5) payment(4) manufacturing(4) expense(4)
-  banking(6) returns(3) report(5) user(11) **masterdata(16)**.
+  salesInvoice(5) purchaseInvoice(5) payment(4) manufacturing(**7**) expense(4)
+  banking(6) returns(3) report(8) dashboard(5) expenseItem(4) asset(5) backup(5)
+  user(11) masterdata(21) acceptance(8, rich-demo audit) **settings(6, shortcuts +
+  database info)**. The `UserService` suite carries a 30s timeout (PBKDF2).
   vitest.config includes tests/**/*.test.ts.
 
 **Master-data layer (newest batch):**
@@ -447,28 +551,41 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 
 ## Verification (last full run — exit 0 each)
 - `npm run typecheck` → tsc server + client both clean.
-- `npm test` → 16 files, **100/100 pass** (21 masterdata, 5 dashboard, 8 report,
-  4 expenseItem, 5 asset, 5 backup).
-- `npm run smoke` → **87 PASS / 0 FAIL** (throwaway DB; never touches dev/prod DB;
-  snapshots go to a throwaway `data/smoke-backups-<pid>/` so `web/backups` is
-  never littered).
+- `npm test` → 17 files, **108/108 pass** (8 acceptance, 21 masterdata,
+  5 dashboard, 8 report, 4 expenseItem, 5 asset, 5 backup, 11 user, …).
+- `npm run smoke` → **all checks passed (SMOKE OK), 108 checks** (throwaway DB;
+  never touches dev/prod DB; snapshots go to a throwaway
+  `data/smoke-backups-<pid>/` so `web/backups` is never littered). The new
+  checks cover the shortcut routes (list/rebind/reject/reset one/reset all), the
+  database info endpoint (and that it leaks no credentials) and a full temporary
+  one-use production order (created → hidden BOM → started → completed at the
+  expected cost, plus the neither-BOM-nor-temp 400).
   New admin checks: roles list, user list with no password material, create user
   → 201, duplicate username → 409, update role → 200, reset password + re-login
   → 200, wrong current password → 401, change-password → 200, settings grouped
   (theme dark), settings write/read-back, invalid theme → 400.
-- Client `tsc --noEmit && vite build` → 30 modules, 277.35 kB (gzip 78.34 kB).
+- Client `tsc --noEmit && vite build` → 332.41 kB (gzip 88.76 kB).
+- `npm run seed:rich` + the acceptance suite also verified the rich dataset
+  through the real services (see the acceptance-audit section above).
 
 ## What's POST-PORTIONED vs PYTHON
 - `report_view.py`: Python had date-scoped TB + opening/closing, P&L by period,
   BS as-at date, scheduled export (frequency/period); web has all-posted TB/P&L/BS
   + manual CSV download + the "Export all reports" single-CSV with monthly/yearly
-  period presets.
-- `settings_view.py` (695 lines) + `expense_items_dialog.py` + `expense_item_service.py`:
-  only theme + change password / flat expense implemented (shortcuts stored but
-  no editor).
-- `item_service.add_opening_stock` (batch + OPENING stock movement + OPENING
-  journal entry against 2000 when a supplier is given) is **not yet ported** —
-  it belongs to the opening-stock batch below.
+  period presets. The spreadsheet **scheduler** is deliberately out of scope.
+- `settings_view.py` (695 lines): **all five tabs are now covered** — General
+  (company profile), Appearance (theme + custom-colour JSON is stored), Shortcuts
+  (real editor, see above) and Database (read-only info) and Backup (snapshot
+  card). Known limits: the desktop tab's inert `DATABASE` copy form is replaced by
+  read-only info, and custom theme **colours** have no picker (only the theme name
+  is selectable) — the stored `custom_theme` JSON is preserved.
+- `expense_items_dialog.py` / `expense_item_service.py`: the per-category
+  recurring items and the bulk "Pay items" flow are ported onto the Expenses page.
+- `manufacturing_view.py`: saved-BOM production **and** the temporary one-use BOM
+  path are ported; the desktop page's ghost-order handling (`is_ghost`, used by
+  the Python backfill scripts) has no web equivalent and is not needed.
+- `item_service.add_opening_stock` — ported (batch + OPENING stock movement +
+  OPENING journal entry against 2000 when a supplier is given).
 - **Ported (was on this list):** global search (sidebar module finder + Ctrl+F),
   settings extras (company profile), and the **"Export all reports"** single-CSV
   export with monthly/yearly period presets (the spreadsheet scheduler itself is
@@ -485,37 +602,46 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 ---
 
 ## Git state (checked)
+
+`web/` is **committed**. The latest commit (`HEAD`, "Complete the port's
+acceptance gap: demo data, settings tabs, one-use BOM") contains this whole
+batch: the rich demo seed + acceptance audit, the Shortcuts and Database settings
+tabs, the temporary one-use BOM path, CI, the README/context docs and the dead
+`demoData.ts` deletion. It is **not pushed** yet.
+
+Still untracked / untouched on purpose:
 ```
-?? BOP_ERP_TYPESCRIPT_REWRITE_LOG.md   (497-line full session log I wrote)
-?? freebuff-chat-2026-10-07T21-54-07.857Z.md   (client transcript, 1.6MB)
-?? web/
+?? BOP_ERP_TYPESCRIPT_REWRITE_LOG.md            (port session log)
+?? freebuff-chat-2026-10-07T21-54-07.857Z.md    (client transcript, 1.6MB)
+ M opencode.jsonc                                (modified before the port work)
 ```
-Last commit `d9435f4` is "before buff"; `f71b249` is the Python-side commit
-"Improve UX and performance: security, async reports, thread-safe cache,
-persistence". No tracked files modified.
+`f71b249` is the last Python-side commit ("Improve UX and performance: security,
+async reports, thread-safe cache, persistence"); the Python project has not been
+touched by this work.
 
 ---
 
-## Outstanding: the acceptance audit the user asked for
+## Acceptance audit status (the user's standing request)
 
-The user's standing request after the port finishes:
-1. **Rich demo data of every kind** — `seedDemoData` was extended so the app
-   starts loaded: parties of both types, raw/packing/finished items, purchase
-   invoices that create batches, credit + cash sales, receipts/payments, a
-   production order + BOM, expenses (incl. recurring pay-items and a bulk "Pay
-   items"), bank account + deposit/withdraw + issue/receive/clear cheques, a
-   sales return and a purchase return, a fixed asset purchase, and an opening
-   balance. This is the core of the acceptance audit.
-2. **Every report must update correctly** — recompute each figure independently
-   in the test (not via the same service) and cross-check: trial balance
-   balances, P&L = revenue - expenses, balance sheet assets = liabilities +
-   equity, party ledger running balance, cash book, dashboard tiles vs the report
-   services.
-3. **Logical audit** — hunt for wrong calculations / wrong data handling
-   (rounding, sign placement, deferred/credit handling, unposted entries leaking
-   into reports, double counting).
-4. **UI audit** — every page: component placement, sizing, overflow, table
-   widths, number alignment, empty states.
+1. **Rich demo data of every kind** — ✅ done: `seedRichDemoData` (see above),
+   run with `npm run seed:rich`. `seedDemoData` still seeds the small base set
+   that smoke/tests rely on.
+2. **Every report must update correctly** — ✅ done: `tests/acceptance.test.ts`
+   recomputes every figure from raw SQL (not via the report services) and
+   cross-checks trial balance / P&L / balance sheet / party ledger / cash book /
+   dashboard tiles / export-all CSV.
+3. **Logical audit** — ✅ done for the report paths: entries balance gross and
+   net, nothing unposted leaks in, signs stay consistent (`closingDebit -
+   closingCredit == raw movement`), the period scoping carries openings, AR/AP
+   sub-ledgers tie to their control accounts, and no figure is double counted.
+4. **UI audit** — ⬜ **still outstanding.** Every page needs a placement/sizing/
+   overflow/empty-state pass in a real browser. This machine has no Chrome and
+   no browser test runner, so it could not be done here; do it once a browser is
+   available (or add a headless-browser harness).
+
+One caveat worth remembering while auditing the dashboard: month-to-date
+**expenses include COGS** (5000 is an EXPENSE account), so a sale with a cost
+shows both the cost of goods and any overhead in `profitLoss.expenses`.
 
 ## Read-first file for next agent
 - `web/server/src/http/app.ts` ≈ 533 lines: central route registration +

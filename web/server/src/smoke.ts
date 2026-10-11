@@ -335,6 +335,82 @@ async function main(): Promise<void> {
       `company profile saves and reads back (${putGeneral.status})`,
     );
 
+    // --- keyboard shortcuts (desktop app's Shortcuts tab) ----------------
+    const shortcuts = (await json(
+      await fetch(`${base}/api/settings/shortcuts`, { headers }),
+    )) as Array<{ actionId: string; currentSequence: string; category: string }>;
+    check(
+      Array.isArray(shortcuts) && shortcuts.length === 26,
+      `GET /api/settings/shortcuts lists the catalogue (${shortcuts?.length})`,
+    );
+    check(
+      shortcuts.find((s) => s.actionId === "search")?.currentSequence === "Ctrl+F",
+      "the search shortcut defaults to Ctrl+F",
+    );
+
+    const rebind = await fetch(`${base}/api/settings/shortcuts/search`, {
+      method: "PUT",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ sequence: "Ctrl+Shift+F" }),
+    });
+    check(rebind.status === 200, `PUT /api/settings/shortcuts/:actionId rebinds (${rebind.status})`);
+    const rebound = (await json(
+      await fetch(`${base}/api/settings/shortcuts`, { headers }),
+    )) as Array<{ actionId: string; currentSequence: string; defaultSequence: string }>;
+    check(
+      rebound.find((s) => s.actionId === "search")?.currentSequence === "Ctrl+Shift+F",
+      "the rebound key is read back",
+    );
+    check(
+      rebound.find((s) => s.actionId === "search")?.defaultSequence === "Ctrl+F",
+      "the default is kept alongside the current key",
+    );
+
+    const badShortcut = await fetch(`${base}/api/settings/shortcuts/not_an_action`, {
+      method: "PUT",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ sequence: "Ctrl+Q" }),
+    });
+    check(badShortcut.status === 400, `unknown shortcut action rejected (${badShortcut.status})`);
+
+    const resetOne = await fetch(`${base}/api/settings/shortcuts/search`, {
+      method: "DELETE",
+      headers,
+    });
+    const resetBody = (await json(resetOne)) as { currentSequence: string };
+    check(
+      resetOne.status === 200 && resetBody.currentSequence === "Ctrl+F",
+      `DELETE /api/settings/shortcuts/:actionId restores the default (${resetBody.currentSequence})`,
+    );
+
+    // Registered ahead of `/api/settings/:group`, so this is the reset-all route.
+    const resetAll = await fetch(`${base}/api/settings/shortcuts`, { method: "DELETE", headers });
+    const resetAllBody = (await json(resetAll)) as { removed: number };
+    check(
+      resetAll.status === 200 && typeof resetAllBody.removed === "number",
+      `DELETE /api/settings/shortcuts resets every override (removed ${resetAllBody?.removed})`,
+    );
+
+    // --- database information (desktop app's Database tab) ----------------
+    const dbInfo = (await json(await fetch(`${base}/api/settings/database`, { headers }))) as {
+      engine: string;
+      location: string;
+      sqliteVersion: string;
+      restartRequired: boolean;
+    };
+    check(
+      dbInfo.engine.includes("local") && dbInfo.restartRequired === true,
+      `GET /api/settings/database reports the local engine (${dbInfo.engine})`,
+    );
+    check(
+      /^\d+\.\d+/.test(dbInfo.sqliteVersion),
+      `database reports the SQLite version (${dbInfo.sqliteVersion})`,
+    );
+    check(
+      !JSON.stringify(dbInfo).includes("password"),
+      "database information never exposes credentials",
+    );
+
     // --- master data: accounts, parties, items ---------------------------
     const post = (path: string, body: unknown) =>
       fetch(`${base}${path}`, {
@@ -543,6 +619,65 @@ async function main(): Promise<void> {
       entries: [{ accountId: accountList.find((a) => a.account_code === "1100")!.id, debit: 100 }],
     });
     check(unbalancedRes.status === 400, `unbalanced opening balances rejected (${unbalancedRes.status})`);
+
+    // --- temporary (one-use) production order -----------------------------
+    const rawMaterialRes = await post("/api/items", {
+      itemName: "Smoke Raw Material",
+      itemType: "RAW_MATERIAL",
+      unit: "KG",
+      purchasePrice: 4,
+    });
+    const rawMaterial = (await json(rawMaterialRes)) as { id: number };
+    check(
+      rawMaterialRes.status === 201,
+      `POST /api/items creates a raw material (${rawMaterialRes.status})`,
+    );
+    await post(`/api/items/${rawMaterial.id}/opening-stock`, { quantity: 500, unitCost: 4 });
+
+    const tempOrderRes = await post("/api/production-orders", {
+      plannedQuantity: 10,
+      manufacturingDate: "2026-10-09",
+      tempFinishedItemId: ids.itemId,
+      tempComponents: [{ componentItemId: rawMaterial.id, quantityRequired: 2 }],
+    });
+    const tempOrder = (await json(tempOrderRes)) as {
+      id: number;
+      orderNumber: string;
+      bomId: number;
+    };
+    check(
+      tempOrderRes.status === 201 && /^PO-\d+$/.test(tempOrder.orderNumber),
+      `POST /api/production-orders creates a temporary order (${tempOrder.orderNumber})`,
+    );
+
+    const bomList = (await json(await fetch(`${base}/api/boms`, { headers }))) as Array<{
+      id: number;
+    }>;
+    check(
+      !bomList.some((b) => b.id === tempOrder.bomId),
+      "the temporary one-use BOM is hidden from the BOM list",
+    );
+
+    const startTempRes = await post(`/api/production-orders/${tempOrder.id}/start`, {});
+    check(startTempRes.status === 200, `temporary order starts (${startTempRes.status})`);
+    const completeTempRes = await post(`/api/production-orders/${tempOrder.id}/complete`, {
+      actualQuantity: 10,
+      outputBatchNumber: "SMOKE-TEMP-FG",
+    });
+    const tempResult = (await json(completeTempRes)) as { productionCost: number };
+    check(
+      completeTempRes.status === 200 && tempResult.productionCost === 80,
+      `temporary production consumes 2/unit x 10 at cost 4 = 80 (${tempResult.productionCost})`,
+    );
+
+    const noBomRes = await post("/api/production-orders", {
+      plannedQuantity: 1,
+      manufacturingDate: "2026-10-09",
+    });
+    check(
+      noBomRes.status === 400,
+      `an order with neither a BOM nor temp details is rejected (${noBomRes.status})`,
+    );
 
     // --- recurring expense items ("Pay Items") ---------------------------
     const expenseItemRes = await post("/api/expense-items", {

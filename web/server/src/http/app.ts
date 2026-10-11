@@ -85,7 +85,7 @@ export function createApp(
   const accounting = new AccountingService(db, companyId);
   const reports = new ReportService(db, companyId);
   const users = new UserService(db);
-  const settings = new SettingsService(db);
+  const settings = new SettingsService(db, companyId);
   const dashboard = new DashboardService(db, companyId);
   const expenseItems = new ExpenseItemService(db, companyId);
   const assets = new AssetService(db, companyId);
@@ -555,13 +555,24 @@ export function createApp(
   app.post("/api/production-orders", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        bomId: z.coerce.number().int().positive(),
+        bomId: z.coerce.number().int().positive().nullish(),
         plannedQuantity: z.coerce.number().positive(),
         manufacturingDate: z.string().min(1),
         orderNumber: z.string().nullish(),
         expiryDate: z.string().nullish(),
         notes: z.string().nullish(),
         warehouseId: z.coerce.number().int().positive().optional(),
+        // Temporary (one-use) production: a hidden BOM is created instead.
+        tempFinishedItemId: z.coerce.number().int().positive().nullish(),
+        tempComponents: z
+          .array(
+            z.object({
+              componentItemId: z.coerce.number().int().positive(),
+              quantityRequired: z.coerce.number().positive(),
+              wastagePercent: z.coerce.number().min(0).max(100).optional(),
+            }),
+          )
+          .nullish(),
       }),
       req.body,
     );
@@ -905,6 +916,30 @@ export function createApp(
 
   app.get("/api/roles", requireAuth, async (_req, res) => {
     res.json(await users.roles());
+  });
+
+  // --- keyboard shortcuts (the desktop app's Shortcuts tab) ----------------
+  app.get("/api/settings/shortcuts", requireAuth, async (_req, res) => {
+    res.json(await settings.listShortcuts(companyId));
+  });
+
+  app.put("/api/settings/shortcuts/:actionId", requireAuth, async (req, res) => {
+    const body = parseBody(z.object({ sequence: z.string().min(1) }), req.body);
+    res.json(await settings.updateShortcut(companyId, String(req.params.actionId), body.sequence));
+  });
+
+  // Registered before `/api/settings/:group` so "shortcuts" is not read as a group.
+  app.delete("/api/settings/shortcuts/:actionId", requireAuth, async (req, res) => {
+    res.json(await settings.resetShortcut(companyId, String(req.params.actionId)));
+  });
+
+  app.delete("/api/settings/shortcuts", requireAuth, async (_req, res) => {
+    res.json({ removed: await settings.resetAllShortcuts(companyId) });
+  });
+
+  // --- read-only database connection info (the desktop app's Database tab) --
+  app.get("/api/settings/database", requireAuth, async (_req, res) => {
+    res.json(await settings.databaseInfo());
   });
 
   app.get("/api/settings", requireAuth, async (req, res) => {

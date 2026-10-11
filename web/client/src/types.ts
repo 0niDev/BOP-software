@@ -343,6 +343,27 @@ export interface Role {
 /** GET /api/settings: group name -> { key -> value }. */
 export type SettingsGroups = Record<string, Record<string, unknown>>;
 
+/** One keyboard action from the server's ported shortcut catalogue. */
+export interface ShortcutEntry {
+  actionId: string;
+  description: string;
+  category: string;
+  context: string;
+  defaultSequence: string;
+  currentSequence: string;
+}
+
+/** GET /api/settings/database: read-only connection summary. */
+export interface DatabaseInfo {
+  engine: string;
+  location: string;
+  source: string;
+  sqliteVersion: string;
+  restartRequired: boolean;
+  companyId: number;
+  currency: string;
+}
+
 export interface BackupFile {
   file: string;
   bytes: number;

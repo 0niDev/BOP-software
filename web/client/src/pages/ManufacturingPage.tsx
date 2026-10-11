@@ -25,6 +25,11 @@ export default function ManufacturingPage() {
   // Order form
   const [bomId, setBomId] = useState(0);
   const [plannedQuantity, setPlannedQuantity] = useState(1);
+  // Temporary one-use production (no saved BOM), ported from manufacturing_view
+  const [tempMode, setTempMode] = useState(false);
+  const [tempFinishedItemId, setTempFinishedItemId] = useState(0);
+  const [tempComponentItemId, setTempComponentItemId] = useState(0);
+  const [tempQuantityRequired, setTempQuantityRequired] = useState(1);
 
   async function refresh() {
     try {
@@ -70,15 +75,27 @@ export default function ManufacturingPage() {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    if (!bomId) {
+    if (tempMode) {
+      if (!tempFinishedItemId || !tempComponentItemId) {
+        setError("Select the finished item and a component.");
+        return;
+      }
+    } else if (!bomId) {
       setError("Select a BOM.");
       return;
     }
     try {
       const order = await api.createProductionOrder({
-        bomId,
         plannedQuantity,
         manufacturingDate: new Date().toISOString().slice(0, 10),
+        ...(tempMode
+          ? {
+              tempFinishedItemId,
+              tempComponents: [
+                { componentItemId: tempComponentItemId, quantityRequired: tempQuantityRequired },
+              ],
+            }
+          : { bomId }),
       });
       setNotice(`Created production order ${order.orderNumber}`);
       await refresh();
@@ -222,18 +239,70 @@ export default function ManufacturingPage() {
         <>
           <form className="card" onSubmit={createOrder}>
             <h2>New production order</h2>
+            <label style={{ display: "block", marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={tempMode}
+                onChange={(e) => setTempMode(e.target.checked)}
+              />{" "}
+              Temporary production (no saved BOM, one use only)
+            </label>
             <div className="row">
-              <div>
-                <label>BOM</label>
-                <select value={bomId} onChange={(e) => setBomId(Number(e.target.value))}>
-                  <option value={0}>Select...</option>
-                  {boms.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.bom_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {tempMode ? (
+                <>
+                  <div>
+                    <label>Finished item</label>
+                    <select
+                      value={tempFinishedItemId}
+                      onChange={(e) => setTempFinishedItemId(Number(e.target.value))}
+                    >
+                      <option value={0}>Select...</option>
+                      {finishedGoods.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.item_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Component</label>
+                    <select
+                      value={tempComponentItemId}
+                      onChange={(e) => setTempComponentItemId(Number(e.target.value))}
+                    >
+                      <option value={0}>Select...</option>
+                      {components.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.item_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Qty per unit</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={tempQuantityRequired}
+                      onChange={(e) => setTempQuantityRequired(Number(e.target.value))}
+                      style={{ width: 130 }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label>BOM</label>
+                  <select value={bomId} onChange={(e) => setBomId(Number(e.target.value))}>
+                    <option value={0}>Select...</option>
+                    {boms.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.bom_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label>Planned quantity</label>
                 <input
@@ -249,6 +318,13 @@ export default function ManufacturingPage() {
                 Create order
               </button>
             </div>
+            {tempMode && (
+              <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+                A hidden one-use BOM is created for this order (named{" "}
+                <code>TEMP-&lt;order number&gt;</code>) and never appears in the BOM list. Quantities
+                are per one unit of output.
+              </p>
+            )}
           </form>
 
           <div className="card">

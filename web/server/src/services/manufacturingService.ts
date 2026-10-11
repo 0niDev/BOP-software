@@ -7,7 +7,10 @@
  *     Cr Inventory - Raw Materials            raw cost
  *     Cr Inventory - Packing Materials        packing cost
  *
- * Note: the Python app's "temporary one-use BOM" path is not ported yet.
+ * createProductionOrder also supports the Python app's "temporary one-use BOM"
+ * path: pass `tempFinishedItemId` + `tempComponents` instead of a saved BOM and
+ * a hidden BOM flagged `is_temp = 1`, named `TEMP-<order number>`, is created and
+ * linked to the order. Those BOMs never appear in the BOM list.
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
@@ -41,7 +44,8 @@ export interface CreateBomInput {
 }
 
 export interface CreateProductionOrderInput {
-  bomId: number;
+  /** Saved BOM to produce from — omit for a temporary one-use production. */
+  bomId?: number | null;
   plannedQuantity: number | string;
   manufacturingDate: string;
   orderNumber?: string | null;
@@ -50,6 +54,10 @@ export interface CreateProductionOrderInput {
   warehouseId?: number;
   createdBy?: number | null;
   companyId?: number;
+  /** Temporary (one-use) production: the finished item to make … */
+  tempFinishedItemId?: number | null;
+  /** … and the raw/packing materials consumed, as for a BOM. */
+  tempComponents?: readonly BomComponentInput[] | null;
 }
 
 export interface CompleteProductionInput {
@@ -177,7 +185,7 @@ export class ManufacturingService {
 
   async createProductionOrder(
     input: CreateProductionOrderInput,
-  ): Promise<{ id: number; orderNumber: string }> {
+  ): Promise<{ id: number; orderNumber: string; bomId: number }> {
     const companyId = input.companyId ?? this.companyId;
     const warehouseId = input.warehouseId ?? 1;
     const plannedQuantity = dec(input.plannedQuantity);
@@ -185,18 +193,62 @@ export class ManufacturingService {
       throw new ValidationError("Planned quantity must be greater than 0.");
     }
 
+    // Temporary one-use production: a hidden BOM is created for the order.
+    if (input.tempFinishedItemId != null && input.tempComponents != null) {
+      const finished = await this.items.requireById(input.tempFinishedItemId);
+      if (finished.item_type !== "FINISHED_GOOD") {
+        throw new ValidationError("Finished item must be of type FINISHED_GOOD.");
+      }
+      if (input.tempComponents.length === 0) {
+        throw new ValidationError("At least one component is required.");
+      }
+      const components = await this.validateComponents(input.tempComponents);
+
+      return this.db.transaction(async () => {
+        // The order number is allocated inside the transaction so a failure
+        // rolls the sequence back with the rows (no gaps), exactly like the
+        // Python app's temporary-BOM path.
+        const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
+        const bomId = await this.manufacturing.insertBom({
+          company_id: companyId,
+          finished_item_id: finished.id,
+          bom_name: `TEMP-${orderNumber}`,
+          output_quantity: 1,
+          notes: "Temporary one-use BOM",
+          is_active: 1,
+          is_temp: 1,
+        });
+        for (const component of components) {
+          await this.manufacturing.insertBomComponent({
+            bom_id: bomId,
+            component_item_id: component.componentItemId,
+            quantity_required: toStorage(component.quantityRequired),
+            wastage_percent: toStorage(component.wastagePercent),
+          });
+        }
+        const id = await this.manufacturing.insertOrder({
+          company_id: companyId,
+          warehouse_id: warehouseId,
+          order_number: orderNumber,
+          bom_id: bomId,
+          planned_quantity: toStorage(plannedQuantity),
+          manufacturing_date: input.manufacturingDate,
+          expiry_date: input.expiryDate ?? null,
+          notes: input.notes ?? null,
+          created_by: input.createdBy ?? null,
+          status: "DRAFT",
+        });
+        return { id, orderNumber, bomId };
+      });
+    }
+
+    const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
+    if (input.bomId == null) {
+      throw new ValidationError("A BOM is required for a saved production order.");
+    }
     const bom = await this.manufacturing.findBomById(input.bomId);
     if (!bom) throw new ValidationError("BOM does not exist.");
     if (!bom.is_active) throw new ValidationError("BOM is not active.");
-
-    let orderNumber = input.orderNumber?.trim() || "";
-    if (orderNumber) {
-      if (await this.manufacturing.orderNumberExists(orderNumber, companyId)) {
-        throw new ValidationError(`Order number '${orderNumber}' already exists.`);
-      }
-    } else {
-      orderNumber = await this.journal.nextVoucherNumber(companyId, "PRODUCTION_ORDER");
-    }
 
     const id = await this.manufacturing.insertOrder({
       company_id: companyId,
@@ -210,7 +262,22 @@ export class ManufacturingService {
       created_by: input.createdBy ?? null,
       status: "DRAFT",
     });
-    return { id, orderNumber };
+    return { id, orderNumber, bomId: bom.id };
+  }
+
+  /** Explicit order number (rejected if taken) or the next PRODUCTION_ORDER one. */
+  private async resolveOrderNumber(
+    requested: string | null | undefined,
+    companyId: number,
+  ): Promise<string> {
+    const orderNumber = requested?.trim() || "";
+    if (!orderNumber) {
+      return this.journal.nextVoucherNumber(companyId, "PRODUCTION_ORDER");
+    }
+    if (await this.manufacturing.orderNumberExists(orderNumber, companyId)) {
+      throw new ValidationError(`Order number '${orderNumber}' already exists.`);
+    }
+    return orderNumber;
   }
 
   async startProduction(orderId: number): Promise<void> {

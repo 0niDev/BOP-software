@@ -29,7 +29,7 @@ web/
 │   │   ├── services/       accounting engine, sales, auth, reports (trial balance, P&L, balance sheet, ledgers)
 │   │   ├── http/           Express app and routes
 │   │   ├── index.ts        server entry point
-│   │   ├── seed.ts         seed local demo data
+│   │   ├── seed.ts         seed local demo data (`--rich` for the full set)
 │   │   └── smoke.ts        end-to-end HTTP smoke test
 │   └── tests/              vitest unit + integration tests
 └── client/                 React + Vite web client
@@ -43,6 +43,7 @@ Layering mirrors the original: `views (React) → http → services → reposito
 ```bash
 cd web
 npm install
+npm run seed:rich   # optional: load the full demo transaction set
 
 # development (API on :4000, client on :5173 with /api proxied to the server)
 npm run dev
@@ -68,10 +69,13 @@ database is created and seeded automatically.
 
 ```bash
 npm run typecheck   # tsc for server and client
-npm test            # vitest (money, accounting engine, sales invoice)
+npm test            # vitest, incl. the rich-demo acceptance audit
 npm run smoke       # boots the API against a throwaway DB and drives it over HTTP
 npm run build       # production build of the client
 ```
+
+The same four commands run in CI (`.github/workflows/ci.yml`) on every push to
+`main` and every pull request.
 
 ## Money handling
 
@@ -99,7 +103,8 @@ matching the original rounding but without IEEE-754 drift.
 - **Payments & receipts**: supplier payments (Dr AP / Cr cash-bank) and customer
   receipts (Dr cash-bank / Cr AR) with invoice settlement guards.
 - **Manufacturing**: bills of materials and production orders (draft -> start ->
-  complete), component consumption and finished-goods posting.
+  complete), component consumption and finished-goods posting, plus one-use
+  "temporary production" orders that create a hidden, never-listed BOM.
 - **Expenses**: categories and vouchers with automatic expense/cash-bank posting.
 - **Banking**: bank accounts (linked to COA 1010), deposits/withdrawals and the
   cheque lifecycle (issue/receive/clear/bounce/lose).
@@ -110,7 +115,10 @@ matching the original rounding but without IEEE-754 drift.
 - **Users, roles & settings**: user administration (create / edit / disable,
   role assignment, admin password reset), self-service password change, the
   role catalogue and grouped application settings (APPEARANCE, SHORTCUTS) with
-  the same `json:` value encoding the Python app writes.
+  the same value encoding the Python app writes. The Settings page also has the
+  keyboard-shortcut editor (module jumps, module next/previous and the search
+  box are live in the browser) and a read-only Database card showing the engine,
+  connection and SQLite version.
 - **Master data**: customers & suppliers (auto CUST-/SUPP- codes, credit limits,
   account linkage rules, open-transaction guard on deactivation), items (auto
   ITEM- codes, units, item types, tax-rate validation) and the chart of accounts

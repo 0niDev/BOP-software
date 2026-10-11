@@ -21,7 +21,11 @@ afterEach(async () => {
   await closeDb(ctx.db);
 });
 
-describe("UserService", () => {
+// Every test here hashes passwords with PBKDF2-HMAC-SHA256 at 200,000
+// iterations (deliberately slow, to stay compatible with the Python app), and
+// the suite runs files in parallel — so this file needs more than the default
+// 5s per test.
+describe("UserService", { timeout: 30_000 }, () => {
   it("lists users with role names and never exposes password material", async () => {
     const list = await users.list();
     expect(list.length).toBeGreaterThan(0);

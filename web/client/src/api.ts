@@ -14,6 +14,7 @@ import type {
   CreatePurchaseInvoiceRequest,
   CreateSalesInvoiceRequest,
   DashboardData,
+  DatabaseInfo,
   Expense,
   ExpenseCategory,
   ExpenseItem,
@@ -31,6 +32,7 @@ import type {
   SalesInvoice,
   SettingsGroups,
   SettlementMethod,
+  ShortcutEntry,
   TaxRate,
   TrialBalance,
   User,
@@ -373,11 +375,19 @@ export const api = {
   }) => request<{ id: number; bomName: string }>("/api/boms", { method: "POST", body: JSON.stringify(body) }),
   productionOrders: () => request<ProductionOrder[]>("/api/production-orders"),
   createProductionOrder: (body: {
-    bomId: number;
+    /** Omit for a temporary (one-use) production, which builds its own BOM. */
+    bomId?: number | null;
     plannedQuantity: number;
     manufacturingDate: string;
+    orderNumber?: string;
+    tempFinishedItemId?: number | null;
+    tempComponents?: {
+      componentItemId: number;
+      quantityRequired: number;
+      wastagePercent?: number;
+    }[] | null;
   }) =>
-    request<{ id: number; orderNumber: string }>("/api/production-orders", {
+    request<{ id: number; orderNumber: string; bomId: number }>("/api/production-orders", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -462,6 +472,19 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
   settings: () => request<SettingsGroups>("/api/settings"),
+  shortcuts: () => request<ShortcutEntry[]>("/api/settings/shortcuts"),
+  updateShortcut: (actionId: string, sequence: string) =>
+    request<ShortcutEntry>(`/api/settings/shortcuts/${encodeURIComponent(actionId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ sequence }),
+    }),
+  resetShortcut: (actionId: string) =>
+    request<ShortcutEntry>(`/api/settings/shortcuts/${encodeURIComponent(actionId)}`, {
+      method: "DELETE",
+    }),
+  resetAllShortcuts: () =>
+    request<{ removed: number }>("/api/settings/shortcuts", { method: "DELETE" }),
+  databaseInfo: () => request<DatabaseInfo>("/api/settings/database"),
 
   // --- backups ----------------------------------------------------------
   backupStatus: () => request<BackupStatus>("/api/backup/status"),

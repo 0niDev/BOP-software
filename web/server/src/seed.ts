@@ -1,6 +1,6 @@
 import { closeDb, getDb } from "./db/index.js";
 import { env } from "./env.js";
-import { seedDemoData } from "./seedData.js";
+import { seedDemoData, seedRichDemoData } from "./seedData.js";
 
 async function main(): Promise<void> {
   if (env.dbEngine !== "local") {
@@ -8,10 +8,20 @@ async function main(): Promise<void> {
   }
   const db = getDb();
   const ids = await seedDemoData(db);
-  console.log("Seeded demo data:");
-  console.log(`  customer id = ${ids.customerId} (${"DEMO-CUST"})`);
+  console.log("Seeded basic demo data:");
+  console.log(`  customer id = ${ids.customerId} (DEMO-CUST)`);
   console.log(`  item id     = ${ids.itemId} (DEMO-FG)`);
   console.log(`  batch id    = ${ids.batchId} (DEMO-BATCH, 1000 units @ 100.00 cost)`);
+
+  if (process.argv.includes("--rich")) {
+    const seeded = await seedRichDemoData(db, ids);
+    console.log(
+      seeded > 0
+        ? `Seeded rich demo data (full transaction set, ${seeded} journal entries).`
+        : "Rich demo data already present — nothing to do.",
+    );
+  }
+
   await closeDb();
 }
 

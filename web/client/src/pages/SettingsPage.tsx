@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api, ApiError, getToken } from "../api";
+import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
-import type { BackupStatus } from "../types";
+import type { BackupStatus, DatabaseInfo, ShortcutEntry } from "../types";
 
 /** Picker lists ported from settings_view.py. */
 const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SAR", "AED"];
@@ -33,6 +34,89 @@ export default function SettingsPage() {
 
   const [backups, setBackups] = useState<BackupStatus | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
+
+  const [shortcuts, setShortcuts] = useState<ShortcutEntry[]>([]);
+  const [shortcutFilter, setShortcutFilter] = useState("");
+  const [editingShortcut, setEditingShortcut] = useState<string | null>(null);
+  const [draftKey, setDraftKey] = useState("");
+
+  const [database, setDatabase] = useState<DatabaseInfo | null>(null);
+
+  async function loadShortcuts(): Promise<void> {
+    try {
+      setShortcuts(await api.shortcuts());
+    } catch (err) {
+      setError(message(err, "Failed to load shortcuts."));
+    }
+  }
+
+  /** Turn the keys the user just pressed into a Qt-style sequence. */
+  function captureShortcutKeys(event: KeyboardEvent<HTMLInputElement>, actionId: string): void {
+    event.preventDefault();
+    if (event.key === "Escape") {
+      setEditingShortcut(null);
+      setDraftKey("");
+      return;
+    }
+    if (event.key === "Enter") {
+      void saveShortcut(actionId);
+      return;
+    }
+    if (["Control", "Shift", "Alt", "Meta"].includes(event.key)) return;
+    const parts: string[] = [];
+    if (event.ctrlKey) parts.push("Ctrl");
+    if (event.altKey) parts.push("Alt");
+    if (event.shiftKey) parts.push("Shift");
+    parts.push(event.key.length === 1 ? event.key.toUpperCase() : event.key);
+    setDraftKey(parts.join("+"));
+  }
+
+  async function saveShortcut(actionId: string): Promise<void> {
+    setError(null);
+    setNotice(null);
+    const sequence = draftKey.trim();
+    if (!sequence) {
+      setError("A shortcut key is required.");
+      return;
+    }
+    try {
+      await api.updateShortcut(actionId, sequence);
+      setEditingShortcut(null);
+      setDraftKey("");
+      await loadShortcuts();
+      shortcutsChanged();
+      setNotice(`Shortcut saved: ${sequence}.`);
+    } catch (err) {
+      setError(message(err, "Failed to update the shortcut."));
+    }
+  }
+
+  async function resetShortcut(actionId: string): Promise<void> {
+    setError(null);
+    setNotice(null);
+    try {
+      await api.resetShortcut(actionId);
+      setEditingShortcut(null);
+      await loadShortcuts();
+      shortcutsChanged();
+    } catch (err) {
+      setError(message(err, "Failed to reset the shortcut."));
+    }
+  }
+
+  async function resetAllShortcuts(): Promise<void> {
+    setError(null);
+    setNotice(null);
+    try {
+      const { removed } = await api.resetAllShortcuts();
+      setEditingShortcut(null);
+      await loadShortcuts();
+      shortcutsChanged();
+      setNotice(`Reset ${removed} shortcut(s) to their defaults.`);
+    } catch (err) {
+      setError(message(err, "Failed to reset the shortcuts."));
+    }
+  }
 
   async function loadBackups(): Promise<void> {
     try {
@@ -75,6 +159,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     void loadBackups();
+    void loadShortcuts();
+    void api.databaseInfo().then(setDatabase).catch(() => undefined);
     api
       .settings()
       .then((all) => {
@@ -127,6 +213,16 @@ export default function SettingsPage() {
       setBusy(false);
     }
   }
+
+  const needle = shortcutFilter.trim().toLowerCase();
+  const visibleShortcuts = needle
+    ? shortcuts.filter(
+        (entry) =>
+          entry.description.toLowerCase().includes(needle) ||
+          entry.category.toLowerCase().includes(needle) ||
+          entry.currentSequence.toLowerCase().includes(needle),
+      )
+    : shortcuts;
 
   async function changePassword(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -223,6 +319,139 @@ export default function SettingsPage() {
           Stored in the <code>GENERAL</code> settings group, exactly like the desktop app.
         </p>
       </form>
+
+      <div className="card">
+        <div className="row" style={{ alignItems: "center" }}>
+          <h2 style={{ flex: 1, margin: 0 }}>
+            Shortcuts <span className="badge">{shortcuts.length} actions</span>
+          </h2>
+          <input
+            placeholder="Filter shortcuts…"
+            value={shortcutFilter}
+            onChange={(e) => setShortcutFilter(e.target.value)}
+            style={{ width: 220 }}
+          />
+          <button onClick={() => void resetAllShortcuts()} disabled={shortcuts.length === 0}>
+            Reset all to defaults
+          </button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Category</th>
+              <th>Current key</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleShortcuts.map((entry) => (
+              <tr key={entry.actionId}>
+                <td>{entry.description}</td>
+                <td>{entry.category}</td>
+                <td>
+                  <code>{entry.currentSequence}</code>
+                  {entry.currentSequence !== entry.defaultSequence && (
+                    <span style={{ opacity: 0.6 }}> (default {entry.defaultSequence})</span>
+                  )}
+                </td>
+                <td>
+                  {editingShortcut === entry.actionId ? (
+                    <div className="row">
+                      <input
+                        autoFocus
+                        readOnly
+                        value={draftKey}
+                        placeholder="Press keys…"
+                        onKeyDown={(event) => captureShortcutKeys(event, entry.actionId)}
+                        style={{ width: 150 }}
+                      />
+                      <button className="primary" onClick={() => void saveShortcut(entry.actionId)}>
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingShortcut(null);
+                          setDraftKey("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="row">
+                      <button
+                        onClick={() => {
+                          setEditingShortcut(entry.actionId);
+                          setDraftKey(entry.currentSequence);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      {entry.currentSequence !== entry.defaultSequence && (
+                        <button onClick={() => void resetShortcut(entry.actionId)}>Reset</button>
+                      )}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {visibleShortcuts.length === 0 && (
+              <tr>
+                <td colSpan={4}>No shortcut matches this filter.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+          Stored in the <code>SHORTCUTS</code> settings group in the same format as the
+          desktop app. Module jumps, module next/previous and focusing the search box are
+          live here; copy/paste/undo, Ctrl+S and Ctrl+W are handled by the browser.
+        </p>
+      </div>
+
+      <div className="card">
+        <h2>Database</h2>
+        {database ? (
+          <table>
+            <tbody>
+              <tr>
+                <th>Engine</th>
+                <td>{database.engine}</td>
+              </tr>
+              <tr>
+                <th>Connection</th>
+                <td>
+                  <code>{database.location}</code>
+                </td>
+              </tr>
+              <tr>
+                <th>Configured by</th>
+                <td>
+                  <code>{database.source}</code>
+                </td>
+              </tr>
+              <tr>
+                <th>SQLite version</th>
+                <td>{database.sqliteVersion}</td>
+              </tr>
+              <tr>
+                <th>Company / currency</th>
+                <td>
+                  {database.companyId} / {database.currency}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        ) : (
+          <p style={{ opacity: 0.7 }}>Loading connection information…</p>
+        )}
+        <p style={{ color: "var(--warning, #f39c12)", fontSize: 12, marginBottom: 0 }}>
+          ⚠️ The connection is read from the environment when the server starts, so changing
+          it (<code>web/.env</code> or <code>SQLITE_CLOUD_URL</code>) needs a restart. Credentials
+          stay in the environment and are never stored in settings.
+        </p>
+      </div>
 
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>

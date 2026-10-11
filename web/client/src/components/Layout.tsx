@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Page } from "../App";
+import { SHORTCUTS_CHANGED, matchesSequence, shortcutMap } from "../shortcuts";
 import type { User } from "../types";
 
 const NAV: Array<{ id: Page; label: string }> = [
@@ -30,23 +31,78 @@ interface Props {
 
 export default function Layout({ user, page, onNavigate, onLogout, children }: Props) {
   const [finder, setFinder] = useState("");
+  const [shortcuts, setShortcuts] = useState<Record<string, string>>({});
   const finderRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
-  // Ctrl+F focuses the current page's table filter when it has one, else the
-  // module finder — the same behaviour as main_window._focus_search.
+  // The stored shortcuts, reloaded whenever the Settings page rebinds one.
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "f") return;
-      event.preventDefault();
+    let cancelled = false;
+    const load = (force: boolean) =>
+      void shortcutMap(force).then((map) => {
+        if (!cancelled) setShortcuts(map);
+      });
+    load(false);
+    const reload = () => load(true);
+    window.addEventListener(SHORTCUTS_CHANGED, reload);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SHORTCUTS_CHANGED, reload);
+    };
+  }, []);
+
+  // Bind the stored sequences (falling back to the defaults until they load):
+  // "search" focuses the current page's filter when it has one, else the module
+  // finder — the same behaviour as main_window._focus_search — and the
+  // module_jump_* / module_next / module_prev actions walk the sidebar.
+  useEffect(() => {
+    function focusSearch(): void {
       const local = mainRef.current?.querySelector<HTMLInputElement>("[data-search]");
       const target = local ?? finderRef.current;
       target?.focus();
       target?.select();
     }
+
+    function onKeyDown(event: KeyboardEvent): void {
+      const sequence = (actionId: string, fallback: string): string =>
+        shortcuts[actionId] ?? fallback;
+
+      if (matchesSequence(event, sequence("search", "Ctrl+F"))) {
+        event.preventDefault();
+        focusSearch();
+        return;
+      }
+
+      // Ctrl+1..9 and Ctrl+0 jump to the first ten modules.
+      for (const [index, entry] of NAV.slice(0, 10).entries()) {
+        const digit = index === 9 ? 0 : index + 1;
+        if (matchesSequence(event, sequence(`module_jump_${digit}`, `Ctrl+${digit}`))) {
+          event.preventDefault();
+          onNavigate(entry.id);
+          return;
+        }
+      }
+
+      const current = Math.max(
+        NAV.findIndex((entry) => entry.id === page),
+        0,
+      );
+      const walk: Array<[string, string, number]> = [
+        ["module_next", "Ctrl+Tab", 1],
+        ["module_prev", "Ctrl+Shift+Tab", -1],
+      ];
+      for (const [actionId, fallback, step] of walk) {
+        if (matchesSequence(event, sequence(actionId, fallback))) {
+          event.preventDefault();
+          onNavigate(NAV[(current + step + NAV.length) % NAV.length]!.id);
+          return;
+        }
+      }
+    }
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [shortcuts, page, onNavigate]);
 
   const needle = finder.trim().toLowerCase();
   const visible = needle

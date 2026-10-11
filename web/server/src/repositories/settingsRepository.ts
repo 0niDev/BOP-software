@@ -95,6 +95,14 @@ export class SettingsRepository {
     }
   }
 
+  async deleteSetting(companyId: number, key: string, group: string): Promise<number> {
+    const result = await this.db.run(
+      "DELETE FROM settings WHERE company_id = ? AND setting_key = ? AND setting_group = ?",
+      [companyId, key, group],
+    );
+    return result.changes;
+  }
+
   async deleteGroup(companyId: number, group: string): Promise<number> {
     const result = await this.db.run(
       "DELETE FROM settings WHERE company_id = ? AND setting_group = ?",
