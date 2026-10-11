@@ -1,7 +1,8 @@
 # BOP Nutraceuticals ERP — TypeScript Rewrite: Next-Agent Context
 
 Compact single-file summary of the whole session. Everything verified:
-`typecheck=0`, **117/117 tests pass** (18 files), smoke **OK** (108 checks,
+`typecheck=0`, **117 passed + 5 skipped** (19 files — the skips are the opt-in
+hosted-database test), smoke **OK** (108 checks,
 trial balance balanced 127175 = 127175), client build **0**. The Python project
 was **never modified** and the hosted SQLite Cloud DB was **never written to**.
 
@@ -62,7 +63,10 @@ Three gaps from the audit list were closed:
    "Temporary production (no saved BOM, one use only)" checkbox.
 
 Plus: `.github/workflows/ci.yml` (npm ci → typecheck → test → smoke → client
-build on Node 22) and the `seed:rich` polish — `seedRichDemoData` now returns the
+build on Node 22), an **opt-in integration test for the hosted SQLite Cloud
+driver** (`tests/sqliteCloud.test.ts` — skipped unless `SQLITE_CLOUD_URL` is set
+*and* `ERP_CLOUD_TEST=1`, read-only statements only, so it can never be run
+against production by accident), and the `seed:rich` polish — `seedRichDemoData` now returns the
 number of journal entries it created, so `npm run seed:rich` says how many rows
 it inserted or "already present — nothing to do" instead of always claiming
 success. The vitest timeouts moved back to the default 5s suite-wide, with a
@@ -389,7 +393,8 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   salesInvoice(5) purchaseInvoice(5) payment(4) manufacturing(**7**) expense(4)
   banking(6) returns(3) report(8) dashboard(5) expenseItem(4) asset(5) backup(5)
   user(11) masterdata(21) acceptance(8, rich-demo audit) **settings(6, shortcuts +
-  database info)**. The `UserService` suite carries a 30s timeout (PBKDF2).
+  database info)** **sqliteCloud(5, opt-in / skipped)**. The `UserService` suite
+  carries a 30s timeout (PBKDF2).
   vitest.config includes tests/**/*.test.ts.
 
 **Master-data layer (newest batch):**
@@ -567,6 +572,12 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 - Client `tsc --noEmit && vite build` → 332.41 kB (gzip 88.76 kB).
 - `npm run seed:rich` + the acceptance suite also verified the rich dataset
   through the real services (see the acceptance-audit section above).
+- `tests/sqliteCloud.test.ts` → **5 skipped** in a normal run (correct: no
+  credentials here). It *does* execute with `SQLITE_CLOUD_URL` + `ERP_CLOUD_TEST=1`
+  — verified by pointing it at an unreachable URL, which failed 4/5 tests rather
+  than silently passing — but the hosted engine is **still unverified**: no
+  credentials were available, so the driver quirks in the section below remain
+  unproven.
 
 ## What's POST-PORTIONED vs PYTHON
 - `report_view.py`: Python had date-scoped TB + opening/closing, P&L by period,

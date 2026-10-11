@@ -77,6 +77,14 @@ npm run build       # production build of the client
 The same four commands run in CI (`.github/workflows/ci.yml`) on every push to
 `main` and every pull request.
 
+The hosted SQLite Cloud adapter is covered by an **opt-in** integration test that
+is skipped by default. Point it at a *scratch* database (never production):
+
+```bash
+SQLITE_CLOUD_URL='sqlitecloud://user:pass@host:port/scratch' ERP_CLOUD_TEST=1 \
+  npx vitest run --root server tests/sqliteCloud.test.ts
+```
+
 ## Money handling
 
 `server/src/domain/money.ts` is the only place money is arithmetic'd:
