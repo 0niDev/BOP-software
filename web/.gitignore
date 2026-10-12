@@ -5,6 +5,10 @@ data/*.sqlite-*
 .env
 *.log
 
+# hosted-database audit (cloud-audit.ts) — dumps and CSVs hold live data
+data/cloud-audit/
+data/audit-local.sqlite
+
 # browser UI audit (npm run test:e2e) — screenshots are review artifacts
 e2e/.artifacts/
 playwright-report/

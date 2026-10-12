@@ -11,6 +11,15 @@
   "instructions": [
     "node_modules/@morphllm/opencode-morph-plugin/instructions/morph-tools.md"
   ],
+  "provider": {
+    "openrouter": {
+      "models": {
+        "z-ai/glm-5.3-flash": {
+          "name": "GLM-5.3 Flash"
+        }
+      }
+    }
+  },
   "agent": {
     "plan": {
       "model": "openrouter/auto"

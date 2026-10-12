@@ -1,11 +1,15 @@
 # BOP Nutraceuticals ERP — TypeScript Rewrite: Next-Agent Context
 
-Compact single-file summary of the whole session. Everything verified:
-`typecheck=0`, **117 passed + 5 skipped** (19 files — the skips are the opt-in
-hosted-database test), smoke **OK** (108 checks,
-
-trial balance balanced 127175 = 127175), client build **0**. The Python project
-was **never modified** and the hosted SQLite Cloud DB was **never written to**.
+Compact single-file summary of the whole session. Re-verified **2026-10-12**,
+all exit 0: `npm run typecheck`, `npx tsc -p tsconfig.e2e.json`, `npm test`
+(**117 passed + 5 skipped**, 19 files — the skips are the opt-in hosted-database
+test), `npm run smoke` (SMOKE OK, trial balance balanced `127175 = 127175`),
+client `vite build` (340.34 kB / gzip 90.73 kB), and
+`npx tsx cloud-audit.ts verify --engine cloud` (**AUDIT OK**). The Python
+project was **never modified**. The hosted SQLite Cloud DB **was** written to —
+by the audit harness, with marker-scoped test data — and is back to
+**byte-for-byte pristine** (restore + verify after every run); the app source
+itself was never changed.
 
 > **Status: master-data CRUD, dashboard, report date-scoping, opening
 > balances/stock, expense line items, fixed assets, backups, company profile,
@@ -20,9 +24,144 @@ was **never modified** and the hosted SQLite Cloud DB was **never written to**.
 > — `npm run test:e2e` drives every page in Chromium and checks placement,
 > sizing, overflow, empty states, number alignment and hit targets (21 tests).
 >
-> Outstanding: the hosted SQLite Cloud engine is still unverified (the opt-in
-> test exists but had no credentials), CI has never actually run (no GitHub
-> runner here), and the commits are **not pushed**.
+> The hosted SQLite Cloud engine is now **connected and exercised end to end**
+> (see "Production readiness" below) — and the adversarial audit of it **FAILED
+> with 12 distinct defects, so the app is NOT production-ready yet.** Still
+> outstanding: those defects, CI has never actually run (no GitHub runner here),
+> and the commits are **not pushed**.
+
+---
+
+## Production readiness — hosted-database audit (2026-10-12, latest)
+
+**Connected.** `web/.env` now sets `ERP_DB_ENGINE=sqlitecloud`. Root cause of the
+earlier confusion: `web/.env` pinned `ERP_DB_ENGINE=local` and, because `env.ts`
+loads `web/.env` *first* and the root `.env` only fills gaps, it silently
+shadowed every cloud setting — `npm run dev` was using `data/dev.sqlite`.
+(That switch also broke one ambient-dependent unit test — see the test-pinning
+note under **Environment / constraints**.)
+`SQLITE_CLOUD_URL` is **not** duplicated in `web/.env`; the root `.env` supplies
+it. `web/.env` is git-ignored (`git check-ignore` confirms), so no secret is
+committed. Flip that one line back to `local` to develop offline.
+
+Verified through the real dev workflow (`npm run dev:server` +
+`npm run dev:client`, no env overrides): banner
+`[bootstrap] using hosted SQLite Cloud database (no schema changes)` ·
+`engine=sqlitecloud`, `GET /api/health` → `{"status":"ok"}`, hosted-DB round trip
+via the API (login probe → **401**, i.e. it reached the DB; a dead connection
+returns 500 `DATABASE_ERROR`), vite HTML 200, client `/api` proxy 200, and 1735
+items / 136 parties served (the hosted master data). The account on the hosted DB
+is `admin` (System Administrator, role Admin, active) — **the local seed password
+`admin123` does not apply there.**
+
+**Verdict: NOT production-ready. 160 checks passed / 17 failed → 12 distinct
+root causes.** Evidence: `web/data/cloud-audit/stress/FINAL-REPORT.md`, plus
+`master-run.log`, `run-<command>-cloud.log`, `results-*.json`, `killtest.json`.
+Harness: `web/cloud-audit-stress.ts` (new file; `cloud-audit.ts` was **not**
+modified). Drive it with the `web/.env` engine, or rehearse locally with
+`npx tsx cloud-audit-stress.ts <command> --engine local --db ./data/e2e.sqlite`.
+
+**What is genuinely solid:** the accounting math. Every journal entry balances
+and every report value equals an independent recomputation from
+`journal_entry_lines` (trial balance, P&L, balance sheet, party ledgers, cash
+book, CSV/export-all); report windows compose; concurrency produced no duplicate
+numbers, no double-counted receipts, no negative stock; `kill -9` mid-burst left
+**zero** partial writes; and the closing restore returned the hosted DB
+byte-for-byte to pristine (all tables *and* AUTOINCREMENT counters).
+
+**What must be fixed before prod** (severity-ordered, details + evidence in the
+report's defect table):
+- **Payments:** `paySupplier` has no outstanding-balance guard (overpayment
+  accepted). `receivePayment`'s guard is read *outside* `db.transaction` — a
+  latent TOCTOU that did **not** reproduce on the serialized cloud adapter.
+- **Postings:** a purchase return always debits A/P even for a cash purchase
+  (cash should be refunded); a sale that spans batches records only `batches[0].id`
+  on the line, so a return restores the wrong batch (A 12/B 3 vs 10/5) and nets
+  COGS 20.00 instead of 0.00.
+- **Dates:** no format/calendar validation (`banana`, `2026-02-30` → 201), and
+  `entry_date` is compared as raw TEXT so `...T23:59:00` stamps fall out of both
+  ends of a window. Fix at the API boundary and normalise with `date(...)`.
+- **Dashboard:** `monthlyTrend` sums only `credit` on revenue / `debit` on
+  expense so contra entries (returns) are ignored; it also counts account `1020`
+  as "cash" while the cash book does not.
+- **Stock audit trail:** sales/purchases/returns never insert a `stock_movements`
+  row (only opening stock does), so `SUM(stock_movements) = quantity_in_stock`
+  drifts (5 of 19 batches).
+- **Sequences:** the hosted `ITEM` sequence is stale (`next_number=1` while
+  `ITEM-00001..01752` exist) — the next allocation would re-issue `ITEM-00002`
+  and the UNIQUE constraint would reject it (a real item-creation blocker).
+- **Hygiene:** sub-cent quantities round to 0 on storage (stock still moves), and
+  malformed/oversized request bodies return 500 instead of 400/413.
+Also unaddressed and outside the audit's scope: auth/session hardening, rate
+limiting, secret rotation, and — because the hosted DB carries master data only
+(no prior ledger) — pre-existing-ledger interactions were exercised only on the
+local rehearsal DB.
+
+**The 17 failing checks, verbatim** (from `stress/master-run.log`; the
+`full sweep … I7` lines that follow each section are defect #14 re-reported as
+the drift accumulated — not extra failures). The log actually contains **18**
+`FAIL` lines: the 18th is `I6 stock moved by exactly the units that survived`
+from the *first* kill-test, which was a bug in **my** harness (wrong
+reconciliation formula, stock already exhausted). I fixed the harness and
+re-ran it (8 passed / 0 failed), so the report's headline is 17.
+
+| Failing check | What the app did instead |
+|---|---|
+| `B8` entry dated `2026-10-12T23:59` inside a window ending `2026-10-12` | excluded — datetime stamps compare as raw TEXT |
+| `B9` malformed date rejected | `banana` accepted → `SI-00046` |
+| `B10` impossible calendar date (2026-02-30) rejected | accepted → `SI-00048` |
+| `C6` supplier overpayment rejected (or credit note) | 1000.00 accepted against a 20.00 payable |
+| `C8` returning a CASH purchase refunds cash | cash +0.00, A/P −20.00 |
+| `C9` a full return restores each batch to its pre-sale quantity | batch A 12 / B 3 instead of 10 / 5 |
+| `C9` a full return nets COGS to zero | nets 20.00 |
+| `D3b` two simultaneous payments cannot overshoot the payable | both 201, `paid_amount` 40 on a 20.00 invoice |
+| `E6` dashboard cash equals the cash-book closing | −18.10 vs −68.10 (the 50.00 is the `banana` invoice) |
+| `E7` monthly trend revenue sums to the P&L revenue | 1274.20 vs 794.20 |
+| `E7` monthly trend expenses sums to the P&L expenses | 873.43 vs 633.43 |
+| `F3` no sequence would re-issue a number that already exists | next `ITEM` number duplicates a used one |
+| `G` non-positive invoice line quantities | `qty=0` line persisted |
+| `I7` `SUM(stock_movements) = quantity_in_stock` for every batch | 5 of 19 batches drift |
+| `G` per-batch stock reconciles against the documents | purchased batch qty 5 has 0 movements |
+| `I1` malformed JSON rejected with 400 | 500 `INTERNAL_ERROR` |
+| `I2` oversized payload rejected cleanly (413/400, not 500) | 500 |
+
+**Second pass through the live app.** The same harness was re-run with
+`--base http://127.0.0.1:4000`, i.e. through the running app's own HTTP API
+against the hosted DB, to prove the defects are reachable from the product's
+interface and not just from direct service calls. Result: **9 of the 17
+reproduced** — C6 overpayment, C8 cash-purchase return, C9 batch restore + C9
+COGS, E7 trend revenue + E7 trend expenses, `G` non-positive line quantities,
+`G` per-batch reconciliation and I7 stock-movement drift — and **E6 passed**
+(section B was not run in that pass, so the `banana` invoice was absent), which
+confirms defect #11's stated cause (the
+50.00 dashboard-vs-cash-book gap came from the `banana`-dated invoice falling
+outside the report window). Logs: `<stress>/live-app-run/`.
+
+**Evidence layout.** `web/data/cloud-audit/` is **git-ignored**, so none of this
+is committed — it exists on disk only. `stress/FINAL-REPORT.md` is the verdict +
+defect table + recommendations (the headline 160/17 totals come from the
+direct-service run); `stress/master-run.log` and `run-*-cloud.log` are the
+per-section runs; `stress/live-app-run/` is the second pass above;
+`stress/drivers/` holds the reproducible shell drivers
+(`cloud-stress-driver.sh`, `kill-driver.sh`, `datahandling-driver2.sh`,
+`webapp-driver.sh`).
+
+**Operational hazards (do not repeat these in the next run):**
+- Two concurrent stress drivers (plus a stale connection-holding process) make
+  the hosted DB return `database is locked` (SQLite Cloud 5/517). Run **one**
+  driver at a time; the current drivers guard with `/tmp/datahandling.lock`.
+- A finished `tsx` process can keep the event loop alive — drivers must call
+  `process.exit(0)` explicitly or runs hang forever.
+- The harness drives the app over HTTP at `--base` (default
+  `http://127.0.0.1:4302`). That audit API is **stopped**; the app now serves
+  `4000`, so pass `--base http://127.0.0.1:4000` (or start an API). A bare
+  `npx tsx cloud-audit-stress.ts <cmd>` defaults to `--engine local
+  --db ./data/e2e.sqlite` and does not touch the hosted DB.
+- Any harness run must end with cleanup + restore + verify; the app source was
+  left untouched and `cloud-audit.ts verify --engine cloud` → **AUDIT OK**
+  (hosted DB byte-for-byte pristine, no audit row survives: 15 marker probes
+  across items, parties, batches, movements, invoices, returns, payments,
+  receipts, expenses, categories, journal entries and users all clean).
 
 ## Browser UI audit (item 1, done)
 
@@ -221,19 +360,26 @@ Three concrete pieces were ported before this was interrupted:
 The context was updated from this chat; all source files remain on disk.
 
 
-### Current results (last full run, exit 0 each)
+### Current results (re-verified 2026-10-12, exit 0 each)
 - `npm run typecheck` → tsc server + client both clean.
-- `npm test` → **108/108 pass** (17 files, incl. the 8 acceptance tests).
-- `npm run smoke` → **OK / all checks passed**, final trial balance after every
-  module ran is `127175 = 127175` (balanced).
-- Client `tsc --noEmit && vite build` → clean (332.41 kB, gzip 88.76 kB).
+- `npx tsc -p tsconfig.e2e.json` → clean (that config also covers
+  `cloud-audit.ts` and `cloud-audit-stress.ts`).
+- `npm test` → **117 passed + 5 skipped** (19 files; the 5 skips are the opt-in
+  hosted `tests/sqliteCloud.test.ts`).
+- `npm run smoke` → **SMOKE OK / all checks passed**, final trial balance after
+  every module ran is `127175 = 127175` (balanced).
+- Client `tsc --noEmit && vite build` → clean (340.34 kB, gzip 90.73 kB).
+- `npx tsx cloud-audit.ts verify --engine cloud` → **AUDIT OK**, hosted DB
+  byte-for-byte pristine.
 
 ### Not finished
 - **UI audit** — done in a later batch with Playwright + Chromium (see the
-  browser-audit section at the top). The acceptance audit is therefore complete.
-- Still open elsewhere: the hosted SQLite Cloud engine is **unverified** (no
-  credentials), CI has **never run** (no GitHub runner on this machine), and the
-  commits are **not pushed**.
+  browser-audit section at the top).
+- **Hosted SQLite Cloud engine** — no longer unverified: it is connected and was
+  audited end to end on 2026-10-12, and **the audit failed** (see "Production
+  readiness" above). That defect list is the current blocking work.
+- Still open elsewhere: CI has **never run** (no GitHub runner on this machine)
+  and the commits are **not pushed**.
 
 The next agent should re-read the smoke checks and the report/interrogation code
 before writing demo data or writing monetary assertions, because the routes,
@@ -255,6 +401,10 @@ Run it (from repo root):
 cd web && npm install && npm run seed && npm run dev
 # → http://localhost:5173   login admin/admin123
 ```
+> The line above is the **local** flow (`web/.env` → `ERP_DB_ENGINE=local`).
+> It is currently set to `sqlitecloud`, so `npm run dev` serves the hosted
+> database and the `admin123` seed password no longer applies.
+
 Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 `npm -w @bop-erp/client run build`.
 
@@ -598,10 +748,11 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 
 ---
 
-## Verification (last full run — exit 0 each)
+## Verification (re-verified 2026-10-12 — exit 0 each)
 - `npm run typecheck` → tsc server + client both clean.
-- `npm test` → 17 files, **108/108 pass** (8 acceptance, 21 masterdata,
-  5 dashboard, 8 report, 4 expenseItem, 5 asset, 5 backup, 11 user, …).
+- `npm test` → 19 files, **117 passed + 5 skipped** (8 acceptance, 21 masterdata,
+  5 dashboard, 8 report, 4 expenseItem, 5 asset, 5 backup, 11 user, …; the 5
+  skips are the opt-in hosted `tests/sqliteCloud.test.ts`).
 - `npm run smoke` → **all checks passed (SMOKE OK), 108 checks** (throwaway DB;
   never touches dev/prod DB; snapshots go to a throwaway
   `data/smoke-backups-<pid>/` so `web/backups` is never littered). The new
@@ -618,12 +769,14 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   `web/e2e/.artifacts/`.
 - `npm run seed:rich` + the acceptance suite also verified the rich dataset
   through the real services (see the acceptance-audit section above).
-- `tests/sqliteCloud.test.ts` → **5 skipped** in a normal run (correct: no
-  credentials here). It *does* execute with `SQLITE_CLOUD_URL` + `ERP_CLOUD_TEST=1`
-  — verified by pointing it at an unreachable URL, which failed 4/5 tests rather
-  than silently passing — but the hosted engine is **still unverified**: no
-  credentials were available, so the driver quirks in the section below remain
-  unproven.
+- `tests/sqliteCloud.test.ts` → **5 skipped** in a normal run (correct: it is
+  opt-in). It still executes with `SQLITE_CLOUD_URL` + `ERP_CLOUD_TEST=1` —
+  verified earlier by pointing it at an unreachable URL, which failed 4/5 rather
+  than silently passing. The hosted engine is now exercised for real **not
+  through that test** but through the audit harness and the live app (see
+  "Production readiness"), which is where the driver quirks came from: plain
+  `INSERT` responses may omit `last_insert_rowid()` (see `repositories/base.ts`)
+  and concurrent drivers produce `database is locked` (5/517).
 
 ## What's POST-PORTIONED vs PYTHON
 - `report_view.py`: Python had date-scoped TB + opening/closing, P&L by period,
@@ -666,12 +819,24 @@ batch: the rich demo seed + acceptance audit, the Shortcuts and Database setting
 tabs, the temporary one-use BOM path, CI, the README/context docs and the dead
 `demoData.ts` deletion. It is **not pushed** yet.
 
-Still untracked / untouched on purpose:
+Still uncommitted as of 2026-10-12 (status taken with `git status --porcelain`):
 ```
-?? BOP_ERP_TYPESCRIPT_REWRITE_LOG.md            (port session log)
-?? freebuff-chat-2026-10-07T21-54-07.857Z.md    (client transcript, 1.6MB)
- M opencode.jsonc                                (modified before the port work)
+ M web/.gitignore                      (ignores data/cloud-audit/ + audit-local.sqlite)
+ M web/CONTEXT_FOR_NEXT_AGENT.md       (this file)
+ M web/server/vitest.config.ts         (setupFiles: tests pinned to the local engine)
+ M web/tsconfig.e2e.json               (includes cloud-audit.ts, cloud-audit-stress.ts)
+ M opencode.jsonc                      (modified before the port work)
+?? web/cloud-audit.ts                  (hosted-DB backup / restore / verify harness)
+?? web/cloud-audit-stress.ts           (adversarial audit suite, sections a–i + kill test)
+?? web/cloud-probe.ts                  (small connectivity probe)
+?? web/server/tests/setup-env.ts       (vitest setup pinning ERP_DB_ENGINE=local)
+?? BOP_ERP_TYPESCRIPT_REWRITE_LOG.md   (port session log)
+?? freebuff-chat-2026-10-07T21-54-07.857Z.md (client transcript, 1.6MB)
 ```
+`web/.env` is git-ignored, so it does not appear here (and neither does the
+`data/cloud-audit/` evidence). Decide deliberately what to commit: the four
+`cloud-*` files and `tests/setup-env.ts` are worth committing; the transcripts
+are the user's call.
 `f71b249` is the last Python-side commit ("Improve UX and performance: security,
 async reports, thread-safe cache, persistence"); the Python project has not been
 touched by this work.
@@ -691,10 +856,9 @@ touched by this work.
    net, nothing unposted leaks in, signs stay consistent (`closingDebit -
    closingCredit == raw movement`), the period scoping carries openings, AR/AP
    sub-ledgers tie to their control accounts, and no figure is double counted.
-4. **UI audit** — ⬜ **still outstanding.** Every page needs a placement/sizing/
-   overflow/empty-state pass in a real browser. This machine has no Chrome and
-   no browser test runner, so it could not be done here; do it once a browser is
-   available (or add a headless-browser harness).
+4. **UI audit** — ✅ done with Playwright + Chromium (`npm run test:e2e`, 21
+   tests: placement, sizing, overflow, empty states, number alignment, hit
+   targets).
 
 One caveat worth remembering while auditing the dashboard: month-to-date
 **expenses include COGS** (5000 is an EXPENSE account), so a sale with a cost
@@ -721,6 +885,28 @@ shows both the cost of goods and any overhead in `profitLoss.expenses`.
 - node v22.22.1, npm 9.2.0, python3 3.14.4. **NOT installed:** dotnet, bun,
   deno, go, rustc, java, psql, sqlite3, **Chrome** → no real-browser DOM test
   (client verified via vite compile + HTTP only).
-- `web/.env`: ERP_DB_ENGINE=local, ERP_LOCAL_DB=./data/dev.sqlite, PORT=4000.
+- `web/.env`: **ERP_DB_ENGINE=sqlitecloud** (switched on 2026-10-12; set it back
+  to `local` to use `data/dev.sqlite`), ERP_LOCAL_DB=./data/dev.sqlite,
+  PORT=4000. `SQLITE_CLOUD_URL` comes from the repo-root `.env`.
   Shell note: `cd web/server` from a web cwd failed once; most commands run as
-  `cd web && …`. Live SQLite Cloud never exercised.
+  `cd web && …`. Live SQLite Cloud **is** now exercised (see "Production
+  readiness"). Chrome is still not installed, but Playwright ships its own
+  Chromium, so the browser audit does run.
+- **Tests are pinned to the local engine** by `web/server/tests/setup-env.ts`
+  (wired in as vitest `setupFiles`). `env.ts` reads `web/.env` at import time,
+  and once that file said `sqlitecloud` the suite's
+  `tests/settings.test.ts > reports the live connection without exposing
+  credentials` failed with `expected 'sqlitecloud (hosted)' to contain 'local'`.
+  The setup file sets `ERP_DB_ENGINE=local` before each test file's imports.
+  Do **not** weaken that assertion to "sqlitecloud" — the unit/acceptance suites
+  build their own throwaway local DBs and must never follow `.env` onto the
+  hosted database. Baseline after the fix: **117 passed + 5 skipped (19 files)**.
+- **Dev stack.** `npm run dev` starts both halves with `concurrently` (API on
+  4000, vite client on 5173, `/api` proxied); `npm run dev:server` /
+  `npm run dev:client` start them separately. Both were left running on
+  2026-10-12 but are **background processes — a new shell will not inherit
+  them**. Health check: `curl -s http://127.0.0.1:4000/api/health` →
+  `{"status":"ok"}`; a login with bogus credentials must return **401** (a 500
+  `DATABASE_ERROR` means the hosted connection is dead). Log in at
+  http://localhost:5173 with the **hosted** `admin` password — `admin123` only
+  exists on a locally seeded DB.
