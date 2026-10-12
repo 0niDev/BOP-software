@@ -94,6 +94,40 @@ export class PaymentService {
     const voucherNumber = await this.journal.nextVoucherNumber(companyId, "PAYMENT");
 
     return this.db.transaction(async () => {
+      // Guard against overpayment: check outstanding balance INSIDE the transaction.
+      if (input.purchaseInvoiceId) {
+        const invoice = await this.db.get<{ total_amount: number; paid_amount: number }>(
+          "SELECT total_amount, paid_amount FROM purchase_invoices WHERE id = ?",
+          [input.purchaseInvoiceId],
+        );
+        if (!invoice) throw new NotFoundError(`Purchase invoice ${input.purchaseInvoiceId} not found.`);
+        const outstanding = dec(invoice.total_amount).minus(dec(invoice.paid_amount));
+        if (amount.greaterThan(outstanding)) {
+          throw new ValidationError(
+            `Payment amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
+          );
+        }
+      } else {
+        // No specific invoice: check total AP balance for this supplier.
+        // AP balance = credits (purchases increase payable) - debits (payments/returns decrease it).
+        const row = await this.db.get<{ balance: number | null }>(
+          `SELECT SUM(CASE WHEN je.voucher_type = 'PURCHASE' THEN jel.credit - jel.debit
+                           WHEN je.voucher_type = 'PURCHASE_RETURN' THEN jel.credit - jel.debit
+                           WHEN je.voucher_type = 'PAYMENT' THEN jel.credit - jel.debit
+                           ELSE 0 END) AS balance
+           FROM journal_entries je
+           JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+           WHERE je.company_id = ? AND jel.account_id = ? AND jel.party_id = ? AND je.is_posted = 1`,
+          [companyId, apId, supplier.id],
+        );
+        const balance = dec(row?.balance ?? 0);
+        if (amount.greaterThan(balance)) {
+          throw new ValidationError(
+            `Payment amount exceeds the supplier's outstanding payable of ${balance.toFixed(2)}.`,
+          );
+        }
+      }
+
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PAYMENT",
         entryDate: input.paymentDate,
@@ -146,30 +180,6 @@ export class PaymentService {
       throw new ValidationError("Amount must be greater than 0.");
     }
 
-    // Guard against over-collection / collecting a cash invoice.
-    if (input.salesInvoiceId) {
-      const invoice = await this.db.get<{
-        total_amount: number;
-        paid_amount: number;
-        payment_type: string;
-      }>(
-        "SELECT total_amount, paid_amount, payment_type FROM sales_invoices WHERE id = ?",
-        [input.salesInvoiceId],
-      );
-      if (!invoice) throw new NotFoundError(`Sales invoice ${input.salesInvoiceId} not found.`);
-      if (invoice.payment_type === "CASH") {
-        throw new ValidationError(
-          "Cannot receive payment for a CASH invoice - it was settled at creation.",
-        );
-      }
-      const outstanding = dec(invoice.total_amount).minus(dec(invoice.paid_amount));
-      if (amount.greaterThan(outstanding)) {
-        throw new ValidationError(
-          `Payment amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
-        );
-      }
-    }
-
     const resolver = new SystemAccountResolver(this.db, companyId);
     const arId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
     const receiptAccountId = await this.settlementAccount(resolver, input.paymentMethod);
@@ -177,6 +187,48 @@ export class PaymentService {
     const voucherNumber = await this.journal.nextVoucherNumber(companyId, "RECEIPT");
 
     return this.db.transaction(async () => {
+      // Guard against over-collection / collecting a cash invoice — INSIDE the transaction.
+      if (input.salesInvoiceId) {
+        const invoice = await this.db.get<{
+          total_amount: number;
+          paid_amount: number;
+          payment_type: string;
+        }>(
+          "SELECT total_amount, paid_amount, payment_type FROM sales_invoices WHERE id = ?",
+          [input.salesInvoiceId],
+        );
+        if (!invoice) throw new NotFoundError(`Sales invoice ${input.salesInvoiceId} not found.`);
+        if (invoice.payment_type === "CASH") {
+          throw new ValidationError(
+            "Cannot receive payment for a CASH invoice - it was settled at creation.",
+          );
+        }
+        const outstanding = dec(invoice.total_amount).minus(dec(invoice.paid_amount));
+        if (amount.greaterThan(outstanding)) {
+          throw new ValidationError(
+            `Payment amount exceeds the outstanding balance of ${outstanding.toFixed(2)}.`,
+          );
+        }
+      } else {
+        // No specific invoice: check total AR balance for this customer.
+        const row = await this.db.get<{ balance: number | null }>(
+          `SELECT SUM(CASE WHEN je.voucher_type = 'SALES' THEN jel.debit - jel.credit
+                           WHEN je.voucher_type = 'SALES_RETURN' THEN jel.credit - jel.debit
+                           WHEN je.voucher_type = 'RECEIPT' THEN jel.debit - jel.credit
+                           ELSE 0 END) AS balance
+           FROM journal_entries je
+           JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+           WHERE je.company_id = ? AND jel.account_id = ? AND jel.party_id = ? AND je.is_posted = 1`,
+          [companyId, arId, customer.id],
+        );
+        const balance = dec(row?.balance ?? 0);
+        if (amount.greaterThan(balance)) {
+          throw new ValidationError(
+            `Payment amount exceeds the customer's outstanding receivable of ${balance.toFixed(2)}.`,
+          );
+        }
+      }
+
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "RECEIPT",
         entryDate: input.paymentDate,

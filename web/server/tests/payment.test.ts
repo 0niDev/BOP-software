@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ValidationError } from "../src/domain/errors.js";
 import { insertRow } from "../src/repositories/base.js";
 import { PaymentService } from "../src/services/paymentService.js";
+import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
 import { freshDb, type TestContext } from "./helpers/db.js";
 
@@ -15,12 +16,14 @@ interface Line {
 let ctx: TestContext;
 let payments: PaymentService;
 let sales: SalesInvoiceService;
+let purchases: PurchaseInvoiceService;
 let supplierId: number;
 
 beforeEach(async () => {
   ctx = await freshDb();
   payments = new PaymentService(ctx.db);
   sales = new SalesInvoiceService(ctx.db);
+  purchases = new PurchaseInvoiceService(ctx.db);
   supplierId = await insertRow(ctx.db, "parties", {
     company_id: 1,
     code: "SUP-P1",
@@ -51,11 +54,21 @@ async function linesForVoucher(voucherNumber: string): Promise<Line[]> {
 
 describe("PaymentService", () => {
   it("pays a supplier: debits AP with the supplier, credits cash", async () => {
+    // First create a purchase invoice to establish an outstanding payable
+    const invoice = await purchases.createPurchaseInvoice({
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 10, unitCost: 20 }],
+    });
+    expect(invoice.totalAmount).toBe(200);
+
     const result = await payments.paySupplier({
       supplierId,
       amount: 200,
       paymentDate: "2026-10-08",
       paymentMethod: "CASH",
+      purchaseInvoiceId: invoice.id,
     });
     expect(result.voucherNumber).toMatch(/^PV-\d+$/);
 
@@ -67,11 +80,21 @@ describe("PaymentService", () => {
   });
 
   it("receives from a customer: debits bank, credits AR with the customer", async () => {
+    // First create a sales invoice to establish an outstanding receivable
+    const invoice = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
+    });
+    expect(invoice.totalAmount).toBe(300);
+
     const result = await payments.receivePayment({
       customerId: ctx.ids.customerId,
       amount: 300,
       paymentDate: "2026-10-08",
       paymentMethod: "BANK",
+      salesInvoiceId: invoice.id,
     });
     expect(result.voucherNumber).toMatch(/^RV-\d+$/);
     const lines = await linesForVoucher(result.voucherNumber);
@@ -125,6 +148,56 @@ describe("PaymentService", () => {
       payments.receivePayment({
         customerId: ctx.ids.customerId,
         amount: 10,
+        paymentDate: "2026-10-08",
+        paymentMethod: "CASH",
+        salesInvoiceId: invoice.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuses a supplier payment that exceeds the outstanding payable", async () => {
+    const invoice = await purchases.createPurchaseInvoice({
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 1, unitCost: 20 }],
+    });
+    await expect(
+      payments.paySupplier({
+        supplierId,
+        amount: 1000,
+        paymentDate: "2026-10-08",
+        paymentMethod: "CASH",
+        purchaseInvoiceId: invoice.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    // And the payable is unchanged: a valid payment still works afterwards.
+    await payments.paySupplier({
+      supplierId,
+      amount: 20,
+      paymentDate: "2026-10-08",
+      paymentMethod: "CASH",
+      purchaseInvoiceId: invoice.id,
+    });
+    const row = await ctx.db.get<{ paid_amount: number }>(
+      "SELECT paid_amount FROM purchase_invoices WHERE id = ?",
+      [invoice.id],
+    );
+    expect(row?.paid_amount).toBe(20);
+  });
+
+  it("refuses a receipt that exceeds the customer's outstanding receivable", async () => {
+    const invoice = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
+    });
+    await expect(
+      payments.receivePayment({
+        customerId: ctx.ids.customerId,
+        amount: 999,
         paymentDate: "2026-10-08",
         paymentMethod: "CASH",
         salesInvoiceId: invoice.id,

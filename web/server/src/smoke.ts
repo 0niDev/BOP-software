@@ -149,15 +149,29 @@ async function main(): Promise<void> {
     )) as { balanced: boolean };
     check(tb2.balanced === true, "trial balance still balanced after the purchase");
 
-    // --- receipt from a customer ----------------------------------------
+    // --- receipt from a customer (needs a CREDIT sale first) ------------
+    const creditSale = await fetch(`${base}/api/sales-invoices`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        customerId: ids.customerId,
+        invoiceDate: "2026-10-08",
+        paymentType: "CREDIT",
+        items: [{ itemId: ids.itemId, quantity: 2, unitPrice: 150 }],
+      }),
+    });
+    check(creditSale.status === 201, "POST /api/sales-invoices creates a credit invoice (201)");
+    const creditInvoice = (await json(creditSale)) as { id: number; totalAmount: number };
+
     const receipt = await fetch(`${base}/api/receipts`, {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify({
         customerId: ids.customerId,
-        amount: 100,
+        amount: creditInvoice.totalAmount,
         paymentDate: "2026-10-08",
         paymentMethod: "CASH",
+        salesInvoiceId: creditInvoice.id,
       }),
     });
     check(receipt.status === 201, "POST /api/receipts records a receipt (201)");

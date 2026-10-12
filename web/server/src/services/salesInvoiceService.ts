@@ -69,6 +69,13 @@ interface PreparedLine {
   lineTotal: Decimal;
 }
 
+/** One batch's share of a consumed line. A line can span several FIFO batches. */
+interface StockConsumption {
+  batchId: number;
+  quantity: Decimal;
+  cost: Decimal;
+}
+
 /** COGS / inventory account codes by item type (mirrors the Python mapping). */
 const COGS_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   FINISHED_GOOD: "5000",
@@ -223,6 +230,8 @@ export class SalesInvoiceService {
       const inventoryCredits = new Map<number, Decimal>();
 
       for (const line of prepared) {
+        // A line can span several FIFO batches; record every batch share so a
+        // later return restores the right batch and COGS nets to zero.
         const consumed = await this.consumeStock(line.item, warehouseId, line.quantity);
         cogsTotal = cogsTotal.plus(consumed.cost);
         cogsByType.set(
@@ -236,16 +245,18 @@ export class SalesInvoiceService {
           (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(consumed.cost),
         );
 
-        await this.sales.insertItem({
-          invoice_id: invoiceId,
-          item_id: line.item.id,
-          batch_id: consumed.batchId,
-          quantity: toStorage(line.quantity),
-          unit_price: toStorage(line.unitPrice),
-          discount_amount: toStorage(line.discount),
-          tax_amount: toStorage(line.tax),
-          line_total: toStorage(line.lineTotal),
-        });
+        for (const share of consumed.shares) {
+          await this.sales.insertItem({
+            invoice_id: invoiceId,
+            item_id: line.item.id,
+            batch_id: share.batchId,
+            quantity: toStorage(share.quantity),
+            unit_price: toStorage(line.unitPrice),
+            discount_amount: toStorage(line.discount),
+            tax_amount: toStorage(line.tax),
+            line_total: toStorage(line.lineTotal),
+          });
+        }
       }
 
       await this.appendCogsLines(journalLines, resolver, cogsTotal, cogsByType, inventoryCredits);
@@ -335,13 +346,15 @@ export class SalesInvoiceService {
 
   /**
    * Consume `needed` units of stock FIFO across the item's batches, returning
-   * the batch that supplied the first unit and the exact cost consumed.
+   * every batch share consumed and the exact cost consumed. A line that spans
+   * several batches is split across them so a later return restores the right
+   * batch and COGS nets to zero.
    */
   private async consumeStock(
     item: ItemRow,
     warehouseId: number,
     needed: Decimal,
-  ): Promise<{ batchId: number; cost: Decimal }> {
+  ): Promise<{ shares: StockConsumption[]; cost: Decimal }> {
     const batches = await this.batches.listAvailableFifo(item.id, warehouseId);
     if (batches.length === 0) {
       throw new ValidationError(
@@ -355,16 +368,19 @@ export class SalesInvoiceService {
       );
     }
 
+    const shares: StockConsumption[] = [];
     let remaining = needed;
     let cost = new Decimal(0);
     for (const batch of batches) {
       if (remaining.lessThanOrEqualTo(0)) break;
       const take = Decimal.min(dec(batch.quantity_in_stock), remaining);
       await this.batches.adjustQuantity(batch.id, take.negated().toNumber());
-      cost = cost.plus(take.times(this.unitCost(item, batch)));
+      const shareCost = round2(take.times(this.unitCost(item, batch)));
+      cost = cost.plus(shareCost);
       remaining = remaining.minus(take);
+      shares.push({ batchId: batch.id, quantity: take, cost: shareCost });
     }
-    return { batchId: batches[0]!.id, cost: round2(cost) };
+    return { shares, cost: round2(cost) };
   }
 
   /** Best available unit cost for a batch, falling back to the item price. */

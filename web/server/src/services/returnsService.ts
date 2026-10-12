@@ -237,6 +237,16 @@ export class ReturnsService {
     const resolver = new SystemAccountResolver(this.db, companyId);
     const apId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
 
+    // Cash/Bank purchases are refunded to the payment account; only CREDIT
+    // purchases use A/P. A return on a cash invoice credits the refund account
+    // (a refund); a credit purchase debits A/P (a receivable reduction).
+    const isCredit = invoice.payment_type === "CREDIT";
+    const refundAccountId = isCredit
+      ? apId
+      : invoice.payment_type === "CASH"
+        ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
+        : await this.resolveBankAccount(invoice.bank_account_id);
+
     let returnNumber = input.returnNumber?.trim() || "";
     if (returnNumber) {
       if (await this.returns.purchaseReturnNumberExists(returnNumber, companyId)) {
@@ -296,16 +306,27 @@ export class ReturnsService {
         });
       }
 
-      const journalLines: JournalLineInput[] = [
-        {
+      // A purchase return: inventory is credited (goods back in stock), and the
+      // offset is A/P for CREDIT purchases, or the original cash/bank account
+      // for CASH/BANK purchases (a refund, not an A/P credit).
+      const journalLines: JournalLineInput[] = [];
+      for (const [inventoryId, amount] of inventoryDebits) {
+        journalLines.push({ accountId: inventoryId, credit: amount, description: "Return to supplier" });
+      }
+      if (isCredit) {
+        journalLines.push({
           accountId: apId,
           debit: netTotal,
           partyId: invoice.supplier_id,
           description: `Purchase return ${returnNumber}`,
-        },
-      ];
-      for (const [inventoryId, amount] of inventoryDebits) {
-        journalLines.push({ accountId: inventoryId, credit: amount, description: "Return to supplier" });
+        });
+      } else {
+        journalLines.push({
+          accountId: refundAccountId,
+          debit: netTotal,
+          partyId: null,
+          description: `Refund for purchase return ${returnNumber}`,
+        });
       }
 
       const journalEntryId = await this.accounting.postJournalEntry({
@@ -321,5 +342,18 @@ export class ReturnsService {
 
       return { id: returnId, returnNumber, totalAmount: toStorage(netTotal), journalEntryId };
     });
+  }
+
+  /** Resolve a purchase's bank account to its GL account id. */
+  private async resolveBankAccount(bankAccountId: number | null): Promise<number> {
+    if (!bankAccountId) {
+      throw new ValidationError("Purchase invoice references a missing bank account.");
+    }
+    const bank = await this.db.get<{ account_id: number }>(
+      "SELECT account_id FROM bank_accounts WHERE id = ?",
+      [bankAccountId],
+    );
+    if (!bank) throw new ValidationError(`Bank account ${bankAccountId} not found.`);
+    return bank.account_id;
   }
 }
