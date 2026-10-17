@@ -1,32 +1,49 @@
 import { useEffect, useState } from "react";
+import {
+  Banknote,
+  CircleAlert,
+  Coins,
+  Plus,
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { api, ApiError } from "../api";
-import type { DashboardData } from "../types";
-
-function money(value: number): string {
-  return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import Card from "../components/ui/Card";
+import DeltaPill from "../components/ui/DeltaPill";
+import StatCard from "../components/ui/StatCard";
+import StatusPill from "../components/ui/StatusPill";
+import { StaggerGroup, StaggerItem } from "../components/ui/motion";
+import ActivityList from "../components/dashboard/ActivityList";
+import AlertsCard from "../components/dashboard/AlertsCard";
+import BestSellersTable from "../components/dashboard/BestSellersTable";
+import CustomerDonut from "../components/dashboard/CustomerDonut";
+import ExpiringTable from "../components/dashboard/ExpiringTable";
+import LowStockTable from "../components/dashboard/LowStockTable";
+import ProfileDrawer from "../components/dashboard/ProfileDrawer";
+import RevenueTrendChart from "../components/dashboard/RevenueTrendChart";
+import { compact, dayLabel, money, percent, percentChange, share } from "../lib/format";
+import type { DashboardData, User } from "../types";
+import type { Page } from "../App";
 
 function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="card" style={{ margin: 0 }}>
-      <label>{label}</label>
-      <div style={{ fontSize: 22 }}>{value}</div>
-      {sub && <div style={{ opacity: 0.65, fontSize: 12, marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
-
-const ALERT_COLOR: Record<string, string> = {
-  warning: "#e2a03f",
-  danger: "#e74c3c",
-  success: "#27ae60",
-};
-
-export default function DashboardPage() {
+/**
+ * Landing page: an executive grid over the aggregated dashboard payload —
+ * KPI strip, revenue trend, customer mix, recent activity, best sellers and the
+ * inventory watchlists, with the signed-in profile and earnings in the right
+ * column. Every figure comes from `/api/dashboard`; nothing is derived from a
+ * placeholder.
+ */
+export default function DashboardPage({
+  user,
+  onNavigate,
+}: {
+  user: User;
+  onNavigate: (page: Page) => void;
+}) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,221 +66,192 @@ export default function DashboardPage() {
 
   if (error && !data) {
     return (
-      <div className="card">
-        <h2>Dashboard</h2>
+      <Card title="Dashboard">
         <div className="error">{error}</div>
-        <button className="primary" onClick={load} style={{ marginTop: 12 }}>
+        <button className="primary mt-3" type="button" onClick={load}>
           Retry
         </button>
-      </div>
+      </Card>
     );
   }
 
   if (!data) {
     return (
-      <div className="card">
-        <h2>Dashboard</h2>
-        <p style={{ opacity: 0.7 }}>{loading ? "Loading…" : "No data."}</p>
-      </div>
+      <Card title="Dashboard" subtitle="Loading the latest figures…">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((index) => (
+            <div
+              key={index}
+              className="h-[132px] animate-pulse rounded-card border border-line bg-[var(--panel-2)]"
+            />
+          ))}
+        </div>
+      </Card>
     );
   }
 
-  const trendMax = Math.max(
-    1,
-    ...data.monthlyTrend.map((point) => Math.max(point.revenue, point.expenses)),
-  );
+  const trend = data.monthlyTrend;
+  const latest = trend.at(-1);
+  const previous = trend.at(-2);
+  const revenueChange =
+    latest && previous ? percentChange(latest.revenue, previous.revenue) : null;
+  const expenseChange =
+    latest && previous ? percentChange(latest.expenses, previous.expenses) : null;
+  const margin = share(data.profitLoss.profit, data.profitLoss.revenue);
+  const liquidity = data.balances.cash + data.balances.bank;
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <>
-      <div className="card">
-        <div className="row" style={{ alignItems: "center" }}>
-          <h2 style={{ flex: 1, margin: 0 }}>Dashboard</h2>
-          <button onClick={load} disabled={loading}>
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted">Overview</p>
+          <h1 style={{ margin: 0 }} className="mt-1.5 text-[28px] font-extrabold tracking-tight text-ink">
+            Business at a glance
+          </h1>
+          <p className="mt-1.5 text-[13px] font-medium text-muted">
+            {data.today.salesCount} sale{data.today.salesCount === 1 ? "" : "s"} (
+            {money(data.today.salesTotal)}) and {data.today.purchasesCount} purchase
+            {data.today.purchasesCount === 1 ? "" : "s"} ({money(data.today.purchasesTotal)}) today
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={load} disabled={loading}>
+            <RefreshCw
+              size={15}
+              strokeWidth={2.4}
+              aria-hidden
+              className={loading ? "animate-spin" : undefined}
+            />
             {loading ? "Refreshing…" : "Refresh"}
           </button>
+          <button type="button" className="primary" onClick={() => onNavigate("sales")}>
+            <Plus size={16} strokeWidth={2.6} aria-hidden />
+            New sales invoice
+          </button>
         </div>
-        {error && <div className="error">{error}</div>}
-      </div>
+      </header>
 
-      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <Tile
-          label="Today's sales"
-          value={money(data.today.salesTotal)}
-          sub={`${data.today.salesCount} invoice(s)`}
-        />
-        <Tile
-          label="Today's purchases"
-          value={money(data.today.purchasesTotal)}
-          sub={`${data.today.purchasesCount} invoice(s)`}
-        />
-        <Tile label="Cash in hand" value={money(data.balances.cash)} />
-        <Tile label="Bank" value={money(data.balances.bank)} />
-        <Tile label="Inventory value" value={money(data.balances.inventory)} />
-        <Tile
-          label="Total liquid + stock"
-          value={money(data.balances.total)}
-          sub={`${data.inventory.totalItems} active item(s)`}
-        />
-        <Tile label="Receivables" value={money(data.receivablesPayables.receivable)} />
-        <Tile label="Payables" value={money(data.receivablesPayables.payable)} />
-      </div>
+      {error && <div className="error">{error}</div>}
 
-      <div className="card">
-        <h2>This month</h2>
-        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-          <Tile label="Revenue" value={money(data.profitLoss.revenue)} />
-          <Tile label="Expenses" value={money(data.profitLoss.expenses)} />
-          <Tile
-            label={data.profitLoss.isProfit ? "Profit" : "Loss"}
-            value={money(data.profitLoss.profit)}
+      <StaggerGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <StaggerItem className="h-full">
+          <StatCard
+            icon={TrendingUp}
+            label="Revenue this month"
+            value={compact(data.profitLoss.revenue)}
+            badge={<DeltaPill change={revenueChange} label="MoM" />}
+            hint={money(data.profitLoss.revenue)}
           />
-        </div>
-      </div>
+        </StaggerItem>
+        <StaggerItem className="h-full">
+          <StatCard
+            icon={TrendingDown}
+            label="Expenses this month"
+            value={compact(data.profitLoss.expenses)}
+            tone="amber"
+            badge={<DeltaPill change={expenseChange} label="MoM" invert />}
+            hint={money(data.profitLoss.expenses)}
+          />
+        </StaggerItem>
+        <StaggerItem className="h-full">
+          <StatCard
+            icon={Coins}
+            label={data.profitLoss.isProfit ? "Net profit" : "Net loss"}
+            value={compact(data.profitLoss.profit)}
+            tone={data.profitLoss.isProfit ? "ok" : "amber"}
+            badge={
+              <StatusPill tone={data.profitLoss.isProfit ? "ok" : "danger"}>
+                {percent(margin, 1)} margin
+              </StatusPill>
+            }
+            hint={money(data.profitLoss.profit)}
+          />
+        </StaggerItem>
+        <StaggerItem className="h-full">
+          <StatCard
+            icon={Banknote}
+            label="Cash & bank"
+            value={compact(liquidity)}
+            tone="teal"
+            badge={<StatusPill tone="brand">{data.inventory.totalItems} items</StatusPill>}
+            hint={`Cash ${money(data.balances.cash)} · Bank ${money(data.balances.bank)}`}
+          />
+        </StaggerItem>
+      </StaggerGroup>
 
-      <div className="card">
-        <h2>
-          Alerts <span className="badge">{data.alerts.count}</span>
-        </h2>
-        {data.alerts.alerts.map((alert, index) => (
-          <div
-            key={`${alert.title}-${index}`}
-            style={{
-              borderLeft: `4px solid ${ALERT_COLOR[alert.type] ?? "#888"}`,
-              background: "#1b1b1b",
-              padding: "8px 12px",
-              borderRadius: 6,
-              marginBottom: 8,
-            }}
-          >
-            <strong style={{ fontSize: 13 }}>{alert.title}</strong>
-            <div style={{ opacity: 0.75, fontSize: 12 }}>{alert.message}</div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_336px]">
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <RevenueTrendChart trend={trend} />
+            <CustomerDonut rows={data.salesByCustomer} />
           </div>
-        ))}
+          <ActivityList rows={data.recentTransactions} onNavigate={onNavigate} />
+          <BestSellersTable rows={data.topItems} />
+          <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
+            <LowStockTable rows={data.inventory.lowStockItems} total={data.inventory.totalItems} />
+            <ExpiringTable rows={data.inventory.expiringItems} />
+          </div>
+        </div>
+
+        <aside className="flex min-w-0 flex-col gap-6">
+          <ProfileDrawer user={user} data={data} onNavigate={onNavigate} />
+          <AlertsCard alerts={data.alerts.alerts} generatedAt={today} />
+        </aside>
       </div>
 
-      <div className="card">
-        <h2>Last 6 months</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th className="num">Revenue</th>
-              <th className="num">Expenses</th>
-              <th className="num">Profit</th>
-              <th style={{ width: "35%" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.monthlyTrend.map((point) => (
-              <tr key={point.month}>
-                <td>{point.month}</td>
-                <td className="num">{money(point.revenue)}</td>
-                <td className="num">{money(point.expenses)}</td>
-                <td className="num">{money(point.profit)}</td>
-                <td>
-                  <div style={{ background: "#27ae60", height: 6, borderRadius: 3, width: `${(point.revenue / trendMax) * 100}%`, marginBottom: 2 }} />
-                  <div style={{ background: "#e74c3c", height: 6, borderRadius: 3, width: `${(point.expenses / trendMax) * 100}%` }} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <h2>Recent transactions</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Reference</th>
-              <th>Type</th>
-              <th>Party</th>
-              <th className="num">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.recentTransactions.map((tx, index) => (
-              <tr key={`${tx.reference}-${index}`}>
-                <td>{tx.date}</td>
-                <td>{tx.reference}</td>
-                <td>{tx.type}</td>
-                <td>{tx.partyName ?? "—"}</td>
-                <td className="num">{money(tx.amount)}</td>
-              </tr>
-            ))}
-            {data.recentTransactions.length === 0 && (
-              <tr>
-                <td colSpan={5}>No transactions yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <h2>
-          Low stock <span className="badge">{data.inventory.lowStockCount}</span>
-        </h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Item</th>
-              <th className="num">In stock</th>
-              <th className="num">Minimum</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.inventory.lowStockItems.map((item) => (
-              <tr key={item.itemCode}>
-                <td>{item.itemCode}</td>
-                <td>{item.itemName}</td>
-                <td className="num">{item.currentStock.toFixed(2)}</td>
-                <td className="num">{item.minimumStock.toFixed(2)}</td>
-              </tr>
-            ))}
-            {data.inventory.lowStockItems.length === 0 && (
-              <tr>
-                <td colSpan={4}>Nothing below its minimum stock level.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <h2>
-          Expiring within 30 days <span className="badge">{data.inventory.expiringCount}</span>
-        </h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Batch</th>
-              <th>Expiry</th>
-              <th className="num">Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.inventory.expiringItems.map((batch) => (
-              <tr key={batch.batchNumber}>
-                <td>
-                  {batch.itemCode} — {batch.itemName}
-                </td>
-                <td>{batch.batchNumber}</td>
-                <td>{batch.expiryDate ?? "—"}</td>
-                <td className="num">{batch.quantityInStock.toFixed(2)}</td>
-              </tr>
-            ))}
-            {data.inventory.expiringItems.length === 0 && (
-              <tr>
-                <td colSpan={4}>No batches expiring soon.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
+      <Card
+        title="Watchlist"
+        subtitle="Stock value, receivables and payables at a glance"
+        compact
+        outline="cyan"
+        action={
+          <StatusPill
+            tone={data.receivablesPayables.receivable > data.receivablesPayables.payable ? "ok" : "amber"}
+            icon={<CircleAlert size={13} strokeWidth={2.4} aria-hidden />}
+          >
+            {data.receivablesPayables.receivable >= data.receivablesPayables.payable
+              ? "Net receivable"
+              : "Net payable"}
+          </StatusPill>
+        }
+      >
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Receivables
+            </p>
+            <p className="num mt-1 text-[18px] font-extrabold text-ink">
+              {money(data.receivablesPayables.receivable)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Payables
+            </p>
+            <p className="num mt-1 text-[18px] font-extrabold text-ink">
+              {money(data.receivablesPayables.payable)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Inventory value
+            </p>
+            <p className="num mt-1 text-[18px] font-extrabold text-ink">
+              {money(data.balances.inventory)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Liquid + stock
+            </p>
+            <p className="num mt-1 text-[18px] font-extrabold text-ink">
+              {money(data.balances.total)}
+            </p>
+            <p className="mt-1 text-[12px] font-medium text-muted">As at {dayLabel(today)}</p>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }

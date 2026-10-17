@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api, ApiError, getToken } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
 import type { BackupStatus, DatabaseInfo, ShortcutEntry } from "../types";
@@ -265,13 +266,12 @@ export default function SettingsPage() {
         <div className="row">
           <div>
             <label>Theme</label>
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              {THEMES.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={theme}
+              onChange={setTheme}
+              placeholder="Theme"
+              options={THEMES.map((name) => ({ value: name, label: name }))}
+            />
           </div>
           <button className="primary" type="submit" disabled={busy || !loaded}>
             Save theme
@@ -293,23 +293,21 @@ export default function SettingsPage() {
           </div>
           <div>
             <label>Currency</label>
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-              {CURRENCIES.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={currency}
+              onChange={setCurrency}
+              placeholder="Currency"
+              options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+            />
           </div>
           <div>
             <label>Date format</label>
-            <select value={dateFormat} onChange={(e) => setDateFormat(e.target.value)}>
-              {DATE_FORMATS.map((format) => (
-                <option key={format} value={format}>
-                  {format}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={dateFormat}
+              onChange={setDateFormat}
+              placeholder="Date format"
+              options={DATE_FORMATS.map((format) => ({ value: format, label: format }))}
+            />
           </div>
           <button className="primary" type="submit" disabled={busy || !loaded}>
             Save profile

@@ -12,6 +12,7 @@
 // decimal.js ships a broken `export default` under NodeNext resolution in this
 // version; the named export is the type-safe form.
 import { Decimal } from "decimal.js";
+import { ValidationError } from "./errors.js";
 
 Decimal.set({
   precision: 34,
@@ -21,6 +22,21 @@ Decimal.set({
 });
 
 export const MONEY_DP = 2;
+
+/**
+ * Quantities are not money: they need more than 2 decimal places (e.g. grams,
+ * millilitres or fractional units). 6 dp keeps sub-unit receipts from being
+ * rounded away while staying well inside what a SQLite REAL round-trips.
+ */
+export const QUANTITY_DP = 6;
+
+/**
+ * Largest magnitude we will persist. The SQLite Cloud driver encodes
+ * whole-number parameters as 64-bit integers, so a value at or above 2^63
+ * overflows and is silently stored as garbage (1e21 -> 1). This ceiling sits
+ * comfortably below both that range and Number.MAX_SAFE_INTEGER.
+ */
+export const MAX_STORAGE_VALUE = 1e15;
 
 export type MoneyLike = Decimal | number | string | null | undefined;
 
@@ -35,9 +51,30 @@ export function round2(value: MoneyLike): Decimal {
   return dec(value).toDecimalPlaces(MONEY_DP, Decimal.ROUND_HALF_UP);
 }
 
-/** Value to persist into a REAL column. */
+/** Reject values that cannot be stored faithfully (non-finite or out of range). */
+function assertStorageRange(value: Decimal, label: string): void {
+  if (!value.isFinite()) {
+    throw new ValidationError(`${label} is not a finite number.`);
+  }
+  if (value.abs().greaterThan(MAX_STORAGE_VALUE)) {
+    throw new ValidationError(
+      `${label} exceeds the maximum supported value of ${MAX_STORAGE_VALUE}.`,
+    );
+  }
+}
+
+/** Value to persist into a REAL money column (2 dp, range-checked). */
 export function toStorage(value: MoneyLike): number {
-  return round2(value).toNumber();
+  const rounded = round2(value);
+  assertStorageRange(rounded, "Amount");
+  return rounded.toNumber();
+}
+
+/** Value to persist into a REAL quantity column (6 dp, range-checked). */
+export function toQuantity(value: MoneyLike): number {
+  const rounded = dec(value).toDecimalPlaces(QUANTITY_DP, Decimal.ROUND_HALF_UP);
+  assertStorageRange(rounded, "Quantity");
+  return rounded.toNumber();
 }
 
 /** Exact sum of many money values. */

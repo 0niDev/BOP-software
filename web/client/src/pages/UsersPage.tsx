@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Role, UserRow } from "../types";
 
 interface Draft {
@@ -284,14 +285,16 @@ export default function UsersPage() {
           </div>
           <div>
             <label>Role</label>
-            <select value={draft.roleName} onChange={(e) => set("roleName", e.target.value)}>
-              <option value="">Select...</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.name}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.roleName}
+              onChange={(next) => set("roleName", next)}
+              placeholder="Select..."
+              emptyText="No roles match"
+              options={[
+                { value: "", label: "Select..." },
+                ...roles.map((role) => ({ value: role.name, label: role.name })),
+              ]}
+            />
           </div>
           <div>
             <label>{editing ? "New password (optional)" : "Password"}</label>
@@ -303,13 +306,15 @@ export default function UsersPage() {
           </div>
           <div>
             <label>Status</label>
-            <select
+            <SearchableSelect
               value={draft.isActive ? "1" : "0"}
-              onChange={(e) => set("isActive", e.target.value === "1")}
-            >
-              <option value="1">Active</option>
-              <option value="0">Disabled</option>
-            </select>
+              onChange={(next) => set("isActive", next === "1")}
+              placeholder="Status"
+              options={[
+                { value: "1", label: "Active" },
+                { value: "0", label: "Disabled" },
+              ]}
+            />
           </div>
           <button className="primary" type="submit" disabled={busy}>
             {editing ? "Save changes" : "Add user"}

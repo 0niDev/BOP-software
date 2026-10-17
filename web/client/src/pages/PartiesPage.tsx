@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Account, Party, PartyType } from "../types";
 
 interface Draft {
@@ -182,21 +183,28 @@ export default function PartiesPage() {
           </div>
           <div>
             <label>Type</label>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">All</option>
-              <option value="CUSTOMER">Customers</option>
-              <option value="SUPPLIER">Suppliers</option>
-            </select>
+            <SearchableSelect
+              value={typeFilter}
+              onChange={setTypeFilter}
+              placeholder="Type"
+              options={[
+                { value: "", label: "All" },
+                { value: "CUSTOMER", label: "Customers" },
+                { value: "SUPPLIER", label: "Suppliers" },
+              ]}
+            />
           </div>
           <div>
             <label>Show</label>
-            <select
+            <SearchableSelect
               value={showInactive ? "all" : "active"}
-              onChange={(e) => setShowInactive(e.target.value === "all")}
-            >
-              <option value="active">Active only</option>
-              <option value="all">Include inactive</option>
-            </select>
+              onChange={(next) => setShowInactive(next === "all")}
+              placeholder="Show"
+              options={[
+                { value: "active", label: "Active only" },
+                { value: "all", label: "Include inactive" },
+              ]}
+            />
           </div>
         </div>
         {error && <div className="error">{error}</div>}
@@ -265,14 +273,16 @@ export default function PartiesPage() {
           </div>
           <div>
             <label>Type</label>
-            <select
+            <SearchableSelect
               value={draft.partyType}
-              onChange={(e) => set("partyType", e.target.value as PartyType)}
-            >
-              <option value="CUSTOMER">CUSTOMER</option>
-              <option value="SUPPLIER">SUPPLIER</option>
-              <option value="BOTH">BOTH</option>
-            </select>
+              onChange={(next) => set("partyType", next as PartyType)}
+              placeholder="Type"
+              options={[
+                { value: "CUSTOMER", label: "CUSTOMER" },
+                { value: "SUPPLIER", label: "SUPPLIER" },
+                { value: "BOTH", label: "BOTH" },
+              ]}
+            />
           </div>
           <div>
             <label>Phone</label>
@@ -288,17 +298,16 @@ export default function PartiesPage() {
           </div>
           <div>
             <label>Category</label>
-            <select
+            <SearchableSelect
               value={draft.customerCategory}
-              onChange={(e) => set("customerCategory", e.target.value)}
-            >
-              <option value="">None</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(next) => set("customerCategory", next)}
+              placeholder="None"
+              emptyText="No matching category"
+              options={[
+                { value: "", label: "None" },
+                ...CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </div>
           <div>
             <label>Credit limit</label>
@@ -313,28 +322,32 @@ export default function PartiesPage() {
           </div>
           <div>
             <label>Linked account</label>
-            <select
-              value={draft.accountId ?? ""}
-              onChange={(e) => set("accountId", e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">None</option>
-              {relevantAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.account_code} — {account.account_name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.accountId == null ? "" : String(draft.accountId)}
+              onChange={(next) => set("accountId", next ? Number(next) : null)}
+              placeholder="None"
+              emptyText="No matching account"
+              options={[
+                { value: "", label: "None" },
+                ...relevantAccounts.map((account) => ({
+                  value: String(account.id),
+                  label: `${account.account_code} — ${account.account_name}`,
+                })),
+              ]}
+            />
           </div>
           {editing && (
             <div>
               <label>Status</label>
-              <select
+              <SearchableSelect
                 value={draft.isActive ? "1" : "0"}
-                onChange={(e) => set("isActive", e.target.value === "1")}
-              >
-                <option value="1">Active</option>
-                <option value="0">Inactive</option>
-              </select>
+                onChange={(next) => set("isActive", next === "1")}
+                placeholder="Status"
+                options={[
+                  { value: "1", label: "Active" },
+                  { value: "0", label: "Inactive" },
+                ]}
+              />
             </div>
           )}
           <button className="primary" type="submit" disabled={busy}>

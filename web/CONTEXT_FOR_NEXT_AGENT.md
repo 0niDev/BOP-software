@@ -1,6 +1,13 @@
 # BOP Nutraceuticals ERP — TypeScript Rewrite: Next-Agent Context
 
-Compact single-file summary of the whole session. Re-verified **2026-10-12**,
+Compact single-file summary of the whole session.
+
+**Latest re-verification 2026-10-13** (see "Latest session" below; all exit 0):
+`npm run typecheck` (server + client + e2e), `npm -w @bop-erp/server run test` →
+**129 passed + 5 skipped (20 files)**, `npm run smoke` → **SMOKE OK**, client
+`vite build` → 340.86 kB / gzip 90.97 kB.
+
+Earlier full re-verified baseline **2026-10-12**,
 all exit 0: `npm run typecheck`, `npx tsc -p tsconfig.e2e.json`, `npm test`
 (**117 passed + 5 skipped**, 19 files — the skips are the opt-in hosted-database
 test), `npm run smoke` (SMOKE OK, trial balance balanced `127175 = 127175`),
@@ -25,10 +32,121 @@ itself was never changed.
 > sizing, overflow, empty states, number alignment and hit targets (21 tests).
 >
 > The hosted SQLite Cloud engine is now **connected and exercised end to end**
-> (see "Production readiness" below) — and the adversarial audit of it **FAILED
-> with 12 distinct defects, so the app is NOT production-ready yet.** Still
-> outstanding: those defects, CI has never actually run (no GitHub runner here),
-> and the commits are **not pushed**.
+> (see "Production readiness" below). The adversarial audit of it produced 12
+> defects; **8 of them were fixed on 2026-10-13 with regression tests** (see
+> "Latest session"), leaving **F7/F8 unfixed by the user's explicit choice** plus
+> **F12** (ops, not code). Still outstanding: CI has never actually run (no
+> GitHub runner here), the commits are **not pushed**, and the cloud stress
+> harness has **not been re-run** to re-score its own defect list.
+
+---
+
+## Latest session (2026-10-13) — defect fixes, session-expiry fix, UI audit
+
+**Verification (all exit 0, no git writes):** `npm run typecheck` (server +
+client + e2e) · `npm -w @bop-erp/server run test` → **129 passed + 5 skipped
+(20 files)** · `npm run smoke` → **SMOKE OK** · client `vite build` →
+340.86 kB / gzip 90.97 kB. Nothing committed; only read-only `git diff`/
+`git status` were run.
+
+### 8 of the 12 adversarial-audit defects are FIXED (with regression tests)
+All are covered by the **new** `web/server/tests/fixes.test.ts` (10 tests) plus
+updated `tests/banking.test.ts`:
+
+| # | Defect | Fix |
+|---|---|---|
+| F1 | `nextVoucherNumber` off-by-one → item creation returned 500 | `journalRepository.ts`: a new sequence starts at **2** and returns **`next_number - 1`** |
+| F2 | document number ≠ its ledger voucher number, and gaps | the allocated document number is now passed into `postJournalEntry` (sales, purchases, both returns) |
+| F3 | silent ≥2^63 corruption at the DB driver boundary | `domain/money.ts`: `assertStorageRange()` + `MAX_STORAGE_VALUE = 1e15` in `toStorage`/`toQuantity` |
+| F4 | `stock_movements` not maintained | movements now inserted on purchase, sale, both returns, production consume/output and opening stock |
+| F5 | sub-cent quantities rounded to 0 | `toQuantity()` (6 dp) used for every quantity column |
+| F6 | cash/bank could go arbitrarily negative | funds guard in `bankingService` (withdraw, clear cheque) and `paymentService` (BANK/CHEQUE) |
+| F9 | returns reversed the wrong COGS account | `returnsService` credits the account the sale debited (5000/5001/5002 by item type) |
+| F10 | `referenceNo` accepted but never stored | persisted on `journal_entries.reference_no` |
+| F11 | no payment/receipt idempotency (same payment posted twice) | `paymentRepository.findDuplicate()` + a `ConflictError` (409) guard in `paySupplier`/`receivePayment`, keyed on company/party/date/method/amount/reference |
+
+**F2 also needed a data repair.** `db/bootstrap.ts` now exports
+`reconcileNumberingSequences()` (advances each sequence to
+`max(existing document code, journal voucher) + 1`, forward-only, idempotent);
+it runs at bootstrap, and there is a runnable **`npm -w @bop-erp/server run
+reconcile`** (`server/src/reconcile.ts`, new file). It was applied once to the
+hosted DB during the fix session.
+
+**Deliberately NOT fixed:** **F7** (zero-cost purchase / discount-exceeds-line
+surface as accounting errors) and **F8** (zero-value invoice accepted) — excluded
+by the user; **F12** (`admin` / `admin123` still valid on the hosted DB) — an ops
+credential action, not a code change.
+
+### Client session-expiry fix — `web/client/src/api.ts` only
+Sessions are an in-memory server `Map` (12h TTL, **lost on every restart**) while
+the token lives in `localStorage`, so a stored token outlives its session and the
+user was stranded on a page showing *"Missing or expired session."* with no way
+back except the manual Sign-out button.
+
+`endExpiredSession(res, path)` now runs immediately after every `fetch` in all
+three helpers (`request`, `requestText`, `requestBlob`): on **401** it clears the
+token and calls `window.location.replace(<current app URL>)`, so `App` re-mounts
+with no token and renders the login page (history replaced, not pushed).
+
+Two deliberate details, both required for correctness:
+- `CREDENTIAL_ROUTES = {"/api/auth/login", "/api/auth/change-password"}` are
+  **excluded** — a 401 there means *wrong credentials*, so redirecting would loop
+  on the login page and swallow the inline error message.
+- The target is the app's **own URL, not `/login`**: this client has no router and
+  there is no `/login` route (the Express server 404s unknown paths), so a hard
+  `replace("/login")` would 404. `App.tsx` already renders `LoginPage` whenever
+  `getToken()` is null, so **no entry-point change was needed**.
+
+### UI audit of the client (report only; only category 1 items 1–2 fixed)
+All 16 pages plus `Layout`/`FilterBox` were read against every GET route's query
+support. **Backend capability summary for the next agent:**
+- `search` **and** `limit`/`offset` exist only on **sales/purchase invoices** —
+  and they default to `LIMIT 100`, so those lists silently truncate today.
+- `search` only: items, parties. `status` only: cheques. `activeOnly` only: accounts.
+- **Nothing** on payments, receipts, expenses, expense-items (`categoryId` only),
+  bank-accounts, bank-transactions, returns, boms, production-orders, assets, users.
+- Hard caps with no offset: payments/receipts **100**, cheques/returns/production-orders **200**.
+- **No journal-entries list endpoint** (only `/api/journal-entries/:sourceTable/:sourceId`)
+  and **no warehouse endpoint at all** — so no dead sidebar links, but two missing modules.
+
+Highest-value open findings: pagination absent everywhere and *silently
+truncating*; no search on sales/purchase invoices (backend is ready — frontend
+only); **no busy/disabled state** on Banking (the whole page), `ExpensesPage`
+`submit`/`addCategory`/`addItem`, `ManufacturingPage`
+`createBom`/`createOrder`/`start`, `ReturnsPage` `submit`, `SettingsPage`
+`resetShortcut`/`resetAllShortcuts`; **zero confirmation dialogs** in the client
+(`window.confirm` count = 0) including *"Reset all to defaults"*; future dates
+accepted client-side (no `max`) and server-side (`isoDateSchema` validates
+format/calendar only, **no upper bound**); every list briefly shows its "no rows"
+empty state before the first fetch resolves.
+
+**Category 1 was then fixed — these two only:**
+1. **Inventory Edit button looked dead.** Not a broken handler: `startEdit` fired
+   and populated the draft, but the add/edit form is a separate card that is
+   *always mounted* at the bottom of the page, below an unpaginated table (~1,750
+   item codes in the live DB), so nothing changed in the viewport. Now an
+   `editing`-keyed effect scrolls the form into view and focuses the Name field
+   (`editFormRef` / `itemNameRef`).
+2. **Stock never showed in inventory.** Not missing data and not a render bug —
+   the **API** was the gap: `itemRepository.list` ran `SELECT * FROM items` and
+   never joined `stock_batches`. It now returns **`ItemListRow`** with a
+   `current_stock` subquery over active batches — the *same* definition
+   `dashboardService` uses for low stock — `itemService.list`'s return type was
+   widened, `types.ts` `Item` gained `current_stock`, and `ItemsPage` renders a
+   **Stock** column (empty-state `colSpan` corrected 9 → 10).
+   `smoke.ts` gained three checks: numeric for every item, **equal to a direct
+   `SUM(quantity_in_stock)` query**, and at least one non-zero (so the comparison
+   cannot pass vacuously as 0-vs-0).
+
+**Known asymmetry to be aware of:** `current_stock` is returned by the **list**
+endpoint only — `createItem` and `GET /api/items/:id` still return a bare
+`ItemRow`, and the client type marks the field required. Nothing renders it from
+those paths today.
+
+**Untouched on purpose:** the other category-1 instances (Parties/Accounts/Users
+Edit buttons, silent invoice line-dropping in `SalesInvoicesPage`/
+`PurchaseInvoicesPage`, the payment form never sending `referenceNo`) and all of
+categories 2–8.
 
 ---
 
@@ -70,7 +188,18 @@ numbers, no double-counted receipts, no negative stock; `kill -9` mid-burst left
 byte-for-byte to pristine (all tables *and* AUTOINCREMENT counters).
 
 **What must be fixed before prod** (severity-ordered, details + evidence in the
-report's defect table):
+report's defect table). **UPDATE 2026-10-13:** several items below have since
+been fixed — the payments overpayment guard is in place **inside** the
+transaction, returns now credit the COGS account the sale debited, the stale
+sequence is repaired (`reconcileNumberingSequences` / `npm run reconcile`), the
+stock-movement trail is written by sales/purchases/returns, sub-cent quantities
+no longer round to 0, and date *format/calendar* validation exists
+(`domain/dateValidation.ts`, part of the PR under test). **Not yet addressed from
+this list:** the dashboard `monthlyTrend` contra-entry and `1020`-as-cash issues,
+the `entry_date` raw-TEXT window comparison (`...T23:59:00` stamps still fall
+outside), future-dated entries, and 400/413 handling for malformed/oversized
+bodies. **This harness has not been re-run since the fixes — re-score it before
+trusting these labels.**
 - **Payments:** `paySupplier` has no outstanding-balance guard (overpayment
   accepted). `receivePayment`'s guard is read *outside* `db.transaction` — a
   latent TOCTOU that did **not** reproduce on the serialized cloud adapter.
@@ -361,6 +490,8 @@ The context was updated from this chat; all source files remain on disk.
 
 
 ### Current results (re-verified 2026-10-12, exit 0 each)
+> **Superseded.** The current baseline is **129 passed + 5 skipped (20 files)**
+> — see "Latest session" at the top. The figures below are the 2026-10-12 run.
 - `npm run typecheck` → tsc server + client both clean.
 - `npx tsc -p tsconfig.e2e.json` → clean (that config also covers
   `cloud-audit.ts` and `cloud-audit-stress.ts`).
@@ -414,9 +545,16 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 1. **Passwords:** PBKDF2-HMAC-SHA256, **200,000 iterations**, 16-byte random
    salt, hex(salt+hash). Node: `pbkdf2Sync(plain, salt, 200000, 32, "sha256")`.
    → admin/admin123 logs in unchanged.
-2. **Voucher numbering:** `numbering_sequences` upsert
+2. **Voucher numbering (CHANGED 2026-10-13 — see "Latest session"):**
+   `numbering_sequences` upsert
    `ON CONFLICT(company_id, document_type) DO UPDATE SET next_number += 1
-   RETURNING prefix, next_number, padding`; printed as `prefix + zfill(5)`.
+   RETURNING prefix, next_number - 1 AS next_number, padding`, with a **new
+   sequence starting at 2** so its first issued number is 1; printed as
+   `prefix + zfill(5)`. The previous form was off by one **and** let a document
+   and its journal entry consume two different numbers — the caller now passes
+   the allocated number into `postJournalEntry`. `reconcileNumberingSequences()`
+   repairs stale sequences at bootstrap, and `npm run reconcile` does it on demand.
+   (`zfill` note: the legacy expectation below still holds.)
    Seeded prefixes: SI-, SR-, PI-, PR-, PV-, RV-, JV-, OB-, PO-, EV-,
    CUST-, SUPP-, ITEM-, BOM-. Voucher type → doc type:
    SALES→SALES_INVOICE, PURCHASE→PURCHASE_INVOICE, PAYMENT→PAYMENT,
@@ -471,6 +609,9 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 
 ## Files
 **Server** (all under `web/server/src/`):
+- `reconcile.ts` (**new 2026-10-13**; run with `npm run reconcile`) — advances
+  stale `numbering_sequences` for items/parties/invoices/returns/vouchers/orders
+  via `reconcileNumberingSequences()` from `db/bootstrap.ts`.
 - `env.ts` (loads web/.env then repo-root .env), `index.ts` (boot local only,
   listen, SIGINT/SIGTERM shutdown), `seed.ts` (refuses non-local; `--rich` also
   runs `seedRichDemoData`), `smoke.ts` (throwaway DB
@@ -563,11 +704,32 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   trialBalanceCsv$$, users$$, roles$$, createUser$$, updateUser$$,
   resetUserPassword$$, changePassword$$ (current/new), settings$$
   (group), saveSettings$$(group, settings)).
-- `main.tsx`, `styles.css` (dark theme, CSS var `--accent:#8b1a2b`,
-  cards/rows/tables/num/badge; button primary hover disabled),
-  `App.tsx` (Page union = dashboard|sales|purchases|parties|items|payments|
+- `main.tsx`; `styles.css` — **the design system**: Tailwind v4 compiled in
+  place (utilities only, preflight deliberately skipped because the legacy
+  module screens are styled by the unlayered rules in the same file), palette as
+  CSS custom properties (`:root` = dark, `:root[data-theme="light"]` = light,
+  slate/blue spec: bg `#F4F6FB`, accent `#2563EB`, teal `#0D9488`, amber) bridged
+  to Tailwind through `@theme inline` (so `bg-surface`, `text-muted`,
+  `border-line`, `rounded-card`, `shadow-float` follow the theme), Plus Jakarta
+  Sans self-hosted in `client/public/fonts`, and the class-based component layer
+  (card/row/grid/num/badge/**pill/meter/icon-btn/sort-btn/menu/thumb**, sidebar
+  sections, topbar, search field, hotkey pill). Status colours have `-ink` text
+  variants so 12px labels clear AA in both themes.
+- `App.tsx` (Page union = dashboard|sales|purchases|parties|items|payments|
   manufacturing|expenses|banking|returns|accounts|reports|users|settings;
-  default page = **dashboard**), `Layout.tsx` (sidebar nav + topbar; NAV array).
+  default page = **dashboard**; passes `user` + `onNavigate` to DashboardPage),
+  `components/Layout.tsx` (shell: `components/layout/Sidebar.tsx` with
+  Overview/Operations/Master data/Insights/Administration sections + icons +
+  active pill + mobile drawer, and `components/layout/TopBar.tsx` with the module
+  search + ⌘K pill + notification feed + user chip + sign-out; NAV keeps the flat
+  order the Ctrl+1…0 / Ctrl+Tab shortcuts index).
+- `components/ui/*` (**Card, StatCard, DataTable** (sortable), **ChartFrame**,
+  StatusPill, ProgressMeter, DeltaPill, Avatar, motion helpers) and
+  `components/dashboard/*` (**RevenueTrendChart, CustomerDonut, ActivityList**
+  with per-row action menus, **BestSellersTable, LowStockTable, ExpiringTable,
+  ProfileDrawer, AlertsCard**) — Recharts + Framer Motion + Lucide; entrance
+  animations are ≤ 0.5s and skipped under `prefers-reduced-motion`. `lib/format.ts`
+  holds money/compact/percent/share/initials/tint helpers.
   Pages: **DashboardPage**, LoginPage,
   SalesInvoicesPage, PurchaseInvoicesPage, **PartiesPage** (CRUD, type/search/
   inactive filters, account picker filtered by party type), **ItemsPage** (CRUD,
@@ -587,7 +749,9 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   salesInvoice(5) purchaseInvoice(5) payment(4) manufacturing(**7**) expense(4)
   banking(6) returns(3) report(8) dashboard(5) expenseItem(4) asset(5) backup(5)
   user(11) masterdata(21) acceptance(8, rich-demo audit) **settings(6, shortcuts +
-  database info)** **sqliteCloud(5, opt-in / skipped)**. The `UserService` suite
+  database info)** **sqliteCloud(5, opt-in / skipped)** **fixes(10, the F1–F11
+  audit regressions: numbering, reconciliation, quantity bounds, stock movements,
+  COGS mapping, references, bank guard, payment idempotency)**. The `UserService` suite
   carries a 30s timeout (PBKDF2).
   vitest.config includes tests/**/*.test.ts.
 
@@ -749,6 +913,9 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 ---
 
 ## Verification (re-verified 2026-10-12 — exit 0 each)
+> **Superseded on 2026-10-13:** `npm test` is now **129 passed + 5 skipped
+> (20 files)** and 5 smoke checks were added (2 for the F11 duplicate-payment
+> replay, 3 for the items `current_stock` figure). See "Latest session" at the top.
 - `npm run typecheck` → tsc server + client both clean.
 - `npm test` → 19 files, **117 passed + 5 skipped** (8 acceptance, 21 masterdata,
   5 dashboard, 8 report, 4 expenseItem, 5 asset, 5 backup, 11 user, …; the 5
@@ -837,6 +1004,18 @@ Still uncommitted as of 2026-10-12 (status taken with `git status --porcelain`):
 `data/cloud-audit/` evidence). Decide deliberately what to commit: the four
 `cloud-*` files and `tests/setup-env.ts` are worth committing; the transcripts
 are the user's call.
+**2026-10-13 additions to the working tree** (still nothing committed — take a
+fresh `git status`): the uncommitted set has grown well beyond the snapshot
+above. The defect-fix session touched `repositories/journalRepository.ts`,
+`repositories/paymentRepository.ts`, `repositories/itemRepository.ts`,
+`services/{salesInvoice,purchaseInvoice,returns,payment,banking,manufacturing,
+item,itemService}.ts`, `domain/money.ts`, `db/bootstrap.ts`, `seedData.ts`,
+`smoke.ts`, `tests/banking.test.ts`, the client `api.ts` / `types.ts` /
+`pages/ItemsPage.tsx`, and added **`?? web/server/src/reconcile.ts`** and
+**`?? web/server/tests/fixes.test.ts`**. (`env.ts`, `http/app.ts`,
+`domain/dateValidation.ts` and `services/dashboardService.ts` were already
+modified/staged by the PR under test and were **not** changed by this work.)
+
 `f71b249` is the last Python-side commit ("Improve UX and performance: security,
 async reports, thread-safe cache, persistence"); the Python project has not been
 touched by this work.
@@ -900,7 +1079,11 @@ shows both the cost of goods and any overhead in `profitLoss.expenses`.
   The setup file sets `ERP_DB_ENGINE=local` before each test file's imports.
   Do **not** weaken that assertion to "sqlitecloud" — the unit/acceptance suites
   build their own throwaway local DBs and must never follow `.env` onto the
-  hosted database. Baseline after the fix: **117 passed + 5 skipped (19 files)**.
+  hosted database. Baseline after the fix: **129 passed + 5 skipped (20 files)**
+  (was 117 + 5 / 19 files before the 2026-10-13 defect fixes added
+  `tests/fixes.test.ts` — 10 tests covering F1–F6, F9, F10 and F11 — and two
+  `openingBalance: 1000` lines to `tests/banking.test.ts` so its F6 cheque
+  cases start from a funded account).
 - **Dev stack.** `npm run dev` starts both halves with `concurrently` (API on
   4000, vite client on 5173, `/api` proxied); `npm run dev:server` /
   `npm run dev:client` start them separately. Both were left running on

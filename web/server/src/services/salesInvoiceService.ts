@@ -15,7 +15,8 @@ import {
   NotFoundError,
   ValidationError,
 } from "../domain/errors.js";
-import { Decimal, dec, round2, toStorage, type MoneyLike } from "../domain/money.js";
+import { Decimal, dec, round2, toQuantity, toStorage, type MoneyLike } from "../domain/money.js";
+import { insertRow } from "../repositories/base.js";
 import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
@@ -184,11 +185,15 @@ export class SalesInvoiceService {
       if (await this.sales.invoiceNumberExists(invoiceNumber, companyId)) {
         throw new ConflictError(`Invoice number '${invoiceNumber}' already exists.`);
       }
-    } else {
-      invoiceNumber = await this.journal.nextVoucherNumber(companyId, "SALES");
     }
 
     return this.db.transaction(async () => {
+      // Allocate the number inside the transaction: a shortfall discovered while
+      // consuming stock, or any other failure while writing the document, then
+      // rolls the sequence back with it instead of burning a number.
+      if (!invoiceNumber) {
+        invoiceNumber = await this.journal.nextVoucherNumber(companyId, "SALES");
+      }
       const invoiceId = await this.sales.insertInvoice({
         company_id: companyId,
         warehouse_id: warehouseId,
@@ -250,11 +255,27 @@ export class SalesInvoiceService {
             invoice_id: invoiceId,
             item_id: line.item.id,
             batch_id: share.batchId,
-            quantity: toStorage(share.quantity),
+            quantity: toQuantity(share.quantity),
             unit_price: toStorage(line.unitPrice),
             discount_amount: toStorage(line.discount),
             tax_amount: toStorage(line.tax),
             line_total: toStorage(line.lineTotal),
+          });
+          // Stock movement (negative: stock leaving the warehouse).
+          await insertRow(this.db, "stock_movements", {
+            item_id: line.item.id,
+            batch_id: share.batchId,
+            warehouse_id: warehouseId,
+            movement_type: "SALE",
+            quantity: -toQuantity(share.quantity),
+            unit_cost: share.quantity.isZero()
+              ? 0
+              : toStorage(share.cost.dividedBy(share.quantity)),
+            reference_table: "sales_invoices",
+            reference_id: invoiceId,
+            movement_date: input.invoiceDate,
+            notes: `Sales invoice ${invoiceNumber}`,
+            created_by: input.createdBy ?? null,
           });
         }
       }
@@ -263,6 +284,7 @@ export class SalesInvoiceService {
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "SALES",
+        voucherNumber: invoiceNumber,
         entryDate: input.invoiceDate,
         lines: journalLines,
         sourceTable: "sales_invoices",
@@ -374,7 +396,7 @@ export class SalesInvoiceService {
     for (const batch of batches) {
       if (remaining.lessThanOrEqualTo(0)) break;
       const take = Decimal.min(dec(batch.quantity_in_stock), remaining);
-      await this.batches.adjustQuantity(batch.id, take.negated().toNumber());
+      await this.batches.adjustQuantity(batch.id, -toQuantity(take));
       const shareCost = round2(take.times(this.unitCost(item, batch)));
       cost = cost.plus(shareCost);
       remaining = remaining.minus(take);

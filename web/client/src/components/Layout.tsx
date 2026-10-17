@@ -1,25 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { Page } from "../App";
 import { SHORTCUTS_CHANGED, matchesSequence, shortcutMap } from "../shortcuts";
 import type { User } from "../types";
-
-const NAV: Array<{ id: Page; label: string }> = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "sales", label: "Sales Invoices" },
-  { id: "purchases", label: "Purchase Invoices" },
-  { id: "payments", label: "Payments & Receipts" },
-  { id: "manufacturing", label: "Manufacturing" },
-  { id: "expenses", label: "Expenses" },
-  { id: "banking", label: "Banking" },
-  { id: "returns", label: "Returns" },
-  { id: "parties", label: "Customers & Suppliers" },
-  { id: "items", label: "Items" },
-  { id: "assets", label: "Fixed Assets" },
-  { id: "accounts", label: "Chart of Accounts" },
-  { id: "reports", label: "Reports" },
-  { id: "users", label: "Users" },
-  { id: "settings", label: "Settings" },
-];
+import Sidebar, { NAV, NAV_SECTIONS, type NavEntry } from "./layout/Sidebar";
+import TopBar from "./layout/TopBar";
 
 interface Props {
   user: User;
@@ -29,9 +19,18 @@ interface Props {
   children: ReactNode;
 }
 
+/**
+ * Application shell: sectioned sidebar, top bar and the module host.
+ *
+ * All of the desktop app's navigation shortcuts live here — the module finder
+ * (Ctrl+F / the command-palette key), Ctrl+1…9 / Ctrl+0 module jumps and
+ * Ctrl+Tab / Ctrl+Shift+Tab stepping — and each one reads the sequences stored
+ * in the SHORTCUTS settings group.
+ */
 export default function Layout({ user, page, onNavigate, onLogout, children }: Props) {
   const [finder, setFinder] = useState("");
   const [shortcuts, setShortcuts] = useState<Record<string, string>>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const finderRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -73,6 +72,14 @@ export default function Layout({ user, page, onNavigate, onLogout, children }: P
         return;
       }
 
+      // The command-palette key (Ctrl+K by default, shown in the top bar) opens
+      // the same module finder.
+      if (matchesSequence(event, sequence("command_palette", "Ctrl+K"))) {
+        event.preventDefault();
+        focusSearch();
+        return;
+      }
+
       // Ctrl+1..9 and Ctrl+0 jump to the first ten modules.
       for (const [index, entry] of NAV.slice(0, 10).entries()) {
         const digit = index === 9 ? 0 : index + 1;
@@ -104,51 +111,64 @@ export default function Layout({ user, page, onNavigate, onLogout, children }: P
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [shortcuts, page, onNavigate]);
 
+  function go(next: Page): void {
+    onNavigate(next);
+    setSidebarOpen(false);
+  }
+
   const needle = finder.trim().toLowerCase();
-  const visible = needle
+  const matches = needle
     ? NAV.filter((entry) => entry.label.toLowerCase().includes(needle))
     : NAV;
 
+  // While searching, one flat list; otherwise the permanent sections, with the
+  // empty ones dropped.
+  const sections: Array<{ title: string; items: readonly NavEntry[] }> = needle
+    ? matches.length > 0
+      ? [{ title: "Matches", items: matches }]
+      : []
+    : NAV_SECTIONS.map((section) => ({
+        title: section.title,
+        items: section.items.filter((entry) => matches.includes(entry)),
+      })).filter((section) => section.items.length > 0);
+
+  const onSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === "Escape") setFinder("");
+    if (event.key === "Enter") {
+      const first = matches[0];
+      if (first) {
+        go(first.id);
+        setFinder("");
+      }
+    }
+  };
+
   return (
     <div className="layout">
-      <aside className="sidebar">
-        <div className="brand">BOP Nutraceuticals ERP</div>
-        <input
-          ref={finderRef}
-          className="nav-filter"
-          placeholder="Find module…  (Ctrl+F)"
-          value={finder}
-          onChange={(e) => setFinder(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setFinder("");
-            const first = visible[0];
-            if (e.key === "Enter" && first) {
-              onNavigate(first.id);
-              setFinder("");
-            }
-          }}
-        />
-        <nav className="nav">
-          {visible.map((entry) => (
-            <button
-              key={entry.id}
-              className={entry.id === page ? "active" : ""}
-              onClick={() => onNavigate(entry.id)}
-            >
-              {entry.label}
-            </button>
-          ))}
-          {visible.length === 0 && <div className="nav-empty">No module matches.</div>}
-        </nav>
-      </aside>
+      <div
+        className={`sidebar-scrim${sidebarOpen ? " open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden
+      />
+      <Sidebar
+        page={page}
+        onNavigate={go}
+        sections={sections}
+        nothingMatches={matches.length === 0}
+        open={sidebarOpen}
+        hotkey={shortcuts["command_palette"] ?? "Ctrl+K"}
+      />
       <main className="main" ref={mainRef}>
-        <div className="topbar">
-          <div>
-            Signed in as <strong>{user.fullName}</strong>
-            {user.roleName ? ` (${user.roleName})` : ""}
-          </div>
-          <button onClick={onLogout}>Sign out</button>
-        </div>
+        <TopBar
+          user={user}
+          search={finder}
+          onSearchChange={setFinder}
+          onSearchKeyDown={onSearchKeyDown}
+          searchRef={finderRef}
+          onNavigate={go}
+          onLogout={onLogout}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
         {children}
       </main>
     </div>

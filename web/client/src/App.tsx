@@ -107,7 +107,7 @@ export default function App() {
         setUser(null);
       }}
     >
-      {page === "dashboard" && <DashboardPage />}
+      {page === "dashboard" && <DashboardPage user={user} onNavigate={setPage} />}
       {page === "sales" && <SalesInvoicesPage />}
       {page === "purchases" && <PurchaseInvoicesPage />}
       {page === "parties" && <PartiesPage />}

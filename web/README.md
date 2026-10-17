@@ -33,10 +33,40 @@ web/
 │   │   └── smoke.ts        end-to-end HTTP smoke test
 │   └── tests/              vitest unit + integration tests
 └── client/                 React + Vite web client
-    └── src/pages/          login, transactions, chart of accounts, reports, users, settings
+    ├── public/fonts/       self-hosted Plus Jakarta Sans (woff2)
+    └── src/
+        ├── pages/          login, dashboard, transactions, chart of accounts, reports, users, settings
+        ├── components/     ui/ (design-system primitives), layout/ (sidebar, topbar), dashboard/ (widgets)
+        ├── lib/format.ts   money / compact / percent / initials helpers
+        └── styles.css      Tailwind entry + theme tokens + ERP component layer
 ```
 
 Layering mirrors the original: `views (React) → http → services → repositories → db`.
+
+## Client design system
+
+The client is **Tailwind v4 (utilities only) + Framer Motion + Lucide + Recharts**
+on top of the ERP component layer in `client/src/styles.css`. Tailwind's preflight
+is deliberately **not** imported: fifteen module screens are styled by the
+unlayered rules in that file, and a global reset would restyle all of them. New
+UI (the shell and the dashboard) is written with utilities; anything that is
+controlled by an element rule — buttons, inputs, tables, headings — keeps a
+class-based variant (`.icon-btn`, `.sort-btn`, `.num`, `.pill`, `.meter`, `.menu`,
+`.thumb`, `.search-field`) because unlayered CSS outranks the utility layer.
+
+- **Tokens** live in `styles.css`: `:root` is the dark palette, `:root[data-theme="light"]`
+  the light one (slate surface `#F4F6FB`, royal blue `#2563EB`, teal `#0D9488`,
+  amber). They are re-exported to Tailwind via `@theme inline`, so `bg-surface`,
+  `text-muted`, `border-line`, `rounded-card` and `shadow-float` follow the
+  Appearance setting instead of baking in a colour. Status colours ship `-ink`
+  text variants so 12px labels clear WCAG AA in both themes.
+- **Type**: Plus Jakarta Sans, self-hosted in `client/public/fonts` — no network
+  at runtime and no font-fetch errors in the console.
+- **Motion**: every dashboard widget fades and slides up once, staggered so the
+  whole grid settles in under half a second, and all of it is skipped under
+  `prefers-reduced-motion`.
+- **Charts** are Recharts inside `components/ui/ChartFrame.tsx`, which owns the
+  fixed height a `ResponsiveContainer` needs.
 
 ## Getting started
 
@@ -64,6 +94,19 @@ SQLITE_CLOUD_URL=sqlitecloud://user:password@host:port/database
 
 The hosted database is **never** bootstrapped (no DDL/seed) — only the local
 database is created and seeded automatically.
+
+## Deployment
+
+Production runs as **one Windows service on one port**: the Node process serves
+both `/api` and the built React client. `deploy/windows/` holds the scripts
+(`deploy.bat`, `install-service.bat`, `uninstall-service.bat`,
+`run-foreground.bat`) and **[DEPLOYMENT.md](DEPLOYMENT.md)** is the runbook —
+prerequisites, environment keys, service management, upgrades and rollback, and
+the pre-go-live security checklist.
+
+Set `ERP_SERVE_CLIENT=1` (after `npm run build`) to have the API process serve
+`client/dist`; `/api/*` still answers with JSON 404s, and every other path falls
+back to `index.html` for the SPA.
 
 ## Verification
 

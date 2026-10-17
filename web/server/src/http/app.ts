@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import type { SqlDatabase } from "../db/types.js";
 import { env } from "../env.js";
 import { AppError, UnauthorizedError, ValidationError } from "../domain/errors.js";
+import { isoDateSchema, optionalIsoDateSchema, validateIsoDate } from "../domain/dateValidation.js";
 import { AccountingService } from "../services/accountingService.js";
 import { AccountService } from "../services/accountService.js";
 import { AssetService } from "../services/assetService.js";
@@ -21,6 +24,7 @@ import { PaymentService } from "../services/paymentService.js";
 import { PurchaseInvoiceService } from "../services/purchaseInvoiceService.js";
 import { ReturnsService } from "../services/returnsService.js";
 import { ReportService } from "../services/reportService.js";
+import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
 import { SalesInvoiceService } from "../services/salesInvoiceService.js";
 import { SettingsService } from "../services/settingsService.js";
 import { UserService } from "../services/userService.js";
@@ -43,7 +47,7 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
 
 const returnSchema = z.object({
   invoiceId: z.coerce.number().int().positive(),
-  returnDate: z.string().min(1),
+  returnDate: isoDateSchema,
   returnNumber: z.string().nullish(),
   notes: z.string().nullish(),
   items: z
@@ -61,6 +65,12 @@ export interface AppOptions {
   engine?: string;
   /** Where snapshots are written. */
   backupDir?: string;
+  /**
+   * Directory of a built client (`index.html` + `assets/`). When given *and* the
+   * build is actually present, this process also serves the SPA — the
+   * single-process production deployment. Left undefined, the app is API-only.
+   */
+  clientDir?: string | null;
 }
 
 export function createApp(
@@ -84,6 +94,7 @@ export function createApp(
   const returns = new ReturnsService(db, companyId);
   const accounting = new AccountingService(db, companyId);
   const reports = new ReportService(db, companyId);
+  const reportXlsx = new ReportXlsx(db, companyId);
   const users = new UserService(db);
   const settings = new SettingsService(db, companyId);
   const dashboard = new DashboardService(db, companyId);
@@ -401,7 +412,7 @@ export function createApp(
     const body = parseBody(
       z.object({
         customerId: z.coerce.number().int().positive(),
-        invoiceDate: z.string().min(1),
+        invoiceDate: isoDateSchema,
         paymentType: z.enum(["CASH", "BANK", "CHEQUE", "CREDIT"]),
         invoiceNumber: z.string().min(1).nullish(),
         notes: z.string().nullish(),
@@ -446,7 +457,7 @@ export function createApp(
     const body = parseBody(
       z.object({
         supplierId: z.coerce.number().int().positive(),
-        invoiceDate: z.string().min(1),
+        invoiceDate: isoDateSchema,
         paymentType: z.enum(["CASH", "BANK", "CHEQUE", "CREDIT"]),
         invoiceNumber: z.string().min(1).nullish(),
         notes: z.string().nullish(),
@@ -487,7 +498,7 @@ export function createApp(
       z.object({
         supplierId: z.coerce.number().int().positive(),
         amount: z.coerce.number().positive(),
-        paymentDate: z.string().min(1),
+        paymentDate: isoDateSchema,
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
         referenceNo: z.string().nullish(),
         notes: z.string().nullish(),
@@ -503,7 +514,7 @@ export function createApp(
       z.object({
         customerId: z.coerce.number().int().positive(),
         amount: z.coerce.number().positive(),
-        paymentDate: z.string().min(1),
+        paymentDate: isoDateSchema,
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
         referenceNo: z.string().nullish(),
         notes: z.string().nullish(),
@@ -557,9 +568,9 @@ export function createApp(
       z.object({
         bomId: z.coerce.number().int().positive().nullish(),
         plannedQuantity: z.coerce.number().positive(),
-        manufacturingDate: z.string().min(1),
+        manufacturingDate: isoDateSchema,
         orderNumber: z.string().nullish(),
-        expiryDate: z.string().nullish(),
+        expiryDate: optionalIsoDateSchema,
         notes: z.string().nullish(),
         warehouseId: z.coerce.number().int().positive().optional(),
         // Temporary (one-use) production: a hidden BOM is created instead.
@@ -664,7 +675,7 @@ export function createApp(
       z.object({
         categoryId: z.number().int().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
-        expenseDate: z.string().min(1),
+        expenseDate: isoDateSchema,
         selections: z
           .array(
             z.object({
@@ -686,7 +697,7 @@ export function createApp(
     const body = parseBody(
       z.object({
         categoryId: z.coerce.number().int().positive(),
-        expenseDate: z.string().min(1),
+        expenseDate: isoDateSchema,
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
         voucherNumber: z.string().nullish(),
@@ -729,7 +740,7 @@ export function createApp(
   const movementSchema = z.object({
     bankAccountId: z.coerce.number().int().positive(),
     amount: z.coerce.number().positive(),
-    date: z.string().min(1),
+    date: isoDateSchema,
     referenceNo: z.string().nullish(),
     notes: z.string().nullish(),
   });
@@ -751,7 +762,7 @@ export function createApp(
     bankAccountId: z.coerce.number().int().positive(),
     chequeNumber: z.string().min(1),
     amount: z.coerce.number().positive(),
-    chequeDate: z.string().min(1),
+    chequeDate: isoDateSchema,
     partyId: z.coerce.number().int().positive().nullish(),
     notes: z.string().nullish(),
   });
@@ -825,10 +836,13 @@ export function createApp(
     res.json(await reports.balanceSheet(asAtQuery(req)));
   });
 
-  const dateRangeQuery = (req: Request): { from?: string; to?: string } => ({
-    from: typeof req.query.from === "string" && req.query.from ? req.query.from : undefined,
-    to: typeof req.query.to === "string" && req.query.to ? req.query.to : undefined,
-  });
+  const dateRangeQuery = (req: Request): { from?: string; to?: string } => {
+    const from = typeof req.query.from === "string" && req.query.from ? req.query.from : undefined;
+    const to = typeof req.query.to === "string" && req.query.to ? req.query.to : undefined;
+    if (from) validateIsoDate(from);
+    if (to) validateIsoDate(to);
+    return { from, to };
+  };
 
   app.get("/api/reports/party-ledger", requireAuth, async (req, res) => {
     const query = parseBody(
@@ -858,6 +872,66 @@ export function createApp(
   app.get("/api/reports/export-all.csv", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     res.type("text/csv").send(await reports.exportAllCsv({ from, to }));
+  });
+
+  // --- Excel (.xlsx) exports of the same reports --------------------------
+  // One workbook per report, plus one workbook holding all four period reports.
+  // The bytes come from the same services the on-screen tabs use, so a printed
+  // workbook cannot disagree with the report it was printed from.
+  const sendXlsx = (res: Response, fileName: string, buffer: Buffer): void => {
+    // attachment() sets Content-Disposition and picks a type from the extension;
+    // the explicit type() makes the Excel mime type certain.
+    res.attachment(fileName);
+    res.type(SHEET_MIME);
+    res.send(buffer);
+  };
+
+  app.get("/api/reports/trial-balance.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.trialBalance({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/profit-and-loss.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.profitAndLoss({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/balance-sheet.xlsx", requireAuth, async (req, res) => {
+    const file = await reportXlsx.balanceSheet({ kind: "balance-sheet", asAt: asAtQuery(req) });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/cash-book.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.cashBook({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/party-ledger.xlsx", requireAuth, async (req, res) => {
+    const query = parseBody(
+      z.object({
+        partyId: z.coerce.number().int().positive(),
+        from: z.string().optional(),
+        to: z.string().optional(),
+      }),
+      req.query,
+    );
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.partyLedger({
+      kind: "party-ledger",
+      partyId: query.partyId,
+      from,
+      to,
+    });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/export-all.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.all({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
   });
 
   // --- administration: users, roles, settings ---------------------------
@@ -966,20 +1040,75 @@ export function createApp(
     res.json({ group, removed });
   });
 
+  // --- built client (single-process production mode) ----------------------
+  // Only mounted when a build is configured *and* present, so a development
+  // run (Vite serves the client) is never affected and a missing build degrades
+  // to an API-only server instead of a confusing 404 on every page.
+  const clientDir = options.clientDir ?? null;
+  const clientIndex = clientDir ? path.join(clientDir, "index.html") : null;
+  if (clientDir && clientIndex) {
+    if (existsSync(clientIndex)) {
+      app.use(
+        express.static(clientDir, {
+          index: false,
+          setHeaders: (res, filePath) => {
+            // Vite writes content-hashed filenames under assets/, so those are
+            // safe to cache forever; index.html must always be revalidated or
+            // clients keep loading a stale bundle after a deploy.
+            const immutable = filePath.split(path.sep).includes("assets");
+            res.setHeader(
+              "cache-control",
+              immutable ? "public, max-age=31536000, immutable" : "no-cache",
+            );
+          },
+        }),
+      );
+      // SPA fallback: a GET that is not an API call returns index.html (this
+      // also serves `/`, because static is mounted with `index: false`). Written
+      // as a RegExp because Express 5 (path-to-regexp v8) rejects a bare "*".
+      app.get(/^\/(?!api\/).*/, (_req, res) => {
+        // The shell must never be cached by the browser, otherwise a deploy
+        // keeps serving the previous bundle. `cacheControl: false` stops
+        // sendFile() from overwriting this with its own `max-age=0` default.
+        res.setHeader("cache-control", "no-cache");
+        res.sendFile(clientIndex, { cacheControl: false });
+      });
+      console.log(`[client] serving the built client from ${clientDir}`);
+    } else {
+      console.warn(`[client] no build found at ${clientIndex} — serving the API only.`);
+    }
+  }
+
   // --- error handling ----------------------------------------------------
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "Unknown endpoint." } });
   });
 
+  /**
+   * Global HTTP error middleware. Express only enters this handler for errors
+   * passed to `next()` or thrown inside an async route handler, so a fatal
+   * database fault that escapes a route lands here rather than crashing the
+   * process. `AppError` subclasses map to their intended HTTP status;
+   * `DatabaseError` always surfaces as 500 because connection drops are not
+   * client-correctable.
+   */
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const timestamp = new Date().toISOString();
     if (err instanceof AppError) {
+      // Structured log so an incident can be traced back to a specific request
+      // window without piecing together the prose response body.
+      console.error(
+        `[${timestamp}] HTTP ${err.status} ${err.code}: ${err.message}`,
+        err.details ? String(err.details) : "",
+      );
       res.status(err.status).json({
         error: { code: err.code, message: err.message, details: err.details },
       });
       return;
     }
-    // eslint-disable-next-line no-console
-    console.error("Unhandled error:", err);
+
+    // Unknown failure: log with a timestamp and return a safe 500.
+    console.error(`[${timestamp}] internal error:`, err);
     res.status(500).json({
       error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." },
     });

@@ -55,16 +55,43 @@ function readAutoBackupHours(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
+/** `1/true/yes/on` (case-insensitive) mean true; anything else means false. */
+function readFlag(raw: string | undefined, fallback = false): boolean {
+  if (raw === undefined) return fallback;
+  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+}
+
+/** An optional path resolved against `web/`; unset or blank means "not configured". */
+function optionalPath(raw: string | undefined): string | null {
+  const value = (raw ?? "").trim();
+  return value ? path.resolve(webRoot, value) : null;
+}
+
 export const env = {
   dbEngine: readEngine(),
   localDbPath: path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite"),
   sqliteCloudUrl: process.env.SQLITE_CLOUD_URL ?? "",
+  /** Bind address. 0.0.0.0 exposes the API on the LAN; 127.0.0.1 is for a
+   *  reverse proxy in front of it. */
+  host: process.env.ERP_HOST ?? "0.0.0.0",
   port: Number(process.env.PORT ?? 4000),
   companyId: Number(process.env.ERP_COMPANY_ID ?? 1),
   warehouseId: Number(process.env.ERP_WAREHOUSE_ID ?? 1),
   currency: process.env.ERP_CURRENCY ?? "PKR",
   backupDir,
   autoBackupHours: readAutoBackupHours(),
+  apiKey: process.env.ERP_API_KEY ?? "",
+  /**
+   * Serve the built React client from this same process (one port, one
+   * service). Off by default: in development Vite serves the client, and
+   * turning it on there would shadow the dev server. The production deploy
+   * sets ERP_SERVE_CLIENT=1.
+   */
+  serveClient: readFlag(process.env.ERP_SERVE_CLIENT),
+  clientDist: path.resolve(webRoot, process.env.ERP_CLIENT_DIST ?? "client/dist"),
+  /** Optional TLS: when both are set the server speaks HTTPS itself. */
+  tlsCertFile: optionalPath(process.env.ERP_TLS_CERT),
+  tlsKeyFile: optionalPath(process.env.ERP_TLS_KEY),
 } as const;
 
 export { serverRoot, webRoot };

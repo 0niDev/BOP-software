@@ -3,6 +3,11 @@ import { NotFoundError } from "../domain/errors.js";
 import type { ItemType } from "../domain/enums.js";
 import { insertRow, type InsertData } from "./base.js";
 
+/** An item row plus its on-hand quantity (the list view's stock column). */
+export interface ItemListRow extends ItemRow {
+  current_stock: number;
+}
+
 export interface ItemRow {
   id: number;
   company_id: number;
@@ -46,24 +51,36 @@ export class ItemRepository {
     );
   }
 
+  /**
+   * Items with their on-hand quantity. The stock figure is the sum of the
+   * active batches' remaining quantity — the same definition the dashboard's
+   * low-stock widget uses — evaluated per item so the list needs no extra
+   * round trip.
+   */
   async list(
     companyId = 1,
     opts: { activeOnly?: boolean; search?: string; itemType?: ItemType } = {},
-  ): Promise<ItemRow[]> {
-    let sql = "SELECT * FROM items WHERE company_id = ?";
+  ): Promise<ItemListRow[]> {
+    let sql = `
+      SELECT i.*,
+             COALESCE((SELECT SUM(sb.quantity_in_stock)
+                         FROM stock_batches sb
+                        WHERE sb.item_id = i.id AND sb.is_active = 1), 0) AS current_stock
+        FROM items i
+       WHERE i.company_id = ?`;
     const params: Array<string | number> = [companyId];
-    if (opts.activeOnly !== false) sql += " AND is_active = 1";
+    if (opts.activeOnly !== false) sql += " AND i.is_active = 1";
     if (opts.itemType) {
-      sql += " AND item_type = ?";
+      sql += " AND i.item_type = ?";
       params.push(opts.itemType);
     }
     if (opts.search) {
-      sql += " AND (item_name LIKE ? OR item_code LIKE ?)";
+      sql += " AND (i.item_name LIKE ? OR i.item_code LIKE ?)";
       const like = `%${opts.search}%`;
       params.push(like, like);
     }
-    sql += " ORDER BY item_name";
-    return this.db.all<ItemRow>(sql, params);
+    sql += " ORDER BY i.item_name";
+    return this.db.all<ItemListRow>(sql, params);
   }
 
   async update(id: number, data: InsertData): Promise<void> {

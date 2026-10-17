@@ -16,7 +16,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../domain/errors.js";
-import { Decimal, dec, round2, toStorage } from "../domain/money.js";
+import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
 import { ItemRepository } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { PurchaseRepository } from "../repositories/purchaseRepository.js";
@@ -25,6 +25,7 @@ import { SalesRepository } from "../repositories/salesRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { insertRow } from "../repositories/base.js";
 
 export interface ReturnLineInput {
   /** sales_invoice_items.id or purchase_invoice_items.id */
@@ -74,6 +75,18 @@ const INVENTORY_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   FINISHED_GOOD: SystemAccountCodes.INVENTORY_FINISHED_GOODS,
 };
 
+/**
+ * COGS accounts by item type, identical to the sales-invoice mapping. A return
+ * must reverse the *same* COGS account the sale debited, otherwise a sale +
+ * full return leaves a residual in two different expense accounts instead of
+ * netting to zero.
+ */
+const COGS_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
+  FINISHED_GOOD: "5000",
+  PACKING_MATERIAL: "5001",
+  RAW_MATERIAL: "5002",
+};
+
 export class ReturnsService {
   private readonly items: ItemRepository;
   private readonly batches: StockBatchRepository;
@@ -118,7 +131,6 @@ export class ReturnsService {
 
     const resolver = new SystemAccountResolver(this.db, companyId);
     const salesReturnsId = await resolver.idFor(SystemAccountCodes.SALES_RETURNS);
-    const cogsId = await resolver.idFor(SystemAccountCodes.COST_OF_GOODS_SOLD);
     const settleId =
       invoice.payment_type === "CREDIT"
         ? await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE)
@@ -136,6 +148,7 @@ export class ReturnsService {
     return this.db.transaction(async () => {
       let netTotal = new Decimal(0);
       let costTotal = new Decimal(0);
+      const cogsByType = new Map<ItemType, Decimal>();
       const inventoryCredits = new Map<number, Decimal>();
       const returnLines: Array<{ invoiceItemId: number; quantity: Decimal; amount: Decimal }> = [];
 
@@ -159,7 +172,7 @@ export class ReturnsService {
         const itemRow = await this.items.requireById(item.item_id);
         let unitCost = dec(itemRow.purchase_price);
         if (item.batch_id != null) {
-          await this.batches.adjustQuantity(item.batch_id, quantity.toNumber());
+          await this.batches.adjustQuantity(item.batch_id, toQuantity(quantity));
           const batch = await this.batches.findById(item.batch_id);
           if (batch) {
             const composed = dec(batch.raw_unit_cost).plus(dec(batch.packing_unit_cost));
@@ -169,6 +182,10 @@ export class ReturnsService {
         }
         const cost = round2(quantity.times(unitCost));
         costTotal = costTotal.plus(cost);
+        cogsByType.set(
+          itemRow.item_type,
+          (cogsByType.get(itemRow.item_type) ?? new Decimal(0)).plus(cost),
+        );
         const inventoryId = await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemRow.item_type]);
         inventoryCredits.set(inventoryId, (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(cost));
 
@@ -189,9 +206,29 @@ export class ReturnsService {
         await this.returns.insertSalesReturnItem({
           return_id: returnId,
           invoice_item_id: line.invoiceItemId,
-          quantity: toStorage(line.quantity),
+          quantity: toQuantity(line.quantity),
           line_total: toStorage(line.amount),
         });
+      }
+
+      // Record stock movements for the return (restore stock to batch).
+      for (const line of input.items) {
+        const item = invoiceItemsById.get(line.invoiceItemId);
+        if (item?.batch_id != null) {
+          await insertRow(this.db, "stock_movements", {
+            item_id: item.item_id,
+            batch_id: item.batch_id,
+            warehouse_id: invoice.warehouse_id ?? 1,
+            movement_type: "SALE_RETURN",
+            quantity: line.quantity,
+            unit_cost: 0,
+            reference_table: "sales_returns",
+            reference_id: returnId,
+            movement_date: input.returnDate,
+            notes: `Sales return ${returnNumber}`,
+            created_by: input.createdBy ?? null,
+          });
+        }
       }
 
       const journalLines: JournalLineInput[] = [
@@ -204,7 +241,14 @@ export class ReturnsService {
         },
       ];
       if (costTotal.greaterThan(0)) {
-        journalLines.push({ accountId: cogsId, credit: costTotal, description: "Reverse COGS" });
+        for (const [itemType, amount] of cogsByType) {
+          if (amount.lessThanOrEqualTo(0)) continue;
+          journalLines.push({
+            accountId: await this.cogsAccountId(resolver, itemType),
+            credit: amount,
+            description: `Reverse COGS (${itemType})`,
+          });
+        }
         for (const [inventoryId, amount] of inventoryCredits) {
           journalLines.push({ accountId: inventoryId, debit: amount, description: "Restore inventory" });
         }
@@ -212,6 +256,7 @@ export class ReturnsService {
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "SALES_RETURN",
+        voucherNumber: returnNumber,
         entryDate: input.returnDate,
         lines: journalLines,
         sourceTable: "sales_returns",
@@ -278,7 +323,7 @@ export class ReturnsService {
 
         // Remove the returned stock from its batch.
         if (item.batch_id != null) {
-          await this.batches.adjustQuantity(item.batch_id, quantity.negated().toNumber());
+          await this.batches.adjustQuantity(item.batch_id, -toQuantity(quantity));
         }
         const itemRow = await this.items.requireById(item.item_id);
         const inventoryId = await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemRow.item_type]);
@@ -301,9 +346,29 @@ export class ReturnsService {
         await this.returns.insertPurchaseReturnItem({
           return_id: returnId,
           invoice_item_id: line.invoiceItemId,
-          quantity: toStorage(line.quantity),
+          quantity: toQuantity(line.quantity),
           line_total: toStorage(line.amount),
         });
+      }
+
+      // Record stock movements for the return (remove stock from batch).
+      for (const line of input.items) {
+        const item = invoiceItemsById.get(line.invoiceItemId);
+        if (item?.batch_id != null) {
+          await insertRow(this.db, "stock_movements", {
+            item_id: item.item_id,
+            batch_id: item.batch_id,
+            warehouse_id: invoice.warehouse_id ?? 1,
+            movement_type: "PURCHASE_RETURN",
+            quantity: -toQuantity(line.quantity),
+            unit_cost: 0,
+            reference_table: "purchase_returns",
+            reference_id: returnId,
+            movement_date: input.returnDate,
+            notes: `Purchase return ${returnNumber}`,
+            created_by: input.createdBy ?? null,
+          });
+        }
       }
 
       // A purchase return: inventory is credited (goods back in stock), and the
@@ -331,6 +396,7 @@ export class ReturnsService {
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PURCHASE_RETURN",
+        voucherNumber: returnNumber,
         entryDate: input.returnDate,
         lines: journalLines,
         sourceTable: "purchase_returns",
@@ -342,6 +408,18 @@ export class ReturnsService {
 
       return { id: returnId, returnNumber, totalAmount: toStorage(netTotal), journalEntryId };
     });
+  }
+
+  /** COGS account for an item type, falling back to 5000 when it is not seeded. */
+  private async cogsAccountId(
+    resolver: SystemAccountResolver,
+    itemType: ItemType,
+  ): Promise<number> {
+    try {
+      return await resolver.idFor(COGS_ACCOUNT_BY_TYPE[itemType]);
+    } catch {
+      return resolver.idFor(SystemAccountCodes.COST_OF_GOODS_SOLD);
+    }
   }
 
   /** Resolve a purchase's bank account to its GL account id. */

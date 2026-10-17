@@ -62,6 +62,22 @@ export interface DashboardAlert {
   message: string;
 }
 
+/** Best sellers: what actually moves, ranked by revenue. */
+export interface TopItem {
+  itemCode: string;
+  itemName: string;
+  quantity: number;
+  revenue: number;
+  customers: number;
+}
+
+/** Where the sales come from, for the customer breakdown chart. */
+export interface CustomerSale {
+  partyName: string;
+  revenue: number;
+  invoices: number;
+}
+
 export interface TrendPoint {
   month: string;
   revenue: number;
@@ -84,11 +100,15 @@ export interface DashboardData {
   };
   alerts: { count: number; alerts: DashboardAlert[] };
   monthlyTrend: TrendPoint[];
+  topItems: TopItem[];
+  salesByCustomer: CustomerSale[];
 }
 
 const RECENT_LIMIT = 15;
 const LOW_STOCK_LIMIT = 10;
 const EXPIRING_LIMIT = 10;
+const TOP_ITEM_LIMIT = 8;
+const TOP_CUSTOMER_LIMIT = 6;
 
 export class DashboardService {
   constructor(
@@ -224,6 +244,50 @@ export class DashboardService {
       [this.companyId, today],
     );
 
+    // Best sellers and the customer mix, as aggregate rows rather than a second
+    // round-trip per widget. CANCELLED invoices never count towards either.
+    const topItemRows = await this.db.all<Row>(
+      `SELECT i.item_code, i.item_name,
+              COALESCE(SUM(sii.quantity), 0) AS quantity,
+              COALESCE(SUM(sii.line_total), 0) AS revenue,
+              COUNT(DISTINCT si.customer_id) AS customers
+       FROM sales_invoice_items sii
+       JOIN sales_invoices si ON si.id = sii.invoice_id
+       JOIN items i ON i.id = sii.item_id
+       WHERE si.company_id = ? AND si.status != 'CANCELLED'
+       GROUP BY i.id, i.item_code, i.item_name
+       ORDER BY revenue DESC, quantity DESC
+       LIMIT ${TOP_ITEM_LIMIT}`,
+      [this.companyId],
+    );
+
+    const customerRows = await this.db.all<Row>(
+      `SELECT p.name AS party_name,
+              COALESCE(SUM(si.total_amount), 0) AS revenue,
+              COUNT(*) AS invoices
+       FROM sales_invoices si
+       JOIN parties p ON p.id = si.customer_id
+       WHERE si.company_id = ? AND si.status != 'CANCELLED'
+       GROUP BY p.id, p.name
+       ORDER BY revenue DESC, p.name ASC
+       LIMIT ${TOP_CUSTOMER_LIMIT}`,
+      [this.companyId],
+    );
+
+    const topItems: TopItem[] = topItemRows.map((row) => ({
+      itemCode: String(row.item_code ?? ""),
+      itemName: String(row.item_name ?? ""),
+      quantity: toStorage(Number(row.quantity ?? 0)),
+      revenue: toStorage(Number(row.revenue ?? 0)),
+      customers: Number(row.customers ?? 0),
+    }));
+
+    const salesByCustomer: CustomerSale[] = customerRows.map((row) => ({
+      partyName: String(row.party_name ?? ""),
+      revenue: toStorage(Number(row.revenue ?? 0)),
+      invoices: Number(row.invoices ?? 0),
+    }));
+
     const lowStockItems: LowStockItem[] = lowStockRows.map((row) => ({
       itemCode: String(row.item_code ?? ""),
       itemName: String(row.item_name ?? ""),
@@ -298,6 +362,8 @@ export class DashboardService {
       },
       alerts: { count: alerts.length, alerts },
       monthlyTrend: await this.monthlyTrend(),
+      topItems,
+      salesByCustomer,
     };
   }
 
@@ -313,7 +379,13 @@ export class DashboardService {
        )
        SELECT m.month_start AS month,
               COALESCE(SUM(CASE WHEN a.account_type = 'REVENUE' THEN jel.credit ELSE 0 END), 0) AS revenue,
-              COALESCE(SUM(CASE WHEN a.account_type = 'EXPENSE' THEN jel.debit ELSE 0 END), 0) AS expenses
+              COALESCE(SUM(
+                CASE
+                  WHEN a.account_type = 'EXPENSE' THEN jel.debit
+                  WHEN a.account_code IN ('5000','5001','5002') THEN jel.debit
+                  ELSE 0
+                END
+              ), 0) AS expenses
        FROM months m
        LEFT JOIN journal_entries je
          ON je.is_posted = 1 AND je.company_id = ?

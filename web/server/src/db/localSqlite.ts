@@ -4,6 +4,10 @@
  * Used for development and for the fast, network-free test suite. It exposes
  * the exact same `SqlDatabase` contract as the SQLite Cloud adapter so the
  * services and repositories are completely unaware of which one is active.
+ *
+ * Local SQLite cannot idle-drop the way a remote socket can, but we still
+ * provide the same health / interrupt surface so the rest of the app is
+ * engine-agnostic.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -65,6 +69,25 @@ export class LocalSqliteDatabase implements SqlDatabase {
       this.db.exec(sql);
     } catch (err) {
       throw new DatabaseError(messageOf(err), { sql });
+    }
+  }
+
+  async interrupt(): Promise<void> {
+    // Local `node:sqlite` does not expose a public interrupt API, so this is a
+    // no-op that keeps the contract consistent with the cloud adapter.
+  }
+
+  async isConnected(): Promise<boolean> {
+    // A locally open file-based or in-memory database is always connected.
+    return true;
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      this.db.exec("SELECT 1");
+      return true;
+    } catch {
+      return false;
     }
   }
 

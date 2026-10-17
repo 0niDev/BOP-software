@@ -70,11 +70,34 @@ export function setToken(token: string | null): void {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+/**
+ * Routes where a 401 is a *credential* error, not a dead session: a bad
+ * password (login) or a wrong current password (change-password). Treating
+ * those as an expired session would reload the page and throw away the inline
+ * "invalid credentials" message — and on the login page it would loop.
+ */
+const CREDENTIAL_ROUTES = new Set(["/api/auth/login", "/api/auth/change-password"]);
+
+/**
+ * The server keeps sessions in memory (12h TTL, lost on restart) while the
+ * browser keeps the token in localStorage, so a stored token can outlive its
+ * session. On a 401 from a normal endpoint, drop the dead token and replace the
+ * current history entry with the app's own URL: App re-mounts with no token and
+ * renders the login page, and `replace` (not assign) keeps the dead page out of
+ * the back button.
+ */
+function endExpiredSession(res: Response, path: string): void {
+  if (res.status !== 401 || CREDENTIAL_ROUTES.has(path)) return;
+  setToken(null);
+  window.location.replace(`${window.location.pathname}${window.location.search}`);
+}
+
 async function requestText(path: string): Promise<string> {
   const headers = new Headers();
   const token = getToken();
   if (token) headers.set("authorization", `Bearer ${token}`);
   const res = await fetch(path, { headers });
+  endExpiredSession(res, path);
   const text = await res.text();
   if (!res.ok) {
     throw new ApiError(text || res.statusText, res.status);
@@ -87,6 +110,7 @@ async function requestBlob(path: string): Promise<Blob> {
   const token = getToken();
   if (token) headers.set("authorization", `Bearer ${token}`);
   const res = await fetch(path, { headers });
+  endExpiredSession(res, path);
   if (!res.ok) {
     throw new ApiError((await res.text()) || res.statusText, res.status);
   }
@@ -102,6 +126,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("authorization", `Bearer ${token}`);
 
   const res = await fetch(path, { ...init, headers });
+  endExpiredSession(res, path);
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
@@ -423,6 +448,26 @@ export const api = {
     requestText(`/api/reports/trial-balance.csv${periodQuery(from, to)}`),
   exportAllCsv: (from?: string, to?: string) =>
     requestText(`/api/reports/export-all.csv${periodQuery(from, to)}`),
+
+  // --- Excel (.xlsx) exports of the same reports ------------------------
+  trialBalanceXlsx: (from?: string, to?: string) =>
+    requestBlob(`/api/reports/trial-balance.xlsx${periodQuery(from, to)}`),
+  profitAndLossXlsx: (from?: string, to?: string) =>
+    requestBlob(`/api/reports/profit-and-loss.xlsx${periodQuery(from, to)}`),
+  balanceSheetXlsx: (asAt?: string) =>
+    requestBlob(
+      `/api/reports/balance-sheet.xlsx${asAt ? `?asAt=${encodeURIComponent(asAt)}` : ""}`,
+    ),
+  cashBookXlsx: (from?: string, to?: string) =>
+    requestBlob(`/api/reports/cash-book.xlsx${periodQuery(from, to)}`),
+  partyLedgerXlsx: (partyId: number, from?: string, to?: string) => {
+    const params = new URLSearchParams({ partyId: String(partyId) });
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return requestBlob(`/api/reports/party-ledger.xlsx?${params.toString()}`);
+  },
+  exportAllXlsx: (from?: string, to?: string) =>
+    requestBlob(`/api/reports/export-all.xlsx${periodQuery(from, to)}`),
   dashboard: () => request<DashboardData>("/api/dashboard"),
 
   // --- fixed assets -----------------------------------------------------

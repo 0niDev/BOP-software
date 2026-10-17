@@ -49,6 +49,8 @@ export interface Item {
   notes: string | null;
   minimum_stock: number;
   maximum_stock: number;
+  /** On-hand quantity across active batches (returned by the items list). */
+  current_stock: number;
   tax_rate_id: number | null;
   category_id: number | null;
   is_active: number;
@@ -421,4 +423,14 @@ export interface DashboardData {
     alerts: Array<{ type: "warning" | "danger" | "success"; title: string; message: string }>;
   };
   monthlyTrend: Array<{ month: string; revenue: number; expenses: number; profit: number }>;
+  /** Best sellers, ranked by revenue (dashboard service). */
+  topItems: Array<{
+    itemCode: string;
+    itemName: string;
+    quantity: number;
+    revenue: number;
+    customers: number;
+  }>;
+  /** Sales mix by customer, ranked by revenue (dashboard service). */
+  salesByCustomer: Array<{ partyName: string; revenue: number; invoices: number }>;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Item, Party, PaymentType, PurchaseInvoice } from "../types";
 
 interface LineDraft {
@@ -113,14 +114,18 @@ export default function PurchaseInvoicesPage() {
           <div className="row">
             <div>
               <label>Supplier</label>
-              <select value={supplierId} onChange={(e) => setSupplierId(Number(e.target.value))}>
-                <option value={0}>Select supplier...</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={String(supplierId)}
+                onChange={(next) => setSupplierId(Number(next))}
+                placeholder="Select supplier..."
+                options={[
+                  { value: "0", label: "Select supplier..." },
+                  ...suppliers.map((s) => ({
+                    value: String(s.id),
+                    label: `${s.name} (${s.code})`,
+                  })),
+                ]}
+              />
             </div>
             <div>
               <label>Date</label>
@@ -128,13 +133,15 @@ export default function PurchaseInvoicesPage() {
             </div>
             <div>
               <label>Payment</label>
-              <select value={paymentType} onChange={(e) => setPaymentType(e.target.value as PaymentType)}>
-                {(["CASH", "BANK", "CHEQUE", "CREDIT"] as const).map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={paymentType}
+                onChange={(next) => setPaymentType(next as PaymentType)}
+                placeholder="Payment"
+                options={(["CASH", "BANK", "CHEQUE", "CREDIT"] as const).map((p) => ({
+                  value: p,
+                  label: p,
+                }))}
+              />
             </div>
           </div>
 
@@ -154,17 +161,15 @@ export default function PurchaseInvoicesPage() {
               {lines.map((line) => (
                 <tr key={line.key}>
                   <td>
-                    <select
-                      value={line.itemId}
-                      onChange={(e) => updateLine(line.key, { itemId: Number(e.target.value) })}
-                    >
-                      <option value={0}>Select item...</option>
-                      {items.map((it) => (
-                        <option key={it.id} value={it.id}>
-                          {it.item_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={String(line.itemId)}
+                      onChange={(next) => updateLine(line.key, { itemId: Number(next) })}
+                      placeholder="Select item..."
+                      options={[
+                        { value: "0", label: "Select item..." },
+                        ...items.map((it) => ({ value: String(it.id), label: it.item_name })),
+                      ]}
+                    />
                   </td>
                   <td>
                     <input

@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
@@ -53,6 +54,11 @@ export default function ItemsPage() {
   const [editing, setEditing] = useState<Item | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // The add/edit form sits below the (unpaginated) table, so editing a row
+  // near the top would otherwise leave the form off-screen and look inert.
+  const editFormRef = useRef<HTMLFormElement>(null);
+  const itemNameRef = useRef<HTMLInputElement>(null);
+
   // Opening stock
   const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [stockItemId, setStockItemId] = useState<number | null>(null);
@@ -86,6 +92,13 @@ export default function ItemsPage() {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, typeFilter, showInactive]);
+
+  // Bring the form into view (and focus the name) when a row is edited.
+  useEffect(() => {
+    if (!editing) return;
+    editFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    itemNameRef.current?.focus();
+  }, [editing]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -221,24 +234,27 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Type</label>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">All types</option>
-              {ITEM_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={typeFilter}
+              onChange={setTypeFilter}
+              placeholder="All types"
+              options={[
+                { value: "", label: "All types" },
+                ...ITEM_TYPES.map((t) => ({ value: t, label: t })),
+              ]}
+            />
           </div>
           <div>
             <label>Show</label>
-            <select
+            <SearchableSelect
               value={showInactive ? "all" : "active"}
-              onChange={(e) => setShowInactive(e.target.value === "all")}
-            >
-              <option value="active">Active only</option>
-              <option value="all">Include inactive</option>
-            </select>
+              onChange={(next) => setShowInactive(next === "all")}
+              placeholder="Active only"
+              options={[
+                { value: "active", label: "Active only" },
+                { value: "all", label: "Include inactive" },
+              ]}
+            />
           </div>
         </div>
         {error && <div className="error">{error}</div>}
@@ -257,6 +273,7 @@ export default function ItemsPage() {
               <th className="num">Purchase</th>
               <th className="num">Selling</th>
               <th className="num">Min / Max</th>
+              <th className="num">Stock</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -273,6 +290,9 @@ export default function ItemsPage() {
                 <td className="num">
                   {item.minimum_stock} / {item.maximum_stock}
                 </td>
+                <td className="num">
+                  {item.current_stock} {item.unit}
+                </td>
                 <td>
                   <span className="badge">{item.is_active ? "Active" : "Inactive"}</span>
                 </td>
@@ -286,7 +306,7 @@ export default function ItemsPage() {
             ))}
             {items.length === 0 && !error && (
               <tr>
-                <td colSpan={9}>No items match the current filters.</td>
+                <td colSpan={10}>No items match the current filters.</td>
               </tr>
             )}
           </tbody>
@@ -298,17 +318,18 @@ export default function ItemsPage() {
         <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label>Item</label>
-            <select
-              value={stockItemId ?? ""}
-              onChange={(e) => setStockItemId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">Select…</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.item_code} — {item.item_name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={stockItemId === null ? "" : String(stockItemId)}
+              onChange={(next) => setStockItemId(next ? Number(next) : null)}
+              placeholder="Select…"
+              options={[
+                { value: "", label: "Select…" },
+                ...items.map((item) => ({
+                  value: String(item.id),
+                  label: `${item.item_code} — ${item.item_name}`,
+                })),
+              ]}
+            />
           </div>
           <div>
             <label>Quantity</label>
@@ -350,17 +371,18 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Supplier (credits A/P)</label>
-            <select
-              value={stockPartyId ?? ""}
-              onChange={(e) => setStockPartyId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">None — stock only</option>
-              {suppliers.map((party) => (
-                <option key={party.id} value={party.id}>
-                  {party.code} — {party.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={stockPartyId === null ? "" : String(stockPartyId)}
+              onChange={(next) => setStockPartyId(next ? Number(next) : null)}
+              placeholder="None — stock only"
+              options={[
+                { value: "", label: "None — stock only" },
+                ...suppliers.map((party) => ({
+                  value: String(party.id),
+                  label: `${party.code} — ${party.name}`,
+                })),
+              ]}
+            />
           </div>
           <button className="primary" type="submit" disabled={busy}>
             Add opening stock
@@ -372,7 +394,7 @@ export default function ItemsPage() {
         </p>
       </form>
 
-      <form className="card" onSubmit={submit}>
+      <form className="card" ref={editFormRef} onSubmit={submit}>
         <h2>{editing ? `Edit item — ${editing.item_code}` : "Add item"}</h2>
         <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
@@ -386,27 +408,29 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Name</label>
-            <input value={draft.itemName} onChange={(e) => set("itemName", e.target.value)} />
+            <input
+              ref={itemNameRef}
+              value={draft.itemName}
+              onChange={(e) => set("itemName", e.target.value)}
+            />
           </div>
           <div>
             <label>Type</label>
-            <select value={draft.itemType} onChange={(e) => set("itemType", e.target.value)}>
-              {ITEM_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.itemType}
+              onChange={(next) => set("itemType", next)}
+              placeholder="Type"
+              options={ITEM_TYPES.map((t) => ({ value: t, label: t }))}
+            />
           </div>
           <div>
             <label>Unit</label>
-            <select value={draft.unit} onChange={(e) => set("unit", e.target.value)}>
-              {ITEM_UNITS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.unit}
+              onChange={(next) => set("unit", next)}
+              placeholder="Unit"
+              options={ITEM_UNITS.map((u) => ({ value: u, label: u }))}
+            />
           </div>
           <div>
             <label>Purchase price</label>
@@ -454,17 +478,18 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Tax rate</label>
-            <select
-              value={draft.taxRateId ?? ""}
-              onChange={(e) => set("taxRateId", e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">None</option>
-              {taxRates.map((rate) => (
-                <option key={rate.id} value={rate.id}>
-                  {rate.name} ({rate.rate_percent}%)
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.taxRateId === null ? "" : String(draft.taxRateId)}
+              onChange={(next) => set("taxRateId", next ? Number(next) : null)}
+              placeholder="None"
+              options={[
+                { value: "", label: "None" },
+                ...taxRates.map((rate) => ({
+                  value: String(rate.id),
+                  label: `${rate.name} (${rate.rate_percent}%)`,
+                })),
+              ]}
+            />
           </div>
           <div>
             <label>Notes</label>
@@ -473,13 +498,15 @@ export default function ItemsPage() {
           {editing && (
             <div>
               <label>Status</label>
-              <select
+              <SearchableSelect
                 value={draft.isActive ? "1" : "0"}
-                onChange={(e) => set("isActive", e.target.value === "1")}
-              >
-                <option value="1">Active</option>
-                <option value="0">Inactive</option>
-              </select>
+                onChange={(next) => set("isActive", next === "1")}
+                placeholder="Active"
+                options={[
+                  { value: "1", label: "Active" },
+                  { value: "0", label: "Inactive" },
+                ]}
+              />
             </div>
           )}
           <button className="primary" type="submit" disabled={busy}>

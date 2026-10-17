@@ -69,18 +69,22 @@ export class JournalRepository {
   }
 
   /**
-   * Atomically allocate the next voucher number, e.g. SI-00002. Uses an
-   * upsert-with-RETURNING identical to the Python implementation so numbers
-   * stay gap-free and consistent with the existing data.
+   * Atomically allocate the next voucher number, e.g. SI-00001.
+   *
+   * `numbering_sequences.next_number` holds the *next* number to issue. The
+   * upsert bumps it and returns the value that was current (returned as
+   * `next_number - 1`, since SQLite RETURNING exposes the post-update row).
+   * A brand-new sequence starts at 2 so its first issued number is 1. This
+   * keeps numbers gap-free and matches the stored value the Python app left.
    */
   async nextVoucherNumber(companyId: number, documentType: string): Promise<string> {
     const seqDocType = NUMBERING_DOC_TYPE[documentType] ?? documentType;
     const row = await this.db.get<{ prefix: string; next_number: number; padding: number }>(
       `INSERT INTO numbering_sequences (company_id, document_type, prefix, next_number, padding)
-       VALUES (?, ?, ?, 1, 5)
+       VALUES (?, ?, ?, 2, 5)
        ON CONFLICT(company_id, document_type) DO UPDATE SET
            next_number = next_number + 1
-       RETURNING prefix, next_number, padding`,
+       RETURNING prefix, next_number - 1 AS next_number, padding`,
       [companyId, seqDocType, `${seqDocType}-`],
     );
     if (!row) {

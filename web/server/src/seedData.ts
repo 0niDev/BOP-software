@@ -116,6 +116,18 @@ export async function seedDemoData(db: SqlDatabase, companyId = 1): Promise<Demo
       quantity_in_stock: 1000,
       is_active: 1,
     });
+    // Log the opening quantity as a movement so on-hand stock always equals
+    // SUM(stock_movements) (the invariant the acceptance audit relies on).
+    await insertRow(db, "stock_movements", {
+      item_id: item.id,
+      batch_id: id,
+      warehouse_id: 1,
+      movement_type: "OPENING",
+      quantity: 1000,
+      unit_cost: 100,
+      movement_date: "2024-01-01",
+      notes: "Opening stock - Demo Finished Good",
+    });
     batch = { id };
   }
 
@@ -408,8 +420,9 @@ export async function seedRichDemoData(
         { accountId: await resolver.idFor("1220"), debit: 50000, description: "Opening finished goods" },
         { accountId: await resolver.idFor("3100"), credit: 50000, description: "Opening equity" },
       ],
+      // Number auto-allocated from the OPENING sequence; hard-coding OB-00001
+      // would collide with the bank account's own opening entry.
       narration: "RICH DEMO: Opening balances - January 2024",
-      voucherNumber: "OB-00001",
     });
   });
 

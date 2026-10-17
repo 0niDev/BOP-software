@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
+import { saveBlob } from "../lib/download";
 import type { BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance } from "../types";
 
 function money(value: number): string {
@@ -65,6 +67,14 @@ function exportPeriods(frequency: "Monthly" | "Yearly", now = new Date()): Array
     }
   }
   return periods;
+}
+
+/**
+ * Period tag for exported file names, matching the server's naming so exporting
+ * two different periods does not overwrite the same file.
+ */
+function periodTag(from: string, to: string): string {
+  return from || to ? `${from || "start"}_to_${to || "today"}` : "all-posted";
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -142,6 +152,9 @@ export default function TrialBalancePage() {
   const [cashBusy, setCashBusy] = useState(false);
 
   const [csvBusy, setCsvBusy] = useState(false);
+  // Which Excel export is preparing, so only the button that was pressed shows
+  // "Preparing…" while the workbook is built.
+  const [xlsxBusy, setXlsxBusy] = useState<string | null>(null);
 
   const [exportFrequency, setExportFrequency] = useState<"Monthly" | "Yearly">("Monthly");
   const [exportIndex, setExportIndex] = useState(() =>
@@ -220,14 +233,7 @@ export default function TrialBalancePage() {
     setError(null);
     try {
       const csv = await api.trialBalanceCsv(from || undefined, to || undefined);
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "trial-balance.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), "trial-balance.csv");
     } catch (err) {
       setError(errorMessage(err, "CSV export failed."));
     } finally {
@@ -244,19 +250,46 @@ export default function TrialBalancePage() {
     setError(null);
     try {
       const csv = await api.exportAllCsv(selectedPeriod.from, selectedPeriod.to);
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `all-reports_${selectedPeriod.from}_to_${selectedPeriod.to}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      saveBlob(
+        new Blob([csv], { type: "text/csv;charset=utf-8" }),
+        `all-reports_${selectedPeriod.from}_to_${selectedPeriod.to}.csv`,
+      );
     } catch (err) {
       setError(errorMessage(err, "Export failed."));
     } finally {
       setExportBusy(false);
     }
+  }
+
+  /** Download any report as an Excel workbook (one sheet, or all of them). */
+  async function exportXlsx(
+    which: string,
+    load: () => Promise<Blob>,
+    fileName: string,
+  ): Promise<void> {
+    setXlsxBusy(which);
+    setError(null);
+    try {
+      saveBlob(await load(), fileName);
+    } catch (err) {
+      setError(errorMessage(err, "Excel export failed."));
+    } finally {
+      setXlsxBusy(null);
+    }
+  }
+
+  /** The party ledger needs a party, so resolve that before exporting. */
+  function exportLedger(): void {
+    if (partyId == null) {
+      setError("Select a party before exporting its ledger.");
+      return;
+    }
+    const id = partyId;
+    void exportXlsx(
+      "ledger",
+      () => api.partyLedgerXlsx(id, ledgerFrom || undefined, ledgerTo || undefined),
+      `party-ledger_${periodTag(ledgerFrom, ledgerTo)}.xlsx`,
+    );
   }
 
   return (
@@ -301,27 +334,32 @@ export default function TrialBalancePage() {
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
             <label>Frequency</label>
-            <select
+            <SearchableSelect
               value={exportFrequency}
-              onChange={(e) => {
-                const next = e.target.value as "Monthly" | "Yearly";
+              onChange={(value) => {
+                const next = value as "Monthly" | "Yearly";
                 setExportFrequency(next);
                 setExportIndex(Math.max(exportPeriods(next).length - 1, 0));
               }}
-            >
-              <option value="Monthly">Monthly</option>
-              <option value="Yearly">Yearly</option>
-            </select>
+              placeholder="Frequency"
+              options={[
+                { value: "Monthly", label: "Monthly" },
+                { value: "Yearly", label: "Yearly" },
+              ]}
+            />
           </div>
           <div>
             <label>Period</label>
-            <select value={exportIndex} onChange={(e) => setExportIndex(Number(e.target.value))}>
-              {periods.map((period, index) => (
-                <option key={period.from} value={index}>
-                  {period.label}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={String(exportIndex)}
+              onChange={(next) => setExportIndex(Number(next))}
+              placeholder="Period"
+              emptyText="No matching period"
+              options={periods.map((period, index) => ({
+                value: String(index),
+                label: period.label,
+              }))}
+            />
           </div>
           <button
             className="primary"
@@ -329,6 +367,18 @@ export default function TrialBalancePage() {
             disabled={exportBusy || !selectedPeriod}
           >
             {exportBusy ? "Preparing…" : "Download all reports (CSV)"}
+          </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "all",
+                () => api.exportAllXlsx(selectedPeriod?.from, selectedPeriod?.to),
+                `all-reports_${selectedPeriod?.from ?? "start"}_to_${selectedPeriod?.to ?? "today"}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null || !selectedPeriod}
+          >
+            {xlsxBusy === "all" ? "Preparing…" : "Download all reports (Excel)"}
           </button>
         </div>
         <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
@@ -342,10 +392,24 @@ export default function TrialBalancePage() {
 
       {pl && (
         <div className="card">
-          <h2>
-            Profit &amp; Loss{" "}
-            <span className="badge">{from || to ? "for the period" : "all posted entries"}</span>
-          </h2>
+          <div className="row" style={{ alignItems: "center" }}>
+            <h2 style={{ flex: 1, margin: 0 }}>
+              Profit &amp; Loss{" "}
+              <span className="badge">{from || to ? "for the period" : "all posted entries"}</span>
+            </h2>
+            <button
+              onClick={() =>
+                void exportXlsx(
+                  "pl",
+                  () => api.profitAndLossXlsx(from || undefined, to || undefined),
+                  `profit-and-loss_${periodTag(from, to)}.xlsx`,
+                )
+              }
+              disabled={xlsxBusy !== null}
+            >
+              {xlsxBusy === "pl" ? "Preparing…" : "Export Excel"}
+            </button>
+          </div>
           <div className="row">
             <Stat label="Revenue" value={pl.revenue} />
             <Stat label="Expenses" value={pl.expenses} />
@@ -356,11 +420,25 @@ export default function TrialBalancePage() {
 
       {bs && (
         <div className="card">
-          <h2>
-            Balance Sheet{" "}
-            <span className="badge">{asAt ? `as at ${asAt}` : "as at today"}</span>{" "}
-            <span className="badge">{bs.balanced ? "Balanced" : "OUT OF BALANCE"}</span>
-          </h2>
+          <div className="row" style={{ alignItems: "center" }}>
+            <h2 style={{ flex: 1, margin: 0 }}>
+              Balance Sheet{" "}
+              <span className="badge">{asAt ? `as at ${asAt}` : "as at today"}</span>{" "}
+              <span className="badge">{bs.balanced ? "Balanced" : "OUT OF BALANCE"}</span>
+            </h2>
+            <button
+              onClick={() =>
+                void exportXlsx(
+                  "bs",
+                  () => api.balanceSheetXlsx(asAt || undefined),
+                  `balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
+                )
+              }
+              disabled={xlsxBusy !== null}
+            >
+              {xlsxBusy === "bs" ? "Preparing…" : "Export Excel"}
+            </button>
+          </div>
           <div className="row">
             <Stat label="Assets" value={bs.assets} />
             <Stat label="Liabilities" value={bs.liabilities} />
@@ -378,6 +456,18 @@ export default function TrialBalancePage() {
           </h2>
           <button onClick={() => void exportCsv()} disabled={csvBusy}>
             {csvBusy ? "Preparing…" : "Export CSV"}
+          </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "tb",
+                () => api.trialBalanceXlsx(from || undefined, to || undefined),
+                `trial-balance_${periodTag(from, to)}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null}
+          >
+            {xlsxBusy === "tb" ? "Preparing…" : "Export Excel"}
           </button>
         </div>
         <table>
@@ -431,19 +521,16 @@ export default function TrialBalancePage() {
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
             <label>Party</label>
-            <select
-              value={partyId ?? ""}
-              onChange={(event) => setPartyId(Number(event.target.value))}
-            >
-              <option value="" disabled>
-                Select a party
-              </option>
-              {parties.map((party) => (
-                <option key={party.id} value={party.id}>
-                  {party.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={partyId == null ? "" : String(partyId)}
+              onChange={(next) => setPartyId(next ? Number(next) : null)}
+              placeholder="Select a party"
+              emptyText="No matching party"
+              options={parties.map((party) => ({
+                value: String(party.id),
+                label: party.name,
+              }))}
+            />
           </div>
           <div>
             <label>From</label>
@@ -468,6 +555,9 @@ export default function TrialBalancePage() {
           >
             {ledgerBusy ? "Loading…" : "Load ledger"}
           </button>
+          <button onClick={exportLedger} disabled={xlsxBusy !== null || partyId == null}>
+            {xlsxBusy === "ledger" ? "Preparing…" : "Export Excel"}
+          </button>
         </div>
         {ledgerLoaded && <LedgerTable rows={ledger} caption="for this party and period" />}
       </div>
@@ -485,6 +575,18 @@ export default function TrialBalancePage() {
           </div>
           <button className="primary" onClick={() => void loadCashBook()} disabled={cashBusy}>
             {cashBusy ? "Loading…" : "Load cash book"}
+          </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "cash",
+                () => api.cashBookXlsx(cashFrom || undefined, cashTo || undefined),
+                `cash-book_${periodTag(cashFrom, cashTo)}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null}
+          >
+            {xlsxBusy === "cash" ? "Preparing…" : "Export Excel"}
           </button>
         </div>
         {cashLoaded && <LedgerTable rows={cashBook} caption="in this period" />}

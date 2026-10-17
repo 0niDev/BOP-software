@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Asset, Party } from "../types";
 
 const PAYMENT_TYPES = ["CREDIT", "CASH", "BANK", "CHEQUE"] as const;
@@ -184,13 +185,16 @@ export default function AssetsPage() {
           </div>
           <div>
             <label>Asset code</label>
-            <select value={assetCode} onChange={(e) => setAssetCode(e.target.value)}>
-              {codes.map((entry) => (
-                <option key={entry.code} value={entry.code}>
-                  {entry.code} — {entry.label}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={assetCode}
+              onChange={setAssetCode}
+              placeholder="Search code…"
+              emptyText="No matching code"
+              options={codes.map((entry) => ({
+                value: entry.code,
+                label: `${entry.code} — ${entry.label}`,
+              }))}
+            />
           </div>
           <div>
             <label>Purchase amount</label>
@@ -213,46 +217,44 @@ export default function AssetsPage() {
           </div>
           <div>
             <label>Classification</label>
-            <select
+            <SearchableSelect
               value={classification}
-              onChange={(e) =>
-                setClassification(e.target.value as (typeof CLASSIFICATIONS)[number])
-              }
-            >
-              {CLASSIFICATIONS.map((value) => (
-                <option key={value} value={value}>
-                  {value === "CURRENT" ? "Current (due within 1 year)" : "Non-current"}
-                </option>
-              ))}
-            </select>
+              onChange={(next) => setClassification(next as (typeof CLASSIFICATIONS)[number])}
+              placeholder="Classification"
+              options={CLASSIFICATIONS.map((value) => ({
+                value,
+                label: value === "CURRENT" ? "Current (due within 1 year)" : "Non-current",
+              }))}
+            />
           </div>
           <div>
             <label>Payment</label>
-            <select
+            <SearchableSelect
               value={paymentType}
-              onChange={(e) => setPaymentType(e.target.value as (typeof PAYMENT_TYPES)[number])}
-            >
-              {PAYMENT_TYPES.map((value) => (
-                <option key={value} value={value}>
-                  {value === "CREDIT" ? "Credit (pay later)" : value}
-                </option>
-              ))}
-            </select>
+              onChange={(next) => setPaymentType(next as (typeof PAYMENT_TYPES)[number])}
+              placeholder="Payment"
+              options={PAYMENT_TYPES.map((value) => ({
+                value,
+                label: value === "CREDIT" ? "Credit (pay later)" : value,
+              }))}
+            />
           </div>
           {paymentType === "CREDIT" && (
             <div>
               <label>Supplier</label>
-              <select
-                value={supplierId ?? ""}
-                onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <option value="">None</option>
-                {suppliers.map((party) => (
-                  <option key={party.id} value={party.id}>
-                    {party.code} — {party.name}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={supplierId == null ? "" : String(supplierId)}
+                onChange={(next) => setSupplierId(next ? Number(next) : null)}
+                placeholder="None"
+                emptyText="No matching supplier"
+                options={[
+                  { value: "", label: "None" },
+                  ...suppliers.map((party) => ({
+                    value: String(party.id),
+                    label: `${party.code} — ${party.name}`,
+                  })),
+                ]}
+              />
             </div>
           )}
           {classification === "CURRENT" && (

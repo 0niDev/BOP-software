@@ -172,6 +172,7 @@ async function main(): Promise<void> {
         paymentDate: "2026-10-08",
         paymentMethod: "CASH",
         salesInvoiceId: creditInvoice.id,
+        referenceNo: "SMOKE-RCPT-1",
       }),
     });
     check(receipt.status === 201, "POST /api/receipts records a receipt (201)");
@@ -180,8 +181,32 @@ async function main(): Promise<void> {
 
     const tb3 = (await json(
       await fetch(`${base}/api/reports/trial-balance`, { headers }),
-    )) as { balanced: boolean };
+    )) as { balanced: boolean; totalDebit: number };
     check(tb3.balanced === true, "trial balance still balanced after the receipt");
+    const tb3Debit = tb3.totalDebit;
+
+    // --- idempotency: replaying the same receipt must be refused ----------
+    const replay = await fetch(`${base}/api/receipts`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        customerId: ids.customerId,
+        amount: creditInvoice.totalAmount,
+        paymentDate: "2026-10-08",
+        paymentMethod: "CASH",
+        salesInvoiceId: creditInvoice.id,
+        referenceNo: "SMOKE-RCPT-1",
+      }),
+    });
+    check(replay.status === 409, `replayed receipt is rejected as a duplicate (got ${replay.status})`);
+
+    const afterReplay = (await json(
+      await fetch(`${base}/api/reports/trial-balance`, { headers }),
+    )) as { totalDebit: number };
+    check(
+      afterReplay.totalDebit === tb3Debit,
+      `the rejected replay posted nothing (debit still ${tb3Debit})`,
+    );
 
     // --- expense voucher ------------------------------------------------
     const categoryRes = await fetch(`${base}/api/expense-categories`, {
@@ -548,6 +573,36 @@ async function main(): Promise<void> {
       "GET /api/items?search= filters by name",
     );
 
+    // The list carries an on-hand quantity, and it must equal the sum of the
+    // item's active batches (the same figure the dashboard's low-stock card
+    // uses) — otherwise the stock column would lie.
+    const stockItems = (await json(
+      await fetch(`${base}/api/items`, { headers }),
+    )) as Array<{ id: number; item_code: string; current_stock: number }>;
+    check(
+      stockItems.length > 0 && stockItems.every((i) => typeof i.current_stock === "number"),
+      "GET /api/items returns a numeric current_stock for every item",
+    );
+    let stockMismatch = 0;
+    for (const row of stockItems) {
+      const expected = await db.get<{ qty: number }>(
+        `SELECT COALESCE(SUM(quantity_in_stock), 0) AS qty FROM stock_batches
+          WHERE item_id = ? AND is_active = 1`,
+        [row.id],
+      );
+      if (Math.abs(row.current_stock - Number(expected?.qty ?? 0)) > 1e-9) stockMismatch += 1;
+    }
+    check(
+      stockMismatch === 0,
+      `current_stock matches the active batches for all ${stockItems.length} item(s)`,
+    );
+    // Guard against a vacuous comparison (0 vs 0 everywhere).
+    const stockedCount = stockItems.filter((i) => i.current_stock !== 0).length;
+    check(
+      stockedCount > 0,
+      `the stock figure carries real quantities (${stockedCount} of ${stockItems.length} non-zero)`,
+    );
+
     const deactivateItemRes = await post(`/api/items/${item.id}/deactivate`, {});
     check(deactivateItemRes.status === 200, `item deactivation succeeds (${deactivateItemRes.status})`);
     const activeItems = (await json(
@@ -562,6 +617,37 @@ async function main(): Promise<void> {
       await fetch(`${base}/api/reports/trial-balance`, { headers }),
     )) as { balanced: boolean };
     check(tb5.balanced === true, "trial balance still balanced after master-data changes");
+
+    // --- report exports (CSV + Excel) -------------------------------------
+    const csvRes = await fetch(`${base}/api/reports/trial-balance.csv`, { headers });
+    check(csvRes.ok, `GET /api/reports/trial-balance.csv returns 200 (${csvRes.status})`);
+
+    for (const path of [
+      "/api/reports/trial-balance.xlsx",
+      "/api/reports/profit-and-loss.xlsx",
+      "/api/reports/balance-sheet.xlsx",
+      "/api/reports/cash-book.xlsx",
+      "/api/reports/export-all.xlsx",
+    ]) {
+      const res = await fetch(`${base}${path}`, { headers });
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      // A real .xlsx is a zip: it must start with the local-file-header magic.
+      const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+      check(
+        res.ok && isZip && bytes.length > 1000,
+        `GET ${path} returns a real .xlsx (status ${res.status}, ${bytes.length} bytes, zip=${isZip})`,
+      );
+      check(
+        (res.headers.get("content-type") ?? "").includes(
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+        `GET ${path} declares the Excel content type`,
+      );
+      check(
+        (res.headers.get("content-disposition") ?? "").startsWith("attachment"),
+        `GET ${path} is sent as a download (${res.headers.get("content-disposition")})`,
+      );
+    }
 
     // --- dashboard --------------------------------------------------------
     const dashboardRes = await fetch(`${base}/api/dashboard`, { headers });

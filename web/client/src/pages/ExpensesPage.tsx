@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Expense, ExpenseCategory, ExpenseItem, SettlementMethod } from "../types";
 
 /** Selected amount per expense-item id for the "Pay items" grid. */
@@ -201,22 +202,21 @@ export default function ExpensesPage() {
         <div className="row">
           <div>
             <label>Category</label>
-            <select
-              value={categoryId}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                setCategoryId(next);
+            <SearchableSelect
+              value={String(categoryId)}
+              onChange={(next) => {
+                const id = Number(next);
+                setCategoryId(id);
                 setPayAmounts({});
-                void loadItems(next);
+                void loadItems(id);
               }}
-            >
-              <option value={0}>Select...</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Select..."
+              emptyText="No matching category"
+              options={[
+                { value: "0", label: "Select..." },
+                ...categories.map((c) => ({ value: String(c.id), label: c.name })),
+              ]}
+            />
           </div>
           <div>
             <label>Amount</label>
@@ -235,13 +235,12 @@ export default function ExpensesPage() {
           </div>
           <div>
             <label>Method</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value as SettlementMethod)}>
-              {(["CASH", "BANK", "CHEQUE"] as const).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={method}
+              onChange={(next) => setMethod(next as SettlementMethod)}
+              placeholder="Method"
+              options={(["CASH", "BANK", "CHEQUE"] as const).map((m) => ({ value: m, label: m }))}
+            />
           </div>
           <div>
             <label>Description</label>

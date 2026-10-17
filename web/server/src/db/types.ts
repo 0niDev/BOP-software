@@ -1,13 +1,10 @@
 /** The database abstraction every repository depends on. */
-
 export type SqlValue = string | number | bigint | Uint8Array | null;
 export type Row = Record<string, unknown>;
-
 export interface RunResult {
   changes: number;
   lastInsertRowid: number;
 }
-
 export interface SqlDatabase {
   /** Run a SELECT and return every row. */
   all<T = Row>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
@@ -23,4 +20,11 @@ export interface SqlDatabase {
    */
   transaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T>;
   close(): Promise<void>;
+  /** Best-effort cancellation of a long-running statement. */
+  interrupt(): Promise<void>;
+  /** Whether the underlying connection is currently live. */
+  isConnected(): Promise<boolean>;
+  /** Real query-based health probe; false on transient faults. */
+  ping(): Promise<boolean>;
 }
+

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { BankAccount, BankTransaction, Cheque } from "../types";
 
 function money(value: number): string {
@@ -169,14 +170,18 @@ export default function BankingPage() {
             <div className="row">
               <div>
                 <label>Bank account</label>
-                <select value={bankAccountId} onChange={(e) => setBankAccountId(Number(e.target.value))}>
-                  <option value={0}>Select...</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.bank_name} - {a.account_number}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={String(bankAccountId)}
+                  onChange={(next) => setBankAccountId(Number(next))}
+                  placeholder="Select..."
+                  options={[
+                    { value: "0", label: "Select..." },
+                    ...accounts.map((a) => ({
+                      value: String(a.id),
+                      label: `${a.bank_name} - ${a.account_number}`,
+                    })),
+                  ]}
+                />
               </div>
               <div>
                 <label>Amount</label>

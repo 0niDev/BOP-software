@@ -6,7 +6,12 @@
 import type { SqlDatabase } from "../db/types.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
-import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
+import { toQuantity } from "../domain/money.js";
+import {
+  ItemRepository,
+  type ItemListRow,
+  type ItemRow,
+} from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
@@ -137,7 +142,7 @@ export class ItemService {
 
   async list(
     opts: { activeOnly?: boolean; search?: string; itemType?: ItemType } = {},
-  ): Promise<ItemRow[]> {
+  ): Promise<ItemListRow[]> {
     return this.items.list(this.companyId, opts);
   }
 
@@ -278,7 +283,7 @@ export class ItemService {
         purchase_price: unitCost,
         raw_unit_cost: unitCost,
         packing_unit_cost: 0,
-        quantity_in_stock: quantity,
+        quantity_in_stock: toQuantity(quantity),
         received_date: new Date().toISOString().slice(0, 10),
         is_active: 1,
       });
@@ -287,7 +292,7 @@ export class ItemService {
         `INSERT INTO stock_movements
            (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, movement_date, notes)
          VALUES (?, ?, ?, 'OPENING', ?, ?, datetime('now'), ?)`,
-        [item.id, batchId, warehouseId, quantity, unitCost, `Opening stock - ${item.item_name}`],
+        [item.id, batchId, warehouseId, toQuantity(quantity), unitCost, `Opening stock - ${item.item_name}`],
       );
 
       let journalEntryId: number | null = null;

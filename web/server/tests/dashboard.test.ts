@@ -159,6 +159,65 @@ describe("DashboardService", () => {
     expect(data.alerts.alerts.some((a) => a.type === "danger")).toBe(true);
   });
 
+  it("ranks best sellers and the customer mix, ignoring cancelled invoices", async () => {
+    const second = await items.create({ itemName: "Dashboard Second Item" });
+    const other = await parties.create({
+      name: "Dashboard Other Customer",
+      partyType: "CUSTOMER",
+    });
+    // Selling consumes stock, so the new item needs a batch on hand.
+    await ctx.db.run(
+      `INSERT INTO stock_batches
+         (item_id, warehouse_id, batch_number, purchase_price, raw_unit_cost,
+          packing_unit_cost, quantity_in_stock, received_date, is_active)
+       VALUES (?, 1, 'DASH-2', 60, 60, 0, 500, ?, 1)`,
+      [second.id, TODAY],
+    );
+
+    await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: TODAY,
+      paymentType: "CASH",
+      items: [
+        { itemId: ctx.ids.itemId, quantity: 10, unitPrice: 150 },
+        { itemId: second.id, quantity: 1, unitPrice: 100 },
+      ],
+    });
+    const secondInvoice = await sales.createSalesInvoice({
+      customerId: other.id,
+      invoiceDate: TODAY,
+      paymentType: "CASH",
+      items: [{ itemId: second.id, quantity: 4, unitPrice: 100 }],
+    });
+    const cancelled = await sales.createSalesInvoice({
+      customerId: other.id,
+      invoiceDate: TODAY,
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 99, unitPrice: 150 }],
+    });
+    await ctx.db.run("UPDATE sales_invoices SET status = 'CANCELLED' WHERE id = ?", [cancelled.id]);
+
+    const data = await dashboard.get();
+
+    // Best sellers rank by revenue: 10 x 150 beats 5 x 100.
+    expect(data.topItems[0]!.revenue).toBe(1500);
+    expect(data.topItems[0]!.quantity).toBe(10);
+    const runnerUp = data.topItems.find((row) => row.itemCode === second.item_code)!;
+    expect(runnerUp.quantity).toBe(5);
+    expect(runnerUp.revenue).toBe(500);
+    expect(runnerUp.customers).toBe(2);
+
+    // The cancelled 14,850 invoice contributes to neither aggregate.
+    expect(data.salesByCustomer.map((row) => row.revenue)).toEqual([1600, 400]);
+    expect(data.salesByCustomer[1]).toEqual({
+      partyName: "Dashboard Other Customer",
+      revenue: 400,
+      invoices: 1,
+    });
+    expect(data.today.salesTotal).toBe(2000);
+    expect(secondInvoice.id).toBeGreaterThan(0);
+  });
+
   it("lists the newest transactions across modules, newest first", async () => {
     await parties.create({ name: "Dashboard Customer", partyType: "CUSTOMER" });
     await sales.createSalesInvoice({

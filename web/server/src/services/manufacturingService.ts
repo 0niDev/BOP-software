@@ -15,7 +15,8 @@
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import { InsufficientStockError, NotFoundError, ValidationError } from "../domain/errors.js";
-import { Decimal, dec, round2, toStorage } from "../domain/money.js";
+import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
+import { insertRow } from "../repositories/base.js";
 import { ItemRepository } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import {
@@ -385,8 +386,8 @@ export class ManufacturingService {
 
     return this.db.transaction(async () => {
       await this.manufacturing.updateOrder(orderId, {
-        actual_quantity: toStorage(actualQuantity),
-        wastage_quantity: toStorage(wastageQuantity),
+        actual_quantity: toQuantity(actualQuantity),
+        wastage_quantity: toQuantity(wastageQuantity),
         output_batch_number: input.outputBatchNumber ?? null,
         production_cost: toStorage(totalCost),
         raw_material_cost: toStorage(rawCost),
@@ -400,10 +401,22 @@ export class ManufacturingService {
           production_order_id: orderId,
           component_item_id: material.componentItemId,
           batch_id: material.batchId,
-          quantity_consumed: toStorage(material.quantity),
+          quantity_consumed: toQuantity(material.quantity),
           unit_cost: toStorage(material.unitCost),
         });
-        await this.batches.adjustQuantity(material.batchId, material.quantity.negated().toNumber());
+        await this.batches.adjustQuantity(material.batchId, -toQuantity(material.quantity));
+        await insertRow(this.db, "stock_movements", {
+          item_id: material.componentItemId,
+          batch_id: material.batchId,
+          warehouse_id: order.warehouse_id,
+          movement_type: "PRODUCTION_CONSUME",
+          quantity: -toQuantity(material.quantity),
+          unit_cost: toStorage(material.unitCost),
+          reference_table: "production_orders",
+          reference_id: orderId,
+          movement_date: order.manufacturing_date,
+          notes: `Production order ${order.order_number}`,
+        });
       }
 
       if (input.outputBatchNumber) {
@@ -414,14 +427,16 @@ export class ManufacturingService {
           bom.finished_item_id,
           order.warehouse_id,
         );
+        let outputBatchId: number;
         if (existing) {
-          await this.batches.addToBatch(existing.id, toStorage(actualQuantity), {
+          await this.batches.addToBatch(existing.id, toQuantity(actualQuantity), {
             purchasePrice: toStorage(unitCost),
             rawUnitCost: toStorage(rawUnit),
             packingUnitCost: toStorage(packingUnit),
           });
+          outputBatchId = existing.id;
         } else {
-          await this.batches.insert({
+          outputBatchId = await this.batches.insert({
             item_id: bom.finished_item_id,
             warehouse_id: order.warehouse_id,
             batch_number: input.outputBatchNumber,
@@ -430,10 +445,22 @@ export class ManufacturingService {
             purchase_price: toStorage(unitCost),
             raw_unit_cost: toStorage(rawUnit),
             packing_unit_cost: toStorage(packingUnit),
-            quantity_in_stock: toStorage(actualQuantity),
+            quantity_in_stock: toQuantity(actualQuantity),
             is_active: 1,
           });
         }
+        await insertRow(this.db, "stock_movements", {
+          item_id: bom.finished_item_id,
+          batch_id: outputBatchId,
+          warehouse_id: order.warehouse_id,
+          movement_type: "PRODUCTION_IN",
+          quantity: toQuantity(actualQuantity),
+          unit_cost: toStorage(unitCost),
+          reference_table: "production_orders",
+          reference_id: orderId,
+          movement_date: order.manufacturing_date,
+          notes: `Production order ${order.order_number}`,
+        });
       }
 
       const journalEntryId = await this.accounting.postJournalEntry({

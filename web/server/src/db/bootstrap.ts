@@ -40,6 +40,7 @@ const SYSTEM_ACCOUNTS: ReadonlyArray<readonly [string, string, string, string | 
   ["4100", "Sales Returns & Allowances", "REVENUE", null],
   ["5000", "Cost of Goods Sold", "EXPENSE", null],
   ["5001", "Cost of Packing Materials", "EXPENSE", null],
+  ["5002", "Cost of Raw Materials", "EXPENSE", null],
   ["5100", "Purchase Returns & Allowances", "EXPENSE", null],
   ["5200", "Manufacturing Wastage Expense", "EXPENSE", null],
   ["5300", "Inventory Loss / Expiry Expense", "EXPENSE", null],
@@ -64,10 +65,81 @@ const DEFAULT_NUMBERING: ReadonlyArray<readonly [string, string]> = [
   ["BOM", "BOM-"],
 ];
 
+/**
+ * Tables whose auto-generated codes are backed by a numbering sequence. A
+ * migrated database can have the codes present while its sequences were reset
+ * (or never advanced) — e.g. items already contain ITEM-00002..ITEM-01752 but
+ * the ITEM sequence still points at 1, so the next generated code collides.
+ */
+const RECONCILE: ReadonlyArray<{
+  docType: string;
+  prefix: string;
+  table: string;
+  column: string;
+}> = [
+  { docType: "ITEM", prefix: "ITEM-", table: "items", column: "item_code" },
+  { docType: "CUSTOMER", prefix: "CUST-", table: "parties", column: "code" },
+  { docType: "SUPPLIER", prefix: "SUPP-", table: "parties", column: "code" },
+  { docType: "SALES_INVOICE", prefix: "SI-", table: "sales_invoices", column: "invoice_number" },
+  { docType: "PURCHASE_INVOICE", prefix: "PI-", table: "purchase_invoices", column: "invoice_number" },
+  { docType: "SALES_RETURN", prefix: "SR-", table: "sales_returns", column: "return_number" },
+  { docType: "PURCHASE_RETURN", prefix: "PR-", table: "purchase_returns", column: "return_number" },
+  { docType: "PAYMENT", prefix: "PV-", table: "payments", column: "voucher_number" },
+  { docType: "RECEIPT", prefix: "RV-", table: "receipts", column: "voucher_number" },
+  { docType: "EXPENSE_VOUCHER", prefix: "EV-", table: "expenses", column: "voucher_number" },
+  { docType: "PRODUCTION_ORDER", prefix: "PO-", table: "production_orders", column: "order_number" },
+];
+
+/**
+ * Advance every numbering sequence to at least max(existing code)+1 so the next
+ * generated code can never collide with an already-present record. Only ever
+ * moves a sequence forward (never rewinds an in-flight one). Idempotent.
+ */
+export async function reconcileNumberingSequences(
+  db: SqlDatabase,
+  companyId = 1,
+): Promise<void> {
+  for (const entry of RECONCILE) {
+    const seq = await db.get<{ next_number: number }>(
+      "SELECT next_number FROM numbering_sequences WHERE company_id = ? AND document_type = ?",
+      [companyId, entry.docType],
+    );
+    if (!seq) continue;
+    const suffixStart = entry.prefix.length + 1;
+    const row = await db.get<{ max_suffix: number | null }>(
+      `SELECT MAX(CAST(substr(${entry.column}, ?) AS INTEGER)) AS max_suffix
+         FROM ${entry.table}
+        WHERE ${entry.column} LIKE ? AND substr(${entry.column}, ?, 1) GLOB '[0-9]'`,
+      [suffixStart, `${entry.prefix}%`, suffixStart],
+    );
+    // The document and its journal entry now share one number, but historic
+    // data may have left a *journal* voucher number ahead of every document
+    // (the old double-allocation bug), so the journal has to be considered too.
+    const journalRow = await db.get<{ max_suffix: number | null }>(
+      `SELECT MAX(CAST(substr(voucher_number, ?) AS INTEGER)) AS max_suffix
+         FROM journal_entries
+        WHERE voucher_number LIKE ? AND substr(voucher_number, ?, 1) GLOB '[0-9]'`,
+      [suffixStart, `${entry.prefix}%`, suffixStart],
+    );
+    const maxSuffix = Math.max(
+      Number(row?.max_suffix ?? 0),
+      Number(journalRow?.max_suffix ?? 0),
+    );
+    const required = Number.isFinite(maxSuffix) && maxSuffix > 0 ? maxSuffix + 1 : 1;
+    if (required > Number(seq.next_number)) {
+      await db.run(
+        "UPDATE numbering_sequences SET next_number = ? WHERE company_id = ? AND document_type = ?",
+        [required, companyId, entry.docType],
+      );
+    }
+  }
+}
+
 /** Create all tables (idempotent) and seed defaults. */
 export async function bootstrapDatabase(db: SqlDatabase): Promise<void> {
   await db.exec(SCHEMA_SQL);
   await seedDefaults(db);
+  await reconcileNumberingSequences(db);
 }
 
 async function seedDefaults(db: SqlDatabase): Promise<void> {

@@ -60,6 +60,40 @@ export class PaymentRepository {
     );
   }
 
+  /**
+   * Look for a settlement that is an exact repeat of the one about to be
+   * posted: same company, party, date, method, amount and reference. Posting
+   * is then idempotent, so a double-click or a client retry cannot disburse
+   * cash twice. Only settles keyed by a reference can be deduplicated — without
+   * one there is nothing to tell two genuine same-day payments apart.
+   *
+   * The reference lives on the journal entry (the one structured place it is
+   * stored), so the two tables are joined on the shared voucher number.
+   */
+  async findDuplicate(
+    table: "payments" | "receipts",
+    dateColumn: "payment_date" | "receipt_date",
+    companyId: number,
+    partyId: number,
+    date: string,
+    method: PaymentMethod,
+    amount: number,
+    referenceNo: string | null,
+  ): Promise<{ id: number; voucher_number: string } | undefined> {
+    if (!referenceNo) return undefined;
+    return this.db.get<{ id: number; voucher_number: string }>(
+      `SELECT d.id, d.voucher_number
+         FROM ${table} d
+         JOIN journal_entries je
+           ON je.company_id = d.company_id AND je.voucher_number = d.voucher_number
+        WHERE d.company_id = ? AND d.party_id = ? AND d.${dateColumn} = ?
+          AND d.payment_method = ? AND ABS(d.amount - ?) < 0.005
+          AND je.reference_no = ?
+        LIMIT 1`,
+      [companyId, partyId, date, method, amount, referenceNo],
+    );
+  }
+
   async addPurchaseInvoicePaid(invoiceId: number, amount: number): Promise<void> {
     await this.db.run(
       "UPDATE purchase_invoices SET paid_amount = paid_amount + ? WHERE id = ?",

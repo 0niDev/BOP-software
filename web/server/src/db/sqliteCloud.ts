@@ -10,6 +10,11 @@
  * `AsyncLocalStorage` makes the lock re-entrant: statements issued *inside* a
  * transaction body bypass the lock (they already hold it), while nested
  * `transaction()` calls simply join the outer one.
+ *
+ * Remote sockets can drop or idle out. We treat that as a *transient* fault and
+ * retry the failed operation once on the same connection object. The driver
+ * itself is stateful: a credential or configuration failure will repeat on every
+ * attempt, so we bound retries and classify repeated failures as permanent.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Database } from "@sqlitecloud/drivers";
@@ -23,6 +28,51 @@ interface WriteContext {
   lastID?: number | bigint;
 }
 
+/** Transient socket / idle-timeout faults that are worth one reconnect retry. */
+const TRANSIENT_DB_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EPIPE",
+  "PROTOCOL_CONNECTION_LOST",
+  "SQLITE_CLOUD_DISCONNECTED",
+  "SQLITE_CLOUD_CONNECTION_LOST",
+  "SQLITE_CLOUD_CONNECTION_FAIL",
+  "SQLITE_CLOUD_CONNECTION_ERROR",
+  "SocketError",
+  "NetworkError",
+]);
+
+function isTransient(err: unknown): boolean {
+  if (err instanceof Error) {
+    if (TRANSIENT_DB_CODES.has(err.name)) return true;
+    if (TRANSIENT_DB_CODES.has((err as unknown as { code?: string }).code ?? "")) return true;
+    const message = err.message ?? "";
+    return TRANSIENT_DB_CODES.has(message);
+  }
+  return false;
+}
+
+/** Permanent configuration / credential failures that retry cannot fix. */
+function isPermanent(err: unknown): boolean {
+  if (err instanceof Error) {
+    const name = err.name;
+    const code = (err as unknown as { code?: string }).code ?? "";
+    if (
+      name === "TypeError" ||
+      name === "URIError" ||
+      name === "SyntaxError" ||
+      code === "ECONNREFUSED" ||
+      code === "ENOTFOUND" ||
+      code === "EINVAL"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class SqliteCloudDatabase implements SqlDatabase {
   private readonly db: Database;
   private chain: Promise<unknown> = Promise.resolve();
@@ -32,7 +82,15 @@ export class SqliteCloudDatabase implements SqlDatabase {
       throw new DatabaseError("SQLITE_CLOUD_URL is not set.");
     }
     this.db = new Database(connectionString);
+
+    // The driver keeps a single connection object and reconnects it lazily when
+    // a command fails. If the installed driver version exposes a supported
+    // configuration surface we can wire keep-alive / verbose logging there;
+    // until then, don't call undocumented config shapes.
   }
+
+  private readonly _pingSql = "SELECT 1";
+  private readonly _pingParams: readonly SqlValue[] = [];
 
   /** Serialize operations unless we are already inside the held transaction. */
   private schedule<T>(fn: () => Promise<T>): Promise<T> {
@@ -45,16 +103,62 @@ export class SqliteCloudDatabase implements SqlDatabase {
     return run;
   }
 
+  /**
+   * Run a single driver statement with one automatic retry for transient
+   * connection faults. Permanent failures are thrown immediately so a bad URL
+   * or expired credentials fail fast and stay failed.
+   *
+   * The driver's command signature is not cleanly exported from the package
+   * index, so we construct the command object and cast it. Its data-types union
+   * uses `Buffer` rather than `Uint8Array`, but this app never binds blobs, so
+   * `SqlValue` is safe at runtime and only needs a cast at the boundary.
+   */
   private async query(sql: string, params: readonly SqlValue[]): Promise<unknown> {
-    // The driver's command type is not re-exported from its package index, so
-    // we express it via the method signature. Its DataTypes union uses Buffer
-    // rather than Uint8Array, but the app never binds blobs.
-    type SqlArgument = Parameters<Database["sql"]>[0];
-    const command = { query: sql, parameters: [...params] } as unknown as SqlArgument;
+    const command = { query: sql, parameters: [...params] } as Parameters<Database["sql"]>[0];
+
+    const attempt = async () => {
+      try {
+        return await this.db.sql(command);
+      } catch (err) {
+        throw new DatabaseError(err instanceof Error ? err.message : String(err), { sql });
+      }
+    };
+
     try {
-      return await this.db.sql(command);
+      return await attempt();
     } catch (err) {
-      throw new DatabaseError(err instanceof Error ? err.message : String(err), { sql });
+      // One retry window for socket drops and idle timeouts.
+      if (isTransient(err) && !isPermanent(err)) {
+        try {
+          return await attempt();
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      }
+      throw err;
+    }
+  }
+
+  /** Lightweight connection health probe. The driver exposes `isConnected()`. */
+  async isConnected(): Promise<boolean> {
+    if (typeof this.db.isConnected === "function") {
+      try {
+        return this.db.isConnected();
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }  /** Explicit health probe for monitoring / readiness. Uses a real query so a
+   *  stale TCP connection cannot report healthy. Transient failures are treated as
+   *  unhealthy without faulting the process.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      await this.db.sql({ query: this._pingSql, parameters: [...this._pingParams] } as Parameters<Database["sql"]>[0]);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -106,6 +210,16 @@ export class SqliteCloudDatabase implements SqlDatabase {
           }
         }),
     );
+  }
+
+  async interrupt(): Promise<void> {
+    if (typeof this.db.interrupt === "function") {
+      try {
+        this.db.interrupt();
+      } catch {
+        // best-effort cancellation; not a failure path for the app
+      }
+    }
   }
 
   async transaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T> {

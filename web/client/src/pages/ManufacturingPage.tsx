@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Bom, Item, ProductionOrder } from "../types";
 
 function money(value: number): string {
@@ -159,14 +160,16 @@ export default function ManufacturingPage() {
             <div className="row">
               <div>
                 <label>Finished item</label>
-                <select value={finishedItemId} onChange={(e) => setFinishedItemId(Number(e.target.value))}>
-                  <option value={0}>Select...</option>
-                  {finishedGoods.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.item_name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={String(finishedItemId)}
+                  onChange={(next) => setFinishedItemId(Number(next))}
+                  placeholder="Select..."
+                  emptyText="No matching item"
+                  options={[
+                    { value: "0", label: "Select..." },
+                    ...finishedGoods.map((i) => ({ value: String(i.id), label: i.item_name })),
+                  ]}
+                />
               </div>
               <div>
                 <label>Output quantity</label>
@@ -181,14 +184,16 @@ export default function ManufacturingPage() {
               </div>
               <div>
                 <label>Component</label>
-                <select value={componentItemId} onChange={(e) => setComponentItemId(Number(e.target.value))}>
-                  <option value={0}>Select...</option>
-                  {components.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.item_name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={String(componentItemId)}
+                  onChange={(next) => setComponentItemId(Number(next))}
+                  placeholder="Select..."
+                  emptyText="No matching item"
+                  options={[
+                    { value: "0", label: "Select..." },
+                    ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
+                  ]}
+                />
               </div>
               <div>
                 <label>Qty required</label>
@@ -252,31 +257,29 @@ export default function ManufacturingPage() {
                 <>
                   <div>
                     <label>Finished item</label>
-                    <select
-                      value={tempFinishedItemId}
-                      onChange={(e) => setTempFinishedItemId(Number(e.target.value))}
-                    >
-                      <option value={0}>Select...</option>
-                      {finishedGoods.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.item_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={String(tempFinishedItemId)}
+                      onChange={(next) => setTempFinishedItemId(Number(next))}
+                      placeholder="Select..."
+                      emptyText="No matching item"
+                      options={[
+                        { value: "0", label: "Select..." },
+                        ...finishedGoods.map((i) => ({ value: String(i.id), label: i.item_name })),
+                      ]}
+                    />
                   </div>
                   <div>
                     <label>Component</label>
-                    <select
-                      value={tempComponentItemId}
-                      onChange={(e) => setTempComponentItemId(Number(e.target.value))}
-                    >
-                      <option value={0}>Select...</option>
-                      {components.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.item_name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      value={String(tempComponentItemId)}
+                      onChange={(next) => setTempComponentItemId(Number(next))}
+                      placeholder="Select..."
+                      emptyText="No matching item"
+                      options={[
+                        { value: "0", label: "Select..." },
+                        ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
+                      ]}
+                    />
                   </div>
                   <div>
                     <label>Qty per unit</label>
@@ -293,14 +296,16 @@ export default function ManufacturingPage() {
               ) : (
                 <div>
                   <label>BOM</label>
-                  <select value={bomId} onChange={(e) => setBomId(Number(e.target.value))}>
-                    <option value={0}>Select...</option>
-                    {boms.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.bom_name}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={String(bomId)}
+                    onChange={(next) => setBomId(Number(next))}
+                    placeholder="Select..."
+                    emptyText="No matching BOM"
+                    options={[
+                      { value: "0", label: "Select..." },
+                      ...boms.map((b) => ({ value: String(b.id), label: b.bom_name })),
+                    ]}
+                  />
                 </div>
               )}
               <div>

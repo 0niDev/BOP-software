@@ -9,8 +9,9 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes } from "../domain/enums.js";
-import { NotFoundError, ValidationError } from "../domain/errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { dec, round2, toStorage } from "../domain/money.js";
+import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import {
   PaymentRepository,
@@ -54,6 +55,7 @@ export interface PaymentResult {
 export class PaymentService {
   private readonly parties: PartyRepository;
   private readonly payments: PaymentRepository;
+  private readonly accounts: AccountRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
 
@@ -63,6 +65,7 @@ export class PaymentService {
   ) {
     this.parties = new PartyRepository(db);
     this.payments = new PaymentRepository(db);
+    this.accounts = new AccountRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
   }
@@ -91,9 +94,25 @@ export class PaymentService {
     const apId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
     const paymentAccountId = await this.settlementAccount(resolver, input.paymentMethod);
 
-    const voucherNumber = await this.journal.nextVoucherNumber(companyId, "PAYMENT");
-
     return this.db.transaction(async () => {
+      // Idempotency: refuse a second identical settlement (same reference) so a
+      // double-click or client retry cannot disburse the same money twice.
+      const duplicate = await this.payments.findDuplicate(
+        "payments",
+        "payment_date",
+        companyId,
+        supplier.id,
+        input.paymentDate,
+        input.paymentMethod,
+        toStorage(amount),
+        input.referenceNo ?? null,
+      );
+      if (duplicate) {
+        throw new ConflictError(
+          `Payment already recorded as ${duplicate.voucher_number} (reference '${input.referenceNo}').`,
+        );
+      }
+
       // Guard against overpayment: check outstanding balance INSIDE the transaction.
       if (input.purchaseInvoiceId) {
         const invoice = await this.db.get<{ total_amount: number; paid_amount: number }>(
@@ -128,10 +147,28 @@ export class PaymentService {
         }
       }
 
+      // Bank/cheque settlements cannot disburse more than the bank holds.
+      if (input.paymentMethod === "BANK" || input.paymentMethod === "CHEQUE") {
+        const bankBalance = dec(await this.accounts.getCurrentBalance(paymentAccountId));
+        if (amount.greaterThan(bankBalance)) {
+          throw new ValidationError(
+            `Insufficient bank funds: balance ${bankBalance.toFixed(2)}, payment ${amount.toFixed(2)}.`,
+          );
+        }
+      }
+
+      // Allocate the voucher number only once the settlement is certain to be
+      // written. Allocating earlier (as this used to) meant a rejection — a
+      // duplicate reference, an over-payment or insufficient bank funds — burned
+      // the number and left a hole in the sequence, because the upsert had
+      // already committed before the transaction rolled back.
+      const voucherNumber = await this.journal.nextVoucherNumber(companyId, "PAYMENT");
+
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PAYMENT",
         entryDate: input.paymentDate,
         voucherNumber,
+        referenceNo: input.referenceNo ?? null,
         lines: [
           {
             accountId: apId,
@@ -184,9 +221,25 @@ export class PaymentService {
     const arId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
     const receiptAccountId = await this.settlementAccount(resolver, input.paymentMethod);
 
-    const voucherNumber = await this.journal.nextVoucherNumber(companyId, "RECEIPT");
-
     return this.db.transaction(async () => {
+      // Idempotency: refuse a second identical receipt (same reference) so a
+      // retry cannot double-count the same collection.
+      const duplicate = await this.payments.findDuplicate(
+        "receipts",
+        "receipt_date",
+        companyId,
+        customer.id,
+        input.paymentDate,
+        input.paymentMethod,
+        toStorage(amount),
+        input.referenceNo ?? null,
+      );
+      if (duplicate) {
+        throw new ConflictError(
+          `Receipt already recorded as ${duplicate.voucher_number} (reference '${input.referenceNo}').`,
+        );
+      }
+
       // Guard against over-collection / collecting a cash invoice — INSIDE the transaction.
       if (input.salesInvoiceId) {
         const invoice = await this.db.get<{
@@ -229,10 +282,15 @@ export class PaymentService {
         }
       }
 
+      // See paySupplier: the number is allocated inside the transaction so a
+      // rejected receipt cannot burn one.
+      const voucherNumber = await this.journal.nextVoucherNumber(companyId, "RECEIPT");
+
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "RECEIPT",
         entryDate: input.paymentDate,
         voucherNumber,
+        referenceNo: input.referenceNo ?? null,
         lines: [
           {
             accountId: receiptAccountId,

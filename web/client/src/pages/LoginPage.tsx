@@ -28,7 +28,9 @@ export default function LoginPage({ onLogin }: Props) {
 
   return (
     <div className="login-wrap">
-      <form className="login-card" onSubmit={submit}>
+      {/* The sign-in form is the primary interactive surface: it wears the
+          design system's hairline electric outline. */}
+      <form className="login-card outline-cyan" onSubmit={submit}>
         <h1>BOP Nutraceuticals</h1>
         <div className="sub">Sign in to the ERP</div>
         {error && <div className="error">{error}</div>}

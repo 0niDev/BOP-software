@@ -68,6 +68,7 @@ describe("BankingService", () => {
       bankName: "HBL",
       accountTitle: "Main",
       accountNumber: "2",
+      openingBalance: 1000,
     });
     const cheque = await banking.issueCheque({
       bankAccountId: account.id,
@@ -95,6 +96,7 @@ describe("BankingService", () => {
       bankName: "HBL",
       accountTitle: "Main",
       accountNumber: "3",
+      openingBalance: 1000,
     });
     const cheque = await banking.issueCheque({
       bankAccountId: account.id,

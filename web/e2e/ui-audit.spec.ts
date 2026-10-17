@@ -233,6 +233,52 @@ async function focusedPlaceholder(page: Page): Promise<string> {
   });
 }
 
+test("the dashboard sorts its best sellers and links a row to its module", async ({ page }) => {
+  const watched = monitor(page);
+  await signIn(page);
+  await openPage(page, "Dashboard");
+
+  const table = page.getByRole("table", { name: "Best selling items" });
+  await expect(table).toBeVisible();
+
+  const revenues = async (): Promise<number[]> =>
+    (await table.locator("tbody tr td:nth-child(4)").allInnerTexts()).map((text) =>
+      Number(text.replace(/[^\d.-]/g, "")),
+    );
+
+  // Ranked by revenue, highest first…
+  const descending = await revenues();
+  expect(descending.length, "the demo data should have a best seller").toBeGreaterThan(0);
+  expect(descending).toEqual([...descending].sort((a, b) => b - a));
+
+  // …with the avatar tile, revenue share bar and per-column sort state.
+  await expect(table.locator("tbody tr .thumb").first()).toBeVisible();
+  await expect(table.locator("tbody .meter").first()).toBeVisible();
+
+  const revenueHeader = table.getByRole("columnheader", { name: /revenue/i });
+  await expect(revenueHeader).toHaveAttribute("aria-sort", "descending");
+  await table.getByRole("button", { name: /revenue/i }).click();
+  await expect(revenueHeader).toHaveAttribute("aria-sort", "ascending");
+  const ascending = await revenues();
+  expect(ascending).toEqual([...ascending].sort((a, b) => a - b));
+  await table.getByRole("button", { name: /revenue/i }).click();
+  await expect(revenueHeader).toHaveAttribute("aria-sort", "descending");
+
+  // A row's action menu links to the module that owns the transaction.
+  await page.getByRole("button", { name: /^Actions for this/ }).first().click();
+  const menu = page.getByRole("menu").first();
+  await expect(menu).toBeVisible();
+  const openIn = menu.getByRole("menuitem", { name: /^Open in / }).first();
+  const target = (await openIn.innerText()).replace(/^Open in /, "").trim();
+  await openIn.click();
+  await expect(
+    page.locator("nav").getByRole("button", { name: target, exact: true }),
+  ).toHaveClass(/active/);
+
+  expect(watched.errors).toEqual([]);
+  expect(watched.apiFailures).toEqual([]);
+});
+
 test("the Shortcuts editor and Database card work end to end", async ({ page }) => {
   const watched = monitor(page);
   await signIn(page);
@@ -262,24 +308,39 @@ test("the Shortcuts editor and Database card work end to end", async ({ page }) 
 });
 
 test("the Manufacturing page offers temporary one-use production", async ({ page }) => {
+  const watched = monitor(page);
   await signIn(page);
   await openPage(page, "Manufacturing");
   await page.getByRole("button", { name: "Production Orders" }).click();
 
   const form = page.locator("form", { hasText: "New production order" });
-  // Saved-BOM mode: a single picker (the BOM).
-  await expect(form.locator("select")).toHaveCount(1);
-  await expect(form.locator("select").first()).toContainText("Select");
+  // Saved-BOM mode: a single picker (the BOM), showing its prompt until chosen.
+  await expect(form.getByRole("combobox")).toHaveCount(1);
+  await expect(form.getByRole("combobox")).toHaveAttribute("placeholder", /select/i);
+
+  // Every picker is now a type-to-filter combobox, so drive it the way a user
+  // would: open it, narrow the list by typing, click an option, keep the choice.
+  const bomPicker = form.getByRole("combobox");
+  await bomPicker.click();
+  const bomName = (await page.getByRole("option").nth(1).innerText()).trim();
+  await bomPicker.fill(bomName.slice(0, 6));
+  const bomOption = page.getByRole("option", { name: bomName, exact: true });
+  await expect(bomOption).toHaveCount(1);
+  await bomOption.click();
+  await expect(bomPicker).toHaveValue(bomName);
 
   // Temporary mode swaps it for a finished item + component pair.
   await getByLabelText(form, "Temporary production").check();
-  await expect(form.locator("select")).toHaveCount(2);
+  await expect(form.getByRole("combobox")).toHaveCount(2);
   await expect(form).toContainText("Finished item");
   await expect(form).toContainText("Qty per unit");
   await expect(form).toContainText("never appears in the BOM list");
 
   await getByLabelText(form, "Temporary production").uncheck();
-  await expect(form.locator("select")).toHaveCount(1);
+  await expect(form.getByRole("combobox")).toHaveCount(1);
+
+  expect(watched.errors).toEqual([]);
+  expect(watched.apiFailures).toEqual([]);
 });
 
 /** Labels in this app wrap their control, so match the label text directly. */
@@ -376,4 +437,63 @@ test("no page overflows horizontally at 1280 or 1024 px", async ({ page }) => {
       expect(overflow, `${entry.nav} overflows at ${width}px`).toBeLessThanOrEqual(1);
     }
   }
+});
+
+/**
+ * The Excel exports are downloaded by a real click, so this exercises the whole
+ * path — React -> Vite proxy -> Express -> workbook bytes -> file on disk —
+ * rather than the endpoint alone.
+ */
+test("reports download as Excel workbooks from the Reports page", async ({ page }) => {
+  const watched = monitor(page);
+  await signIn(page);
+  await openPage(page, "Reports");
+
+  const trialBalanceCard = page
+    .locator(".card")
+    .filter({ has: page.getByRole("heading", { name: /^Trial Balance/ }) });
+  const tbExport = trialBalanceCard.getByRole("button", { name: "Export Excel" });
+  await expect(tbExport).toBeEnabled();
+
+  const [single] = await Promise.all([page.waitForEvent("download"), tbExport.click()]);
+  expect(single.suggestedFilename()).toMatch(/^trial-balance_.*\.xlsx$/);
+  const singlePath = await single.path();
+  expect(singlePath, "the workbook should reach disk").toBeTruthy();
+  const singleSize = fs.statSync(singlePath as string).size;
+  expect(singleSize).toBeGreaterThan(1000);
+
+  const exportAllCard = page
+    .locator(".card")
+    .filter({ has: page.getByRole("heading", { name: "Export all reports" }) });
+  const allExport = exportAllCard.getByRole("button", { name: "Download all reports (Excel)" });
+  await expect(allExport).toBeEnabled();
+
+  const [combined] = await Promise.all([page.waitForEvent("download"), allExport.click()]);
+  expect(combined.suggestedFilename()).toMatch(/^all-reports_.*\.xlsx$/);
+  const combinedPath = await combined.path();
+  expect(combinedPath, "the combined workbook should reach disk").toBeTruthy();
+  // Four sheets weigh more than one.
+  expect(fs.statSync(combinedPath as string).size).toBeGreaterThan(singleSize);
+
+  // The CSV exports now share the same download helper, so keep them covered.
+  const [tbCsv] = await Promise.all([
+    page.waitForEvent("download"),
+    trialBalanceCard.getByRole("button", { name: "Export CSV" }).click(),
+  ]);
+  expect(tbCsv.suggestedFilename()).toBe("trial-balance.csv");
+  const csvPath = await tbCsv.path();
+  expect(fs.readFileSync(csvPath as string, "utf8")).toContain(
+    "Account Code,Account Name,Type,Opening Debit",
+  );
+
+  const [allCsv] = await Promise.all([
+    page.waitForEvent("download"),
+    exportAllCard.getByRole("button", { name: "Download all reports (CSV)" }).click(),
+  ]);
+  expect(allCsv.suggestedFilename()).toMatch(/^all-reports_.*\.csv$/);
+  const allCsvPath = await allCsv.path();
+  expect(fs.readFileSync(allCsvPath as string, "utf8")).toContain("Trial Balance");
+
+  expect(watched.errors).toEqual([]);
+  expect(watched.apiFailures).toEqual([]);
 });

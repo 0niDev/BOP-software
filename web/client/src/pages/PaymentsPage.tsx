@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Party, Payment, Receipt, SettlementMethod } from "../types";
 
 function money(value: number): string {
@@ -107,14 +108,18 @@ export default function PaymentsPage() {
         <div className="row">
           <div>
             <label>{tab === "payments" ? "Supplier" : "Customer"}</label>
-            <select value={partyId} onChange={(e) => setPartyId(Number(e.target.value))}>
-              <option value={0}>Select...</option>
-              {partyOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.code})
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={String(partyId)}
+              onChange={(next) => setPartyId(Number(next))}
+              placeholder="Select..."
+              options={[
+                { value: "0", label: "Select..." },
+                ...partyOptions.map((p) => ({
+                  value: String(p.id),
+                  label: `${p.name} (${p.code})`,
+                })),
+              ]}
+            />
           </div>
           <div>
             <label>Amount</label>
@@ -133,13 +138,12 @@ export default function PaymentsPage() {
           </div>
           <div>
             <label>Method</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value as SettlementMethod)}>
-              {(["CASH", "BANK", "CHEQUE"] as const).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={method}
+              onChange={(next) => setMethod(next as SettlementMethod)}
+              placeholder="Method"
+              options={(["CASH", "BANK", "CHEQUE"] as const).map((m) => ({ value: m, label: m }))}
+            />
           </div>
           <button className="primary" type="submit" disabled={busy}>
             {busy ? "Saving..." : tab === "payments" ? "Record payment" : "Record receipt"}

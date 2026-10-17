@@ -149,6 +149,16 @@ export class BankingService {
     const account = await this.banks.findBankAccountById(input.bankAccountId);
     if (!account) throw new NotFoundError(`Bank account ${input.bankAccountId} not found.`);
 
+    // A withdrawal cannot take a bank account negative.
+    if (type === "WITHDRAWAL") {
+      const balance = dec(await this.accounts.getCurrentBalance(account.account_id));
+      if (amount.greaterThan(balance)) {
+        throw new ValidationError(
+          `Insufficient bank funds: balance ${balance.toFixed(2)}, withdrawal ${amount.toFixed(2)}.`,
+        );
+      }
+    }
+
     const resolver = new SystemAccountResolver(this.db, this.companyId);
     const cashId = await resolver.idFor(SystemAccountCodes.CASH_IN_HAND);
     const description = `${type === "DEPOSIT" ? "Deposit" : "Withdrawal"}${input.referenceNo ? ` - ${input.referenceNo}` : ""}`;
@@ -235,6 +245,17 @@ export class BankingService {
 
     const resolver = new SystemAccountResolver(this.db, this.companyId);
     const amount = dec(cheque.amount);
+
+    // Clearing an issued cheque pays money out of the bank account.
+    if (cheque.cheque_type === "ISSUED") {
+      const bankBalance = dec(await this.accounts.getCurrentBalance(account.account_id));
+      if (amount.greaterThan(bankBalance)) {
+        throw new ValidationError(
+          `Insufficient bank funds to clear cheque ${cheque.cheque_number}: balance ${bankBalance.toFixed(2)}.`,
+        );
+      }
+    }
+
     const lines: JournalLineInput[] =
       cheque.cheque_type === "ISSUED"
         ? [

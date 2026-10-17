@@ -12,7 +12,8 @@ import {
   NotFoundError,
   ValidationError,
 } from "../domain/errors.js";
-import { Decimal, dec, round2, toStorage, type MoneyLike } from "../domain/money.js";
+import { Decimal, dec, round2, toQuantity, toStorage, type MoneyLike } from "../domain/money.js";
+import { insertRow } from "../repositories/base.js";
 import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
@@ -187,11 +188,14 @@ export class PurchaseInvoiceService {
       if (await this.purchases.invoiceNumberExists(invoiceNumber, companyId)) {
         throw new ConflictError(`Invoice number '${invoiceNumber}' already exists.`);
       }
-    } else {
-      invoiceNumber = await this.journal.nextVoucherNumber(companyId, "PURCHASE");
     }
 
     return this.db.transaction(async () => {
+      // See SalesInvoiceService: the number is allocated inside the transaction so
+      // a failed write cannot leave a hole in the sequence.
+      if (!invoiceNumber) {
+        invoiceNumber = await this.journal.nextVoucherNumber(companyId, "PURCHASE");
+      }
       const invoiceId = await this.purchases.insertInvoice({
         company_id: companyId,
         warehouse_id: warehouseId,
@@ -238,16 +242,32 @@ export class PurchaseInvoiceService {
           batch_number: line.batchNumber,
           manufacturing_date: line.manufacturingDate,
           expiry_date: line.expiryDate,
-          quantity: toStorage(line.quantity),
+          quantity: toQuantity(line.quantity),
           unit_cost: toStorage(line.unitCost),
           discount_amount: toStorage(line.discount),
           tax_amount: toStorage(line.tax),
           line_total: toStorage(line.lineTotal),
         });
+        // Keep the stock-movement ledger in step with the batch so on-hand
+        // stock can always be reconciled against SUM(stock_movements).
+        await insertRow(this.db, "stock_movements", {
+          item_id: line.item.id,
+          batch_id: batchId,
+          warehouse_id: warehouseId,
+          movement_type: "PURCHASE",
+          quantity: toQuantity(line.quantity),
+          unit_cost: toStorage(line.unitCost),
+          reference_table: "purchase_invoices",
+          reference_id: invoiceId,
+          movement_date: input.invoiceDate,
+          notes: `Purchase invoice ${invoiceNumber}`,
+          created_by: input.createdBy ?? null,
+        });
       }
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PURCHASE",
+        voucherNumber: invoiceNumber,
         entryDate: input.invoiceDate,
         lines: journalLines,
         sourceTable: "purchase_invoices",
@@ -332,7 +352,7 @@ export class PurchaseInvoiceService {
       line.batchNumber ?? `PURCHASE-${line.item.id}-${Date.now().toString()}`;
     const existing = await this.batches.findByNumber(line.item.id, warehouseId, batchNumber);
     if (existing) {
-      await this.batches.adjustQuantity(existing.id, toStorage(line.quantity));
+      await this.batches.adjustQuantity(existing.id, toQuantity(line.quantity));
       return existing.id;
     }
     return this.batches.insert({
@@ -342,7 +362,7 @@ export class PurchaseInvoiceService {
       manufacturing_date: line.manufacturingDate,
       expiry_date: line.expiryDate,
       purchase_price: toStorage(line.unitCost),
-      quantity_in_stock: toStorage(line.quantity),
+      quantity_in_stock: toQuantity(line.quantity),
       is_active: 1,
     });
   }

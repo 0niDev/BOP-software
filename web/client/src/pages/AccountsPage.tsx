@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import SearchableSelect from "../components/SearchableSelect";
 import type { Account, AccountType } from "../types";
 
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -211,13 +212,15 @@ export default function AccountsPage() {
           <h2 style={{ flex: 1, margin: 0 }}>Chart of Accounts</h2>
           <div>
             <label>Show</label>
-            <select
+            <SearchableSelect
               value={showInactive ? "all" : "active"}
-              onChange={(e) => setShowInactive(e.target.value === "all")}
-            >
-              <option value="active">Active only</option>
-              <option value="all">Include inactive</option>
-            </select>
+              onChange={(next) => setShowInactive(next === "all")}
+              placeholder="Show"
+              options={[
+                { value: "active", label: "Active only" },
+                { value: "all", label: "Include inactive" },
+              ]}
+            />
           </div>
         </div>
         {error && <div className="error">{error}</div>}
@@ -351,36 +354,32 @@ export default function AccountsPage() {
           </div>
           <div>
             <label>Type</label>
-            <select
+            <SearchableSelect
               value={draft.accountType}
-              onChange={(e) => {
-                set("accountType", e.target.value as AccountType);
+              onChange={(next) => {
+                set("accountType", next as AccountType);
                 set("parentAccountId", null);
               }}
               disabled={Boolean(editing)}
-            >
-              {ACCOUNT_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+              placeholder="Type"
+              options={ACCOUNT_TYPES.map((type) => ({ value: type, label: type }))}
+            />
           </div>
           <div>
             <label>Parent account</label>
-            <select
-              value={draft.parentAccountId ?? ""}
-              onChange={(e) =>
-                set("parentAccountId", e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">None</option>
-              {parentOptions.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.account_code} — {account.account_name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={draft.parentAccountId == null ? "" : String(draft.parentAccountId)}
+              onChange={(next) => set("parentAccountId", next ? Number(next) : null)}
+              placeholder="None"
+              emptyText="No matching account"
+              options={[
+                { value: "", label: "None" },
+                ...parentOptions.map((account) => ({
+                  value: String(account.id),
+                  label: `${account.account_code} — ${account.account_name}`,
+                })),
+              ]}
+            />
           </div>
           <div>
             <label>Opening balance</label>
@@ -405,14 +404,16 @@ export default function AccountsPage() {
           {editing && (
             <div>
               <label>Status</label>
-              <select
+              <SearchableSelect
                 value={draft.isActive ? "1" : "0"}
-                onChange={(e) => set("isActive", e.target.value === "1")}
+                onChange={(next) => set("isActive", next === "1")}
                 disabled={editing.is_system_account === 1}
-              >
-                <option value="1">Active</option>
-                <option value="0">Inactive</option>
-              </select>
+                placeholder="Status"
+                options={[
+                  { value: "1", label: "Active" },
+                  { value: "0", label: "Inactive" },
+                ]}
+              />
             </div>
           )}
           <button className="primary" type="submit" disabled={busy}>

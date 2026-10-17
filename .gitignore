@@ -25,6 +25,8 @@ env/
 .env
 .env.local
 .env.*
+# ...but the template is meant to ship: web/.env is copied from it.
+!.env.example
 
 # Logs
 *.log
