@@ -2,8 +2,9 @@ import { mkdtempSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigurationError, NotFoundError, ValidationError } from "../src/domain/errors.js";
+import { NotFoundError, ValidationError } from "../src/domain/errors.js";
 import { BackupService } from "../src/services/backupService.js";
+import { verifySnapshot } from "../src/services/snapshot.js";
 import { closeDb, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
@@ -76,11 +77,40 @@ describe("BackupService", () => {
     expect(() => backups.restore(result.file)).toThrow(/Stop the server/);
   });
 
-  it("refuses snapshots entirely on the hosted database", async () => {
+  it("writes a portable snapshot for the hosted engine", async () => {
     const cloud = new BackupService(ctx.db, "sqlitecloud", dir);
-    await expect(cloud.run()).rejects.toBeInstanceOf(ConfigurationError);
+    const result = await cloud.run();
+    expect(result.bytes).toBeGreaterThan(0);
+
+    const { DatabaseSync } = await import("node:sqlite");
+    const snapshot = new DatabaseSync(result.path);
+    const row = snapshot.prepare("SELECT COUNT(*) AS count FROM accounts").get() as {
+      count: number;
+    };
+    snapshot.close();
+    expect(row.count).toBeGreaterThan(20);
+
     const status = await cloud.status();
-    expect(status.supported).toBe(false);
-    expect(status.engine).toBe("sqlitecloud");
+    expect(status.supported).toBe(true);
+    expect(status.count).toBe(1);
+    expect(() => cloud.restore(result.file)).toThrow(/provider's/);
+  });
+
+  it("rejects a snapshot that is missing rows", async () => {
+    const result = await backups.run();
+    expect(() => verifySnapshot(result.path, { accounts: 999_999 })).toThrow(/expected/);
+  });
+
+  it("keeps only the newest snapshots", async () => {
+    const pruned = new BackupService(ctx.db, "local", dir, 2);
+    await pruned.run();
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await pruned.run();
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await pruned.run();
+
+    const status = await pruned.status();
+    expect(status.count).toBe(2);
+    expect(status.latest).not.toBeNull();
   });
 });

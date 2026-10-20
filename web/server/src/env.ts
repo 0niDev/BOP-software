@@ -67,6 +67,28 @@ function optionalPath(raw: string | undefined): string | null {
   return value ? path.resolve(webRoot, value) : null;
 }
 
+/**
+ * Like `optionalPath`, but keeps a UNC share (`\\\\pc\\share`) untouched.
+ * Resolving that against `web/` would produce a path no Windows machine can open.
+ */
+function optionalDir(raw: string | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  return /^[\\/]{2}/.test(value) ? value : path.resolve(webRoot, value);
+}
+
+/** Named snapshots to keep; 0 disables pruning. */
+function readBackupKeep(): number {
+  const raw = Number(process.env.ERP_BACKUP_KEEP ?? 7);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 7;
+}
+
+/** Idle gap before the live copy is rewritten; 0 means immediately. */
+function readMirrorDebounceSeconds(): number {
+  const raw = Number(process.env.ERP_MIRROR_DEBOUNCE_SECONDS ?? 15);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 15;
+}
+
 export const env = {
   dbEngine: readEngine(),
   localDbPath: path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite"),
@@ -80,6 +102,14 @@ export const env = {
   currency: process.env.ERP_CURRENCY ?? "PKR",
   backupDir,
   autoBackupHours: readAutoBackupHours(),
+  /** Named snapshots to keep (`ERP_BACKUP_KEEP`); 0 disables pruning. */
+  backupKeep: readBackupKeep(),
+  /** Live local copy: on by default, refreshed after an idle gap. */
+  liveMirror: readFlag(process.env.ERP_LIVE_MIRROR, true),
+  mirrorDir: optionalDir(process.env.ERP_MIRROR_DIR) ?? path.join(backupDir, "live"),
+  mirrorDebounceMs: readMirrorDebounceSeconds() * 1000,
+  /** Folder on the operator's computer; pushed to on every refresh. */
+  pcMirrorDir: optionalDir(process.env.ERP_PC_MIRROR_DIR),
   apiKey: process.env.ERP_API_KEY ?? "",
   /**
    * Serve the built React client from this same process (one port, one

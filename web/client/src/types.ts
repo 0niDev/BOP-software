@@ -383,6 +383,21 @@ export interface BackupStatus {
   backups: BackupFile[];
 }
 
+/** GET /api/backup/mirror: the continuously refreshed local copy. */
+export interface MirrorStatus {
+  enabled: boolean;
+  path: string;
+  exists: boolean;
+  bytes: number;
+  updatedAt: string | null;
+  lagSeconds: number | null;
+  pending: boolean;
+  lastError: string | null;
+  pcDirectory: string | null;
+  pcUpdatedAt: string | null;
+  pcError: string | null;
+}
+
 export interface DashboardData {
   today: {
     salesTotal: number;

@@ -1,6 +1,9 @@
 @echo off
 title Pharmaceutical ERP - Setup
 color 0A
+REM Run from this folder so requirements.txt, main.py and the runtime
+REM directories (data/backups/logs) resolve inside python/.
+cd /d "%~dp0"
 
 echo ============================================================
 echo    PHARMACEUTICAL ERP & ACCOUNTING SYSTEM

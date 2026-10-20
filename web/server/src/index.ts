@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import http from "node:http";
 import https from "node:https";
-import { closeDb, getDb } from "./db/index.js";
+import { closeDb, createDatabase, getDb } from "./db/index.js";
+import { ObservedDatabase } from "./db/observed.js";
 import { bootstrapDatabase } from "./db/bootstrap.js";
 import { env } from "./env.js";
 import { createApp } from "./http/app.js";
 import { BackupService } from "./services/backupService.js";
+import { MirrorService } from "./services/mirrorService.js";
 
 /**
  * TLS is optional and self-contained: when both ERP_TLS_CERT and ERP_TLS_KEY are
@@ -65,7 +67,22 @@ function installGlobalErrorBoundaries(): void {
 async function main(): Promise<void> {
   installGlobalErrorBoundaries();
 
-  const db = getDb();
+  const rawDb = getDb();
+  // The hosted driver serializes every statement on one connection, so a
+  // multi-second snapshot would otherwise pause the whole API. The mirror gets
+  // its own read connection; SQLite allows concurrent readers.
+  const mirrorDb = env.dbEngine === "sqlitecloud" && env.liveMirror ? createDatabase() : rawDb;
+  // Writes are observed so the local copy can refresh shortly after a change;
+  // the mirror keeps reading from its own adapter.
+  const mirror = new MirrorService(
+    mirrorDb,
+    env.dbEngine,
+    env.mirrorDir,
+    env.pcMirrorDir,
+    env.mirrorDebounceMs,
+    env.liveMirror,
+  );
+  const db = env.liveMirror ? new ObservedDatabase(rawDb, () => mirror.notify()) : rawDb;
 
   // The hosted SQLite Cloud database is the live production schema and must
   // never be re-created or re-seeded from the new app; only the local
@@ -94,6 +111,7 @@ async function main(): Promise<void> {
     engine: env.dbEngine,
     // One process, one port: the API and the built client when asked for.
     clientDir: env.serveClient ? env.clientDist : null,
+    mirror,
   });
 
   const tls = readTls();
@@ -116,8 +134,8 @@ async function main(): Promise<void> {
   // Auto-backup scheduler (services/auto_backup.py ran every 24h by default).
   // Opt-in here: set ERP_AUTO_BACKUP_HOURS to enable.
   let backupTimer: NodeJS.Timeout | null = null;
-  if (env.autoBackupHours > 0 && env.dbEngine === "local") {
-    const backups = new BackupService(db, env.dbEngine, env.backupDir);
+  if (env.autoBackupHours > 0) {
+    const backups = new BackupService(rawDb, env.dbEngine, env.backupDir, env.backupKeep);
     const intervalMs = env.autoBackupHours * 60 * 60 * 1000;
     backupTimer = setInterval(() => {
       void backups
@@ -136,9 +154,26 @@ async function main(): Promise<void> {
     );
   }
 
+  // Live local copy: refresh once at startup so changes made outside this
+  // process (e.g. the SQLite Cloud dashboard) are picked up too.
+  if (env.liveMirror) {
+    void mirror.start().catch((err: unknown) =>
+      console.error(`[${timestamp()}] [mirror] startup refresh failed:`, err),
+    );
+  } else {
+    console.log("[mirror] disabled (ERP_LIVE_MIRROR=0)");
+  }
+
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[${timestamp()}] [server] ${signal} received, shutting down...`);
     if (backupTimer) clearInterval(backupTimer);
+
+    // Save the last few seconds of writes before the connection goes away.
+    try {
+      await mirror.flush();
+    } catch (err) {
+      console.error(`[${timestamp()}] [mirror] shutdown flush failed:`, err);
+    }
 
     try {
       // Best-effort cancellation of any in-flight statement before closing.
@@ -148,6 +183,13 @@ async function main(): Promise<void> {
     }
 
     server.close();
+    if (mirrorDb !== rawDb) {
+      try {
+        await mirrorDb.close();
+      } catch {
+        // the app connection is the one that must close cleanly
+      }
+    }
     await closeDb();
     process.exit(0);
   };

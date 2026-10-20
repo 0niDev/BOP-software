@@ -3,7 +3,7 @@ import { api, ApiError, getToken } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
-import type { BackupStatus, DatabaseInfo, ShortcutEntry } from "../types";
+import type { BackupStatus, DatabaseInfo, MirrorStatus, ShortcutEntry } from "../types";
 
 /** Picker lists ported from settings_view.py. */
 const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SAR", "AED"];
@@ -35,6 +35,8 @@ export default function SettingsPage() {
 
   const [backups, setBackups] = useState<BackupStatus | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [mirror, setMirror] = useState<MirrorStatus | null>(null);
+  const [mirrorBusy, setMirrorBusy] = useState(false);
 
   const [shortcuts, setShortcuts] = useState<ShortcutEntry[]>([]);
   const [shortcutFilter, setShortcutFilter] = useState("");
@@ -122,8 +124,40 @@ export default function SettingsPage() {
   async function loadBackups(): Promise<void> {
     try {
       setBackups(await api.backupStatus());
+      setMirror(await api.mirrorStatus());
     } catch (err) {
       setError(message(err, "Failed to load backup status."));
+    }
+  }
+
+  async function syncMirror(): Promise<void> {
+    setError(null);
+    setNotice(null);
+    setMirrorBusy(true);
+    try {
+      const result = await api.syncMirror();
+      setMirror(result);
+      setNotice(`Local copy refreshed (${formatBytes(result.bytes)}).`);
+    } catch (err) {
+      setError(message(err, "Could not refresh the local copy."));
+    } finally {
+      setMirrorBusy(false);
+    }
+  }
+
+  async function downloadLive(): Promise<void> {
+    try {
+      const blob = await api.downloadMirror();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "erp_mirror.db";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(message(err, "Download failed."));
     }
   }
 
@@ -454,14 +488,71 @@ export default function SettingsPage() {
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>
           <h2 style={{ flex: 1, margin: 0 }}>
+            Local copy{" "}
+            {mirror?.exists && <span className="badge">{formatBytes(mirror.bytes)}</span>}{" "}
+            {mirror?.pending && <span className="badge">syncing…</span>}
+          </h2>
+          <button onClick={() => void syncMirror()} disabled={mirrorBusy || !mirror}>
+            {mirrorBusy ? "Syncing…" : "Sync now"}
+          </button>
+          <button onClick={() => void downloadLive()} disabled={!mirror?.exists}>
+            Download
+          </button>
+        </div>
+        {mirror ? (
+          <>
+            <p style={{ opacity: 0.7, fontSize: 12 }}>
+              {mirror.enabled
+                ? mirror.exists
+                  ? `Refreshed ${mirror.lagSeconds ?? 0}s ago, then again shortly after every change. `
+                  : "No copy written yet. "
+                : "Automatic refresh is off (ERP_LIVE_MIRROR=0). "}
+              Saved on the server at <code>{mirror.path}</code>.
+            </p>
+            {mirror.pcDirectory ? (
+              <p
+                style={{
+                  fontSize: 12,
+                  marginBottom: 0,
+                  color: mirror.pcError ? "var(--warning, #f39c12)" : undefined,
+                  opacity: mirror.pcError ? 1 : 0.7,
+                }}
+              >
+                {mirror.pcError
+                  ? `⚠ Could not save to your computer (${mirror.pcDirectory}): ${mirror.pcError}`
+                  : `Copied to your computer (${mirror.pcDirectory})${
+                      mirror.pcUpdatedAt
+                        ? ` at ${mirror.pcUpdatedAt.slice(0, 19).replace("T", " ")}`
+                        : ""
+                    }.`}
+              </p>
+            ) : (
+              <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+                Set <code>ERP_PC_MIRROR_DIR</code> to also push this file to a folder on your
+                computer.
+              </p>
+            )}
+            {mirror.lastError && (
+              <p style={{ color: "var(--warning, #f39c12)", fontSize: 12, marginBottom: 0 }}>
+                Last error: {mirror.lastError}
+              </p>
+            )}
+          </>
+        ) : (
+          <p style={{ opacity: 0.7 }}>Loading the local copy…</p>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="row" style={{ alignItems: "center" }}>
+          <h2 style={{ flex: 1, margin: 0 }}>
             Backups{" "}
-            {backups && <span className="badge">{backups.count} snapshot(s)</span>}{" "}
-            {backups && !backups.supported && <span className="badge">provider-managed</span>}
+            {backups && <span className="badge">{backups.count} snapshot(s)</span>}
           </h2>
           <button
             className="primary"
             onClick={() => void runBackup()}
-            disabled={backupBusy || backups?.supported === false}
+            disabled={backupBusy}
           >
             {backupBusy ? "Backing up…" : "Back up now"}
           </button>
@@ -469,10 +560,8 @@ export default function SettingsPage() {
         {backups && (
           <p style={{ opacity: 0.7, fontSize: 12 }}>
             Engine <strong>{backups.engine}</strong> · folder <code>{backups.directory}</code> ·{" "}
-            {formatBytes(backups.totalBytes)} used
-            {backups.supported
-              ? ". Snapshots are written live with VACUUM INTO; restoring needs the server stopped."
-              : ". The hosted database is snapshotted by the provider, so local snapshots are disabled."}
+            {formatBytes(backups.totalBytes)} used. Snapshots are portable SQLite files; restoring
+            needs the server stopped or the provider's restore.
           </p>
         )}
         <table>

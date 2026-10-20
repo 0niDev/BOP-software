@@ -29,6 +29,7 @@ The first lines of `web/logs/erp-out.log` tell you which mode is running:
 [client] serving the built client from …                            (ERP_SERVE_CLIENT=1)
 [server] API listening on http://0.0.0.0:4000 (engine=…, client=…, tls=…)
 [backup] auto-backup every 24h into …                               (if enabled)
+[mirror] local copy at …                                            (after the first refresh)
 ```
 
 The process exits non-zero at startup when:
@@ -58,31 +59,49 @@ server cannot fill the disk.
 
 ## Backups and restore
 
-### Hosted engine (production default)
+Two layers, on purpose:
 
-SQLite Cloud snapshots the database; the app deliberately does not. In the UI,
-Backups shows `supported: false` / “provider-managed” and `POST /api/backup`
-returns `CONFIGURATION_ERROR`. Restore is the provider's procedure.
+1. **Provider history (hosted engine).** SQLite Cloud keeps a daily full snapshot
+   plus per-second changes, stored off-box, restorable to any second inside the
+   retention window. Keep that window at 30 days if the plan allows it. RPO:
+   seconds; RTO: minutes (dashboard or `RESTORE BACKUP DATABASE`).
+2. **Live local copy + named snapshots (this app).** A portable SQLite file the
+   operator can open, copy and restore without the provider. RPO: the debounce
+   interval plus however long someone keeps writing without a pause.
 
-### Local engine
+### Live local copy
 
-- Snapshots are `erp_backup_<UTC timestamp>.db` in `ERP_BACKUP_DIR` (default
-  `web/backups`), written with `VACUUM INTO` — consistent without stopping the
-  server.
-- Enable the scheduler with `ERP_AUTO_BACKUP_HOURS` (e.g. `24`); the first
-  snapshot is one interval after startup, not immediately.
-- Create one now: `POST /api/backup`, or the Settings → Backups button.
-  Download: `GET /api/backups/:file/download`.
-- **Restore is refused while the server runs** — replacing the file under an
-  open connection corrupts it. The safe procedure:
-  1. `nssm stop BOP-ERP`
-  2. copy `erp_backup_<timestamp>.db` over the path in `ERP_LOCAL_DB`
-  3. start the service and verify health plus the trial balance.
-- Back up the `.env` separately; it is not in the snapshot and contains the
-  connection string.
+- `backups/live/erp_mirror.db` is rewritten after `ERP_MIRROR_DEBOUNCE_SECONDS`
+  (default 15) of no writes, at startup, and on a clean shutdown. Every rewrite
+  is a full, consistent snapshot (read in one transaction for the hosted
+  engine) and is verified with `PRAGMA integrity_check` before it replaces the
+  old file.
+- Status and a manual refresh: Settings → Local copy, or
+  `GET/POST /api/backup/mirror`. Download: `GET /api/backup/mirror/download`.
+- `ERP_PC_MIRROR_DIR` pushes the same file to a mapped drive or UNC share, e.g.
+  `\\your-pc\bop-backup`. If that machine is off or the share is unreachable the
+  server keeps its own copy and retries on the next refresh; the Settings page
+  shows the error.
+- Disable with `ERP_LIVE_MIRROR=0`.
+- A file held open in DB Browser blocks the Windows rename. The mirror keeps the
+  previous file and reports the error; close the viewer and it catches up.
 
-Copy snapshots off the server (or into a proper backup product). A snapshot on
-the same disk is not a backup against disk failure.
+### Named snapshots
+
+- `erp_backup_<UTC timestamp>.db` in `ERP_BACKUP_DIR` (default `web/backups`).
+  `ERP_BACKUP_KEEP` (default 7) prunes the oldest after a successful new one.
+- Create one now: `POST /api/backup` or Settings → Backups. Schedule with
+  `ERP_AUTO_BACKUP_HOURS=24` if you want a separate history.
+- Restore (local engine): stop the service, copy the snapshot over `ERP_LOCAL_DB`,
+  start it, check health and the trial balance. Restore (hosted engine): use the
+  provider's point-in-time restore, or upload the file through the dashboard.
+
+### Off-box and secrets
+
+A copy on the same disk is not a backup against disk failure. Keep the PC/NAS
+copy, and keep `web/.env` (it holds the only database credential) with your
+password manager or the same secure off-box location. It is never included in a
+snapshot.
 
 ## Routine maintenance
 

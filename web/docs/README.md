@@ -106,8 +106,12 @@ restart.
 | `ERP_SERVE_CLIENT` | off | `1`/`true`/`yes`/`on` serves `client/dist` from the same process and enables the SPA fallback |
 | `ERP_CLIENT_DIST` | `./client/dist` | Where the built client lives (resolved against `web/`) |
 | `ERP_TLS_CERT`, `ERP_TLS_KEY` | — | Set **both** to terminate HTTPS in-process; setting one is a startup error |
-| `ERP_BACKUP_DIR` | `./backups` | Snapshot directory for the local engine |
-| `ERP_AUTO_BACKUP_HOURS` | `0` (off) | Auto-backup interval; only active for the local engine |
+| `ERP_BACKUP_DIR` | `./backups` | Snapshot directory; the live copy lives in `live/` under it |
+| `ERP_BACKUP_KEEP` | `7` | Named snapshots to keep; `0` keeps everything |
+| `ERP_AUTO_BACKUP_HOURS` | `0` (off) | Extra named-snapshot interval; both engines |
+| `ERP_LIVE_MIRROR` | on | Continuously refreshed portable copy (`backups/live/erp_mirror.db`); `0` disables |
+| `ERP_MIRROR_DEBOUNCE_SECONDS` | `15` | Idle gap before the live copy is rewritten |
+| `ERP_PC_MIRROR_DIR` | — | Mapped drive or UNC folder; the live copy is pushed there after each refresh |
 | `ERP_COMPANY_ID` | `1` | Company used by every service and query |
 | `ERP_WAREHOUSE_ID`, `ERP_CURRENCY`, `ERP_API_KEY` | `1`, `PKR`, empty | Parsed into `env` but not consumed by any route yet (reserved) |
 

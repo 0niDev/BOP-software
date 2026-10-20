@@ -1,21 +1,19 @@
 /**
- * Database backups, ported from controllers/backup_controller.py and
- * services/auto_backup.py (which write `backups/erp_backup_*.db` snapshots and
- * report folder health).
+ * Named database backups: `erp_backup_<timestamp>.db` snapshots with pruning.
  *
- * Scope note -- this is deliberately narrow:
- * - **local engine**: `VACUUM INTO` produces a consistent snapshot even while
- *   the database is open, so backups work live.
- * - **sqlitecloud engine**: refused. The hosted database's snapshotting is the
- *   provider's job, and this code must never touch production data.
- * - **restore**: refused while the server holds the connection open, because
- *   swapping the database file under a live connection corrupts it. The error
- *   explains the safe procedure instead of pretending to work.
+ * Both engines are supported now. Local snapshots use `VACUUM INTO`; hosted
+ * SQLite Cloud snapshots are rebuilt into a portable local file (see
+ * `snapshot.ts`). The live continuously-updated copy is a separate service
+ * (`mirrorService.ts`).
+ *
+ * Restore is still refused while the server holds the connection open: swapping
+ * the database file under a live connection corrupts it.
  */
 import fs from "node:fs";
 import path from "node:path";
 import type { SqlDatabase } from "../db/types.js";
-import { ConfigurationError, NotFoundError, ValidationError } from "../domain/errors.js";
+import { NotFoundError, ValidationError } from "../domain/errors.js";
+import { verifySnapshot, writeSnapshot } from "./snapshot.js";
 
 const FILE_PREFIX = "erp_backup_";
 const FILE_SUFFIX = ".db";
@@ -49,16 +47,9 @@ export class BackupService {
     private readonly db: SqlDatabase,
     private readonly engine: string,
     private readonly backupDir: string,
+    /** Keep at most this many snapshots; 0 disables pruning. */
+    private readonly keep = 0,
   ) {}
-
-  private assertSupported(): void {
-    if (this.engine !== "local") {
-      throw new ConfigurationError(
-        "Snapshots are only available for the local database engine. The hosted " +
-          "SQLite Cloud database is backed up by the provider.",
-      );
-    }
-  }
 
   private stamp(): string {
     return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "_");
@@ -83,7 +74,7 @@ export class BackupService {
     return {
       engine: this.engine,
       directory: this.backupDir,
-      supported: this.engine === "local",
+      supported: true,
       exists: fs.existsSync(this.backupDir),
       count: backups.length,
       latest: latest?.file ?? null,
@@ -94,12 +85,17 @@ export class BackupService {
 
   /** Create a snapshot now. */
   async run(): Promise<BackupResult> {
-    this.assertSupported();
     fs.mkdirSync(this.backupDir, { recursive: true });
     const file = `${FILE_PREFIX}${this.stamp()}${FILE_SUFFIX}`;
     const target = path.join(this.backupDir, file);
-    // VACUUM INTO writes a fully consistent copy without stopping the server.
-    await this.db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+    try {
+      const counts = await writeSnapshot(this.db, this.engine, target);
+      verifySnapshot(target, counts);
+    } catch (err) {
+      fs.rmSync(target, { force: true });
+      throw err;
+    }
+    this.prune();
     const stat = fs.statSync(target);
     return {
       file,
@@ -107,6 +103,18 @@ export class BackupService {
       bytes: stat.size,
       createdAt: stat.mtime.toISOString(),
     };
+  }
+
+  /** Keep the newest `keep` snapshots, only after a successful new one exists. */
+  private prune(): void {
+    if (this.keep <= 0) return;
+    for (const entry of this.readDir().slice(this.keep)) {
+      try {
+        fs.rmSync(path.join(this.backupDir, entry.file), { force: true });
+      } catch {
+        // a locked file is retried on the next successful backup
+      }
+    }
   }
 
   /** Resolve a snapshot name to an absolute path, refusing traversal. */
@@ -121,14 +129,17 @@ export class BackupService {
   }
 
   /**
-   * Restoring means replacing the live database file, which cannot be done
-   * safely while this process holds the connection open.
+   * Restoring means replacing the live database, which cannot be done safely
+   * while this process holds the connection open.
    */
   restore(file: string): never {
     this.resolve(file); // 400/404 for a bad name, before explaining
     throw new ValidationError(
-      "Restore cannot run while the server is using the database. Stop the server, then copy " +
-        `backups/${path.basename(file)} over the database file and start it again.`,
+      this.engine === "sqlitecloud"
+        ? "Restore cannot run while the server is using the hosted database. Use the provider's " +
+            "point-in-time restore, or upload the snapshot through the SQLite Cloud dashboard."
+        : "Restore cannot run while the server is using the database. Stop the server, then copy " +
+            `backups/${path.basename(file)} over the database file and start it again.`,
     );
   }
 }

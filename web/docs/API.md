@@ -118,7 +118,7 @@ Opening balances must balance (total debit = total credit) and post one `OPENING
 entry against Retained Earnings (`3100`). System accounts (`is_system_account =
 1`) cannot be deactivated; accounts with posted movement cannot be deactivated.
 
-## Backup (local engine only)
+## Backup (both engines)
 
 | Method | Path | Response |
 | --- | --- | --- |
@@ -126,12 +126,14 @@ entry against Retained Earnings (`3100`). System accounts (`is_system_account =
 | `POST` | `/api/backup` | `201` `{ file, path, bytes, createdAt }` |
 | `GET` | `/api/backups/:file/download` | `.db` file download |
 | `POST` | `/api/backups/:file/restore` | Always an error explaining why restore is refused |
+| `GET` | `/api/backup/mirror` | Live local copy status `{ enabled, path, exists, bytes, updatedAt, lagSeconds, pending, lastError, pcDirectory, pcUpdatedAt, pcError }` |
+| `POST` | `/api/backup/mirror` | Rewrites the live local copy now, returns the same status |
+| `GET` | `/api/backup/mirror/download` | Live local copy as a `.db` download |
 
-For the `sqlitecloud` engine, `supported` is `false` and creation returns
-`CONFIGURATION_ERROR` — provider snapshots are the backup. Restore is refused on
-both engines while this process holds the database open (copy the snapshot over
-the file with the service stopped instead). `:file` must be a bare
-`erp_backup_*.db` name; anything else is `400` or `404`.
+Both engines produce a portable SQLite file: `VACUUM INTO` locally, and a
+schema+row rebuild for `sqlitecloud` (the gateway cannot write to this machine).
+Restore is refused while this process holds the database open. `:file` must be a
+bare `erp_backup_*.db` name; anything else is `400` or `404`.
 
 ## Fixed assets
 

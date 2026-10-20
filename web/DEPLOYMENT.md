@@ -142,14 +142,22 @@ app**, so a reverse proxy in front is worth having for those alone.
 
 ## Backups
 
-* **Hosted engine (production):** the SQLite Cloud provider snapshots the
-  database. The app's own snapshot feature is deliberately disabled for this
-  engine — `GET /api/backup/status` reports `supported: false`, and the Settings
-  page says so, so nobody mistakes a missing button for a broken one.
-* **Local engine:** set `ERP_AUTO_BACKUP_HOURS=24` to have the process write
-  `erp_backup_<timestamp>.db` snapshots into `ERP_BACKUP_DIR` (default
-  `web\backups`). Restoring is refused while the server is running, by design —
-  swapping the file under an open connection corrupts it.
+* **Provider history:** SQLite Cloud keeps a daily full snapshot plus per-second
+  changes and can restore to any second in the retention window. Confirm backup
+  is enabled for the production database and keep the window at 30 days.
+* **Live local copy:** on by default. `backups\live\erp_mirror.db` is rewritten
+  after about 15 seconds without writes, at startup and on shutdown, and is
+  verified before replacing the previous file. Set `ERP_PC_MIRROR_DIR` to a
+  shared folder or mapped drive (e.g. `\\your-pc\bop-backup`) to keep a copy on
+  the operator's computer as well.
+* **Named snapshots:** set `ERP_AUTO_BACKUP_HOURS=24` to also write
+  `erp_backup_<timestamp>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
+  7) prunes older ones. Both engines now produce a portable SQLite file.
+* **Restore:** provider point-in-time restore first (hosted) or, with the service
+  stopped, copying the snapshot over `ERP_LOCAL_DB` (local). Restore through the
+  API is refused while the server is running, by design.
+* **Keep `web\.env` off-box too** — it holds the database credential and is not
+  part of any snapshot.
 
 ## Verification after every deploy
 

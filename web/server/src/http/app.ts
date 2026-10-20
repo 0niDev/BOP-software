@@ -6,7 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { z } from "zod";
 import type { SqlDatabase } from "../db/types.js";
 import { env } from "../env.js";
-import { AppError, UnauthorizedError, ValidationError } from "../domain/errors.js";
+import { AppError, ConfigurationError, UnauthorizedError, ValidationError } from "../domain/errors.js";
 import { isoDateSchema, optionalIsoDateSchema, validateIsoDate } from "../domain/dateValidation.js";
 import { AccountingService } from "../services/accountingService.js";
 import { AccountService } from "../services/accountService.js";
@@ -27,6 +27,7 @@ import { ReportService } from "../services/reportService.js";
 import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
 import { SalesInvoiceService } from "../services/salesInvoiceService.js";
 import { SettingsService } from "../services/settingsService.js";
+import type { MirrorService } from "../services/mirrorService.js";
 import { UserService } from "../services/userService.js";
 
 /** Minimal in-memory session store. Replace with JWT/DB sessions later. */
@@ -65,6 +66,8 @@ export interface AppOptions {
   engine?: string;
   /** Where snapshots are written. */
   backupDir?: string;
+  /** Live local copy; when absent the mirror routes report it as unavailable. */
+  mirror?: MirrorService;
   /**
    * Directory of a built client (`index.html` + `assets/`). When given *and* the
    * build is actually present, this process also serves the SPA — the
@@ -219,6 +222,27 @@ export function createApp(
 
   app.post("/api/backup", requireAuth, async (_req, res) => {
     res.status(201).json(await backups.run());
+  });
+
+  // The live copy: a continuously refreshed, portable SQLite file.
+  app.get("/api/backup/mirror", requireAuth, async (_req, res) => {
+    if (!options.mirror) throw new ConfigurationError("The live local copy is not configured.");
+    res.json(await options.mirror.status());
+  });
+
+  app.post("/api/backup/mirror", requireAuth, async (_req, res) => {
+    if (!options.mirror) throw new ConfigurationError("The live local copy is not configured.");
+    await options.mirror.runNow();
+    res.json(await options.mirror.status());
+  });
+
+  app.get("/api/backup/mirror/download", requireAuth, async (_req, res) => {
+    if (!options.mirror) throw new ConfigurationError("The live local copy is not configured.");
+    const file = await options.mirror.read();
+    res
+      .type("application/octet-stream")
+      .setHeader("Content-Disposition", 'attachment; filename="erp_mirror.db"')
+      .send(file);
   });
 
   app.get("/api/backups/:file/download", requireAuth, (req, res) => {

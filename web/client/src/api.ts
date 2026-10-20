@@ -9,6 +9,7 @@ import type {
   Bom,
   Cheque,
   LedgerEntry,
+  MirrorStatus,
   CreatedPurchaseInvoice,
   CreatedSalesInvoice,
   CreatePurchaseInvoiceRequest,
@@ -537,6 +538,9 @@ export const api = {
     request<{ file: string; bytes: number; createdAt: string }>("/api/backup", { method: "POST" }),
   downloadBackup: (file: string) =>
     requestBlob(`/api/backups/${encodeURIComponent(file)}/download`),
+  mirrorStatus: () => request<MirrorStatus>("/api/backup/mirror"),
+  syncMirror: () => request<MirrorStatus>("/api/backup/mirror", { method: "POST" }),
+  downloadMirror: () => requestBlob("/api/backup/mirror/download"),
   saveSettings: (group: string, settings: Record<string, unknown>) =>
     request<Record<string, unknown>>("/api/settings", {
       method: "PUT",
