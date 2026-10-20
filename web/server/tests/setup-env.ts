@@ -9,7 +9,7 @@
  * settings.test.ts) or, worse, points a test at the production database.
  *
  * `loadDotEnv()` only fills keys that are still undefined, so setting this here
- * wins over `web/.env` and the repository-root `.env`.
+ * wins over `web/.env`.
  *
  * The opt-in hosted test (`tests/sqliteCloud.test.ts`) builds its own connection
  * from `SQLITE_CLOUD_URL` and never goes through `getDb()`, so it is unaffected.

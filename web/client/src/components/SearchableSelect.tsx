@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import useAnchoredPosition from "../lib/useAnchoredPosition";
 
 /**
  * A native `<select>` the user can type into.
@@ -48,6 +49,7 @@ export default function SearchableSelect({
   const [highlight, setHighlight] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find((option) => option.value === value);
 
@@ -73,6 +75,9 @@ export default function SearchableSelect({
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  // The panel is fixed-position (so no card can clip it); anchor it to the input.
+  useAnchoredPosition(open, wrapRef, panelRef, { matchWidth: true });
 
   // Keep the highlight inside the filtered list as it changes.
   useEffect(() => {
@@ -134,7 +139,7 @@ export default function SearchableSelect({
         }}
       />
       {open && (
-        <div className="sselect-panel" role="listbox">
+        <div className="sselect-panel" role="listbox" ref={panelRef}>
           {filtered.length === 0 && <div className="sselect-empty">{emptyText}</div>}
           {filtered.map((option, index) => (
             <div

@@ -12,17 +12,18 @@ REM ===========================================================================
 
 set "SERVICE_NAME=BOP-ERP"
 
-REM This script lives in <repo>\deploy\windows
+REM This script lives in <web>\deploy\windows
 set "DEPLOY_DIR=%~dp0"
-for %%I in ("%DEPLOY_DIR%..\..") do set "REPO_ROOT=%%~fI"
-set "WEB_DIR=%REPO_ROOT%\web"
+for %%I in ("%DEPLOY_DIR%..\..") do set "WEB_DIR=%%~fI"
+for %%I in ("%WEB_DIR%\..") do set "REPO_ROOT=%%~fI"
 set "SERVER_DIR=%WEB_DIR%\server"
-set "LOG_DIR=%REPO_ROOT%\logs"
+set "LOG_DIR=%WEB_DIR%\logs"
 
 echo ============================================================
 echo    BOP ERP - INSTALL WINDOWS SERVICE
 echo ============================================================
 echo   Repo:     %REPO_ROOT%
+echo   Web app:  %WEB_DIR%
 echo   Service:  %SERVICE_NAME%
 echo.
 
@@ -167,7 +168,7 @@ echo   Logs:          %LOG_DIR%\erp-out.log  and  erp-error.log
 echo   Open:          http://localhost:%PORT%
 echo.
 echo   Before go-live, change the admin password and create real user
-echo   accounts - see web\DEPLOYMENT.md.
+echo   accounts - see DEPLOYMENT.md.
 echo.
 pause
 exit /b 0

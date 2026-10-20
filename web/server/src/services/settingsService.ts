@@ -222,8 +222,8 @@ export class SettingsService {
         ? maskConnectionUrl(env.sqliteCloudUrl)
         : `${env.localDbPath}${fs.existsSync(env.localDbPath) ? "" : "  (file not created yet)"}`,
       source: isCloud
-        ? "SQLITE_CLOUD_URL (web/.env or the repository root .env)"
-        : "ERP_LOCAL_DB (web/.env or the repository root .env)",
+        ? "SQLITE_CLOUD_URL (web/.env)"
+        : "ERP_LOCAL_DB (web/.env)",
       sqliteVersion: String(row?.version ?? "unknown"),
       restartRequired: true,
       companyId: this.companyId,

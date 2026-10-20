@@ -11,8 +11,7 @@ REM  Ctrl+C stops it. Run deploy.bat first so dist\ exists.
 REM ===========================================================================
 
 set "DEPLOY_DIR=%~dp0"
-for %%I in ("%DEPLOY_DIR%..\..") do set "REPO_ROOT=%%~fI"
-set "WEB_DIR=%REPO_ROOT%\web"
+for %%I in ("%DEPLOY_DIR%..\..") do set "WEB_DIR=%%~fI"
 set "SERVER_DIR=%WEB_DIR%\server"
 
 if not exist "%SERVER_DIR%\dist\index.js" (

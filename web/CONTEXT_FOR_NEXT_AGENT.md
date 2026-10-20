@@ -2,6 +2,13 @@
 
 Compact single-file summary of the whole session.
 
+> **Layout change 2026-10-18 — read this first.** The Python/PySide6 app now
+> lives in `python/`; the TypeScript rewrite stays in `web/`. The two apps are
+> independent: `python/.env` configures only the Python app and `web/.env`
+> configures only the web app (there is **no** fallback to a repository-root
+> `.env`). References below to the "root" or "root `.env`" describe the old
+> shared layout; `env.ts` now loads `web/.env` only.
+
 **Latest re-verification 2026-10-13** (see "Latest session" below; all exit 0):
 `npm run typecheck` (server + client + e2e), `npm -w @bop-erp/server run test` →
 **129 passed + 5 skipped (20 files)**, `npm run smoke` → **SMOKE OK**, client
@@ -154,13 +161,14 @@ categories 2–8.
 
 **Connected.** `web/.env` now sets `ERP_DB_ENGINE=sqlitecloud`. Root cause of the
 earlier confusion: `web/.env` pinned `ERP_DB_ENGINE=local` and, because `env.ts`
-loads `web/.env` *first* and the root `.env` only fills gaps, it silently
+loaded `web/.env` *first* and the old root `.env` filled gaps, it silently
 shadowed every cloud setting — `npm run dev` was using `data/dev.sqlite`.
 (That switch also broke one ambient-dependent unit test — see the test-pinning
 note under **Environment / constraints**.)
-`SQLITE_CLOUD_URL` is **not** duplicated in `web/.env`; the root `.env` supplies
-it. `web/.env` is git-ignored (`git check-ignore` confirms), so no secret is
-committed. Flip that one line back to `local` to develop offline.
+Since the 2026-10-18 split, `web/.env` also carries its own
+`SQLITE_CLOUD_URL` — it is a complete, self-contained file and no longer reads
+`python/.env`. `web/.env` is git-ignored (`git check-ignore` confirms), so no
+secret is committed. Flip that one line back to `local` to develop offline.
 
 Verified through the real dev workflow (`npm run dev:server` +
 `npm run dev:client`, no env overrides): banner
@@ -612,7 +620,7 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
 - `reconcile.ts` (**new 2026-10-13**; run with `npm run reconcile`) — advances
   stale `numbering_sequences` for items/parties/invoices/returns/vouchers/orders
   via `reconcileNumberingSequences()` from `db/bootstrap.ts`.
-- `env.ts` (loads web/.env then repo-root .env), `index.ts` (boot local only,
+- `env.ts` (loads web/.env only — independent of `python/.env`), `index.ts` (boot local only,
   listen, SIGINT/SIGTERM shutdown), `seed.ts` (refuses non-local; `--rich` also
   runs `seedRichDemoData`), `smoke.ts` (throwaway DB
   `data/smoke-<pid>.sqlite`, HTTP checks), `seedData.ts` (`seedDemoData` →
@@ -1066,7 +1074,8 @@ shows both the cost of goods and any overhead in `profitLoss.expenses`.
   (client verified via vite compile + HTTP only).
 - `web/.env`: **ERP_DB_ENGINE=sqlitecloud** (switched on 2026-10-12; set it back
   to `local` to use `data/dev.sqlite`), ERP_LOCAL_DB=./data/dev.sqlite,
-  PORT=4000. `SQLITE_CLOUD_URL` comes from the repo-root `.env`.
+  PORT=4000, and its own `SQLITE_CLOUD_URL` (since the 2026-10-18 split).
+  The Python app's configuration is `python/.env` and is never read here.
   Shell note: `cd web/server` from a web cwd failed once; most commands run as
   `cd web && …`. Live SQLite Cloud **is** now exercised (see "Production
   readiness"). Chrome is still not installed, but Playwright ships its own

@@ -23,8 +23,10 @@ if /i "%~1"=="--skip-pull" set "SKIP_PULL=1"
 if /i "%~2"=="--skip-pull" set "SKIP_PULL=1"
 
 set "DEPLOY_DIR=%~dp0"
-for %%I in ("%DEPLOY_DIR%..\..") do set "REPO_ROOT=%%~fI"
-set "WEB_DIR=%REPO_ROOT%\web"
+REM deploy\windows lives inside the web app: ..\.. is the web directory, and one
+REM level above that is the repository root (used for git).
+for %%I in ("%DEPLOY_DIR%..\..") do set "WEB_DIR=%%~fI"
+for %%I in ("%WEB_DIR%\..") do set "REPO_ROOT=%%~fI"
 
 echo ============================================================
 echo    BOP ERP - DEPLOY
@@ -160,7 +162,7 @@ REM --- restart ---------------------------------------------------------------
 sc query "%SERVICE_NAME%" >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo [7/7] Build complete. Install the service with deploy\windows\install-service.bat
+    echo [7/7] Build complete. Install the service with web\deploy\windows\install-service.bat
     echo.
     pause
     exit /b 0
@@ -172,7 +174,7 @@ nssm start "%SERVICE_NAME%"
 if errorlevel 1 (
     echo.
     echo [X] The service failed to start. Check the log:
-    echo     %REPO_ROOT%\logs\erp-error.log
+    echo     %WEB_DIR%\logs\erp-error.log
     echo.
     pause
     exit /b 1
@@ -210,7 +212,7 @@ echo ============================================================
 echo    DEPLOY COMPLETE
 echo ============================================================
 echo   Open: http://localhost:%PORT%
-echo   Logs: %REPO_ROOT%\logs\erp-out.log  /  erp-error.log
+echo   Logs: %WEB_DIR%\logs\erp-out.log  /  erp-error.log
 echo.
 pause
 exit /b 0

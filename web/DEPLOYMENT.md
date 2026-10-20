@@ -64,24 +64,23 @@ browser ──HTTPS/HTTP──▶  BOP-ERP service (node dist/index.js, port 400
    # ERP_TLS_KEY=./certs/erp.key
    ```
 
-   > `web\.env` is read first, then the repository-root `.env` fills in any key
-   > that is still unset — so an existing root `.env` carrying `SQLITE_CLOUD_URL`
-   > still works.
+   > `web\.env` is the complete configuration for the web app. The Python app's
+   > `python\.env` is separate: neither app reads the other's environment file.
 
 3. **Build and install:**
 
    ```bat
-   deploy\windows\deploy.bat
+   web\deploy\windows\deploy.bat
    ```
 
    Then, **as Administrator**:
 
    ```bat
-   deploy\windows\install-service.bat
+   web\deploy\windows\install-service.bat
    ```
 
    The installer registers the service as auto-start, redirects output to
-   `logs\erp-out.log` and `logs\erp-error.log`, restarts it on failure, and
+   `web\logs\erp-out.log` and `web\logs\erp-error.log`, restarts it on failure, and
    offers to open the port in Windows Firewall.
 
 4. **Verify** (also done automatically at the end of `deploy.bat`):
@@ -97,21 +96,21 @@ browser ──HTTPS/HTTP──▶  BOP-ERP service (node dist/index.js, port 400
 ## Everyday deploy, upgrade and rollback
 
 ```bat
-deploy\windows\deploy.bat                  REM pull, install, typecheck, test, build, restart
-deploy\windows\deploy.bat --skip-tests     REM fast hotfix
-deploy\windows\deploy.bat --skip-pull      REM deploy the working tree as-is
+web\deploy\windows\deploy.bat                  REM pull, install, typecheck, test, build, restart
+web\deploy\windows\deploy.bat --skip-tests     REM fast hotfix
+web\deploy\windows\deploy.bat --skip-pull      REM deploy the working tree as-is
 ```
 
 `deploy.bat` stops the service before replacing the build, so a failed build
 leaves the service stopped rather than serving a half-written bundle — check
-`logs\erp-error.log` and re-run.
+`web\logs\erp-error.log` and re-run.
 
 **Rollback:** check out the previous release and re-run `deploy.bat`:
 
 ```bat
 git log --oneline -5
 git checkout <previous-release-commit>
-deploy\windows\deploy.bat --skip-pull
+web\deploy\windows\deploy.bat --skip-pull
 ```
 
 ## Service management
@@ -120,10 +119,10 @@ deploy\windows\deploy.bat --skip-pull
 | --- | --- |
 | Start / stop / restart | `nssm start BOP-ERP` · `nssm stop BOP-ERP` · `nssm restart BOP-ERP` |
 | Status | `nssm status BOP-ERP` |
-| Live log | `logs\erp-out.log` (startup banner, errors) |
-| Error log | `logs\erp-error.log` |
-| Remove the service | `deploy\windows\uninstall-service.bat` (Administrator) |
-| Trial run in a console | `deploy\windows\run-foreground.bat` — same config, visible output |
+| Live log | `web\logs\erp-out.log` (startup banner, errors) |
+| Error log | `web\logs\erp-error.log` |
+| Remove the service | `web\deploy\windows\uninstall-service.bat` (Administrator) |
+| Trial run in a console | `web\deploy\windows\run-foreground.bat` — same config, visible output |
 
 Use `run-foreground.bat` when the service will not start: it reads the same
 `web\.env` and prints the fatal error instead of burying it in a log.
@@ -157,7 +156,7 @@ app**, so a reverse proxy in front is worth having for those alone.
 1. `curl.exe -fsS http://localhost:4000/api/health` → `{"status":"ok"}`.
 2. Open the app and sign in; the Dashboard must render figures, not an error.
 3. Reports → Trial Balance must be balanced (debit = credit).
-4. `logs\erp-error.log` must contain nothing new.
+4. `web\logs\erp-error.log` must contain nothing new.
 
 ## Security checklist before go-live
 
@@ -174,13 +173,13 @@ Run through this before the app is reachable by anyone else:
       settings and read every report. Until role checks are added, treat every
       account you create as an administrator and keep the user list short.
 - [ ] Confirm the firewall only exposes the port you intend.
-- [ ] Confirm `logs\` and `web\.env` are readable only by the service account.
+- [ ] Confirm `web\logs\` and `web\.env` are readable only by the service account.
 
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 | --- | --- |
-| Service starts then stops | Read `logs\erp-error.log`. Usually a missing/invalid `web\.env` key or an unreachable `SQLITE_CLOUD_URL` |
+| Service starts then stops | Read `web\logs\erp-error.log`. Usually a missing/invalid `web\.env` key or an unreachable `SQLITE_CLOUD_URL` |
 | `Server service failed to start` on install | Wrong `node.exe` path, or NSSM is not on `PATH` |
 | JSON 404 at `/` | `ERP_SERVE_CLIENT` is not `1`, or `client\dist` was not built (`npm run build`) |
 | Login returns 500 | The database was reached but the query failed — check the log; a dead connection reports `DATABASE_ERROR` |

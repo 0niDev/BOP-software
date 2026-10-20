@@ -6,6 +6,26 @@ the **existing SQLite Cloud database** — the schema, the seeded chart of
 accounts and doc formats (e.g. `SI-00002`) are reused unchanged, and the
 password hashes stay compatible.
 
+## Documentation
+
+The full documentation set lives in **[docs/](docs/)**. Start with
+[docs/README.md](docs/README.md) for the overview and document map, then:
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — layers, request lifecycle,
+  database adapters, authentication, money and numbering
+- [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — tables, relationships, enums,
+  system accounts, numbering sequences, settings keys
+- [docs/API.md](docs/API.md) — every endpoint, with bodies and error codes
+- [docs/MODULES.md](docs/MODULES.md) — business rules and journal postings per
+  module
+- [docs/FRONTEND.md](docs/FRONTEND.md) — shell, pages, design system, shortcuts
+- [docs/TESTING.md](docs/TESTING.md) — unit/integration, smoke, browser audit, CI
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) — health, logs, backups, failure
+  modes, security posture, known limitations
+
+This README stays the short introduction; [DEPLOYMENT.md](DEPLOYMENT.md) is the
+Windows deployment runbook.
+
 ## Why the rewrite
 
 The original is a business/accounting system written in Python with a Qt
@@ -70,6 +90,17 @@ class-based variant (`.icon-btn`, `.sort-btn`, `.num`, `.pill`, `.meter`, `.menu
 
 ## Getting started
 
+### Fresh Windows machine
+
+Double-click **`web\setup.bat`** (or run `web\setup.bat` from a command
+prompt). It installs Node.js 22 LTS through winget when Node is missing or too
+old, installs the npm dependencies, creates `web\.env` from the template (local
+SQLite by default, with an optional prompt to configure the hosted database),
+verifies the installation with `npm run smoke`, optionally seeds demo data, and
+can start the app. No other prerequisites are needed.
+
+### Manual setup
+
 ```bash
 cd web
 npm install
@@ -132,8 +163,9 @@ screenshot per page is written to `web/e2e/.artifacts/` for review.
 
 One-time setup: `npx playwright install chromium`.
 
-The same four commands run in CI (`.github/workflows/ci.yml`) on every push to
-`main` and every pull request.
+All five commands run in CI (`.github/workflows/ci.yml`) on every push to
+`main` and every pull request, in two jobs: the server/client checks and the
+browser audit (which uploads its screenshots as an artifact).
 
 The hosted SQLite Cloud adapter is covered by an **opt-in** integration test that
 is skipped by default. Point it at a *scratch* database (never production):
@@ -197,7 +229,19 @@ One deliberate fix over the Python original: the trial balance now includes
 **deactivated accounts that still carry posted movement**, so deactivating a
 funded account can no longer silently unbalance the report.
 
-## Remaining modules (next passes)
+## Remaining work (next passes)
 
-Dashboard, report date-scoping and scheduled export, fixed assets, expense line
-items, backups, opening balances/stock, settings extras and global search.
+- **Role-based authorization** — roles exist but no route enforces them; every
+  signed-in user is effectively an administrator.
+- **Audit trail** — the `audit_log` table exists but nothing writes it.
+- **Global search** — the top-bar search currently filters modules; there is no
+  cross-entity search.
+- **Stock adjustments and losses** — `stock_losses` exists, with no screen or
+  route.
+- **Scheduled / emailed exports** — reports are downloaded manually.
+- **Per-bank-account ledger** — every bank account shares COA `1010`, so
+  per-account balances and funds checks are combined (see
+  [docs/OPERATIONS.md](docs/OPERATIONS.md#known-functional-limitations)).
+
+See [docs/OPERATIONS.md](docs/OPERATIONS.md) for the complete list of known
+functional limitations and security gaps.

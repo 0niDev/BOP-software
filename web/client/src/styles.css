@@ -555,11 +555,12 @@ tr.total td {
   width: 100%;
 }
 .sselect-panel {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 100%;
+  position: fixed;
+  z-index: 9999;
+  /* Position and width are measured from the trigger in JS
+     (lib/useAnchoredPosition): with `fixed`, percentages resolve against the
+     viewport, not the input. */
+  min-width: 140px;
   max-width: 380px;
   max-height: 260px;
   overflow-y: auto;
@@ -846,10 +847,9 @@ tr.total td {
 
 /* Row action menu (activity list). */
 .menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 30;
+  position: fixed;
+  z-index: 9998;
+  /* Offset is set from the trigger in JS (lib/useAnchoredPosition). */
   min-width: 210px;
   padding: 6px;
   border-radius: 12px;

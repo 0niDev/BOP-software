@@ -1,9 +1,10 @@
 /**
  * Central configuration, mirroring the Python project's config/app_config.py.
  *
- * Values come from web/.env or, as a fallback, the repository-root .env
- * (so the existing SQLITE_CLOUD_URL is picked up without duplication).
- * Nothing else in the codebase reads process.env directly.
+ * Values come from web/.env only. The web app is self-contained: it never
+ * reads the Python app's python/.env, so each application can be configured
+ * and deployed independently. Nothing else in the codebase reads
+ * process.env directly.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -11,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url)); // web/server/src
 const serverRoot = path.resolve(here, ".."); // web/server
-const webRoot = path.resolve(here, "..", ".."); // web
+const webRoot = path.resolve(here, "..", ".."); // web (repo root of this app)
 
 function loadDotEnv(file: string): void {
   if (!fs.existsSync(file)) return;
@@ -31,9 +32,8 @@ function loadDotEnv(file: string): void {
   }
 }
 
-// web/.env wins, then the repository root .env fills in anything missing.
+// web/.env is the only environment file for this application.
 loadDotEnv(path.join(webRoot, ".env"));
-loadDotEnv(path.resolve(webRoot, "..", ".env"));
 
 export type DbEngine = "local" | "sqlitecloud";
 

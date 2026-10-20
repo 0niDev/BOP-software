@@ -13,6 +13,7 @@ import Card from "../ui/Card";
 import Avatar from "../ui/Avatar";
 import StatusPill, { type PillTone } from "../ui/StatusPill";
 import { dayLabel, money } from "../../lib/format";
+import useAnchoredPosition from "../../lib/useAnchoredPosition";
 import type { DashboardData } from "../../types";
 import type { Page } from "../../App";
 
@@ -38,6 +39,7 @@ function metaFor(type: string) {
 function RowMenu({ type, onNavigate }: { type: string; onNavigate: (page: Page) => void }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const meta = metaFor(type);
 
   useEffect(() => {
@@ -48,6 +50,9 @@ function RowMenu({ type, onNavigate }: { type: string; onNavigate: (page: Page) 
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  // The menu is fixed-position (so no card can clip it); anchor it to the button.
+  useAnchoredPosition(open, wrapRef, menuRef, { align: "right" });
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -65,6 +70,7 @@ function RowMenu({ type, onNavigate }: { type: string; onNavigate: (page: Page) 
           <motion.div
             className="menu"
             role="menu"
+            ref={menuRef}
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}

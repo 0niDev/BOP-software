@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Command, LogOut, Menu, Plus, Search } from "lucide-react";
 import Avatar from "../ui/Avatar";
 import useMediaQuery from "../../lib/useMediaQuery";
+import useAnchoredPosition from "../../lib/useAnchoredPosition";
 import { api } from "../../api";
 import type { DashboardData, User } from "../../types";
 import type { Page } from "../../App";
@@ -18,6 +19,7 @@ function NotificationBell({ onNavigate }: { onNavigate: (page: Page) => void }) 
   const [open, setOpen] = useState(false);
   const [feed, setFeed] = useState<DashboardData["alerts"] | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -27,6 +29,9 @@ function NotificationBell({ onNavigate }: { onNavigate: (page: Page) => void }) 
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  // The feed is fixed-position (so the top bar cannot clip it); anchor it to the bell.
+  useAnchoredPosition(open, wrapRef, menuRef, { align: "right" });
 
   useEffect(() => {
     if (!open || feed) return;
@@ -70,6 +75,7 @@ function NotificationBell({ onNavigate }: { onNavigate: (page: Page) => void }) 
             role="menu"
             aria-label="Notifications"
             className="menu"
+            ref={menuRef}
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
