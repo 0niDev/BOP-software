@@ -122,4 +122,37 @@ describe("PurchaseInvoiceService.createPurchaseInvoice", () => {
     await purchases.createPurchaseInvoice(base);
     await expect(purchases.createPurchaseInvoice(base)).rejects.toBeInstanceOf(ConflictError);
   });
+
+  it("edits a purchase: replaces the old batch and journal entry", async () => {
+    const created = await purchases.createPurchaseInvoice({
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 10, unitCost: 50, batchNumber: "PUR-EDIT" }],
+    });
+    expect(await batchQty("PUR-EDIT")).toBe(10);
+
+    const updated = await purchases.updatePurchaseInvoice(created.id, {
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 4, unitCost: 50, batchNumber: "PUR-EDIT" }],
+    });
+    expect(updated.id).toBe(created.id);
+    expect(updated.totalAmount).toBe(200);
+    expect(await batchQty("PUR-EDIT")).toBe(4);
+  });
+
+  it("cancels a purchase: removes stock and its journal entry", async () => {
+    const created = await purchases.createPurchaseInvoice({
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 10, unitCost: 50, batchNumber: "PUR-DEL" }],
+    });
+    await purchases.deletePurchaseInvoice(created.id);
+
+    expect(await batchQty("PUR-DEL")).toBe(0);
+    expect(await accounting.getJournalEntry("purchase_invoices", created.id)).toBeNull();
+  });
 });

@@ -7,6 +7,7 @@ import type {
   BankAccount,
   BankTransaction,
   Bom,
+  BomComponent,
   Cheque,
   LedgerEntry,
   MirrorStatus,
@@ -269,20 +270,42 @@ export const api = {
     request<SalesInvoice[]>(
       `/api/sales-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
     ),
+  salesInvoice: (id: number) =>
+    request<{ invoice: SalesInvoice; items: Record<string, unknown>[] }>(
+      `/api/sales-invoices/${id}`,
+    ),
   createSalesInvoice: (body: CreateSalesInvoiceRequest) =>
     request<CreatedSalesInvoice>("/api/sales-invoices", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateSalesInvoice: (id: number, body: CreateSalesInvoiceRequest) =>
+    request<CreatedSalesInvoice>(`/api/sales-invoices/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteSalesInvoice: (id: number) =>
+    request<{ ok: boolean }>(`/api/sales-invoices/${id}`, { method: "DELETE" }),
   purchaseInvoices: (search?: string) =>
     request<PurchaseInvoice[]>(
       `/api/purchase-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
+    ),
+  purchaseInvoice: (id: number) =>
+    request<{ invoice: PurchaseInvoice; items: Record<string, unknown>[] }>(
+      `/api/purchase-invoices/${id}`,
     ),
   createPurchaseInvoice: (body: CreatePurchaseInvoiceRequest) =>
     request<CreatedPurchaseInvoice>("/api/purchase-invoices", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updatePurchaseInvoice: (id: number, body: CreatePurchaseInvoiceRequest) =>
+    request<CreatedPurchaseInvoice>(`/api/purchase-invoices/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deletePurchaseInvoice: (id: number) =>
+    request<{ ok: boolean }>(`/api/purchase-invoices/${id}`, { method: "DELETE" }),
   payments: () => request<Payment[]>("/api/payments"),
   receipts: () => request<Receipt[]>("/api/receipts"),
   paySupplier: (body: {
@@ -290,6 +313,7 @@ export const api = {
     amount: number;
     paymentDate: string;
     paymentMethod: SettlementMethod;
+    bankAccountId?: number | null;
     notes?: string | null;
   }) =>
     request<PaymentResult>("/api/payments", { method: "POST", body: JSON.stringify(body) }),
@@ -298,6 +322,7 @@ export const api = {
     amount: number;
     paymentDate: string;
     paymentMethod: SettlementMethod;
+    bankAccountId?: number | null;
     notes?: string | null;
   }) =>
     request<PaymentResult>("/api/receipts", { method: "POST", body: JSON.stringify(body) }),
@@ -379,6 +404,7 @@ export const api = {
   payExpenseItems: (body: {
     categoryId: number;
     paymentMethod: SettlementMethod;
+    bankAccountId?: number | null;
     expenseDate: string;
     selections: Array<{ itemId: number; amount: number; description?: string | null }>;
   }) =>
@@ -391,14 +417,34 @@ export const api = {
     expenseDate: string;
     amount: number;
     paymentMethod: SettlementMethod;
+    bankAccountId?: number | null;
     description?: string | null;
   }) => request<ExpenseResult>("/api/expenses", { method: "POST", body: JSON.stringify(body) }),
   boms: () => request<Bom[]>("/api/boms"),
+  bom: (id: number) =>
+    request<{ bom: Bom; components: BomComponent[] }>(`/api/boms/${id}`),
   createBom: (body: {
     finishedItemId: number;
     outputQuantity: number;
     components: { componentItemId: number; quantityRequired: number; wastagePercent?: number }[];
   }) => request<{ id: number; bomName: string }>("/api/boms", { method: "POST", body: JSON.stringify(body) }),
+  updateBom: (
+    id: number,
+    body: {
+      finishedItemId: number;
+      outputQuantity: number;
+      components: { componentItemId: number; quantityRequired: number; wastagePercent?: number }[];
+      bomName?: string | null;
+      notes?: string | null;
+      isActive?: boolean;
+    },
+  ) =>
+    request<{ id: number; bomName: string }>(`/api/boms/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteBom: (id: number) =>
+    request<{ ok: boolean }>(`/api/boms/${id}`, { method: "DELETE" }),
   productionOrders: () => request<ProductionOrder[]>("/api/production-orders"),
   createProductionOrder: (body: {
     /** Omit for a temporary (one-use) production, which builds its own BOM. */
@@ -419,8 +465,48 @@ export const api = {
     }),
   startProduction: (id: number) =>
     request<{ status: string }>(`/api/production-orders/${id}/start`, { method: "POST" }),
-  completeProduction: (id: number, body: { actualQuantity: number; outputBatchNumber?: string }) =>
+  updateProductionOrder: (
+    id: number,
+    body: {
+      bomId: number;
+      plannedQuantity: number;
+      manufacturingDate: string;
+      expiryDate?: string | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/production-orders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteProductionOrder: (id: number) =>
+    request<{ ok: boolean }>(`/api/production-orders/${id}`, { method: "DELETE" }),
+  completeProduction: (id: number, body: {
+    actualQuantity: number;
+    outputBatchNumber?: string;
+    ignoreStock?: boolean;
+  }) =>
     request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  produceProduction: (id: number, body: {
+    actualQuantity: number;
+    wastageQuantity?: number;
+    outputBatchNumber?: string;
+    ignoreStock?: boolean;
+  }) =>
+    request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/produce`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  packProduction: (id: number, body: {
+    outputBatchNumber?: string;
+    ignoreStock?: boolean;
+    quantity?: number;
+    materials?: { itemId: number; quantity: number }[];
+  }) =>
+    request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/pack`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

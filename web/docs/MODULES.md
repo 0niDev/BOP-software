@@ -266,6 +266,12 @@ invoice before returning twice.
   finished-goods batch or `PRODUCTION_IN` movement is written. The order records
   raw/packing/total cost, and the journal entry is dated the day it completes
   (not the manufacturing date).
+- The pack dialog has a **pack-size calculator**: pick a size and unit
+  (`G`, `KG`, `ML`, `L`, `UNIT`) and it divides the quantity being packed by
+  that size, snaps the quantity to whole packs, and shows e.g.
+  `→ 10 packs of 5 KG` (plus any leftover). The count is display-only — stock
+  stays in the finished item's unit — and dividing across dimensions
+  (e.g. `KG ÷ ML`) is rejected.
 
 ```
 Dr 1220 Inventory — Finished Goods      total production cost

@@ -29,6 +29,7 @@ export interface PaySupplierInput {
   amount: number | string;
   paymentDate: string;
   paymentMethod: SettlementMethod;
+  bankAccountId?: number | null;
   referenceNo?: string | null;
   notes?: string | null;
   purchaseInvoiceId?: number | null;
@@ -40,6 +41,7 @@ export interface ReceivePaymentInput {
   amount: number | string;
   paymentDate: string;
   paymentMethod: SettlementMethod;
+  bankAccountId?: number | null;
   referenceNo?: string | null;
   notes?: string | null;
   salesInvoiceId?: number | null;
@@ -93,6 +95,11 @@ export class PaymentService {
     const resolver = new SystemAccountResolver(this.db, companyId);
     const apId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
     const paymentAccountId = await this.settlementAccount(resolver, input.paymentMethod);
+    const bankAccountId = await this.resolveBankAccountId(
+      input.paymentMethod,
+      input.bankAccountId,
+      companyId,
+    );
 
     return this.db.transaction(async () => {
       // Idempotency: refuse a second identical settlement (same reference) so a
@@ -193,6 +200,7 @@ export class PaymentService {
         party_id: supplier.id,
         payment_date: input.paymentDate,
         payment_method: input.paymentMethod,
+        bank_account_id: bankAccountId,
         amount: toStorage(amount),
         notes: input.notes ?? null,
       });
@@ -220,6 +228,11 @@ export class PaymentService {
     const resolver = new SystemAccountResolver(this.db, companyId);
     const arId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
     const receiptAccountId = await this.settlementAccount(resolver, input.paymentMethod);
+    const bankAccountId = await this.resolveBankAccountId(
+      input.paymentMethod,
+      input.bankAccountId,
+      companyId,
+    );
 
     return this.db.transaction(async () => {
       // Idempotency: refuse a second identical receipt (same reference) so a
@@ -315,6 +328,7 @@ export class PaymentService {
         party_id: customer.id,
         receipt_date: input.paymentDate,
         payment_method: input.paymentMethod,
+        bank_account_id: bankAccountId,
         amount: toStorage(amount),
         notes: input.notes ?? null,
       });
@@ -325,6 +339,25 @@ export class PaymentService {
 
       return { id, voucherNumber, journalEntryId };
     });
+  }
+
+  /**
+   * Which physical bank a BANK/CHEQUE settlement came from. Every bank account
+   * shares the one Chart-of-Accounts "Bank Accounts" entry, so this is recorded
+   * for reconciliation only; CASH carries no bank.
+   */
+  private async resolveBankAccountId(
+    method: SettlementMethod,
+    bankAccountId: number | null | undefined,
+    companyId: number,
+  ): Promise<number | null> {
+    if (method === "CASH" || bankAccountId == null) return null;
+    const bank = await this.db.get<{ id: number }>(
+      "SELECT id FROM bank_accounts WHERE id = ? AND company_id = ?",
+      [bankAccountId, companyId],
+    );
+    if (!bank) throw new ValidationError(`Bank account ${bankAccountId} not found.`);
+    return bankAccountId;
   }
 
   private async settlementAccount(

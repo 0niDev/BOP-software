@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
-import type { Party, Payment, Receipt, SettlementMethod } from "../types";
+import type { BankAccount, Party, Payment, Receipt, SettlementMethod } from "../types";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,6 +17,7 @@ export default function PaymentsPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [customers, setCustomers] = useState<Party[]>([]);
+  const [banks, setBanks] = useState<BankAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -23,6 +25,7 @@ export default function PaymentsPage() {
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
+  const [bankId, setBankId] = useState(0);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -39,7 +42,11 @@ export default function PaymentsPage() {
     void refresh();
     void api.parties({ type: "SUPPLIER" }).then(setSuppliers).catch(() => undefined);
     void api.parties({ type: "CUSTOMER" }).then(setCustomers).catch(() => undefined);
+    void api.bankAccounts().then(setBanks).catch(() => undefined);
   }, []);
+
+  const bankName = (id: number | null): string =>
+    banks.find((bank) => bank.id === id)?.bank_name ?? "—";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -55,10 +62,23 @@ export default function PaymentsPage() {
     }
     setBusy(true);
     try {
+      const bankAccountId = method === "CASH" ? null : bankId || null;
       const result =
         tab === "payments"
-          ? await api.paySupplier({ supplierId: partyId, amount, paymentDate: date, paymentMethod: method })
-          : await api.receivePayment({ customerId: partyId, amount, paymentDate: date, paymentMethod: method });
+          ? await api.paySupplier({
+              supplierId: partyId,
+              amount,
+              paymentDate: date,
+              paymentMethod: method,
+              bankAccountId,
+            })
+          : await api.receivePayment({
+              customerId: partyId,
+              amount,
+              paymentDate: date,
+              paymentMethod: method,
+              bankAccountId,
+            });
       setNotice(`Recorded ${result.voucherNumber} for ${money(amount)}`);
       setAmount(0);
       setPartyId(0);
@@ -79,6 +99,7 @@ export default function PaymentsPage() {
       row.party_code,
       "payment_date" in row ? row.payment_date : row.receipt_date,
       row.payment_method,
+      bankName(row.bank_account_id),
       row.amount,
     ]),
   );
@@ -145,6 +166,7 @@ export default function PaymentsPage() {
               options={(["CASH", "BANK", "CHEQUE"] as const).map((m) => ({ value: m, label: m }))}
             />
           </div>
+          {method !== "CASH" && <BankSelect value={bankId} onChange={setBankId} />}
           <button className="primary" type="submit" disabled={busy}>
             {busy ? "Saving..." : tab === "payments" ? "Record payment" : "Record receipt"}
           </button>
@@ -166,6 +188,7 @@ export default function PaymentsPage() {
               <th>{tab === "payments" ? "Supplier" : "Customer"}</th>
               <th>Date</th>
               <th>Method</th>
+              <th>Bank</th>
               <th className="num">Amount</th>
             </tr>
           </thead>
@@ -178,13 +201,14 @@ export default function PaymentsPage() {
                   <td>{row.party_name}</td>
                   <td>{rowDate}</td>
                   <td>{row.payment_method}</td>
+                  <td>{bankName(row.bank_account_id)}</td>
                   <td className="num">{money(row.amount)}</td>
                 </tr>
               );
             })}
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   {rows.length === 0
                     ? "Nothing recorded yet."
                     : "No vouchers match this filter."}

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
 import type { Expense, ExpenseCategory, ExpenseItem, SettlementMethod } from "../types";
@@ -21,6 +22,7 @@ export default function ExpensesPage() {
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
+  const [bankId, setBankId] = useState(0);
   const [description, setDescription] = useState("");
   const [newCategory, setNewCategory] = useState("");
 
@@ -134,6 +136,7 @@ export default function ExpensesPage() {
       const result = await api.payExpenseItems({
         categoryId,
         paymentMethod: method,
+        bankAccountId: method === "CASH" ? null : bankId || null,
         expenseDate: date,
         selections,
       });
@@ -168,6 +171,7 @@ export default function ExpensesPage() {
         expenseDate: date,
         amount,
         paymentMethod: method,
+        bankAccountId: method === "CASH" ? null : bankId || null,
         description: description || null,
       });
       setNotice(`Recorded expense ${result.voucherNumber} for ${money(amount)}`);
@@ -242,6 +246,7 @@ export default function ExpensesPage() {
               options={(["CASH", "BANK", "CHEQUE"] as const).map((m) => ({ value: m, label: m }))}
             />
           </div>
+          {method !== "CASH" && <BankSelect value={bankId} onChange={setBankId} />}
           <div>
             <label>Description</label>
             <input value={description} onChange={(e) => setDescription(e.target.value)} />

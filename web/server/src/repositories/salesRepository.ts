@@ -47,6 +47,15 @@ export class SalesRepository {
     return insertRow(this.db, "sales_invoice_items", data);
   }
 
+  async updateInvoice(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    await this.db.run(
+      `UPDATE sales_invoices SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      [...cols.map((c) => data[c] ?? null), id],
+    );
+  }
+
   async findById(id: number): Promise<SalesInvoiceRow | undefined> {
     return this.db.get<SalesInvoiceRow>("SELECT * FROM sales_invoices WHERE id = ?", [id]);
   }

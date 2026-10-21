@@ -56,6 +56,7 @@ describe("ReportService", () => {
       customerId: ctx.ids.customerId,
       invoiceDate: "2026-10-08",
       paymentType: "CREDIT",
+      notes: "Delivered to site A",
       items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
     });
     await payments.receivePayment({
@@ -69,8 +70,10 @@ describe("ReportService", () => {
     expect(ledger).toHaveLength(2);
     expect(ledger[0]!.debit).toBe(300);
     expect(ledger[0]!.balance).toBe(300);
+    expect(ledger[0]!.notes).toBe("Delivered to site A");
     expect(ledger[1]!.credit).toBe(300);
     expect(ledger[1]!.balance).toBe(0);
+    expect(ledger[1]!.notes).toBeNull();
   });
 
   it("records cash sales in the cash book", async () => {

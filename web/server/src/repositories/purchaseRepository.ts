@@ -47,6 +47,15 @@ export class PurchaseRepository {
     return insertRow(this.db, "purchase_invoice_items", data);
   }
 
+  async updateInvoice(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    await this.db.run(
+      `UPDATE purchase_invoices SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      [...cols.map((c) => data[c] ?? null), id],
+    );
+  }
+
   async findById(id: number): Promise<PurchaseInvoiceRow | undefined> {
     return this.db.get<PurchaseInvoiceRow>("SELECT * FROM purchase_invoices WHERE id = ?", [id]);
   }

@@ -99,6 +99,33 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     expect(await stockFor(ctx.ids.itemId)).toBe(1000); // unchanged (rolled back)
   });
 
+  it("can ignore stock when it has not been entered yet", async () => {
+    const result = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      ignoreStock: true,
+      items: [{ itemId: ctx.ids.itemId, quantity: 10_000, unitPrice: 150 }],
+    });
+
+    expect(result.totalAmount).toBe(1_500_000);
+    expect(await stockFor(ctx.ids.itemId)).toBe(1000); // untouched
+
+    const je = await accounting.getJournalEntry("sales_invoices", result.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
+      lines.reduce((a, l) => a + l.credit, 0),
+    );
+    expect(lines.find((l) => l.account_code === "5000")).toBeUndefined();
+    expect(lines.find((l) => l.account_code === "1220")).toBeUndefined();
+
+    const line = await ctx.db.get<{ batch_id: number | null }>(
+      "SELECT batch_id FROM sales_invoice_items WHERE invoice_id = ?",
+      [result.id],
+    );
+    expect(line?.batch_id).toBeNull();
+  });
+
   it("rejects a duplicate explicit invoice number", async () => {
     await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,
@@ -116,5 +143,48 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
         items: [{ itemId: ctx.ids.itemId, quantity: 1, unitPrice: 150 }],
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("edits an invoice: reverses the old stock/entry and keeps the same id", async () => {
+    const created = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    expect(await stockFor(ctx.ids.itemId)).toBe(995);
+
+    const updated = await sales.updateSalesInvoice(created.id, {
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
+    });
+    expect(updated.id).toBe(created.id);
+    expect(updated.invoiceNumber).toBe(created.invoiceNumber);
+    expect(updated.totalAmount).toBe(300);
+    expect(await stockFor(ctx.ids.itemId)).toBe(998);
+
+    const je = await accounting.getJournalEntry("sales_invoices", created.id);
+    const lines = je!.lines as Array<{ debit: number; credit: number }>;
+    expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(lines.reduce((a, l) => a + l.credit, 0));
+  });
+
+  it("cancels an invoice: restores stock and removes its journal entry", async () => {
+    const created = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    await sales.deleteSalesInvoice(created.id);
+
+    expect(await stockFor(ctx.ids.itemId)).toBe(1000);
+    expect(await accounting.getJournalEntry("sales_invoices", created.id)).toBeNull();
+    const row = await ctx.db.get<{ status: string }>(
+      "SELECT status FROM sales_invoices WHERE id = ?",
+      [created.id],
+    );
+    expect(row?.status).toBe("CANCELLED");
   });
 });

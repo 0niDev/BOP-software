@@ -442,6 +442,7 @@ export function createApp(
         notes: z.string().nullish(),
         bankAccountId: z.coerce.number().int().positive().nullish(),
         warehouseId: z.coerce.number().int().positive().optional(),
+        ignoreStock: z.boolean().optional(),
         items: z
           .array(
             z.object({
@@ -459,6 +460,44 @@ export function createApp(
     const user = (req as Request & { user?: Session }).user;
     const invoice = await sales.createSalesInvoice({ ...body, createdBy: user?.userId ?? null });
     res.status(201).json(invoice);
+  });
+
+  app.put("/api/sales-invoices/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        customerId: z.coerce.number().int().positive(),
+        invoiceDate: isoDateSchema,
+        paymentType: z.enum(["CASH", "BANK", "CHEQUE", "CREDIT"]),
+        notes: z.string().nullish(),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
+        warehouseId: z.coerce.number().int().positive().optional(),
+        ignoreStock: z.boolean().optional(),
+        items: z
+          .array(
+            z.object({
+              itemId: z.coerce.number().int().positive(),
+              quantity: z.coerce.number().positive(),
+              unitPrice: z.coerce.number().min(0),
+              discountAmount: z.coerce.number().min(0).optional(),
+              taxAmount: z.coerce.number().min(0).optional(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await sales.updateSalesInvoice(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/sales-invoices/:id", requireAuth, async (req, res) => {
+    await sales.deleteSalesInvoice(Number(req.params.id));
+    res.json({ ok: true });
   });
 
   app.get("/api/purchase-invoices", requireAuth, async (req, res) => {
@@ -509,6 +548,46 @@ export function createApp(
     res.status(201).json(invoice);
   });
 
+  app.put("/api/purchase-invoices/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        supplierId: z.coerce.number().int().positive(),
+        invoiceDate: isoDateSchema,
+        paymentType: z.enum(["CASH", "BANK", "CHEQUE", "CREDIT"]),
+        notes: z.string().nullish(),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
+        warehouseId: z.coerce.number().int().positive().optional(),
+        items: z
+          .array(
+            z.object({
+              itemId: z.coerce.number().int().positive(),
+              quantity: z.coerce.number().positive(),
+              unitCost: z.coerce.number().min(0),
+              discountAmount: z.coerce.number().min(0).optional(),
+              taxAmount: z.coerce.number().min(0).optional(),
+              batchNumber: z.string().nullish(),
+              manufacturingDate: z.string().nullish(),
+              expiryDate: z.string().nullish(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await purchases.updatePurchaseInvoice(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/purchase-invoices/:id", requireAuth, async (req, res) => {
+    await purchases.deletePurchaseInvoice(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
   app.get("/api/payments", requireAuth, async (_req, res) => {
     res.json(await payments.listPayments());
   });
@@ -524,6 +603,7 @@ export function createApp(
         amount: z.coerce.number().positive(),
         paymentDate: isoDateSchema,
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
         referenceNo: z.string().nullish(),
         notes: z.string().nullish(),
         purchaseInvoiceId: z.coerce.number().int().positive().nullish(),
@@ -540,6 +620,7 @@ export function createApp(
         amount: z.coerce.number().positive(),
         paymentDate: isoDateSchema,
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
         referenceNo: z.string().nullish(),
         notes: z.string().nullish(),
         salesInvoiceId: z.coerce.number().int().positive().nullish(),
@@ -577,6 +658,34 @@ export function createApp(
       req.body,
     );
     res.status(201).json(await manufacturing.createBom(body));
+  });
+
+  app.put("/api/boms/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        finishedItemId: z.coerce.number().int().positive(),
+        outputQuantity: z.coerce.number().positive(),
+        bomName: z.string().nullish(),
+        notes: z.string().nullish(),
+        isActive: z.boolean().optional(),
+        components: z
+          .array(
+            z.object({
+              componentItemId: z.coerce.number().int().positive(),
+              quantityRequired: z.coerce.number().positive(),
+              wastagePercent: z.coerce.number().min(0).max(100).optional(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.json(await manufacturing.updateBom(Number(req.params.id), body));
+  });
+
+  app.delete("/api/boms/:id", requireAuth, async (req, res) => {
+    await manufacturing.deleteBom(Number(req.params.id));
+    res.json({ ok: true });
   });
 
   app.get("/api/production-orders", requireAuth, async (_req, res) => {
@@ -622,12 +731,66 @@ export function createApp(
     res.json({ status: "IN_PROGRESS" });
   });
 
+  app.put("/api/production-orders/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        bomId: z.coerce.number().int().positive(),
+        plannedQuantity: z.coerce.number().positive(),
+        manufacturingDate: isoDateSchema,
+        expiryDate: optionalIsoDateSchema,
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    await manufacturing.updateProductionOrder(Number(req.params.id), body);
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/production-orders/:id", requireAuth, async (req, res) => {
+    await manufacturing.deleteProductionOrder(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/production-orders/:id/produce", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        actualQuantity: z.coerce.number().positive(),
+        wastageQuantity: z.coerce.number().min(0).optional(),
+        outputBatchNumber: z.string().nullish(),
+        ignoreStock: z.boolean().optional(),
+      }),
+      req.body,
+    );
+    res.json(await manufacturing.produceProduction(Number(req.params.id), body));
+  });
+
+  app.post("/api/production-orders/:id/pack", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        outputBatchNumber: z.string().nullish(),
+        ignoreStock: z.boolean().optional(),
+        quantity: z.coerce.number().positive().optional(),
+        materials: z
+          .array(
+            z.object({
+              itemId: z.coerce.number().int().positive(),
+              quantity: z.coerce.number().positive(),
+            }),
+          )
+          .optional(),
+      }),
+      req.body ?? {},
+    );
+    res.json(await manufacturing.packProduction(Number(req.params.id), body));
+  });
+
   app.post("/api/production-orders/:id/complete", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
         actualQuantity: z.coerce.number().positive(),
         wastageQuantity: z.coerce.number().min(0).optional(),
         outputBatchNumber: z.string().nullish(),
+        ignoreStock: z.boolean().optional(),
       }),
       req.body,
     );
@@ -699,6 +862,7 @@ export function createApp(
       z.object({
         categoryId: z.number().int().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
         expenseDate: isoDateSchema,
         selections: z
           .array(

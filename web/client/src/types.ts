@@ -98,6 +98,8 @@ export interface SalesInvoice {
   invoice_number: string;
   invoice_date: string;
   payment_type: PaymentType;
+  customer_id: number;
+  bank_account_id: number | null;
   customer_name: string;
   customer_code: string;
   subtotal: number;
@@ -106,6 +108,7 @@ export interface SalesInvoice {
   total_amount: number;
   paid_amount: number;
   status: string;
+  notes: string | null;
 }
 
 export interface SalesInvoiceLineInput {
@@ -119,8 +122,10 @@ export interface CreateSalesInvoiceRequest {
   customerId: number;
   invoiceDate: string;
   paymentType: PaymentType;
+  bankAccountId?: number | null;
   items: SalesInvoiceLineInput[];
   notes?: string | null;
+  ignoreStock?: boolean;
 }
 
 export interface CreatedSalesInvoice {
@@ -135,6 +140,8 @@ export interface PurchaseInvoice {
   invoice_number: string;
   invoice_date: string;
   payment_type: PaymentType;
+  supplier_id: number;
+  bank_account_id: number | null;
   supplier_name: string;
   supplier_code: string;
   subtotal: number;
@@ -143,6 +150,7 @@ export interface PurchaseInvoice {
   total_amount: number;
   paid_amount: number;
   status: string;
+  notes: string | null;
 }
 
 export interface PurchaseInvoiceLineInput {
@@ -157,6 +165,7 @@ export interface CreatePurchaseInvoiceRequest {
   supplierId: number;
   invoiceDate: string;
   paymentType: PaymentType;
+  bankAccountId?: number | null;
   items: PurchaseInvoiceLineInput[];
   notes?: string | null;
 }
@@ -243,6 +252,14 @@ export interface Bom {
   is_active: number;
 }
 
+export interface BomComponent {
+  id: number;
+  bom_id: number;
+  component_item_id: number;
+  quantity_required: number;
+  wastage_percent: number;
+}
+
 export interface ProductionOrder {
   id: number;
   order_number: string;
@@ -252,6 +269,9 @@ export interface ProductionOrder {
   status: string;
   manufacturing_date: string;
   production_cost: number;
+  output_batch_number: string | null;
+  /** Units still unpacked, i.e. how much of this order is left to pack. */
+  unpacked_quantity?: number;
 }
 
 export interface Payment {
@@ -261,6 +281,7 @@ export interface Payment {
   party_code: string;
   payment_date: string;
   payment_method: SettlementMethod;
+  bank_account_id: number | null;
   amount: number;
 }
 
@@ -271,6 +292,7 @@ export interface Receipt {
   party_code: string;
   receipt_date: string;
   payment_method: SettlementMethod;
+  bank_account_id: number | null;
   amount: number;
 }
 
@@ -319,6 +341,7 @@ export interface LedgerEntry {
   voucherNumber: string;
   voucherType: string;
   description: string | null;
+  notes: string | null;
   debit: number;
   credit: number;
   balance: number;

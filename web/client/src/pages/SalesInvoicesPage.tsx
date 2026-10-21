@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import BankSelect from "../components/BankSelect";
 import SearchableSelect from "../components/SearchableSelect";
 import type { Item, Party, PaymentType, SalesInvoice } from "../types";
 
@@ -28,10 +29,14 @@ export default function SalesInvoicesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const [customerId, setCustomerId] = useState(0);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentType, setPaymentType] = useState<PaymentType>("CASH");
+  const [bankId, setBankId] = useState(0);
+  const [notes, setNotes] = useState("");
+  const [ignoreStock, setIgnoreStock] = useState(false);
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
 
   async function refresh() {
@@ -59,6 +64,65 @@ export default function SalesInvoicesPage() {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
+  function resetForm() {
+    setEditingId(null);
+    setLines([newLine()]);
+    setNotes("");
+    setBankId(0);
+    setIgnoreStock(false);
+    setShowForm(false);
+  }
+
+  async function startEdit(invoice: SalesInvoice) {
+    setError(null);
+    setNotice(null);
+    try {
+      const detail = await api.salesInvoice(invoice.id);
+      const grouped = new Map<number, LineDraft>();
+      for (const row of detail.items) {
+        const itemId = Number(row.item_id);
+        const existing = grouped.get(itemId);
+        if (existing) {
+          existing.quantity += Number(row.quantity);
+        } else {
+          grouped.set(itemId, {
+            key: lineKey++,
+            itemId,
+            quantity: Number(row.quantity),
+            unitPrice: Number(row.unit_price),
+            taxAmount: Number(row.tax_amount),
+          });
+        }
+      }
+      setCustomerId(detail.invoice.customer_id);
+      setInvoiceDate(detail.invoice.invoice_date);
+      setPaymentType(detail.invoice.payment_type);
+      setBankId(detail.invoice.bank_account_id ?? 0);
+      setNotes(detail.invoice.notes ?? "");
+      setLines(grouped.size > 0 ? [...grouped.values()] : [newLine()]);
+      setIgnoreStock(false);
+      setEditingId(invoice.id);
+      setShowForm(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load invoice.");
+    }
+  }
+
+  async function remove(invoice: SalesInvoice) {
+    if (!window.confirm(`Cancel invoice ${invoice.invoice_number}? Stock and accounting will be reversed.`)) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteSalesInvoice(invoice.id);
+      setNotice(`Cancelled ${invoice.invoice_number}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to cancel invoice.");
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -74,23 +138,31 @@ export default function SalesInvoicesPage() {
     }
     setBusy(true);
     try {
-      const created = await api.createSalesInvoice({
+      const body = {
         customerId,
         invoiceDate,
         paymentType,
+        bankAccountId: paymentType === "BANK" || paymentType === "CHEQUE" ? bankId || null : null,
+        notes: notes.trim() || null,
+        ignoreStock: ignoreStock || undefined,
         items: payload.map((l) => ({
           itemId: l.itemId,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
           taxAmount: l.taxAmount || undefined,
         })),
-      });
-      setNotice(`Created ${created.invoiceNumber} — total ${money(created.totalAmount)}`);
-      setLines([newLine()]);
-      setShowForm(false);
+      };
+      const saved =
+        editingId === null
+          ? await api.createSalesInvoice(body)
+          : await api.updateSalesInvoice(editingId, body);
+      setNotice(
+        `${editingId === null ? "Created" : "Updated"} ${saved.invoiceNumber} — total ${money(saved.totalAmount)}`,
+      );
+      resetForm();
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create invoice.");
+      setError(err instanceof ApiError ? err.message : "Failed to save invoice.");
     } finally {
       setBusy(false);
     }
@@ -101,7 +173,7 @@ export default function SalesInvoicesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Sales Invoices</h2>
-          <button className="primary" onClick={() => setShowForm((v) => !v)}>
+          <button className="primary" onClick={() => (showForm ? resetForm() : setShowForm(true))}>
             {showForm ? "Close" : "New invoice"}
           </button>
         </div>
@@ -111,7 +183,7 @@ export default function SalesInvoicesPage() {
 
       {showForm && (
         <form className="card" onSubmit={submit}>
-          <h2>New sales invoice</h2>
+          <h2>{editingId === null ? "New sales invoice" : "Edit sales invoice"}</h2>
           <div className="row">
             <div>
               <label>Customer</label>
@@ -144,7 +216,29 @@ export default function SalesInvoicesPage() {
                 }))}
               />
             </div>
+            {(paymentType === "BANK" || paymentType === "CHEQUE") && (
+              <BankSelect value={bankId} onChange={setBankId} />
+            )}
           </div>
+
+          <div style={{ marginTop: 12 }}>
+            <label>Note (shown in party ledger)</label>
+            <input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Order 123, delivered to warehouse"
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <label style={{ display: "block", marginTop: 12 }}>
+            <input
+              type="checkbox"
+              checked={ignoreStock}
+              onChange={(e) => setIgnoreStock(e.target.checked)}
+            />{" "}
+            Ignore stock (save invoice without stock check or deduction)
+          </label>
 
           <table style={{ marginTop: 16 }}>
             <thead>
@@ -229,8 +323,13 @@ export default function SalesInvoicesPage() {
             </button>
             <div>
               <strong style={{ marginRight: 16 }}>Total: {money(total)}</strong>
+              {editingId !== null && (
+                <button type="button" style={{ marginRight: 8 }} onClick={resetForm}>
+                  Cancel
+                </button>
+              )}
               <button className="primary" type="submit" disabled={busy}>
-                {busy ? "Saving..." : "Create invoice"}
+                {busy ? "Saving..." : editingId === null ? "Create invoice" : "Save changes"}
               </button>
             </div>
           </div>
@@ -248,6 +347,7 @@ export default function SalesInvoicesPage() {
               <th className="num">Total</th>
               <th className="num">Paid</th>
               <th>Status</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -260,11 +360,23 @@ export default function SalesInvoicesPage() {
                 <td className="num">{money(inv.total_amount)}</td>
                 <td className="num">{money(inv.paid_amount)}</td>
                 <td>{inv.status}</td>
+                <td>
+                  {inv.status !== "CANCELLED" && (
+                    <>
+                      <button type="button" onClick={() => void startEdit(inv)}>
+                        Edit
+                      </button>{" "}
+                      <button type="button" onClick={() => void remove(inv)}>
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
             {invoices.length === 0 && (
               <tr>
-                <td colSpan={7}>No invoices yet.</td>
+                <td colSpan={8}>No invoices yet.</td>
               </tr>
             )}
           </tbody>

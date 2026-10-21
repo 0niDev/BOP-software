@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import {
   Banknote,
   BookOpen,
   Building2,
+  ChevronDown,
+  ChevronRight,
   Factory,
   FileBarChart,
   Landmark,
@@ -19,10 +22,16 @@ import {
 } from "lucide-react";
 import type { Page } from "../../App";
 
+export interface NavChild {
+  id: Page;
+  label: string;
+}
+
 export interface NavEntry {
   id: Page;
   label: string;
   icon: LucideIcon;
+  children?: readonly NavChild[];
 }
 
 /**
@@ -59,7 +68,21 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
   },
   {
     title: "Insights",
-    items: [{ id: "reports", label: "Reports", icon: FileBarChart }],
+    items: [
+      {
+        id: "reports",
+        label: "Reports",
+        icon: FileBarChart,
+        children: [
+          { id: "report-trial-balance", label: "Trial Balance" },
+          { id: "report-party-ledger", label: "Party Ledger" },
+          { id: "report-cash-book", label: "Cash Book" },
+          { id: "report-profit-loss", label: "Profit & Loss" },
+          { id: "report-balance-sheet", label: "Balance Sheet" },
+          { id: "report-export", label: "Export Reports" },
+        ],
+      },
+    ],
   },
   {
     title: "Administration",
@@ -93,6 +116,15 @@ export default function Sidebar({
   open,
   hotkey,
 }: Props) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // Keep the Reports submenu open while that module or any report page is selected.
+  useEffect(() => {
+    if (page === "reports" || page.startsWith("report-")) {
+      setExpanded((prev) => (prev.reports ? prev : { ...prev, reports: true }));
+    }
+  }, [page]);
+
   return (
     <aside className={`sidebar${open ? " open" : ""}`} aria-label="Modules">
       <div className="brand">
@@ -110,18 +142,54 @@ export default function Sidebar({
           <div className="nav-section" key={section.title}>
             <div className="nav-section-title">{section.title}</div>
             {section.items.map((entry) => {
-              const active = entry.id === page;
+              const inSection = entry.children?.some((child) => child.id === page) ?? false;
+              const active = entry.id === page || inSection;
+              const isOpen = expanded[entry.id] ?? false;
+              const hasChildren = (entry.children?.length ?? 0) > 0;
               return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className={active ? "active" : undefined}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => onNavigate(entry.id)}
-                >
-                  <entry.icon size={18} strokeWidth={2.1} aria-hidden />
-                  <span className="min-w-0 truncate">{entry.label}</span>
-                </button>
+                <div className="nav-entry" key={entry.id}>
+                  <button
+                    type="button"
+                    className={active ? "active" : undefined}
+                    aria-current={entry.id === page ? "page" : undefined}
+                    aria-expanded={hasChildren ? isOpen : undefined}
+                    onClick={() => {
+                      if (hasChildren) {
+                        setExpanded((prev) => ({ ...prev, [entry.id]: !isOpen }));
+                      }
+                      onNavigate(entry.id);
+                    }}
+                  >
+                    <entry.icon size={18} strokeWidth={2.1} aria-hidden />
+                    <span className="min-w-0 truncate" style={{ flex: 1 }}>
+                      {entry.label}
+                    </span>
+                    {hasChildren &&
+                      (isOpen ? (
+                        <ChevronDown size={14} aria-hidden />
+                      ) : (
+                        <ChevronRight size={14} aria-hidden />
+                      ))}
+                  </button>
+                  {hasChildren && isOpen && (
+                    <div className="nav-subitems">
+                      {entry.children!.map((child) => {
+                        const childActive = page === child.id;
+                        return (
+                          <button
+                            key={child.id}
+                            type="button"
+                            className={childActive ? "active" : undefined}
+                            aria-current={childActive ? "page" : undefined}
+                            onClick={() => onNavigate(child.id)}
+                          >
+                            <span className="min-w-0 truncate">{child.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

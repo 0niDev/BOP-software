@@ -36,6 +36,7 @@ export interface PayItemsInput {
   selections: readonly PayItemSelection[];
   paymentMethod: ExpensePaymentMethod;
   expenseDate: string;
+  bankAccountId?: number | null;
   createdBy?: number | null;
 }
 
@@ -153,6 +154,7 @@ export class ExpenseItemService {
           expenseDate: input.expenseDate,
           amount: selection.amount,
           paymentMethod: input.paymentMethod,
+          bankAccountId: input.bankAccountId ?? null,
           description,
           createdBy: input.createdBy ?? null,
         });

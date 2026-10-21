@@ -107,13 +107,23 @@ function heading(reportTitle: string, period: string): SheetData {
   ];
 }
 
-const LEDGER_HEADER = ["Date", "Voucher", "Type", "Description", "Debit", "Credit", "Balance"];
+const LEDGER_HEADER = [
+  "Date",
+  "Voucher",
+  "Type",
+  "Description",
+  "Notes",
+  "Debit",
+  "Credit",
+  "Balance",
+];
 
 const LEDGER_COLUMNS: Columns = [
   { width: 12 },
   { width: 12 },
   { width: 16 },
-  { width: 46 },
+  { width: 40 },
+  { width: 40 },
   { width: 14 },
   { width: 14 },
   { width: 16 },
@@ -129,6 +139,7 @@ function ledgerRows(entries: readonly LedgerEntry[]): SheetData {
     text(entry.voucherNumber),
     text(entry.voucherType),
     entry.description ?? null,
+    entry.notes ?? null,
     moneyOrBlank(entry.debit),
     moneyOrBlank(entry.credit),
     money(entry.balance),
@@ -143,6 +154,7 @@ function ledgerFooter(entries: readonly LedgerEntry[]): SheetData {
     [],
     [
       text("Totals", TOTAL),
+      null,
       null,
       null,
       null,

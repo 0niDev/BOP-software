@@ -16,6 +16,7 @@
     "typecheck": "npm -w @bop-erp/server run typecheck && npm -w @bop-erp/client run typecheck && npm run typecheck:e2e",
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "test": "npm -w @bop-erp/server run test",
+    "test:units": "vitest run client/test/units.test.ts",
     "seed": "npm -w @bop-erp/server run seed",
     "seed:rich": "npm -w @bop-erp/server run seed:rich",
     "smoke": "npm -w @bop-erp/server run smoke",

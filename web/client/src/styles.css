@@ -400,6 +400,29 @@ label {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 80%, transparent);
 }
+.nav-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 20px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+.nav-subitems button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 9px;
+}
+[id^="report-"] {
+  scroll-margin-top: 20px;
+}
 .nav-empty {
   color: var(--muted);
   font-size: 12px;
@@ -549,10 +572,15 @@ tr.total td {
 .sselect {
   position: relative;
   display: inline-block;
-  min-width: 140px;
+  min-width: 200px;
 }
 .sselect > input {
-  width: 100%;
+  width: auto;
+  min-width: 180px;
+  max-width: 520px;
+  /* Chromium: the field grows as the selected label gets longer. Elsewhere it
+     just keeps the wider min-width above. */
+  field-sizing: content;
 }
 .sselect-panel {
   position: fixed;
@@ -560,8 +588,8 @@ tr.total td {
   /* Position and width are measured from the trigger in JS
      (lib/useAnchoredPosition): with `fixed`, percentages resolve against the
      viewport, not the input. */
-  min-width: 140px;
-  max-width: 380px;
+  min-width: 200px;
+  max-width: 560px;
   max-height: 260px;
   overflow-y: auto;
   background: var(--panel-solid);
@@ -593,9 +621,11 @@ tr.total td {
   color: var(--muted);
 }
 .filter-box {
-  min-width: 240px;
+  min-width: 280px;
   flex: 1;
-  max-width: 420px;
+  max-width: 640px;
+  /* Chromium: grow with the query so long names stay visible. */
+  field-sizing: content;
 }
 
 /* ------------------------------------------------------------------ login */

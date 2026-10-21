@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
@@ -103,6 +104,7 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
           <th>Voucher</th>
           <th>Type</th>
           <th>Description</th>
+          <th>Notes</th>
           <th className="num">Debit</th>
           <th className="num">Credit</th>
           <th className="num">Balance</th>
@@ -115,6 +117,7 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
             <td>{row.voucherNumber}</td>
             <td>{row.voucherType}</td>
             <td>{row.description ?? "—"}</td>
+            <td>{row.notes ?? "—"}</td>
             <td className="num">{amount(row.debit)}</td>
             <td className="num">{amount(row.credit)}</td>
             <td className="num">{money(row.balance)}</td>
@@ -125,7 +128,16 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
   );
 }
 
-export default function TrialBalancePage() {
+export default function TrialBalancePage({ section = "reports" }: { section?: ReportPage }) {
+  const showAll = section === "reports";
+  const showTb = showAll || section === "report-trial-balance";
+  const showPl = showAll || section === "report-profit-loss";
+  const showBs = showAll || section === "report-balance-sheet";
+  const showParty = showAll || section === "report-party-ledger";
+  const showCash = showAll || section === "report-cash-book";
+  const showExport = showAll || section === "report-export";
+  const showPeriod = showAll || showTb || showPl || showBs;
+
   const [tb, setTb] = useState<TrialBalance | null>(null);
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [bs, setBs] = useState<BalanceSheet | null>(null);
@@ -294,6 +306,7 @@ export default function TrialBalancePage() {
 
   return (
     <>
+      {showPeriod && (
       <div className="card">
         <h2>Report period</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
@@ -328,8 +341,10 @@ export default function TrialBalancePage() {
           Leave the dates empty to report on every posted entry.
         </p>
       </div>
+      )}
 
-      <div className="card">
+      {showExport && (
+      <div className="card" id="report-export">
         <h2>Export all reports</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
@@ -387,68 +402,84 @@ export default function TrialBalancePage() {
           <strong>{selectedPeriod ? `${selectedPeriod.from} → ${selectedPeriod.to}` : "—"}</strong>.
         </p>
       </div>
+      )}
 
       {error && <div className="error">{error}</div>}
 
-      {pl && (
-        <div className="card">
-          <div className="row" style={{ alignItems: "center" }}>
-            <h2 style={{ flex: 1, margin: 0 }}>
-              Profit &amp; Loss{" "}
-              <span className="badge">{from || to ? "for the period" : "all posted entries"}</span>
-            </h2>
-            <button
-              onClick={() =>
-                void exportXlsx(
-                  "pl",
-                  () => api.profitAndLossXlsx(from || undefined, to || undefined),
-                  `profit-and-loss_${periodTag(from, to)}.xlsx`,
-                )
-              }
-              disabled={xlsxBusy !== null}
-            >
-              {xlsxBusy === "pl" ? "Preparing…" : "Export Excel"}
-            </button>
-          </div>
-          <div className="row">
-            <Stat label="Revenue" value={pl.revenue} />
-            <Stat label="Expenses" value={pl.expenses} />
-            <Stat label="Net profit" value={pl.netProfit} />
-          </div>
-        </div>
+      {showPl && (
+      <div className="card" id="report-profit-loss">
+        {pl ? (
+          <>
+            <div className="row" style={{ alignItems: "center" }}>
+              <h2 style={{ flex: 1, margin: 0 }}>
+                Profit &amp; Loss{" "}
+                <span className="badge">
+                  {from || to ? "for the period" : "all posted entries"}
+                </span>
+              </h2>
+              <button
+                onClick={() =>
+                  void exportXlsx(
+                    "pl",
+                    () => api.profitAndLossXlsx(from || undefined, to || undefined),
+                    `profit-and-loss_${periodTag(from, to)}.xlsx`,
+                  )
+                }
+                disabled={xlsxBusy !== null}
+              >
+                {xlsxBusy === "pl" ? "Preparing…" : "Export Excel"}
+              </button>
+            </div>
+            <div className="row">
+              <Stat label="Revenue" value={pl.revenue} />
+              <Stat label="Expenses" value={pl.expenses} />
+              <Stat label="Net profit" value={pl.netProfit} />
+            </div>
+          </>
+        ) : (
+          <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
+        )}
+      </div>
       )}
 
-      {bs && (
-        <div className="card">
-          <div className="row" style={{ alignItems: "center" }}>
-            <h2 style={{ flex: 1, margin: 0 }}>
-              Balance Sheet{" "}
-              <span className="badge">{asAt ? `as at ${asAt}` : "as at today"}</span>{" "}
-              <span className="badge">{bs.balanced ? "Balanced" : "OUT OF BALANCE"}</span>
-            </h2>
-            <button
-              onClick={() =>
-                void exportXlsx(
-                  "bs",
-                  () => api.balanceSheetXlsx(asAt || undefined),
-                  `balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
-                )
-              }
-              disabled={xlsxBusy !== null}
-            >
-              {xlsxBusy === "bs" ? "Preparing…" : "Export Excel"}
-            </button>
-          </div>
-          <div className="row">
-            <Stat label="Assets" value={bs.assets} />
-            <Stat label="Liabilities" value={bs.liabilities} />
-            <Stat label="Equity (incl. profit)" value={bs.equity} />
-            <Stat label="Net profit" value={bs.netProfit} />
-          </div>
-        </div>
+      {showBs && (
+      <div className="card" id="report-balance-sheet">
+        {bs ? (
+          <>
+            <div className="row" style={{ alignItems: "center" }}>
+              <h2 style={{ flex: 1, margin: 0 }}>
+                Balance Sheet{" "}
+                <span className="badge">{asAt ? `as at ${asAt}` : "as at today"}</span>{" "}
+                <span className="badge">{bs.balanced ? "Balanced" : "OUT OF BALANCE"}</span>
+              </h2>
+              <button
+                onClick={() =>
+                  void exportXlsx(
+                    "bs",
+                    () => api.balanceSheetXlsx(asAt || undefined),
+                    `balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
+                  )
+                }
+                disabled={xlsxBusy !== null}
+              >
+                {xlsxBusy === "bs" ? "Preparing…" : "Export Excel"}
+              </button>
+            </div>
+            <div className="row">
+              <Stat label="Assets" value={bs.assets} />
+              <Stat label="Liabilities" value={bs.liabilities} />
+              <Stat label="Equity (incl. profit)" value={bs.equity} />
+              <Stat label="Net profit" value={bs.netProfit} />
+            </div>
+          </>
+        ) : (
+          <p style={{ opacity: 0.7, margin: 0 }}>Loading balance sheet…</p>
+        )}
+      </div>
       )}
 
-      <div className="card">
+      {showTb && (
+      <div className="card" id="report-trial-balance">
         <div className="row" style={{ alignItems: "center" }}>
           <h2 style={{ flex: 1, margin: 0 }}>
             Trial Balance{" "}
@@ -515,8 +546,10 @@ export default function TrialBalancePage() {
           )}
         </table>
       </div>
+      )}
 
-      <div className="card">
+      {showParty && (
+      <div className="card" id="report-party-ledger">
         <h2>Party Ledger</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
@@ -561,8 +594,10 @@ export default function TrialBalancePage() {
         </div>
         {ledgerLoaded && <LedgerTable rows={ledger} caption="for this party and period" />}
       </div>
+      )}
 
-      <div className="card">
+      {showCash && (
+      <div className="card" id="report-cash-book">
         <h2>Cash Book (Cash in Hand — 1000)</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
@@ -591,6 +626,7 @@ export default function TrialBalancePage() {
         </div>
         {cashLoaded && <LedgerTable rows={cashBook} caption="in this period" />}
       </div>
+      )}
     </>
   );
 }

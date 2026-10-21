@@ -32,6 +32,7 @@ export interface LedgerEntry {
   voucherNumber: string;
   voucherType: string;
   description: string | null;
+  notes: string | null;
   debit: number;
   credit: number;
   balance: number;
@@ -134,9 +135,14 @@ export class ReportService {
     let sql = `
       SELECT je.entry_date AS date, je.voucher_number, je.voucher_type,
              COALESCE(jel.description, je.narration) AS description,
+             COALESCE(si.notes, pi.notes) AS notes,
              jel.debit, jel.credit
       FROM journal_entry_lines jel
       JOIN journal_entries je ON je.id = jel.journal_entry_id
+      LEFT JOIN sales_invoices si
+             ON je.source_table = 'sales_invoices' AND si.id = je.source_id
+      LEFT JOIN purchase_invoices pi
+             ON je.source_table = 'purchase_invoices' AND pi.id = je.source_id
       WHERE jel.party_id = ? AND je.is_posted = 1`;
     const params: Array<string | number> = [partyId];
     if (from) {
@@ -185,6 +191,7 @@ export class ReportService {
         voucherNumber: String(row.voucher_number ?? ""),
         voucherType: String(row.voucher_type ?? ""),
         description: row.description == null ? null : String(row.description),
+        notes: row.notes == null ? null : String(row.notes),
         debit: toStorage(debit),
         credit: toStorage(credit),
         balance: toStorage(balance),

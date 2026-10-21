@@ -29,6 +29,7 @@ export class StockBatchRepository {
     return this.db.all<StockBatchRow>(
       `SELECT * FROM stock_batches
        WHERE item_id = ? AND warehouse_id = ? AND is_active = 1 AND quantity_in_stock > 0
+         AND batch_number NOT LIKE 'UNPACKED-%'
        ORDER BY CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END,
                 expiry_date, received_date, id`,
       [itemId, warehouseId],

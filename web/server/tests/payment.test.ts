@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ValidationError } from "../src/domain/errors.js";
 import { insertRow } from "../src/repositories/base.js";
+import { BankingService } from "../src/services/bankingService.js";
 import { PaymentService } from "../src/services/paymentService.js";
 import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -201,6 +202,46 @@ describe("PaymentService", () => {
         paymentDate: "2026-10-08",
         paymentMethod: "CASH",
         salesInvoiceId: invoice.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("records which bank a BANK payment came from", async () => {
+    const bankAccountId = await new BankingService(ctx.db).createBankAccount({
+      bankName: "Meezan",
+      accountTitle: "Meezan Current",
+      accountNumber: "PK-MEEZAN-1",
+      openingBalance: 1000,
+    }).then((account) => account.id);
+
+    const invoice = await purchases.createPurchaseInvoice({
+      supplierId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 10, unitCost: 20 }],
+    });
+    await payments.paySupplier({
+      supplierId,
+      amount: 200,
+      paymentDate: "2026-10-08",
+      paymentMethod: "BANK",
+      bankAccountId,
+      purchaseInvoiceId: invoice.id,
+    });
+
+    const row = await ctx.db.get<{ bank_account_id: number }>(
+      "SELECT bank_account_id FROM payments ORDER BY id DESC LIMIT 1",
+    );
+    expect(row?.bank_account_id).toBe(bankAccountId);
+
+    // An unknown bank is rejected before anything is written.
+    await expect(
+      payments.paySupplier({
+        supplierId,
+        amount: 10,
+        paymentDate: "2026-10-08",
+        paymentMethod: "BANK",
+        bankAccountId: 9999,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });

@@ -43,6 +43,8 @@ export interface ProductionOrderRow {
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
+  /** Remaining unpacked stock (only meaningful while the order is IN_PROGRESS). */
+  unpacked_quantity?: number;
 }
 
 export class ManufacturingRepository {
@@ -62,6 +64,31 @@ export class ManufacturingRepository {
 
   async insertBomComponent(data: InsertData): Promise<number> {
     return insertRow(this.db, "bom_components", data);
+  }
+
+  async updateBom(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    await this.db.run(
+      `UPDATE bill_of_materials SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      [...cols.map((c) => data[c] ?? null), id],
+    );
+  }
+
+  async deleteBomComponents(bomId: number): Promise<void> {
+    await this.db.run("DELETE FROM bom_components WHERE bom_id = ?", [bomId]);
+  }
+
+  async deleteBom(id: number): Promise<void> {
+    await this.db.run("DELETE FROM bill_of_materials WHERE id = ?", [id]);
+  }
+
+  async countOrdersUsingBom(bomId: number): Promise<number> {
+    const row = await this.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM production_orders WHERE bom_id = ? AND status <> 'CANCELLED'",
+      [bomId],
+    );
+    return Number(row?.n ?? 0);
   }
 
   async findBomById(id: number): Promise<BomRow | undefined> {
@@ -103,7 +130,16 @@ export class ManufacturingRepository {
 
   async listOrders(companyId = 1): Promise<ProductionOrderRow[]> {
     return this.db.all<ProductionOrderRow>(
-      "SELECT * FROM production_orders WHERE company_id = ? ORDER BY id DESC LIMIT 200",
+      `SELECT po.*,
+              CASE WHEN po.output_batch_number LIKE 'UNPACKED-%'
+                   THEN COALESCE(sb.quantity_in_stock, 0) ELSE 0 END AS unpacked_quantity
+         FROM production_orders po
+         LEFT JOIN stock_batches sb
+                ON sb.batch_number = po.output_batch_number
+               AND sb.warehouse_id = po.warehouse_id
+               AND sb.item_id = (SELECT finished_item_id FROM bill_of_materials b WHERE b.id = po.bom_id)
+        WHERE po.company_id = ?
+        ORDER BY po.id DESC LIMIT 200`,
       [companyId],
     );
   }
@@ -116,6 +152,10 @@ export class ManufacturingRepository {
       ...cols.map((c) => data[c] ?? null),
       id,
     ]);
+  }
+
+  async deleteOrder(id: number): Promise<void> {
+    await this.db.run("DELETE FROM production_orders WHERE id = ?", [id]);
   }
 
   async insertConsumption(data: InsertData): Promise<number> {

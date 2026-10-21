@@ -307,36 +307,40 @@ test("the Shortcuts editor and Database card work end to end", async ({ page }) 
   expect(watched.apiFailures).toEqual([]);
 });
 
-test("the Manufacturing page offers temporary one-use production", async ({ page }) => {
+test("the Manufacturing page builds a production order from a saved BOM", async ({ page }) => {
   const watched = monitor(page);
   await signIn(page);
   await openPage(page, "Manufacturing");
+
+  // A production order needs a saved BOM, so make one: finished good + component.
+  const bomForm = page.locator("form", { hasText: "New bill of materials" });
+  await bomForm.getByRole("combobox").first().click();
+  await page.getByRole("option").nth(1).click();
+  await bomForm.getByRole("combobox").nth(1).click();
+  await page.getByRole("option").nth(1).click();
+  await bomForm.getByRole("button", { name: "Create BOM" }).click();
+  await expect(page.getByRole("cell", { name: /^BOM-/ }).first()).toBeVisible();
+
   await page.getByRole("button", { name: "Production Orders" }).click();
 
   const form = page.locator("form", { hasText: "New production order" });
-  // Saved-BOM mode: a single picker (the BOM), showing its prompt until chosen.
+  // A saved BOM is the only way to create an order: one searchable picker.
   await expect(form.getByRole("combobox")).toHaveCount(1);
-  await expect(form.getByRole("combobox")).toHaveAttribute("placeholder", /select/i);
+  await expect(form.getByRole("combobox")).toHaveAttribute("placeholder", /search/i);
 
   // Every picker is now a type-to-filter combobox, so drive it the way a user
   // would: open it, narrow the list by typing, click an option, keep the choice.
   const bomPicker = form.getByRole("combobox");
   await bomPicker.click();
-  const bomName = (await page.getByRole("option").nth(1).innerText()).trim();
+  const bomName = (await page.getByRole("option").first().innerText()).trim();
   await bomPicker.fill(bomName.slice(0, 6));
   const bomOption = page.getByRole("option", { name: bomName, exact: true });
   await expect(bomOption).toHaveCount(1);
   await bomOption.click();
   await expect(bomPicker).toHaveValue(bomName);
 
-  // Temporary mode swaps it for a finished item + component pair.
-  await getByLabelText(form, "Temporary production").check();
-  await expect(form.getByRole("combobox")).toHaveCount(2);
-  await expect(form).toContainText("Finished item");
-  await expect(form).toContainText("Qty per unit");
-  await expect(form).toContainText("never appears in the BOM list");
-
-  await getByLabelText(form, "Temporary production").uncheck();
+  // The chosen BOM's components are shown instead of asking for them by hand.
+  await expect(form).toContainText("Components from this BOM");
   await expect(form.getByRole("combobox")).toHaveCount(1);
 
   expect(watched.errors).toEqual([]);

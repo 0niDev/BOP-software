@@ -32,6 +32,15 @@ function loadUser(): User | null {
   }
 }
 
+export type ReportPage =
+  | "reports"
+  | "report-trial-balance"
+  | "report-party-ledger"
+  | "report-cash-book"
+  | "report-profit-loss"
+  | "report-balance-sheet"
+  | "report-export";
+
 export type Page =
   | "dashboard"
   | "sales"
@@ -45,9 +54,13 @@ export type Page =
   | "returns"
   | "assets"
   | "accounts"
-  | "reports"
+  | ReportPage
   | "users"
   | "settings";
+
+function isReportPage(page: Page): page is ReportPage {
+  return page === "reports" || page.startsWith("report-");
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(loadUser);
@@ -119,7 +132,7 @@ export default function App() {
       {page === "returns" && <ReturnsPage />}
       {page === "assets" && <AssetsPage />}
       {page === "accounts" && <AccountsPage />}
-      {page === "reports" && <TrialBalancePage />}
+      {isReportPage(page) && <TrialBalancePage section={page} />}
       {page === "users" && <UsersPage />}
       {page === "settings" && <SettingsPage />}
     </Layout>

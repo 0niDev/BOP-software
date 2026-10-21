@@ -118,7 +118,11 @@ export default function Layout({ user, page, onNavigate, onLogout, children }: P
 
   const needle = finder.trim().toLowerCase();
   const matches = needle
-    ? NAV.filter((entry) => entry.label.toLowerCase().includes(needle))
+    ? NAV.filter(
+        (entry) =>
+          entry.label.toLowerCase().includes(needle) ||
+          entry.children?.some((child) => child.label.toLowerCase().includes(needle)),
+      )
     : NAV;
 
   // While searching, one flat list; otherwise the permanent sections, with the

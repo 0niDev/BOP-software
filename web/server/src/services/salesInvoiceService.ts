@@ -48,6 +48,11 @@ export interface CreateSalesInvoiceInput {
   bankAccountId?: number | null;
   createdBy?: number | null;
   companyId?: number;
+  /**
+   * Skip stock validation and deduction. Used when invoices are entered before
+   * opening stock exists: the invoice posts with no COGS or stock movement.
+   */
+  ignoreStock?: boolean;
 }
 
 export interface SalesInvoiceResult {
@@ -69,6 +74,16 @@ interface PreparedLine {
   tax: Decimal;
   lineTotal: Decimal;
 }
+
+interface PreparedSalesInvoice {
+  prepared: PreparedLine[];
+  subtotal: Decimal;
+  discountAmount: Decimal;
+  taxAmount: Decimal;
+  totalAmount: Decimal;
+  customerName: string;
+}
+
 
 /** One batch's share of a consumed line. A line can span several FIFO batches. */
 interface StockConsumption {
@@ -122,10 +137,7 @@ export class SalesInvoiceService {
     return { invoice, items };
   }
 
-  async createSalesInvoice(input: CreateSalesInvoiceInput): Promise<SalesInvoiceResult> {
-    const companyId = input.companyId ?? this.companyId;
-    const warehouseId = input.warehouseId ?? 1;
-
+  private async prepare(input: CreateSalesInvoiceInput): Promise<PreparedSalesInvoice> {
     if (!PAYMENT_METHODS.includes(input.paymentType)) {
       throw new ValidationError(`Invalid payment type '${input.paymentType}'.`);
     }
@@ -173,11 +185,13 @@ export class SalesInvoiceService {
     const taxAmount = round2(prepared.reduce((acc, l) => acc.plus(l.tax), new Decimal(0)));
     const totalAmount = round2(subtotal.minus(discountAmount).plus(taxAmount));
 
-    // --- resolve the account the customer pays into -------------------------
-    const resolver = new SystemAccountResolver(this.db, companyId);
-    const revenueId = await resolver.idFor(SystemAccountCodes.SALES_REVENUE);
-    const taxId = await resolver.idFor(SystemAccountCodes.SALES_TAX_PAYABLE);
-    const debit = await this.resolvePaymentAccount(input, resolver, customer.id);
+    return { prepared, subtotal, discountAmount, taxAmount, totalAmount, customerName: customer.name };
+  }
+
+  async createSalesInvoice(input: CreateSalesInvoiceInput): Promise<SalesInvoiceResult> {
+    const companyId = input.companyId ?? this.companyId;
+    const warehouseId = input.warehouseId ?? 1;
+    const ctx = await this.prepare(input);
 
     // --- invoice number (explicit, or allocated from the sequence) ----------
     let invoiceNumber = input.invoiceNumber?.trim() || "";
@@ -198,46 +212,186 @@ export class SalesInvoiceService {
         company_id: companyId,
         warehouse_id: warehouseId,
         invoice_number: invoiceNumber,
-        customer_id: customer.id,
+        customer_id: input.customerId,
         invoice_date: input.invoiceDate,
         payment_type: input.paymentType,
         bank_account_id: input.bankAccountId ?? null,
-        subtotal: toStorage(subtotal),
-        discount_amount: toStorage(discountAmount),
-        tax_amount: toStorage(taxAmount),
-        total_amount: toStorage(totalAmount),
-        paid_amount:
-          input.paymentType === "CREDIT" ? 0 : toStorage(totalAmount),
+        subtotal: toStorage(ctx.subtotal),
+        discount_amount: toStorage(ctx.discountAmount),
+        tax_amount: toStorage(ctx.taxAmount),
+        total_amount: toStorage(ctx.totalAmount),
+        paid_amount: input.paymentType === "CREDIT" ? 0 : toStorage(ctx.totalAmount),
         status: "CONFIRMED",
         notes: input.notes ?? null,
         created_by: input.createdBy ?? null,
       });
 
-      const journalLines: JournalLineInput[] = [
-        {
-          accountId: debit.accountId,
-          debit: totalAmount,
-          partyId: debit.partyId,
-          description: debit.description,
-        },
-        {
-          accountId: revenueId,
-          credit: round2(subtotal.minus(discountAmount)),
-          description: "Sales revenue",
-        },
-      ];
-      if (taxAmount.greaterThan(0)) {
-        journalLines.push({ accountId: taxId, credit: taxAmount, description: "Sales tax" });
+      const journalEntryId = await this.postEffects(
+        invoiceId,
+        invoiceNumber,
+        input,
+        ctx,
+        warehouseId,
+        companyId,
+      );
+
+      return {
+        id: invoiceId,
+        invoiceNumber,
+        customerId: input.customerId,
+        subtotal: toStorage(ctx.subtotal),
+        discountAmount: toStorage(ctx.discountAmount),
+        taxAmount: toStorage(ctx.taxAmount),
+        totalAmount: toStorage(ctx.totalAmount),
+        journalEntryId,
+      };
+    });
+  }
+
+  /**
+   * Edit an existing invoice: reverse its journal, stock and bank effects, then
+   * re-post the replacement lines under the same invoice number — atomically.
+   */
+  async updateSalesInvoice(
+    id: number,
+    input: CreateSalesInvoiceInput,
+  ): Promise<SalesInvoiceResult> {
+    const existing = await this.sales.findById(id);
+    if (!existing) throw new NotFoundError(`Sales invoice ${id} not found.`);
+    if (existing.status === "CANCELLED") {
+      throw new ValidationError("A cancelled invoice cannot be edited.");
+    }
+    const companyId = input.companyId ?? this.companyId;
+    const warehouseId = input.warehouseId ?? existing.warehouse_id;
+    const ctx = await this.prepare(input);
+
+    return this.db.transaction(async () => {
+      await this.clearEffects(id, existing.invoice_number);
+      await this.sales.updateInvoice(id, {
+        warehouse_id: warehouseId,
+        customer_id: input.customerId,
+        invoice_date: input.invoiceDate,
+        payment_type: input.paymentType,
+        bank_account_id: input.bankAccountId ?? null,
+        subtotal: toStorage(ctx.subtotal),
+        discount_amount: toStorage(ctx.discountAmount),
+        tax_amount: toStorage(ctx.taxAmount),
+        total_amount: toStorage(ctx.totalAmount),
+        paid_amount: input.paymentType === "CREDIT" ? 0 : toStorage(ctx.totalAmount),
+        status: "CONFIRMED",
+        notes: input.notes ?? null,
+        updated_at: new Date().toISOString(),
+      });
+
+      const journalEntryId = await this.postEffects(
+        id,
+        existing.invoice_number,
+        input,
+        ctx,
+        warehouseId,
+        companyId,
+      );
+      return {
+        id,
+        invoiceNumber: existing.invoice_number,
+        customerId: input.customerId,
+        subtotal: toStorage(ctx.subtotal),
+        discountAmount: toStorage(ctx.discountAmount),
+        taxAmount: toStorage(ctx.taxAmount),
+        totalAmount: toStorage(ctx.totalAmount),
+        journalEntryId,
+      };
+    });
+  }
+
+  /** Cancel an invoice and reverse its journal, stock and bank effects. */
+  async deleteSalesInvoice(id: number): Promise<void> {
+    const existing = await this.sales.findById(id);
+    if (!existing) throw new NotFoundError(`Sales invoice ${id} not found.`);
+    if (existing.status === "CANCELLED") return;
+    await this.db.transaction(async () => {
+      await this.clearEffects(id, existing.invoice_number);
+      await this.sales.updateInvoice(id, {
+        status: "CANCELLED",
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
+
+  /** Remove every accounting, stock and bank trace of an invoice. */
+  private async clearEffects(invoiceId: number, invoiceNumber: string): Promise<void> {
+    await this.db.run(
+      `DELETE FROM journal_entry_lines WHERE journal_entry_id IN
+         (SELECT id FROM journal_entries WHERE source_table = 'sales_invoices' AND source_id = ?)`,
+      [invoiceId],
+    );
+    await this.db.run(
+      "DELETE FROM journal_entries WHERE source_table = 'sales_invoices' AND source_id = ?",
+      [invoiceId],
+    );
+
+    const rows = await this.db.all<{ batch_id: number | null; quantity: number }>(
+      "SELECT batch_id, quantity FROM sales_invoice_items WHERE invoice_id = ?",
+      [invoiceId],
+    );
+    for (const row of rows) {
+      if (row.batch_id != null) {
+        await this.batches.adjustQuantity(row.batch_id, toQuantity(dec(row.quantity)));
       }
+    }
+    await this.db.run(
+      "DELETE FROM stock_movements WHERE reference_table = 'sales_invoices' AND reference_id = ?",
+      [invoiceId],
+    );
+    await this.db.run("DELETE FROM sales_invoice_items WHERE invoice_id = ?", [invoiceId]);
+    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
+  }
 
-      let cogsTotal = new Decimal(0);
-      const cogsByType = new Map<ItemType, Decimal>();
-      const inventoryCredits = new Map<number, Decimal>();
+  /** Stock, journal and bank side of a confirmed sales invoice. */
+  private async postEffects(
+    invoiceId: number,
+    invoiceNumber: string,
+    input: CreateSalesInvoiceInput,
+    ctx: PreparedSalesInvoice,
+    warehouseId: number,
+    companyId: number,
+  ): Promise<number> {
+    const resolver = new SystemAccountResolver(this.db, companyId);
+    const revenueId = await resolver.idFor(SystemAccountCodes.SALES_REVENUE);
+    const taxId = await resolver.idFor(SystemAccountCodes.SALES_TAX_PAYABLE);
+    const debit = await this.resolvePaymentAccount(input, resolver, input.customerId);
 
-      for (const line of prepared) {
+    const journalLines: JournalLineInput[] = [
+      {
+        accountId: debit.accountId,
+        debit: ctx.totalAmount,
+        partyId: debit.partyId,
+        description: debit.description,
+      },
+      {
+        accountId: revenueId,
+        credit: round2(ctx.subtotal.minus(ctx.discountAmount)),
+        description: "Sales revenue",
+      },
+    ];
+    if (ctx.taxAmount.greaterThan(0)) {
+      journalLines.push({ accountId: taxId, credit: ctx.taxAmount, description: "Sales tax" });
+    }
+
+    let cogsTotal = new Decimal(0);
+    const cogsByType = new Map<ItemType, Decimal>();
+    const inventoryCredits = new Map<number, Decimal>();
+
+    for (const line of ctx.prepared) {
+      let shares: Array<{ batchId: number | null; quantity: Decimal; cost: Decimal }>;
+      if (input.ignoreStock) {
+        // No stock entered yet: record the line alone, no batches or COGS.
+        shares = [{ batchId: null, quantity: line.quantity, cost: new Decimal(0) }];
+      } else {
         // A line can span several FIFO batches; record every batch share so a
         // later return restores the right batch and COGS nets to zero.
         const consumed = await this.consumeStock(line.item, warehouseId, line.quantity);
+        shares = consumed.shares;
         cogsTotal = cogsTotal.plus(consumed.cost);
         cogsByType.set(
           line.item.item_type,
@@ -249,81 +403,75 @@ export class SalesInvoiceService {
           inventoryId,
           (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(consumed.cost),
         );
-
-        for (const share of consumed.shares) {
-          await this.sales.insertItem({
-            invoice_id: invoiceId,
-            item_id: line.item.id,
-            batch_id: share.batchId,
-            quantity: toQuantity(share.quantity),
-            unit_price: toStorage(line.unitPrice),
-            discount_amount: toStorage(line.discount),
-            tax_amount: toStorage(line.tax),
-            line_total: toStorage(line.lineTotal),
-          });
-          // Stock movement (negative: stock leaving the warehouse).
-          await insertRow(this.db, "stock_movements", {
-            item_id: line.item.id,
-            batch_id: share.batchId,
-            warehouse_id: warehouseId,
-            movement_type: "SALE",
-            quantity: -toQuantity(share.quantity),
-            unit_cost: share.quantity.isZero()
-              ? 0
-              : toStorage(share.cost.dividedBy(share.quantity)),
-            reference_table: "sales_invoices",
-            reference_id: invoiceId,
-            movement_date: input.invoiceDate,
-            notes: `Sales invoice ${invoiceNumber}`,
-            created_by: input.createdBy ?? null,
-          });
-        }
       }
 
+      for (const share of shares) {
+        await this.sales.insertItem({
+          invoice_id: invoiceId,
+          item_id: line.item.id,
+          batch_id: share.batchId,
+          quantity: toQuantity(share.quantity),
+          unit_price: toStorage(line.unitPrice),
+          discount_amount: toStorage(line.discount),
+          tax_amount: toStorage(line.tax),
+          line_total: toStorage(line.lineTotal),
+        });
+        if (share.batchId === null) continue;
+        // Stock movement (negative: stock leaving the warehouse).
+        await insertRow(this.db, "stock_movements", {
+          item_id: line.item.id,
+          batch_id: share.batchId,
+          warehouse_id: warehouseId,
+          movement_type: "SALE",
+          quantity: -toQuantity(share.quantity),
+          unit_cost: share.quantity.isZero()
+            ? 0
+            : toStorage(share.cost.dividedBy(share.quantity)),
+          reference_table: "sales_invoices",
+          reference_id: invoiceId,
+          movement_date: input.invoiceDate,
+          notes: `Sales invoice ${invoiceNumber}`,
+          created_by: input.createdBy ?? null,
+        });
+      }
+    }
+
+    if (!input.ignoreStock) {
       await this.appendCogsLines(journalLines, resolver, cogsTotal, cogsByType, inventoryCredits);
+    }
 
-      const journalEntryId = await this.accounting.postJournalEntry({
-        voucherType: "SALES",
-        voucherNumber: invoiceNumber,
-        entryDate: input.invoiceDate,
-        lines: journalLines,
-        sourceTable: "sales_invoices",
-        sourceId: invoiceId,
-        narration: `Sales invoice ${invoiceNumber} to ${customer.name}`,
-        companyId,
-        createdBy: input.createdBy ?? null,
-      });
-
-      // Record the deposit for BANK/CHEQUE sales (mirrors the Python app).
-      if (
-        (input.paymentType === "BANK" || input.paymentType === "CHEQUE") &&
-        input.bankAccountId
-      ) {
-        await this.db.run(
-          `INSERT INTO bank_transactions
-             (bank_account_id, transaction_type, amount, transaction_date, reference_no, notes, created_at)
-           VALUES (?, 'DEPOSIT', ?, ?, ?, ?, datetime('now'))`,
-          [
-            input.bankAccountId,
-            toStorage(totalAmount),
-            input.invoiceDate,
-            invoiceNumber,
-            `Sales invoice ${invoiceNumber} - ${input.paymentType} payment`,
-          ],
-        );
-      }
-
-      return {
-        id: invoiceId,
-        invoiceNumber,
-        customerId: customer.id,
-        subtotal: toStorage(subtotal),
-        discountAmount: toStorage(discountAmount),
-        taxAmount: toStorage(taxAmount),
-        totalAmount: toStorage(totalAmount),
-        journalEntryId,
-      };
+    const journalEntryId = await this.accounting.postJournalEntry({
+      voucherType: "SALES",
+      voucherNumber: invoiceNumber,
+      entryDate: input.invoiceDate,
+      lines: journalLines,
+      sourceTable: "sales_invoices",
+      sourceId: invoiceId,
+      narration: `Sales invoice ${invoiceNumber} to ${ctx.customerName}`,
+      companyId,
+      createdBy: input.createdBy ?? null,
     });
+
+    // Record the deposit for BANK/CHEQUE sales (mirrors the Python app).
+    if (
+      (input.paymentType === "BANK" || input.paymentType === "CHEQUE") &&
+      input.bankAccountId
+    ) {
+      await this.db.run(
+        `INSERT INTO bank_transactions
+           (bank_account_id, transaction_type, amount, transaction_date, reference_no, notes, created_at)
+         VALUES (?, 'DEPOSIT', ?, ?, ?, ?, datetime('now'))`,
+        [
+          input.bankAccountId,
+          toStorage(ctx.totalAmount),
+          input.invoiceDate,
+          invoiceNumber,
+          `Sales invoice ${invoiceNumber} - ${input.paymentType} payment`,
+        ],
+      );
+    }
+
+    return journalEntryId;
   }
 
   /** Determine which account is debited for the amount the customer pays. */

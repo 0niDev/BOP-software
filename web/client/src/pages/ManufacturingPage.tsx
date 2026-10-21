@@ -1,17 +1,35 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
-import type { Bom, Item, ProductionOrder } from "../types";
+import type { Bom, BomComponent, Item, ProductionOrder } from "../types";
+import { defaultPackUnit, packCount, PACK_UNITS } from "../lib/units";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function quantity(value: number): string {
+  return value.toLocaleString("en-PK", { maximumFractionDigits: 3 });
+}
+
 type Tab = "boms" | "orders";
+
+interface ComponentDraft {
+  key: number;
+  itemId: number;
+  quantityRequired: number;
+}
+
+let componentKey = 1;
+function newComponent(): ComponentDraft {
+  return { key: componentKey++, itemId: 0, quantityRequired: 1 };
+}
 
 export default function ManufacturingPage() {
   const [tab, setTab] = useState<Tab>("boms");
   const [boms, setBoms] = useState<Bom[]>([]);
+  const [bomQuery, setBomQuery] = useState("");
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -20,17 +38,27 @@ export default function ManufacturingPage() {
   // BOM form
   const [finishedItemId, setFinishedItemId] = useState(0);
   const [outputQuantity, setOutputQuantity] = useState(1);
-  const [componentItemId, setComponentItemId] = useState(0);
-  const [quantityRequired, setQuantityRequired] = useState(1);
+  const [componentLines, setComponentLines] = useState<ComponentDraft[]>([newComponent()]);
+  const [editingBomId, setEditingBomId] = useState<number | null>(null);
 
   // Order form
   const [bomId, setBomId] = useState(0);
   const [plannedQuantity, setPlannedQuantity] = useState(1);
-  // Temporary one-use production (no saved BOM), ported from manufacturing_view
-  const [tempMode, setTempMode] = useState(false);
-  const [tempFinishedItemId, setTempFinishedItemId] = useState(0);
-  const [tempComponentItemId, setTempComponentItemId] = useState(0);
-  const [tempQuantityRequired, setTempQuantityRequired] = useState(1);
+  const [manufacturingDate, setManufacturingDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [ignoreStockOrders, setIgnoreStockOrders] = useState<Record<number, boolean>>({});
+  const [packingOrderId, setPackingOrderId] = useState<number | null>(null);
+  const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
+  const [packQuantity, setPackQuantity] = useState(0);
+  const [packSize, setPackSize] = useState(1);
+  const [packUnit, setPackUnit] = useState<string>("KG");
+  const [packItemUnit, setPackItemUnit] = useState<string>("KG");
+  const [packBom, setPackBom] = useState<{ components: BomComponent[]; output: number }>({
+    components: [],
+    output: 1,
+  });
 
   async function refresh() {
     try {
@@ -43,65 +71,237 @@ export default function ManufacturingPage() {
 
   useEffect(() => {
     void refresh();
-    void api.items().then(setItems).catch(() => undefined);
+    void api.items({ activeOnly: false }).then(setItems).catch(() => undefined);
   }, []);
 
-  const finishedGoods = items.filter((i) => i.item_type === "FINISHED_GOOD");
-  const components = items.filter(
-    (i) => i.item_type === "RAW_MATERIAL" || i.item_type === "PACKING_MATERIAL",
+  const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
+  const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
+
+  async function toggleBomComponents(id: number) {
+    if (expandedBomId === id) {
+      setExpandedBomId(null);
+      return;
+    }
+    setExpandedBomId(id);
+    if (!bomComponents[id]) {
+      try {
+        const detail = await api.bom(id);
+        setBomComponents((prev) => ({ ...prev, [id]: detail.components }));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
+      }
+    }
+  }
+
+  const itemName = (id: number) => items.find((i) => i.id === id)?.item_name ?? String(id);
+
+  const visibleBoms = boms.filter((bom) =>
+    matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
   );
+
+  function bomComponentList(id: number) {
+    const components = bomComponents[id];
+    if (!components) return "Loading components…";
+    if (components.length === 0) return "No components.";
+    return (
+      <ul style={{ margin: 0, paddingLeft: 20 }}>
+        {components.map((component) => (
+          <li key={component.id}>
+            {itemName(component.component_item_id)} — {component.quantity_required}
+            {component.wastage_percent > 0 ? ` (+${component.wastage_percent}% wastage)` : ""}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  const finishedGoods = items.filter(
+    (i) => i.is_active === 1 && i.item_type === "FINISHED_GOOD",
+  );
+  const components = items.filter(
+    (i) =>
+      i.is_active === 1 &&
+      (i.item_type === "RAW_MATERIAL" || i.item_type === "PACKING_MATERIAL"),
+  );
+  const componentOptions = [
+    { value: "0", label: "Select..." },
+    ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
+  ];
+  const packingOptions = [
+    { value: "0", label: "Select..." },
+    ...items
+      .filter((i) => i.is_active === 1 && i.item_type === "PACKING_MATERIAL")
+      .map((i) => ({ value: String(i.id), label: i.item_name })),
+  ];
+
+  const packingOrder = orders.find((o) => o.id === packingOrderId);
+  const packAvailable = packingOrder?.unpacked_quantity ?? packingOrder?.actual_quantity ?? 0;
+  const packResult = packCount(packQuantity, packItemUnit, packSize, packUnit);
+
+  function updateComponentLine(key: number, patch: Partial<ComponentDraft>) {
+    setComponentLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  function resetBomForm() {
+    setEditingBomId(null);
+    setFinishedItemId(0);
+    setOutputQuantity(1);
+    setComponentLines([newComponent()]);
+  }
 
   async function createBom(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    if (!finishedItemId || !componentItemId) {
-      setError("Select a finished item and a component.");
+    if (!finishedItemId) {
+      setError("Select a finished item.");
+      return;
+    }
+    const payload = componentLines.filter((l) => l.itemId > 0 && l.quantityRequired > 0);
+    if (payload.length === 0) {
+      setError("Add at least one component.");
       return;
     }
     try {
-      const bom = await api.createBom({
+      const body = {
         finishedItemId,
         outputQuantity,
-        components: [{ componentItemId, quantityRequired }],
-      });
-      setNotice(`Created BOM ${bom.bomName}`);
+        components: payload.map((l) => ({
+          componentItemId: l.itemId,
+          quantityRequired: l.quantityRequired,
+        })),
+      };
+      const bom =
+        editingBomId === null
+          ? await api.createBom(body)
+          : await api.updateBom(editingBomId, body);
+      if (editingBomId !== null) {
+        setBomComponents((prev) => {
+          const next = { ...prev };
+          delete next[editingBomId];
+          return next;
+        });
+      }
+      setNotice(`${editingBomId === null ? "Created" : "Updated"} BOM ${bom.bomName}`);
+      resetBomForm();
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create BOM.");
+      setError(err instanceof ApiError ? err.message : "Failed to save BOM.");
     }
+  }
+
+  async function startEditBom(bom: Bom) {
+    setError(null);
+    setNotice(null);
+    try {
+      const detail = await api.bom(bom.id);
+      setFinishedItemId(detail.bom.finished_item_id);
+      setOutputQuantity(detail.bom.output_quantity);
+      setComponentLines(
+        detail.components.length > 0
+          ? detail.components.map((c) => ({
+              key: componentKey++,
+              itemId: c.component_item_id,
+              quantityRequired: c.quantity_required,
+            }))
+          : [newComponent()],
+      );
+      setEditingBomId(bom.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load BOM.");
+    }
+  }
+
+  async function removeBom(bom: Bom) {
+    if (!window.confirm(`Delete BOM ${bom.bom_name}?`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteBom(bom.id);
+      setBomComponents((prev) => {
+        const next = { ...prev };
+        delete next[bom.id];
+        return next;
+      });
+      if (editingBomId === bom.id) resetBomForm();
+      setNotice(`Deleted BOM ${bom.bom_name}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete BOM.");
+    }
+  }
+
+  function resetOrderForm() {
+    setEditingOrderId(null);
+    setBomId(0);
+    setPlannedQuantity(1);
+    setManufacturingDate(new Date().toISOString().slice(0, 10));
   }
 
   async function createOrder(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    if (tempMode) {
-      if (!tempFinishedItemId || !tempComponentItemId) {
-        setError("Select the finished item and a component.");
-        return;
-      }
-    } else if (!bomId) {
+    if (!bomId) {
       setError("Select a BOM.");
       return;
     }
     try {
-      const order = await api.createProductionOrder({
-        plannedQuantity,
-        manufacturingDate: new Date().toISOString().slice(0, 10),
-        ...(tempMode
-          ? {
-              tempFinishedItemId,
-              tempComponents: [
-                { componentItemId: tempComponentItemId, quantityRequired: tempQuantityRequired },
-              ],
-            }
-          : { bomId }),
-      });
-      setNotice(`Created production order ${order.orderNumber}`);
+      if (editingOrderId !== null) {
+        await api.updateProductionOrder(editingOrderId, {
+          bomId,
+          plannedQuantity,
+          manufacturingDate,
+        });
+        setNotice("Updated production order");
+      } else {
+        const order = await api.createProductionOrder({
+          bomId,
+          plannedQuantity,
+          manufacturingDate,
+        });
+        setNotice(`Created production order ${order.orderNumber}`);
+      }
+      resetOrderForm();
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to create order.");
+      setError(err instanceof ApiError ? err.message : "Failed to save order.");
+    }
+  }
+
+  function selectBom(next: string) {
+    const id = Number(next);
+    setBomId(id);
+    if (id && !bomComponents[id]) {
+      void api
+        .bom(id)
+        .then((detail) => setBomComponents((prev) => ({ ...prev, [id]: detail.components })))
+        .catch((err: unknown) =>
+          setError(err instanceof ApiError ? err.message : "Failed to load BOM components."),
+        );
+    }
+  }
+
+  function startEditOrder(order: ProductionOrder) {
+    setError(null);
+    setNotice(null);
+    setEditingOrderId(order.id);
+    selectBom(String(order.bom_id));
+    setPlannedQuantity(order.planned_quantity);
+    setManufacturingDate(order.manufacturing_date);
+  }
+
+  async function removeOrder(order: ProductionOrder) {
+    if (!window.confirm(`Delete production order ${order.order_number}?`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteProductionOrder(order.id);
+      if (editingOrderId === order.id) resetOrderForm();
+      setNotice(`Deleted order ${order.order_number}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete order.");
     }
   }
 
@@ -114,24 +314,127 @@ export default function ManufacturingPage() {
     }
   }
 
-  async function complete(id: number, planned: number) {
-    const raw = window.prompt("Actual quantity produced:", String(planned));
+  async function produce(id: number, planned: number) {
+    const raw = window.prompt("Unpacked quantity produced:", String(planned));
     if (raw === null) return;
     const actual = Number(raw);
     if (!(actual > 0)) {
-      setError("Actual quantity must be greater than 0.");
+      setError("Unpacked quantity must be greater than 0.");
       return;
     }
-    const batch = window.prompt("Output batch number (optional):", "") ?? "";
+    const batch = window.prompt("Unpacked batch number (optional):", "") ?? "";
     try {
-      const result = await api.completeProduction(id, {
+      const result = await api.produceProduction(id, {
         actualQuantity: actual,
         outputBatchNumber: batch || undefined,
+        ignoreStock: ignoreStockOrders[id] || undefined,
       });
-      setNotice(`Completed order ${id} — production cost ${money(result.productionCost)}`);
+      setNotice(`Produced unpacked stock for order ${id} — raw cost ${money(result.productionCost)}`);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to complete order.");
+      setError(err instanceof ApiError ? err.message : "Failed to produce order.");
+    }
+  }
+
+  /** BOM packing materials scaled to the quantity being packed. */
+  function packingLinesFor(
+    qty: number,
+    components: BomComponent[],
+    output: number,
+  ): ComponentDraft[] {
+    const ratio = qty / (output || 1);
+    const lines = components
+      .filter(
+        (component) =>
+          items.find((i) => i.id === component.component_item_id)?.item_type ===
+          "PACKING_MATERIAL",
+      )
+      .map((component) => ({
+        key: componentKey++,
+        itemId: component.component_item_id,
+        quantityRequired:
+          component.quantity_required * ratio * (1 + (component.wastage_percent || 0) / 100),
+      }));
+    return lines.length > 0 ? lines : [newComponent()];
+  }
+
+  function changePackQuantity(next: number): void {
+    setPackQuantity(next);
+    if (next > 0) setPackingLines(packingLinesFor(next, packBom.components, packBom.output));
+  }
+
+  /** Snap the quantity to the whole packs a pack size makes. */
+  function refillWholePacks(size: number, unit: string): void {
+    const whole = packCount(packAvailable, packItemUnit, size, unit);
+    if (whole.error || whole.packs === 0) return;
+    setPackQuantity(whole.packedBulk);
+    setPackingLines(packingLinesFor(whole.packedBulk, packBom.components, packBom.output));
+  }
+
+  function changePackSize(next: number): void {
+    setPackSize(next);
+    refillWholePacks(next, packUnit);
+  }
+
+  function changePackUnit(next: string): void {
+    setPackUnit(next);
+    refillWholePacks(packSize, next);
+  }
+
+  async function startPack(order: ProductionOrder) {
+    setError(null);
+    setNotice(null);
+    try {
+      // The BOM detail also carries the finished item for temporary BOMs,
+      // which are hidden from the BOM list.
+      const detail = await api.bom(order.bom_id);
+      const componentsForBom = detail.components;
+      setBomComponents((prev) => ({ ...prev, [order.bom_id]: componentsForBom }));
+      const output = detail.bom.output_quantity || 1;
+      // Default to everything still unpacked; the user may pack only part.
+      const available = order.unpacked_quantity ?? order.actual_quantity;
+      const unit = items.find((i) => i.id === detail.bom.finished_item_id)?.unit ?? "UNIT";
+      setPackBom({ components: componentsForBom, output });
+      setPackItemUnit(unit);
+      setPackSize(1);
+      setPackUnit(defaultPackUnit(unit));
+      setPackQuantity(available);
+      setPackingLines(packingLinesFor(available, componentsForBom, output));
+      setPackingOrderId(order.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load packing materials.");
+    }
+  }
+
+  function updatePackingLine(key: number, patch: Partial<ComponentDraft>) {
+    setPackingLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  async function confirmPack() {
+    if (packingOrderId === null) return;
+    if (packResult.error) {
+      setError(packResult.error);
+      return;
+    }
+    const batch = window.prompt("Final finished-goods batch number (optional):", "");
+    if (batch === null) return;
+    const materials = packingLines
+      .filter((l) => l.itemId > 0 && l.quantityRequired > 0)
+      .map((l) => ({ itemId: l.itemId, quantity: l.quantityRequired }));
+    try {
+      const result = await api.packProduction(packingOrderId, {
+        quantity: packQuantity,
+        materials,
+        outputBatchNumber: batch || undefined,
+        ignoreStock: ignoreStockOrders[packingOrderId] || undefined,
+      });
+      setNotice(`Packed ${packQuantity} — production cost ${money(result.productionCost)}`);
+      setPackingOrderId(null);
+      setPackingLines([newComponent()]);
+      setPackQuantity(0);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to pack order.");
     }
   }
 
@@ -156,7 +459,7 @@ export default function ManufacturingPage() {
       {tab === "boms" && (
         <>
           <form className="card" onSubmit={createBom}>
-            <h2>New bill of materials</h2>
+            <h2>{editingBomId === null ? "New bill of materials" : "Edit bill of materials"}</h2>
             <div className="row">
               <div>
                 <label>Finished item</label>
@@ -182,56 +485,124 @@ export default function ManufacturingPage() {
                   style={{ width: 120 }}
                 />
               </div>
-              <div>
-                <label>Component</label>
-                <SearchableSelect
-                  value={String(componentItemId)}
-                  onChange={(next) => setComponentItemId(Number(next))}
-                  placeholder="Select..."
-                  emptyText="No matching item"
-                  options={[
-                    { value: "0", label: "Select..." },
-                    ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
-                  ]}
-                />
-              </div>
-              <div>
-                <label>Qty required</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={quantityRequired}
-                  onChange={(e) => setQuantityRequired(Number(e.target.value))}
-                  style={{ width: 120 }}
-                />
-              </div>
-              <button className="primary" type="submit">
-                Create BOM
+            </div>
+
+            <table style={{ marginTop: 16 }}>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th className="num">Qty required</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {componentLines.map((line) => (
+                  <tr key={line.key}>
+                    <td>
+                      <SearchableSelect
+                        value={String(line.itemId)}
+                        onChange={(next) => updateComponentLine(line.key, { itemId: Number(next) })}
+                        placeholder="Select..."
+                        emptyText="No matching item"
+                        options={componentOptions}
+                      />
+                    </td>
+                    <td className="num">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={line.quantityRequired}
+                        onChange={(e) =>
+                          updateComponentLine(line.key, { quantityRequired: Number(e.target.value) })
+                        }
+                        style={{ width: 120 }}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setComponentLines((prev) => prev.filter((l) => l.key !== line.key))
+                        }
+                        disabled={componentLines.length === 1}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
+              <button
+                type="button"
+                onClick={() => setComponentLines((prev) => [...prev, newComponent()])}
+              >
+                Add component
               </button>
+              <button className="primary" type="submit">
+                {editingBomId === null ? "Create BOM" : "Save changes"}
+              </button>
+              {editingBomId !== null && (
+                <button type="button" onClick={resetBomForm} style={{ marginLeft: 8 }}>
+                  Cancel
+                </button>
+              )}
             </div>
           </form>
 
           <div className="card">
+            <div className="row" style={{ marginBottom: 12 }}>
+              <FilterBox
+                value={bomQuery}
+                onChange={setBomQuery}
+                placeholder="Search BOMs or products…"
+              />
+            </div>
             <table>
               <thead>
                 <tr>
                   <th>BOM</th>
                   <th>Finished item</th>
                   <th className="num">Output qty</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
-                {boms.map((bom) => (
-                  <tr key={bom.id}>
-                    <td>{bom.bom_name}</td>
-                    <td>{items.find((i) => i.id === bom.finished_item_id)?.item_name ?? bom.finished_item_id}</td>
-                    <td className="num">{bom.output_quantity}</td>
-                  </tr>
+                {visibleBoms.map((bom) => (
+                  <Fragment key={bom.id}>
+                    <tr>
+                      <td>{bom.bom_name}</td>
+                      <td>{itemName(bom.finished_item_id)}</td>
+                      <td className="num">{bom.output_quantity}</td>
+                      <td>
+                        <button type="button" onClick={() => void toggleBomComponents(bom.id)}>
+                          {expandedBomId === bom.id ? "Hide components" : "Components"}
+                        </button>{" "}
+                        <button type="button" onClick={() => void startEditBom(bom)}>
+                          Edit
+                        </button>{" "}
+                        <button type="button" onClick={() => void removeBom(bom)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedBomId === bom.id && (
+                      <tr>
+                        <td colSpan={4} style={{ opacity: 0.85 }}>
+                          {bomComponentList(bom.id)}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
-                {boms.length === 0 && (
+                {visibleBoms.length === 0 && (
                   <tr>
-                    <td colSpan={3}>No bills of materials yet.</td>
+                    <td colSpan={4}>
+                      {boms.length === 0 ? "No bills of materials yet." : "No matching BOMs."}
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -243,71 +614,21 @@ export default function ManufacturingPage() {
       {tab === "orders" && (
         <>
           <form className="card" onSubmit={createOrder}>
-            <h2>New production order</h2>
-            <label style={{ display: "block", marginBottom: 12 }}>
-              <input
-                type="checkbox"
-                checked={tempMode}
-                onChange={(e) => setTempMode(e.target.checked)}
-              />{" "}
-              Temporary production (no saved BOM, one use only)
-            </label>
+            <h2>{editingOrderId === null ? "New production order" : "Edit production order"}</h2>
             <div className="row">
-              {tempMode ? (
-                <>
-                  <div>
-                    <label>Finished item</label>
-                    <SearchableSelect
-                      value={String(tempFinishedItemId)}
-                      onChange={(next) => setTempFinishedItemId(Number(next))}
-                      placeholder="Select..."
-                      emptyText="No matching item"
-                      options={[
-                        { value: "0", label: "Select..." },
-                        ...finishedGoods.map((i) => ({ value: String(i.id), label: i.item_name })),
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label>Component</label>
-                    <SearchableSelect
-                      value={String(tempComponentItemId)}
-                      onChange={(next) => setTempComponentItemId(Number(next))}
-                      placeholder="Select..."
-                      emptyText="No matching item"
-                      options={[
-                        { value: "0", label: "Select..." },
-                        ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label>Qty per unit</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      value={tempQuantityRequired}
-                      onChange={(e) => setTempQuantityRequired(Number(e.target.value))}
-                      style={{ width: 130 }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label>BOM</label>
-                  <SearchableSelect
-                    value={String(bomId)}
-                    onChange={(next) => setBomId(Number(next))}
-                    placeholder="Select..."
-                    emptyText="No matching BOM"
-                    options={[
-                      { value: "0", label: "Select..." },
-                      ...boms.map((b) => ({ value: String(b.id), label: b.bom_name })),
-                    ]}
-                  />
-                </div>
-              )}
+              <div>
+                <label>BOM</label>
+                <SearchableSelect
+                  value={String(bomId)}
+                  onChange={selectBom}
+                  placeholder="Search by product or BOM..."
+                  emptyText="No matching BOM"
+                  options={boms.map((b) => ({
+                    value: String(b.id),
+                    label: `${itemName(b.finished_item_id)} — ${b.bom_name}`,
+                  }))}
+                />
+              </div>
               <div>
                 <label>Planned quantity</label>
                 <input
@@ -319,18 +640,170 @@ export default function ManufacturingPage() {
                   style={{ width: 140 }}
                 />
               </div>
-              <button className="primary" type="submit">
-                Create order
-              </button>
+              <div>
+                <label>Manufacturing date</label>
+                <input
+                  type="date"
+                  value={manufacturingDate}
+                  onChange={(e) => setManufacturingDate(e.target.value)}
+                />
+              </div>
             </div>
-            {tempMode && (
-              <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
-                A hidden one-use BOM is created for this order (named{" "}
-                <code>TEMP-&lt;order number&gt;</code>) and never appears in the BOM list. Quantities
-                are per one unit of output.
+            {boms.length === 0 && (
+              <p style={{ opacity: 0.7, fontSize: 12 }}>
+                No saved BOMs yet. Create one under Bills of Materials first.
               </p>
             )}
+            {bomId > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <strong>Components from this BOM</strong>
+                {bomComponentList(bomId)}
+              </div>
+            )}
+            <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+              <button className="primary" type="submit">
+                {editingOrderId === null ? "Create order" : "Save changes"}
+              </button>
+              {editingOrderId !== null && (
+                <button type="button" onClick={resetOrderForm}>
+                  Cancel
+                </button>
+              )}
+            </div>
           </form>
+
+          {packingOrderId !== null && (
+            <div className="card">
+              <h2>
+                Pack order {orders.find((o) => o.id === packingOrderId)?.order_number ?? ""}
+              </h2>
+              <p style={{ opacity: 0.7, fontSize: 12 }}>
+                Choose how much to pack now — the rest stays unpacked in stock. Packing materials
+                are prefilled from the BOM for that quantity and can be changed.
+              </p>
+              <div className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
+                <div>
+                  <label>Quantity to pack ({packItemUnit})</label>
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={packQuantity}
+                    onChange={(e) => changePackQuantity(Number(e.target.value))}
+                    style={{ width: 140 }}
+                  />
+                </div>
+                <div>
+                  <label>Pack size</label>
+                  <div className="row">
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      value={packSize}
+                      onChange={(e) => changePackSize(Number(e.target.value))}
+                      style={{ width: 100 }}
+                    />
+                    <select value={packUnit} onChange={(e) => changePackUnit(e.target.value)}>
+                      {PACK_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ alignSelf: "flex-end", paddingBottom: 6 }}>
+                  {packResult.error ? (
+                    <span style={{ color: "var(--danger)", fontSize: 12 }}>{packResult.error}</span>
+                  ) : (
+                    <span className="badge">
+                      → {quantity(packResult.packs)} packs of {quantity(packSize)} {packUnit}
+                      {packResult.remainder > 0
+                        ? ` (${quantity(packResult.remainder)} ${packItemUnit} left unpacked)`
+                        : ""}
+                    </span>
+                  )}
+                </div>
+                <div style={{ opacity: 0.7, fontSize: 12, alignSelf: "flex-end", paddingBottom: 6 }}>
+                  {quantity(packAvailable)} {packItemUnit} unpacked available
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Packing material</th>
+                    <th className="num">Quantity used</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {packingLines.map((line) => (
+                    <tr key={line.key}>
+                      <td>
+                        <SearchableSelect
+                          value={String(line.itemId)}
+                          onChange={(next) =>
+                            updatePackingLine(line.key, { itemId: Number(next) })
+                          }
+                          placeholder="Select packing material..."
+                          emptyText="No matching packing material"
+                          options={packingOptions}
+                        />
+                      </td>
+                      <td className="num">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={line.quantityRequired}
+                          onChange={(e) =>
+                            updatePackingLine(line.key, {
+                              quantityRequired: Number(e.target.value),
+                            })
+                          }
+                          style={{ width: 140 }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPackingLines((prev) => prev.filter((l) => l.key !== line.key))
+                          }
+                          disabled={packingLines.length === 1}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
+                <button
+                  type="button"
+                  onClick={() => setPackingLines((prev) => [...prev, newComponent()])}
+                >
+                  Add packing material
+                </button>
+                <div className="row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPackingOrderId(null);
+                      setPackingLines([newComponent()]);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="primary" type="button" onClick={() => void confirmPack()}>
+                    Confirm pack
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <table>
@@ -348,18 +821,49 @@ export default function ManufacturingPage() {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td>{order.order_number}</td>
-                    <td>{order.status}</td>
+                    <td>
+                      {order.status === "IN_PROGRESS" && order.actual_quantity > 0
+                        ? `UNPACKED (${order.unpacked_quantity ?? 0} left)`
+                        : order.status}
+                    </td>
                     <td className="num">{order.planned_quantity}</td>
                     <td className="num">{order.actual_quantity}</td>
                     <td className="num">{money(order.production_cost)}</td>
                     <td>
                       {order.status === "DRAFT" && (
-                        <button onClick={() => void start(order.id)}>Start</button>
+                        <>
+                          {boms.some((b) => b.id === order.bom_id) && (
+                            <>
+                              <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
+                            </>
+                          )}
+                          <button onClick={() => void removeOrder(order)}>Delete</button>{" "}
+                          <button onClick={() => void start(order.id)}>Start</button>
+                        </>
                       )}
                       {order.status === "IN_PROGRESS" && (
-                        <button onClick={() => void complete(order.id, order.planned_quantity)}>
-                          Complete
-                        </button>
+                        <>
+                          {order.actual_quantity > 0 ? (
+                            <button onClick={() => void startPack(order)}>Pack</button>
+                          ) : (
+                            <button onClick={() => void produce(order.id, order.planned_quantity)}>
+                              Produce
+                            </button>
+                          )}
+                          <label style={{ marginLeft: 8, whiteSpace: "nowrap" }}>
+                            <input
+                              type="checkbox"
+                              checked={ignoreStockOrders[order.id] ?? false}
+                              onChange={(e) =>
+                                setIgnoreStockOrders((prev) => ({
+                                  ...prev,
+                                  [order.id]: e.target.checked,
+                                }))
+                              }
+                            />{" "}
+                            Ignore stock
+                          </label>
+                        </>
                       )}
                     </td>
                   </tr>

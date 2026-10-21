@@ -73,6 +73,15 @@ interface PreparedLine {
   expiryDate: string | null;
 }
 
+interface PreparedPurchaseInvoice {
+  prepared: PreparedLine[];
+  subtotal: Decimal;
+  discountAmount: Decimal;
+  taxAmount: Decimal;
+  totalAmount: Decimal;
+  supplierName: string;
+}
+
 const INVENTORY_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   RAW_MATERIAL: SystemAccountCodes.INVENTORY_RAW_MATERIALS,
   PACKING_MATERIAL: SystemAccountCodes.INVENTORY_PACKING_MATERIALS,
@@ -114,10 +123,7 @@ export class PurchaseInvoiceService {
     return { invoice, items };
   }
 
-  async createPurchaseInvoice(input: CreatePurchaseInvoiceInput): Promise<PurchaseInvoiceResult> {
-    const companyId = input.companyId ?? this.companyId;
-    const warehouseId = input.warehouseId ?? 1;
-
+  private async prepare(input: CreatePurchaseInvoiceInput): Promise<PreparedPurchaseInvoice> {
     if (!PAYMENT_METHODS.includes(input.paymentType)) {
       throw new ValidationError(`Invalid payment type '${input.paymentType}'.`);
     }
@@ -170,18 +176,13 @@ export class PurchaseInvoiceService {
     const taxAmount = round2(prepared.reduce((acc, l) => acc.plus(l.tax), new Decimal(0)));
     const totalAmount = round2(subtotal.minus(discountAmount).plus(taxAmount));
 
-    const resolver = new SystemAccountResolver(this.db, companyId);
-    const taxId = await resolver.idFor(SystemAccountCodes.SALES_TAX_PAYABLE);
-    const credit = await this.resolvePaymentAccount(input, resolver, supplier.id);
+    return { prepared, subtotal, discountAmount, taxAmount, totalAmount, supplierName: supplier.name };
+  }
 
-    // Inventory debit is split by item type, so aggregate line totals per type.
-    const typeTotals = new Map<ItemType, Decimal>();
-    for (const line of prepared) {
-      typeTotals.set(
-        line.item.item_type,
-        (typeTotals.get(line.item.item_type) ?? new Decimal(0)).plus(line.lineTotal),
-      );
-    }
+  async createPurchaseInvoice(input: CreatePurchaseInvoiceInput): Promise<PurchaseInvoiceResult> {
+    const companyId = input.companyId ?? this.companyId;
+    const warehouseId = input.warehouseId ?? 1;
+    const ctx = await this.prepare(input);
 
     let invoiceNumber = input.invoiceNumber?.trim() || "";
     if (invoiceNumber) {
@@ -200,112 +201,241 @@ export class PurchaseInvoiceService {
         company_id: companyId,
         warehouse_id: warehouseId,
         invoice_number: invoiceNumber,
-        supplier_id: supplier.id,
+        supplier_id: input.supplierId,
         invoice_date: input.invoiceDate,
         payment_type: input.paymentType,
         bank_account_id: input.bankAccountId ?? null,
-        subtotal: toStorage(subtotal),
-        discount_amount: toStorage(discountAmount),
-        tax_amount: toStorage(taxAmount),
-        total_amount: toStorage(totalAmount),
-        paid_amount: input.paymentType === "CREDIT" ? 0 : toStorage(totalAmount),
+        subtotal: toStorage(ctx.subtotal),
+        discount_amount: toStorage(ctx.discountAmount),
+        tax_amount: toStorage(ctx.taxAmount),
+        total_amount: toStorage(ctx.totalAmount),
+        paid_amount: input.paymentType === "CREDIT" ? 0 : toStorage(ctx.totalAmount),
         status: "CONFIRMED",
         notes: input.notes ?? null,
         created_by: input.createdBy ?? null,
       });
 
-      const journalLines: JournalLineInput[] = [];
-      for (const [itemType, amount] of typeTotals) {
-        if (amount.lessThanOrEqualTo(0)) continue;
-        journalLines.push({
-          accountId: await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemType]),
-          debit: amount,
-          description: `Inventory purchase - ${itemType.replace(/_/g, " ")}`,
-        });
-      }
-      if (taxAmount.greaterThan(0)) {
-        journalLines.push({ accountId: taxId, credit: taxAmount, description: "Input tax on purchases" });
-      }
-      journalLines.push({
-        accountId: credit.accountId,
-        credit: round2(totalAmount.minus(taxAmount)),
-        partyId: credit.partyId,
-        description: credit.description,
-      });
-
-      for (const line of prepared) {
-        const batchId = await this.upsertBatch(line, warehouseId);
-        await this.purchases.insertItem({
-          invoice_id: invoiceId,
-          item_id: line.item.id,
-          batch_id: batchId,
-          batch_number: line.batchNumber,
-          manufacturing_date: line.manufacturingDate,
-          expiry_date: line.expiryDate,
-          quantity: toQuantity(line.quantity),
-          unit_cost: toStorage(line.unitCost),
-          discount_amount: toStorage(line.discount),
-          tax_amount: toStorage(line.tax),
-          line_total: toStorage(line.lineTotal),
-        });
-        // Keep the stock-movement ledger in step with the batch so on-hand
-        // stock can always be reconciled against SUM(stock_movements).
-        await insertRow(this.db, "stock_movements", {
-          item_id: line.item.id,
-          batch_id: batchId,
-          warehouse_id: warehouseId,
-          movement_type: "PURCHASE",
-          quantity: toQuantity(line.quantity),
-          unit_cost: toStorage(line.unitCost),
-          reference_table: "purchase_invoices",
-          reference_id: invoiceId,
-          movement_date: input.invoiceDate,
-          notes: `Purchase invoice ${invoiceNumber}`,
-          created_by: input.createdBy ?? null,
-        });
-      }
-
-      const journalEntryId = await this.accounting.postJournalEntry({
-        voucherType: "PURCHASE",
-        voucherNumber: invoiceNumber,
-        entryDate: input.invoiceDate,
-        lines: journalLines,
-        sourceTable: "purchase_invoices",
-        sourceId: invoiceId,
-        narration: `Purchase invoice ${invoiceNumber}`,
+      const journalEntryId = await this.postEffects(
+        invoiceId,
+        invoiceNumber,
+        input,
+        ctx,
+        warehouseId,
         companyId,
-        createdBy: input.createdBy ?? null,
-      });
-
-      if (
-        (input.paymentType === "BANK" || input.paymentType === "CHEQUE") &&
-        input.bankAccountId
-      ) {
-        await this.db.run(
-          `INSERT INTO bank_transactions
-             (bank_account_id, transaction_type, amount, transaction_date, reference_no, notes, created_at)
-           VALUES (?, 'WITHDRAWAL', ?, ?, ?, ?, datetime('now'))`,
-          [
-            input.bankAccountId,
-            toStorage(totalAmount),
-            input.invoiceDate,
-            invoiceNumber,
-            `Purchase invoice ${invoiceNumber} - ${input.paymentType} payment`,
-          ],
-        );
-      }
-
+      );
       return {
         id: invoiceId,
         invoiceNumber,
-        supplierId: supplier.id,
-        subtotal: toStorage(subtotal),
-        discountAmount: toStorage(discountAmount),
-        taxAmount: toStorage(taxAmount),
-        totalAmount: toStorage(totalAmount),
+        supplierId: input.supplierId,
+        subtotal: toStorage(ctx.subtotal),
+        discountAmount: toStorage(ctx.discountAmount),
+        taxAmount: toStorage(ctx.taxAmount),
+        totalAmount: toStorage(ctx.totalAmount),
         journalEntryId,
       };
     });
+  }
+
+  /** Edit an existing purchase invoice in one transaction (same number, id). */
+  async updatePurchaseInvoice(
+    id: number,
+    input: CreatePurchaseInvoiceInput,
+  ): Promise<PurchaseInvoiceResult> {
+    const existing = await this.purchases.findById(id);
+    if (!existing) throw new NotFoundError(`Purchase invoice ${id} not found.`);
+    if (existing.status === "CANCELLED") {
+      throw new ValidationError("A cancelled invoice cannot be edited.");
+    }
+    const companyId = input.companyId ?? this.companyId;
+    const warehouseId = input.warehouseId ?? existing.warehouse_id;
+    const ctx = await this.prepare(input);
+
+    return this.db.transaction(async () => {
+      await this.clearEffects(id, existing.invoice_number);
+      await this.purchases.updateInvoice(id, {
+        warehouse_id: warehouseId,
+        supplier_id: input.supplierId,
+        invoice_date: input.invoiceDate,
+        payment_type: input.paymentType,
+        bank_account_id: input.bankAccountId ?? null,
+        subtotal: toStorage(ctx.subtotal),
+        discount_amount: toStorage(ctx.discountAmount),
+        tax_amount: toStorage(ctx.taxAmount),
+        total_amount: toStorage(ctx.totalAmount),
+        paid_amount: input.paymentType === "CREDIT" ? 0 : toStorage(ctx.totalAmount),
+        status: "CONFIRMED",
+        notes: input.notes ?? null,
+        updated_at: new Date().toISOString(),
+      });
+
+      const journalEntryId = await this.postEffects(
+        id,
+        existing.invoice_number,
+        input,
+        ctx,
+        warehouseId,
+        companyId,
+      );
+      return {
+        id,
+        invoiceNumber: existing.invoice_number,
+        supplierId: input.supplierId,
+        subtotal: toStorage(ctx.subtotal),
+        discountAmount: toStorage(ctx.discountAmount),
+        taxAmount: toStorage(ctx.taxAmount),
+        totalAmount: toStorage(ctx.totalAmount),
+        journalEntryId,
+      };
+    });
+  }
+
+  /** Cancel a purchase invoice and reverse its journal, stock and bank effects. */
+  async deletePurchaseInvoice(id: number): Promise<void> {
+    const existing = await this.purchases.findById(id);
+    if (!existing) throw new NotFoundError(`Purchase invoice ${id} not found.`);
+    if (existing.status === "CANCELLED") return;
+    await this.db.transaction(async () => {
+      await this.clearEffects(id, existing.invoice_number);
+      await this.purchases.updateInvoice(id, {
+        status: "CANCELLED",
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
+
+  private async clearEffects(invoiceId: number, invoiceNumber: string): Promise<void> {
+    await this.db.run(
+      `DELETE FROM journal_entry_lines WHERE journal_entry_id IN
+         (SELECT id FROM journal_entries WHERE source_table = 'purchase_invoices' AND source_id = ?)`,
+      [invoiceId],
+    );
+    await this.db.run(
+      "DELETE FROM journal_entries WHERE source_table = 'purchase_invoices' AND source_id = ?",
+      [invoiceId],
+    );
+
+    const rows = await this.db.all<{ batch_id: number; quantity: number }>(
+      "SELECT batch_id, quantity FROM purchase_invoice_items WHERE invoice_id = ?",
+      [invoiceId],
+    );
+    for (const row of rows) {
+      await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(row.quantity)));
+    }
+    await this.db.run(
+      "DELETE FROM stock_movements WHERE reference_table = 'purchase_invoices' AND reference_id = ?",
+      [invoiceId],
+    );
+    await this.db.run("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", [invoiceId]);
+    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
+  }
+
+  private async postEffects(
+    invoiceId: number,
+    invoiceNumber: string,
+    input: CreatePurchaseInvoiceInput,
+    ctx: PreparedPurchaseInvoice,
+    warehouseId: number,
+    companyId: number,
+  ): Promise<number> {
+    const resolver = new SystemAccountResolver(this.db, companyId);
+    const taxId = await resolver.idFor(SystemAccountCodes.SALES_TAX_PAYABLE);
+    const credit = await this.resolvePaymentAccount(input, resolver, input.supplierId);
+
+    // Inventory debit is split by item type, so aggregate line totals per type.
+    const typeTotals = new Map<ItemType, Decimal>();
+    for (const line of ctx.prepared) {
+      typeTotals.set(
+        line.item.item_type,
+        (typeTotals.get(line.item.item_type) ?? new Decimal(0)).plus(line.lineTotal),
+      );
+    }
+
+    const journalLines: JournalLineInput[] = [];
+    for (const [itemType, amount] of typeTotals) {
+      if (amount.lessThanOrEqualTo(0)) continue;
+      journalLines.push({
+        accountId: await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemType]),
+        debit: amount,
+        description: `Inventory purchase - ${itemType.replace(/_/g, " ")}`,
+      });
+    }
+    if (ctx.taxAmount.greaterThan(0)) {
+      journalLines.push({
+        accountId: taxId,
+        credit: ctx.taxAmount,
+        description: "Input tax on purchases",
+      });
+    }
+    journalLines.push({
+      accountId: credit.accountId,
+      credit: round2(ctx.totalAmount.minus(ctx.taxAmount)),
+      partyId: credit.partyId,
+      description: credit.description,
+    });
+
+    for (const line of ctx.prepared) {
+      const batchId = await this.upsertBatch(line, warehouseId);
+      await this.purchases.insertItem({
+        invoice_id: invoiceId,
+        item_id: line.item.id,
+        batch_id: batchId,
+        batch_number: line.batchNumber,
+        manufacturing_date: line.manufacturingDate,
+        expiry_date: line.expiryDate,
+        quantity: toQuantity(line.quantity),
+        unit_cost: toStorage(line.unitCost),
+        discount_amount: toStorage(line.discount),
+        tax_amount: toStorage(line.tax),
+        line_total: toStorage(line.lineTotal),
+      });
+      // Keep the stock-movement ledger in step with the batch so on-hand
+      // stock can always be reconciled against SUM(stock_movements).
+      await insertRow(this.db, "stock_movements", {
+        item_id: line.item.id,
+        batch_id: batchId,
+        warehouse_id: warehouseId,
+        movement_type: "PURCHASE",
+        quantity: toQuantity(line.quantity),
+        unit_cost: toStorage(line.unitCost),
+        reference_table: "purchase_invoices",
+        reference_id: invoiceId,
+        movement_date: input.invoiceDate,
+        notes: `Purchase invoice ${invoiceNumber}`,
+        created_by: input.createdBy ?? null,
+      });
+    }
+
+    const journalEntryId = await this.accounting.postJournalEntry({
+      voucherType: "PURCHASE",
+      voucherNumber: invoiceNumber,
+      entryDate: input.invoiceDate,
+      lines: journalLines,
+      sourceTable: "purchase_invoices",
+      sourceId: invoiceId,
+      narration: `Purchase invoice ${invoiceNumber}`,
+      companyId,
+      createdBy: input.createdBy ?? null,
+    });
+
+    if (
+      (input.paymentType === "BANK" || input.paymentType === "CHEQUE") &&
+      input.bankAccountId
+    ) {
+      await this.db.run(
+        `INSERT INTO bank_transactions
+           (bank_account_id, transaction_type, amount, transaction_date, reference_no, notes, created_at)
+         VALUES (?, 'WITHDRAWAL', ?, ?, ?, ?, datetime('now'))`,
+        [
+          input.bankAccountId,
+          toStorage(ctx.totalAmount),
+          input.invoiceDate,
+          invoiceNumber,
+          `Purchase invoice ${invoiceNumber} - ${input.paymentType} payment`,
+        ],
+      );
+    }
+
+    return journalEntryId;
   }
 
   private async resolvePaymentAccount(
