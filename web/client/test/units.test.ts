@@ -1,6 +1,21 @@
 import { test, expect } from "vitest";
 import { defaultPackUnit, packCount } from "../src/lib/units";
 
+test("trial balance rows group by COA type with closing subtotals", async () => {
+  const { groupTbRows } = await import("../src/pages/TrialBalancePage");
+  const rows = [
+    { accountId: 1, accountCode: "4000", accountName: "Sales", accountType: "REVENUE" as const, openingDebit: 0, openingCredit: 0, debit: 5, credit: 0, closingDebit: 0, closingCredit: 5 },
+    { accountId: 2, accountCode: "1000", accountName: "Cash", accountType: "ASSET" as const, openingDebit: 0, openingCredit: 0, debit: 10, credit: 0, closingDebit: 10, closingCredit: 0 },
+    { accountId: 3, accountCode: "1100", accountName: "Bank", accountType: "ASSET" as const, openingDebit: 0, openingCredit: 0, debit: 0, credit: 3, closingDebit: 7, closingCredit: 0 },
+  ];
+  const groups = groupTbRows(rows);
+  expect(groups.map((g) => g.type)).toEqual(["ASSET", "REVENUE"]);
+  expect(groups[0].rows.map((r) => r.accountCode)).toEqual(["1000", "1100"]);
+  expect(groups[0].closingDebit).toBe(17);
+  expect(groups[0].closingCredit).toBe(0);
+  expect(groups[1].closingCredit).toBe(5);
+});
+
 test("50 kg into 5 kg packs is 10 packs", () => {
   const result = packCount(50, "KG", 5, "KG");
   expect(result.packs).toBe(10);

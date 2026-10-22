@@ -120,8 +120,8 @@ export class ManufacturingService {
   }
 
   // --- BOM ---------------------------------------------------------------
-  async listBoms(): Promise<BomRow[]> {
-    return this.manufacturing.listBoms(this.companyId);
+  async listBoms(activeOnly = true): Promise<BomRow[]> {
+    return this.manufacturing.listBoms(this.companyId, activeOnly);
   }
 
   async getBom(id: number): Promise<{ bom: BomRow; components: BomComponentRow[] }> {

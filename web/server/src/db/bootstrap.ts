@@ -63,6 +63,7 @@ const DEFAULT_NUMBERING: ReadonlyArray<readonly [string, string]> = [
   ["SUPPLIER", "SUPP-"],
   ["ITEM", "ITEM-"],
   ["BOM", "BOM-"],
+  ["ACCOUNT", "AC-"],
 ];
 
 /**
@@ -78,6 +79,7 @@ const RECONCILE: ReadonlyArray<{
   column: string;
 }> = [
   { docType: "ITEM", prefix: "ITEM-", table: "items", column: "item_code" },
+  { docType: "ACCOUNT", prefix: "AC-", table: "accounts", column: "account_code" },
   { docType: "CUSTOMER", prefix: "CUST-", table: "parties", column: "code" },
   { docType: "SUPPLIER", prefix: "SUPP-", table: "parties", column: "code" },
   { docType: "SALES_INVOICE", prefix: "SI-", table: "sales_invoices", column: "invoice_number" },
@@ -138,8 +140,31 @@ export async function reconcileNumberingSequences(
 /** Create all tables (idempotent) and seed defaults. */
 export async function bootstrapDatabase(db: SqlDatabase): Promise<void> {
   await db.exec(SCHEMA_SQL);
+  await ensureColumns(db);
   await seedDefaults(db);
   await reconcileNumberingSequences(db);
+}
+
+/**
+ * Columns added after the first release. SCHEMA_SQL only creates missing
+ * tables, so an existing local database needs the ALTERs below. The hosted
+ * SQLite Cloud database is migrated by hand with the matching SQL in
+ * server/migrations/ (the app never runs DDL against it).
+ */
+const ADDED_COLUMNS: ReadonlyArray<readonly [table: string, column: string, definition: string]> = [
+  ["expenses", "status", "TEXT NOT NULL DEFAULT 'PAID'"],
+  ["expenses", "due_date", "TEXT"],
+  ["expenses", "settlement_journal_entry_id", "INTEGER"],
+  ["expense_items", "frequency", "TEXT"],
+  ["expense_items", "next_run_date", "TEXT"],
+];
+
+async function ensureColumns(db: SqlDatabase): Promise<void> {
+  for (const [table, column, definition] of ADDED_COLUMNS) {
+    const columns = await db.all<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (columns.some((existing) => existing.name === column)) continue;
+    await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 async function seedDefaults(db: SqlDatabase): Promise<void> {

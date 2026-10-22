@@ -131,8 +131,8 @@ also returns `current_stock` aggregated across active batches.
 | Table | Key columns | Notes |
 | --- | --- | --- |
 | `expense_categories` | `company_id`, `name` UNIQUE(company), `account_id`, `is_active` | Account must be type `EXPENSE`; falls back to `6000` |
-| `expenses` | `company_id`, `voucher_number` UNIQUE(company), `category_id`, `expense_date`, `amount`, `payment_method`, `bank_account_id`, `cheque_id`, `description` | One voucher per payment |
-| `expense_items` | `company_id`, `category_id`, `name` UNIQUE(company, category, name), `amount`, `is_active` | Recurring “pay items”; paying them creates one expense each |
+| `expenses` | `company_id`, `voucher_number` UNIQUE(company), `category_id`, `expense_date`, `amount`, `payment_method`, `status` (`PAID`/`UNPAID`), `due_date`, `settlement_journal_entry_id`, `bank_account_id`, `cheque_id`, `description` | One voucher per payment. `UNPAID` = pay-later bill on AP 2000 (payment_method is the planned method) |
+| `expense_items` | `company_id`, `category_id`, `name` UNIQUE(company, category, name), `amount`, `frequency`, `next_run_date`, `is_active` | Recurring “pay items”. `frequency` set + positive `amount` = auto-generated unpaid bill per due period, advanced on `GET /api/expenses` |
 | `asset_details` | `account_id` UNIQUE, `asset_type`, `purchase_amount`, `purchase_date`, `supplier_id`, `due_date`, `notes` | One detail row per fixed-asset account |
 
 ## Enumerations

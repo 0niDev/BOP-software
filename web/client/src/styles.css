@@ -36,22 +36,23 @@
     "Helvetica Neue", "Segoe UI", Roboto, system-ui, Arial, sans-serif;
 
   /* Dark is the shipped default (settings group APPEARANCE = dark).
-     Deep, near-black canvas — flat, no decorative background gradients. */
-  --bg: #0a0a0c;
+     Black canvas with a maroon accent — flat, no decorative gradients. */
+  --bg: #070607;
   --bg-gradient: none;
-  /* Flat matte neutral panels; no glass, no bevels, no neumorphic lift. */
-  --panel: #121216;
-  --panel-solid: #121216;
-  --panel-2: #1a1a20;
-  /* Hairline neutral borders (neutral-800 at ~60% over the panel). */
-  --border: #2b2b31;
-  --border-strong: #3a3a42;
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  /* Electric accent — used for solid primary actions and razor-thin outlines. */
-  --accent: #06b6d4;
-  --accent-2: #22d3ee;
-  --accent-soft: rgba(6, 182, 212, 0.12);
+  /* Flat matte panels, warmed a touch toward the maroon accent. */
+  --panel: #100d0f;
+  --panel-solid: #100d0f;
+  --panel-2: #171114;
+  /* One border colour for the whole app (cards, inputs, buttons, tables,
+     popovers). Kept as three names because the component layer reads them. */
+  --border: #3b2028;
+  --border-strong: var(--border);
+  --text: #f6f1f2;
+  --muted: #ab9aa0;
+  /* Maroon accent — solid primary actions and thin outlines. */
+  --accent: #9d1c2e;
+  --accent-2: #b8243a;
+  --accent-soft: rgba(157, 28, 46, 0.16);
   --teal: #14b8a6;
   --amber: #f59e0b;
   --ok: #10b981;
@@ -61,17 +62,17 @@
   --amber-ink: #fbbf24;
   --ok-ink: #34d399;
   --danger-ink: #f87171;
-  --input-bg: #0e0e12;
-  --input-border: #2e2e35;
-  --sidebar-bg: #0e0e11;
-  --login-bg: #121216;
-  /* Crisp dark text on the solid electric accent (per the design system). */
-  --on-accent: #04141a;
+  --input-bg: #0b0809;
+  --input-border: var(--border);
+  --sidebar-bg: #0a0708;
+  --login-bg: #100d0f;
+  /* White text on the solid maroon accent. */
+  --on-accent: #ffffff;
   --error-text: #fca5a5;
   --error-bg: rgba(239, 68, 68, 0.12);
   --badge-bg: rgba(16, 185, 129, 0.14);
   --badge-text: #6ee7b7;
-  --grid-line: #232329;
+  --grid-line: var(--border);
   /* Cards carry no shadows at all; only floating overlays get a tight, dark
      drop so they separate from the content beneath them — never a glow. */
   --shadow-sm: none;
@@ -81,22 +82,22 @@
   color-scheme: dark;
 }
 
-/* Light palette (Settings → Appearance → Light) — the reference look. */
+/* Light palette (Settings → Appearance → Light) — same maroon accent on paper. */
 :root[data-theme="light"] {
-  --bg: #f7f7f8;
+  --bg: #f8f4f5;
   --bg-gradient: none;
   --panel: #ffffff;
   --panel-solid: #ffffff;
-  --panel-2: #f4f4f5;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
-  --text: #18181b;
-  /* neutral-500: 4.8:1 on white, so 12px captions stay readable. */
-  --muted: #71717a;
-  /* Light mode keeps a saturated accent too — vivid indigo with white text. */
-  --accent: #4f46e5;
-  --accent-2: #4338ca;
-  --accent-soft: rgba(79, 70, 229, 0.09);
+  --panel-2: #f5eef0;
+  --border: #e2cdd3;
+  --border-strong: var(--border);
+  --text: #1a1214;
+  /* warm-neutral 500: still clears AA on white for 12px captions. */
+  --muted: #705c62;
+  /* Maroon, deepened for white text. */
+  --accent: #8c1c2b;
+  --accent-2: #701523;
+  --accent-soft: rgba(140, 28, 43, 0.09);
   --teal: #0d9488;
   --amber: #f59e0b;
   --ok: #059669;
@@ -107,15 +108,15 @@
   --ok-ink: #047857;
   --danger-ink: #b91c1c;
   --input-bg: #ffffff;
-  --input-border: #dcdce1;
-  --sidebar-bg: #fafafa;
+  --input-border: var(--border);
+  --sidebar-bg: #fbf8f9;
   --login-bg: #ffffff;
   --on-accent: #ffffff;
   --error-text: #b91c1c;
   --error-bg: #fef2f2;
   --badge-bg: #e5f6f1;
   --badge-text: #0f766e;
-  --grid-line: #eeeef1;
+  --grid-line: var(--border);
   --shadow-sm: none;
   --shadow-md: 0 8px 20px -14px rgba(24, 24, 27, 0.25);
   --shadow-lg: 0 16px 36px -20px rgba(24, 24, 27, 0.3);
@@ -223,7 +224,7 @@ button {
     border-color 0.15s ease-out, opacity 0.15s ease-out;
 }
 button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  border-color: var(--border);
   background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
 }
 button:active:not(:disabled) {
@@ -233,13 +234,13 @@ button:active:not(:disabled) {
    dark text on it. Flat — no gradient, no glow, no lift. */
 button.primary {
   background: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  border-color: var(--border);
   color: var(--on-accent);
   box-shadow: none;
 }
 button.primary:hover:not(:disabled) {
   background: var(--accent-2);
-  border-color: color-mix(in srgb, var(--accent-2) 70%, transparent);
+  border-color: var(--border);
 }
 button.primary:active:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 88%, #000);
@@ -278,8 +279,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  /* A crisp 1px ring, not a soft halo. */
+  border-color: var(--border);
+  /* A crisp 1px accent ring, not a soft halo. */
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -398,7 +399,7 @@ label {
 .nav button.active {
   color: var(--text);
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  border-color: var(--border);
 }
 .nav-entry {
   display: flex;
@@ -495,22 +496,18 @@ label {
 .card:hover {
   border-color: var(--border);
 }
-/* An interactive card (it holds form controls) lights up with the electric
-   outline while it is being worked in — the "active widget" signal. */
+/* An interactive card (it holds form controls) lights up with the accent ring
+   while it is being worked in — the "active widget" signal. */
 .card:has(:is(input, select, textarea)),
 .card:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  border-color: var(--border);
 }
-/* Explicit accent outlines (unlayered, so they beat Tailwind's `border-*`
-   utilities too). Hairline-thin, fully saturated, zero glow. */
-.outline-cyan {
-  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
-}
-.outline-indigo {
-  border-color: color-mix(in srgb, #6366f1 80%, transparent);
-}
+/* Every card wears the same hairline; the accent lives in the content, not in
+   four different outline colours. */
+.outline-cyan,
+.outline-indigo,
 .outline-amber {
-  border-color: color-mix(in srgb, #f59e0b 80%, transparent);
+  border-color: var(--border);
 }
 /* Tables never squeeze their columns below the readable minimum. */
 .card table {
@@ -553,6 +550,75 @@ tr.total td {
   border-top: 2px solid var(--border-strong);
 }
 
+/* --------------------------------------------------- chart of accounts tree */
+/* Level bands: class → group → ledger, descending maroon tint per depth so
+   the hierarchy reads by weight and colour as well as indent. */
+.coa-row.coa-l1 > td {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  font-weight: 700;
+}
+.coa-l1 .coa-code {
+  color: var(--accent);
+  font-weight: 700;
+}
+.coa-row.coa-l2 > td {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  font-weight: 600;
+}
+.coa-row.coa-l3 > td {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  font-weight: 400;
+}
+/* Hover overrides the band so the row still responds to the pointer. */
+.coa-row:hover > td {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* Indent rails: one hairline per level, plus an elbow glyph on nested rows. */
+.coa-code {
+  display: inline-flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.coa-rail {
+  display: inline-block;
+  align-self: stretch;
+  width: 16px;
+  border-left: 1px solid var(--grid-line);
+}
+.coa-elbow {
+  color: var(--muted);
+  opacity: 0.45;
+  margin: 0 6px 0 2px;
+}
+
+/* Type filter tabs above the tree. */
+.coa-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 16px;
+}
+.coa-tabs button {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+.coa-tabs button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--panel-2);
+  border-color: var(--border);
+}
+.coa-tabs button.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--border);
+}
+
 .grid {
   display: grid;
   gap: 24px;
@@ -566,6 +632,27 @@ tr.total td {
 .sub {
   font-size: 13px;
   color: var(--muted);
+}
+
+/* Modal overlay (Pay items dialog, pages/ExpensesPage.tsx). */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.5);
+}
+.modal {
+  width: min(760px, 100%);
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
 }
 
 /* Searchable dropdown (components/SearchableSelect.tsx) — replaces <select>. */
@@ -667,6 +754,14 @@ tr.total td {
   border-radius: 10px;
   font-size: 13px;
 }
+.warning {
+  color: var(--amber-ink);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border-left: 4px solid var(--amber);
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
 .badge {
   display: inline-flex;
   align-items: center;
@@ -701,7 +796,7 @@ tr.total td {
 .icon-btn.active {
   color: var(--accent);
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-color: var(--border);
 }
 .icon-btn.primary {
   color: var(--on-accent);
@@ -763,27 +858,27 @@ tr.total td {
 .pill-brand {
   color: var(--accent);
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--border);
 }
 .pill-teal {
   color: var(--teal-ink);
   background: color-mix(in srgb, var(--teal) 12%, transparent);
-  border-color: color-mix(in srgb, var(--teal) 26%, transparent);
+  border-color: var(--border);
 }
 .pill-amber {
   color: var(--amber-ink);
   background: color-mix(in srgb, var(--amber) 14%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 28%, transparent);
+  border-color: var(--border);
 }
 .pill-ok {
   color: var(--ok-ink);
   background: var(--badge-bg);
-  border-color: color-mix(in srgb, var(--ok) 26%, transparent);
+  border-color: var(--border);
 }
 .pill-danger {
   color: var(--danger-ink);
   background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 26%, transparent);
+  border-color: var(--border);
 }
 .pill-slate {
   color: var(--muted);

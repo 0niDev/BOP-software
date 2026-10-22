@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictError, ValidationError } from "../src/domain/errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../src/domain/errors.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ExpenseService } from "../src/services/expenseService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
@@ -68,5 +68,55 @@ describe("ExpenseService", () => {
     };
     await expenses.createExpense(base);
     await expect(expenses.createExpense(base)).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("records a pay-later bill on accounts payable and settles it exactly once", async () => {
+    const bill = await expenses.createExpense({
+      categoryId,
+      expenseDate: "2026-10-01",
+      amount: 500,
+      paymentMethod: "BANK",
+      payLater: true,
+      dueDate: "2026-10-31",
+    });
+
+    const [row] = await expenses.listExpenses();
+    expect(row.status).toBe("UNPAID");
+    expect(row.due_date).toBe("2026-10-31");
+    expect(row.settlement_journal_entry_id).toBeNull();
+
+    const billJe = await accounting.getJournalEntry("expenses", bill.id);
+    const billLines = billJe!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(billLines.find((l) => l.account_code === "6000")?.debit).toBe(500);
+    expect(billLines.find((l) => l.account_code === "2000")?.credit).toBe(500);
+    expect(billLines.find((l) => l.account_code === "1010")).toBeUndefined();
+
+    const settled = await expenses.payExpense(bill.id, {
+      paymentMethod: "BANK",
+      paymentDate: "2026-10-05",
+    });
+    const settleJe = await accounting.getJournalEntry("expense_settlements", bill.id);
+    const settleLines = settleJe!.lines as Array<{
+      account_code: string;
+      debit: number;
+      credit: number;
+    }>;
+    expect(settleLines.find((l) => l.account_code === "2000")?.debit).toBe(500);
+    expect(settleLines.find((l) => l.account_code === "1010")?.credit).toBe(500);
+
+    const [paid] = await expenses.listExpenses();
+    expect(paid.status).toBe("PAID");
+    expect(paid.settlement_journal_entry_id).toBe(settled.journalEntryId);
+
+    // One full payment per bill: a second attempt is refused.
+    await expect(expenses.payExpense(bill.id, { paymentMethod: "CASH" })).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+  });
+
+  it("refuses to settle an unknown expense", async () => {
+    await expect(
+      expenses.payExpense(999_999, { paymentMethod: "CASH" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

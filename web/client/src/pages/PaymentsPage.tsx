@@ -28,6 +28,30 @@ export default function PaymentsPage() {
   const [bankId, setBankId] = useState(0);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [outstanding, setOutstanding] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!partyId) {
+      setOutstanding(null);
+      return;
+    }
+    let active = true;
+    void api
+      .partyLedger(partyId)
+      .then((entries) => {
+        if (!active) return;
+        // Running balance is debit - credit: a positive figure is money the
+        // party owes us (receivable); for a supplier the payable is its inverse.
+        const balance = entries.length ? (entries[entries.length - 1]?.balance ?? 0) : 0;
+        setOutstanding(tab === "payments" ? -balance : balance);
+      })
+      .catch(() => {
+        if (active) setOutstanding(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [partyId, tab]);
 
   async function refresh() {
     try {
@@ -92,6 +116,8 @@ export default function PaymentsPage() {
 
   const partyOptions = tab === "payments" ? suppliers : customers;
   const rows = tab === "payments" ? payments : receipts;
+  const overBalance = outstanding !== null && amount > 0 && amount > outstanding;
+  const outstandingAmount = outstanding ?? 0;
   const visibleRows = rows.filter((row) =>
     matchesQuery(query, [
       row.voucher_number,
@@ -110,16 +136,37 @@ export default function PaymentsPage() {
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Payments &amp; Receipts</h2>
           <div className="row">
-            <button className={tab === "payments" ? "primary" : ""} onClick={() => setTab("payments")}>
+            <button
+              className={tab === "payments" ? "primary" : ""}
+              onClick={() => {
+                setTab("payments");
+                setPartyId(0);
+              }}
+            >
               Payments
             </button>
-            <button className={tab === "receipts" ? "primary" : ""} onClick={() => setTab("receipts")}>
+            <button
+              className={tab === "receipts" ? "primary" : ""}
+              onClick={() => {
+                setTab("receipts");
+                setPartyId(0);
+              }}
+            >
               Receipts
             </button>
           </div>
         </div>
         {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
         {notice && <div className="badge" style={{ display: "inline-block", marginTop: 12 }}>{notice}</div>}
+        {overBalance && (
+          <div className="warning" style={{ marginTop: 12 }}>
+            This {tab === "payments" ? "payment" : "receipt"} is{" "}
+            {money(amount - Math.max(outstandingAmount, 0))} more than the{" "}
+            {tab === "payments" ? "payable" : "receivable"} of{" "}
+            {money(Math.max(outstandingAmount, 0))} for this{" "}
+            {tab === "payments" ? "supplier" : "customer"}. It will be saved as an advance.
+          </div>
+        )}
       </div>
 
       <form className="card" onSubmit={submit}>

@@ -3,7 +3,38 @@ import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
-import type { BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance } from "../types";
+import type { AccountType, BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+
+/** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
+const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
+
+const TYPE_LABELS: Record<AccountType, string> = {
+  ASSET: "Assets",
+  LIABILITY: "Liabilities",
+  EQUITY: "Equity",
+  REVENUE: "Revenue",
+  EXPENSE: "Expenses",
+};
+
+interface TbGroup {
+  type: AccountType;
+  rows: TrialBalanceRow[];
+  closingDebit: number;
+  closingCredit: number;
+}
+
+export function groupTbRows(rows: TrialBalanceRow[]): TbGroup[] {
+  const groups = COA_ORDER.map((type) => ({ type, rows: [] as TrialBalanceRow[] }));
+  const byType = new Map(groups.map((g) => [g.type, g]));
+  for (const row of rows) byType.get(row.accountType)?.rows.push(row);
+  return groups
+    .filter((g) => g.rows.length > 0)
+    .map((g) => ({
+      ...g,
+      closingDebit: g.rows.reduce((sum, r) => sum + r.closingDebit, 0),
+      closingCredit: g.rows.reduce((sum, r) => sum + r.closingCredit, 0),
+    }));
+}
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -125,6 +156,40 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+interface GroupedTbRowsProps {
+  group: TbGroup;
+}
+
+/** COA section: type header, the account rows in code order, then a subtotal. */
+function GroupedTbRows({ group }: GroupedTbRowsProps) {
+  return (
+    <>
+      <tr>
+        <td colSpan={8} style={{ background: "var(--panel-2)", fontWeight: 600 }}>
+          {TYPE_LABELS[group.type]} ({group.rows.length})
+        </td>
+      </tr>
+      {group.rows.map((row) => (
+        <tr key={row.accountId}>
+          <td>{row.accountCode}</td>
+          <td>{row.accountName}</td>
+          <td className="num">{amount(row.openingDebit)}</td>
+          <td className="num">{amount(row.openingCredit)}</td>
+          <td className="num">{amount(row.debit)}</td>
+          <td className="num">{amount(row.credit)}</td>
+          <td className="num">{amount(row.closingDebit)}</td>
+          <td className="num">{amount(row.closingCredit)}</td>
+        </tr>
+      ))}
+      <tr className="total">
+        <td colSpan={6}>Total {TYPE_LABELS[group.type]}</td>
+        <td className="num">{amount(group.closingDebit)}</td>
+        <td className="num">{amount(group.closingCredit)}</td>
+      </tr>
+    </>
   );
 }
 
@@ -506,7 +571,6 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             <tr>
               <th>Code</th>
               <th>Account</th>
-              <th>Type</th>
               <th className="num">Opening Dr</th>
               <th className="num">Opening Cr</th>
               <th className="num">Period Dr</th>
@@ -516,29 +580,19 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             </tr>
           </thead>
           <tbody>
-            {tb?.rows.map((row) => (
-              <tr key={row.accountId}>
-                <td>{row.accountCode}</td>
-                <td>{row.accountName}</td>
-                <td>{row.accountType}</td>
-                <td className="num">{amount(row.openingDebit)}</td>
-                <td className="num">{amount(row.openingCredit)}</td>
-                <td className="num">{amount(row.debit)}</td>
-                <td className="num">{amount(row.credit)}</td>
-                <td className="num">{amount(row.closingDebit)}</td>
-                <td className="num">{amount(row.closingCredit)}</td>
-              </tr>
+            {tb && groupTbRows(tb.rows).map((group) => (
+              <GroupedTbRows key={group.type} group={group} />
             ))}
             {tb && tb.rows.length === 0 && (
               <tr>
-                <td colSpan={9}>No accounts with posted entries in this period.</td>
+                <td colSpan={8}>No accounts with posted entries in this period.</td>
               </tr>
             )}
           </tbody>
           {tb && (
             <tfoot>
               <tr className="total">
-                <td colSpan={7}>Closing totals</td>
+                <td colSpan={6}>Closing totals</td>
                 <td className="num">{amount(tb.totalDebit)}</td>
                 <td className="num">{amount(tb.totalCredit)}</td>
               </tr>

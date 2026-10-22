@@ -106,6 +106,34 @@ describe("ExpenseItemService", () => {
     expect((await items.get(internet.id)).amount).toBeNull();
   });
 
+  it("adds paid items now or to pay later in one batch", async () => {
+    const rent = await items.create({ categoryId: utilitiesId, name: "Rent" });
+    const electricity = await items.create({ categoryId: utilitiesId, name: "Electricity" });
+
+    const result = await items.payItems({
+      categoryId: utilitiesId,
+      paymentMethod: "BANK",
+      expenseDate: "2026-10-09",
+      payLater: true,
+      dueDate: "2026-11-01",
+      selections: [
+        { itemId: rent.id, amount: 5_000 },
+        { itemId: electricity.id, amount: 1_000, description: "September bill" },
+      ],
+    });
+
+    expect(result.voucherNumbers).toHaveLength(2);
+    const listed = await expenses.listExpenses();
+    expect(listed.map((e) => e.status)).toEqual(["UNPAID", "UNPAID"]);
+    expect(listed.map((e) => e.due_date)).toEqual(["2026-11-01", "2026-11-01"]);
+
+    // Pay-later bills credit Accounts Payable, not the bank account.
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((r) => r.accountCode === "2000")!.closingCredit).toBe(6_000);
+    expect(tb.rows.find((r) => r.accountCode === "1010")!.closingCredit).toBe(0);
+    expect(tb.balanced).toBe(true);
+  });
+
   it("settles bank payments from the bank account and rejects bad input", async () => {
     const rent = await items.create({ categoryId: utilitiesId, name: "Rent" });
     await items.payItems({
@@ -146,5 +174,70 @@ describe("ExpenseItemService", () => {
     ).rejects.toBeInstanceOf(ValidationError);
     // Nothing was written by the rejected calls.
     expect((await expenses.listExpenses()).length).toBe(1);
+  });
+
+  it("auto-generates every due recurring bill and advances the schedule", async () => {
+    const rent = await items.create({
+      categoryId: utilitiesId,
+      name: "Rent",
+      amount: 1_000,
+      frequency: "MONTHLY",
+      nextRunDate: "2026-08-01",
+    });
+    expect(rent.frequency).toBe("MONTHLY");
+    expect(rent.next_run_date).toBe("2026-08-01");
+
+    const first = await items.generateDue("2026-10-22");
+    expect(first.voucherNumbers).toHaveLength(3); // Aug 1, Sep 1, Oct 1
+    expect((await items.get(rent.id)).next_run_date).toBe("2026-11-01");
+
+    const generated = await expenses.listExpenses();
+    expect(generated.map((e) => e.status)).toEqual(["UNPAID", "UNPAID", "UNPAID"]);
+    expect(generated.map((e) => e.expense_date).sort()).toEqual([
+      "2026-08-01",
+      "2026-09-01",
+      "2026-10-01",
+    ]);
+
+    // Bills sit on Accounts Payable until they are settled.
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((r) => r.accountCode === "2000")!.closingCredit).toBe(3_000);
+    expect(tb.balanced).toBe(true);
+
+    // Catch-up is idempotent: nothing due, schedule untouched.
+    expect((await items.generateDue("2026-10-22")).voucherNumbers).toHaveLength(0);
+    expect((await items.get(rent.id)).next_run_date).toBe("2026-11-01");
+  });
+
+  it("keeps the anchor day for month-end rules and validates recurring input", async () => {
+    const rent = await items.create({
+      categoryId: utilitiesId,
+      name: "Month End Rent",
+      amount: 500,
+      frequency: "MONTHLY",
+      nextRunDate: "2026-01-31",
+    });
+
+    await items.generateDue("2026-03-01"); // Jan 31 and Feb 28 are due
+    expect((await items.get(rent.id)).next_run_date).toBe("2026-03-31");
+
+    // A recurrence without a first date or without a positive amount is rejected.
+    await expect(
+      items.create({ categoryId: utilitiesId, name: "No Date", amount: 10, frequency: "MONTHLY" }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      items.create({
+        categoryId: utilitiesId,
+        name: "No Amount",
+        frequency: "MONTHLY",
+        nextRunDate: "2026-11-01",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    // Clearing the frequency stops future generation and clears the schedule.
+    const cleared = await items.update(rent.id, { frequency: null });
+    expect(cleared.frequency).toBeNull();
+    expect(cleared.next_run_date).toBeNull();
+    expect((await items.generateDue("2027-01-01")).voucherNumbers).toHaveLength(0);
   });
 });

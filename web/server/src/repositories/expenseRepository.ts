@@ -19,6 +19,10 @@ export interface ExpenseRow {
   expense_date: string;
   amount: number;
   payment_method: PaymentMethod;
+  /** `UNPAID` = pay-later bill sitting on Accounts Payable. */
+  status: "PAID" | "UNPAID";
+  due_date: string | null;
+  settlement_journal_entry_id: number | null;
   bank_account_id: number | null;
   cheque_id: number | null;
   description: string | null;

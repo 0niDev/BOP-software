@@ -25,10 +25,22 @@ export interface CreateExpenseInput {
   expenseDate: string;
   amount: number | string;
   paymentMethod: ExpensePaymentMethod;
+  /** Record as an unpaid bill (Dr expense / Cr Accounts Payable) instead of paying now. */
+  payLater?: boolean;
+  dueDate?: string | null;
   voucherNumber?: string | null;
   bankAccountId?: number | null;
   chequeId?: number | null;
   description?: string | null;
+  companyId?: number;
+  createdBy?: number | null;
+}
+
+export interface PayExpenseInput {
+  paymentMethod: ExpensePaymentMethod;
+  paymentDate?: string;
+  bankAccountId?: number | null;
+  chequeId?: number | null;
   companyId?: number;
   createdBy?: number | null;
 }
@@ -107,8 +119,11 @@ export class ExpenseService {
     // Fall back to General & Administrative Expenses (6000) when the category
     // has no account linked, mirroring the Python service.
     const expenseAccountId = category.account_id ?? (await resolver.idFor("6000"));
-    const paymentAccountId =
-      input.paymentMethod === "CASH"
+    // Pay-later bills sit on Accounts Payable until payExpense() settles them.
+    const payLater = input.payLater === true;
+    const paymentAccountId = payLater
+      ? await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE)
+      : input.paymentMethod === "CASH"
         ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
         : await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS);
 
@@ -129,6 +144,8 @@ export class ExpenseService {
         expense_date: input.expenseDate,
         amount: toStorage(amount),
         payment_method: input.paymentMethod,
+        status: payLater ? "UNPAID" : "PAID",
+        due_date: payLater ? input.dueDate ?? null : null,
         bank_account_id: input.bankAccountId ?? null,
         cheque_id: input.chequeId ?? null,
         description: input.description ?? null,
@@ -158,6 +175,66 @@ export class ExpenseService {
       });
 
       return { id, voucherNumber, journalEntryId };
+    });
+  }
+
+  /**
+   * Settle an unpaid expense bill: Dr Accounts Payable / Cr cash|bank. One
+   * full payment per bill — the UNPAID status check is the overpayment guard.
+   */
+  async payExpense(id: number, input: PayExpenseInput): Promise<ExpenseResult> {
+    if (!["CASH", "BANK", "CHEQUE"].includes(input.paymentMethod)) {
+      throw new ValidationError("Invalid payment method.");
+    }
+    const companyId = input.companyId ?? this.companyId;
+    const paymentDate = input.paymentDate || new Date().toISOString().slice(0, 10);
+
+    return this.db.transaction(async () => {
+      const expense = await this.expenses.findExpenseById(id);
+      if (!expense) throw new NotFoundError(`Expense ${id} not found.`);
+      if (expense.status !== "UNPAID") {
+        throw new ConflictError(`Expense ${expense.voucher_number} is already paid.`);
+      }
+
+      const resolver = new SystemAccountResolver(this.db, companyId);
+      const apId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
+      const paymentAccountId =
+        input.paymentMethod === "CASH"
+          ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
+          : await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS);
+
+      const journalEntryId = await this.accounting.postJournalEntry({
+        voucherType: "PAYMENT",
+        entryDate: paymentDate,
+        lines: [
+          {
+            accountId: apId,
+            debit: expense.amount,
+            description: `Settle expense ${expense.voucher_number}`,
+          },
+          {
+            accountId: paymentAccountId,
+            credit: expense.amount,
+            description: `Payment of expense ${expense.voucher_number}`,
+          },
+        ],
+        // A separate source table so the bill's original journal entry (source
+        // table "expenses") stays the single entry for that expense id.
+        sourceTable: "expense_settlements",
+        sourceId: expense.id,
+        narration: `Expense payment ${expense.voucher_number}`,
+        companyId,
+        createdBy: input.createdBy ?? null,
+      });
+
+      await this.db.run(
+        `UPDATE expenses
+            SET status = 'PAID', settlement_journal_entry_id = ?, updated_at = datetime('now')
+          WHERE id = ?`,
+        [journalEntryId, expense.id],
+      );
+
+      return { id: expense.id, voucherNumber: expense.voucher_number, journalEntryId };
     });
   }
 }

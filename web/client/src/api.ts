@@ -19,6 +19,7 @@ import type {
   DatabaseInfo,
   Expense,
   ExpenseCategory,
+  ExpenseFrequency,
   ExpenseItem,
   ExpenseResult,
   Item,
@@ -395,9 +396,23 @@ export const api = {
     request<ExpenseItem[]>(
       `/api/expense-items${categoryId ? `?categoryId=${categoryId}` : ""}`,
     ),
-  createExpenseItem: (body: { categoryId: number; name: string; amount?: number | null }) =>
+  createExpenseItem: (body: {
+    categoryId: number;
+    name: string;
+    amount?: number | null;
+    frequency?: ExpenseFrequency | null;
+    nextRunDate?: string | null;
+  }) =>
     request<ExpenseItem>("/api/expense-items", { method: "POST", body: JSON.stringify(body) }),
-  updateExpenseItem: (id: number, body: { name?: string | null; amount?: number | null }) =>
+  updateExpenseItem: (
+    id: number,
+    body: {
+      name?: string | null;
+      amount?: number | null;
+      frequency?: ExpenseFrequency | null;
+      nextRunDate?: string | null;
+    },
+  ) =>
     request<ExpenseItem>(`/api/expense-items/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateExpenseItem: (id: number) =>
     request<{ ok: boolean }>(`/api/expense-items/${id}/deactivate`, { method: "POST" }),
@@ -406,6 +421,8 @@ export const api = {
     paymentMethod: SettlementMethod;
     bankAccountId?: number | null;
     expenseDate: string;
+    payLater?: boolean;
+    dueDate?: string | null;
     selections: Array<{ itemId: number; amount: number; description?: string | null }>;
   }) =>
     request<{ voucherNumbers: string[]; totalPaid: number }>("/api/expense-items/pay", {
@@ -417,10 +434,25 @@ export const api = {
     expenseDate: string;
     amount: number;
     paymentMethod: SettlementMethod;
+    payLater?: boolean;
+    dueDate?: string | null;
     bankAccountId?: number | null;
     description?: string | null;
   }) => request<ExpenseResult>("/api/expenses", { method: "POST", body: JSON.stringify(body) }),
-  boms: () => request<Bom[]>("/api/boms"),
+  payExpense: (
+    id: number,
+    body: {
+      paymentMethod: SettlementMethod;
+      paymentDate?: string;
+      bankAccountId?: number | null;
+    },
+  ) =>
+    request<ExpenseResult>(`/api/expenses/${id}/pay`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  boms: (activeOnly = true) =>
+    request<Bom[]>(`/api/boms${activeOnly ? "" : "?activeOnly=false"}`),
   bom: (id: number) =>
     request<{ bom: Bom; components: BomComponent[] }>(`/api/boms/${id}`),
   createBom: (body: {

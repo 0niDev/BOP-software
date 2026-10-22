@@ -9,7 +9,7 @@
     "client"
   ],
   "scripts": {
-    "dev": "concurrently -k -n server,client -c blue,magenta \"npm -w @bop-erp/server run dev\" \"npm -w @bop-erp/client run dev\"",
+    "dev": "concurrently -k -n server,client -c blue,magenta \"npm -w @bop-erp/server run dev\" \"node scripts/wait-for-api.mjs && npm -w @bop-erp/client run dev\"",
     "dev:server": "npm -w @bop-erp/server run dev",
     "dev:client": "npm -w @bop-erp/client run dev",
     "build": "npm -w @bop-erp/server run build && npm -w @bop-erp/client run build",

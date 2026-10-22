@@ -22,6 +22,10 @@ browser ──HTTPS/HTTP──▶  BOP-ERP service (node dist/index.js, port 400
   `SQLITE_CLOUD_URL`. The app never runs DDL or seeds against it; only a `local`
   engine is bootstrapped. If you point production at a `local` engine instead,
   that file becomes production data and must be backed up.
+  Schema changes ship as SQL files in `web/server/migrations/`; run the new ones
+  against the hosted database **before** deploying code that needs them (e.g.
+  `2026-10-22-expense-bills-recurring.sql` adds the expense `status`/`due_date`
+  and recurring-item `frequency`/`next_run_date` columns).
 * **Client** — `web/client/dist`, served by the same process. Nothing else needs
   to be installed; IIS is not required unless you want TLS terminated elsewhere.
 

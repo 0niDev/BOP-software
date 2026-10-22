@@ -46,6 +46,9 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   return result.data;
 }
 
+/** Recurrence frequency for expense items (null clears recurrence). */
+const expenseFrequencySchema = z.enum(["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"]).nullish();
+
 const returnSchema = z.object({
   invoiceId: z.coerce.number().int().positive(),
   returnDate: isoDateSchema,
@@ -166,7 +169,7 @@ export function createApp(
   app.post("/api/accounts", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        accountCode: z.string().min(1),
+        accountCode: z.string().optional(),
         accountName: z.string().min(1),
         accountType: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
         parentAccountId: z.number().int().positive().nullish(),
@@ -630,8 +633,8 @@ export function createApp(
     res.status(201).json(await payments.receivePayment(body));
   });
 
-  app.get("/api/boms", requireAuth, async (_req, res) => {
-    res.json(await manufacturing.listBoms());
+  app.get("/api/boms", requireAuth, async (req, res) => {
+    res.json(await manufacturing.listBoms(activeOnlyFlag(req)));
   });
 
   app.get("/api/boms/:id", requireAuth, async (req, res) => {
@@ -813,6 +816,8 @@ export function createApp(
   });
 
   app.get("/api/expenses", requireAuth, async (_req, res) => {
+    // Catch up any recurring bills before listing (no background scheduler).
+    await expenseItems.generateDue();
     res.json(await expenses.listExpenses());
   });
 
@@ -833,6 +838,8 @@ export function createApp(
         categoryId: z.number().int().positive(),
         name: z.string().min(1),
         amount: z.number().nonnegative().nullish(),
+        frequency: expenseFrequencySchema,
+        nextRunDate: isoDateSchema.nullish(),
       }),
       req.body,
     );
@@ -844,6 +851,8 @@ export function createApp(
       z.object({
         name: z.string().nullish(),
         amount: z.number().nonnegative().nullish(),
+        frequency: expenseFrequencySchema,
+        nextRunDate: isoDateSchema.nullish(),
       }),
       req.body,
     );
@@ -864,6 +873,8 @@ export function createApp(
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
         bankAccountId: z.coerce.number().int().positive().nullish(),
         expenseDate: isoDateSchema,
+        payLater: z.boolean().optional(),
+        dueDate: isoDateSchema.nullish(),
         selections: z
           .array(
             z.object({
@@ -888,6 +899,8 @@ export function createApp(
         expenseDate: isoDateSchema,
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        payLater: z.boolean().optional(),
+        dueDate: isoDateSchema.nullish(),
         voucherNumber: z.string().nullish(),
         bankAccountId: z.coerce.number().int().positive().nullish(),
         description: z.string().nullish(),
@@ -896,6 +909,26 @@ export function createApp(
     );
     const user = (req as Request & { user?: Session }).user;
     res.status(201).json(await expenses.createExpense({ ...body, createdBy: user?.userId ?? null }));
+  });
+
+  /** Settle an unpaid expense bill (Dr Accounts Payable / Cr cash|bank). */
+  app.post("/api/expenses/:id/pay", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    const body = parseBody(
+      z.object({
+        paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        paymentDate: isoDateSchema.optional(),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
+        chequeId: z.coerce.number().int().positive().nullish(),
+      }),
+      req.body,
+    );
+    res.json(
+      await expenses.payExpense(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
   });
 
   app.get("/api/bank-accounts", requireAuth, async (_req, res) => {

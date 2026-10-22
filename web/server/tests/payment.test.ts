@@ -105,7 +105,7 @@ describe("PaymentService", () => {
     expect(ar.party_id).toBe(ctx.ids.customerId);
   });
 
-  it("applies a receipt against a credit invoice and blocks over-collection", async () => {
+  it("applies a receipt against a credit invoice and carries over-collection as an advance", async () => {
     const invoice = await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,
       invoiceDate: "2026-10-08",
@@ -127,15 +127,18 @@ describe("PaymentService", () => {
     );
     expect(row?.paid_amount).toBe(300);
 
-    await expect(
-      payments.receivePayment({
-        customerId: ctx.ids.customerId,
-        amount: 50,
-        paymentDate: "2026-10-08",
-        paymentMethod: "CASH",
-        salesInvoiceId: invoice.id,
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    await payments.receivePayment({
+      customerId: ctx.ids.customerId,
+      amount: 50,
+      paymentDate: "2026-10-08",
+      paymentMethod: "CASH",
+      salesInvoiceId: invoice.id,
+    });
+    const after = await ctx.db.get<{ paid_amount: number }>(
+      "SELECT paid_amount FROM sales_invoices WHERE id = ?",
+      [invoice.id],
+    );
+    expect(after?.paid_amount).toBe(350);
   });
 
   it("refuses to collect against a cash invoice", async () => {
@@ -156,27 +159,16 @@ describe("PaymentService", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("refuses a supplier payment that exceeds the outstanding payable", async () => {
+  it("allows a supplier payment that exceeds the outstanding payable as an advance", async () => {
     const invoice = await purchases.createPurchaseInvoice({
       supplierId,
       invoiceDate: "2026-10-08",
       paymentType: "CREDIT",
       items: [{ itemId: ctx.ids.itemId, quantity: 1, unitCost: 20 }],
     });
-    await expect(
-      payments.paySupplier({
-        supplierId,
-        amount: 1000,
-        paymentDate: "2026-10-08",
-        paymentMethod: "CASH",
-        purchaseInvoiceId: invoice.id,
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
-
-    // And the payable is unchanged: a valid payment still works afterwards.
     await payments.paySupplier({
       supplierId,
-      amount: 20,
+      amount: 1000,
       paymentDate: "2026-10-08",
       paymentMethod: "CASH",
       purchaseInvoiceId: invoice.id,
@@ -185,25 +177,38 @@ describe("PaymentService", () => {
       "SELECT paid_amount FROM purchase_invoices WHERE id = ?",
       [invoice.id],
     );
-    expect(row?.paid_amount).toBe(20);
+    expect(row?.paid_amount).toBe(1000);
+
+    // The overpayment stands as an advance: a later payment is not blocked.
+    await payments.paySupplier({
+      supplierId,
+      amount: 20,
+      paymentDate: "2026-10-09",
+      paymentMethod: "CASH",
+      purchaseInvoiceId: invoice.id,
+    });
+    const after = await ctx.db.get<{ paid_amount: number }>(
+      "SELECT paid_amount FROM purchase_invoices WHERE id = ?",
+      [invoice.id],
+    );
+    expect(after?.paid_amount).toBe(1020);
   });
 
-  it("refuses a receipt that exceeds the customer's outstanding receivable", async () => {
+  it("allows a receipt that exceeds the customer's outstanding receivable as an advance", async () => {
     const invoice = await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,
       invoiceDate: "2026-10-08",
       paymentType: "CREDIT",
       items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
     });
-    await expect(
-      payments.receivePayment({
-        customerId: ctx.ids.customerId,
-        amount: 999,
-        paymentDate: "2026-10-08",
-        paymentMethod: "CASH",
-        salesInvoiceId: invoice.id,
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    const result = await payments.receivePayment({
+      customerId: ctx.ids.customerId,
+      amount: 999,
+      paymentDate: "2026-10-08",
+      paymentMethod: "CASH",
+      salesInvoiceId: invoice.id,
+    });
+    expect(result.voucherNumber).toMatch(/^RV-\d+$/);
   });
 
   it("records which bank a BANK payment came from", async () => {

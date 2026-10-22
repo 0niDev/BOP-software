@@ -104,4 +104,36 @@ describe("AccountingService", () => {
     const n2 = Number(rows[1]!.voucher_number.split("-")[1]);
     expect(n2).toBe(n1 + 1);
   });
+
+  it("refuses to post to a header account that has active sub-accounts", async () => {
+    const cash = await accountId(ctx.db, "1000");
+    const bank = await accountId(ctx.db, "1010");
+    const revenue = await accountId(ctx.db, "4000");
+    // Make 1000 a header by giving it a child.
+    await ctx.db.run("UPDATE accounts SET parent_account_id = ? WHERE id = ?", [cash, bank]);
+
+    const svc = new AccountingService(ctx.db);
+    await expect(
+      svc.postJournalEntry({
+        voucherType: "JOURNAL",
+        entryDate: "2026-10-08",
+        lines: [
+          { accountId: cash, debit: 100 },
+          { accountId: revenue, credit: 100 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    // The leaf still accepts postings.
+    await expect(
+      svc.postJournalEntry({
+        voucherType: "JOURNAL",
+        entryDate: "2026-10-08",
+        lines: [
+          { accountId: bank, debit: 100 },
+          { accountId: revenue, credit: 100 },
+        ],
+      }),
+    ).resolves.toBeGreaterThan(0);
+  });
 });

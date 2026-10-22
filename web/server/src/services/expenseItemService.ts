@@ -10,19 +10,29 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
-import { ExpenseItemRepository, type ExpenseItemRow } from "../repositories/expenseItemRepository.js";
+import {
+  ExpenseItemRepository,
+  type ExpenseFrequency,
+  type ExpenseItemRow,
+} from "../repositories/expenseItemRepository.js";
 import { ExpenseRepository } from "../repositories/expenseRepository.js";
 import { ExpenseService, type ExpensePaymentMethod } from "./expenseService.js";
+
+const FREQUENCIES: readonly ExpenseFrequency[] = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"];
 
 export interface CreateExpenseItemInput {
   categoryId: number;
   name: string;
   amount?: number | null;
+  frequency?: ExpenseFrequency | null;
+  nextRunDate?: string | null;
 }
 
 export interface UpdateExpenseItemInput {
   name?: string | null;
   amount?: number | null;
+  frequency?: ExpenseFrequency | null;
+  nextRunDate?: string | null;
 }
 
 export interface PayItemSelection {
@@ -36,6 +46,9 @@ export interface PayItemsInput {
   selections: readonly PayItemSelection[];
   paymentMethod: ExpensePaymentMethod;
   expenseDate: string;
+  /** Record unpaid bills on Accounts Payable instead of paying now. */
+  payLater?: boolean;
+  dueDate?: string | null;
   bankAccountId?: number | null;
   createdBy?: number | null;
 }
@@ -47,6 +60,38 @@ export interface PayItemsResult {
 
 function nowStamp(): string {
   return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
+/** A recurring item needs a frequency, a first run date and a fixed amount. */
+function checkSchedule(
+  frequency: ExpenseFrequency | null,
+  nextRunDate: string | null,
+  amount: number | null,
+): void {
+  if (!frequency) return;
+  if (!FREQUENCIES.includes(frequency)) throw new ValidationError("Invalid frequency.");
+  if (!nextRunDate) {
+    throw new ValidationError("A next run date is required for recurring items.");
+  }
+  if (amount == null || amount <= 0) {
+    throw new ValidationError("Recurring items need a positive amount.");
+  }
+}
+
+/** Move an ISO date forward by `count` recurrence intervals, clamping short months. */
+function advanceDate(isoDate: string, frequency: ExpenseFrequency, count = 1): string {
+  const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
+  if (frequency === "WEEKLY") {
+    return new Date(Date.UTC(year, month - 1, day + 7 * count)).toISOString().slice(0, 10);
+  }
+  const per = frequency === "MONTHLY" ? 1 : frequency === "QUARTERLY" ? 3 : 12;
+  const shifted = new Date(Date.UTC(year, month - 1 + per * count, 1));
+  const targetYear = shifted.getUTCFullYear();
+  const targetMonth = shifted.getUTCMonth() + 1;
+  // Day 0 of the following month is the last day of the target month (Feb 29 -> Feb 28).
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+  const targetDay = Math.min(day, lastDay);
+  return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
 }
 
 export class ExpenseItemService {
@@ -84,18 +129,23 @@ export class ExpenseItemService {
     if (await this.items.findByName(input.categoryId, name, this.companyId)) {
       throw new ConflictError(`Item '${name}' already exists in this category.`);
     }
+    const frequency = input.frequency ?? null;
+    const nextRunDate = input.nextRunDate ?? null;
+    checkSchedule(frequency, nextRunDate, input.amount ?? null);
     const id = await this.items.insert({
       company_id: this.companyId,
       category_id: input.categoryId,
       name,
       amount: input.amount ?? null,
+      frequency,
+      next_run_date: frequency ? nextRunDate : null,
       is_active: 1,
     });
     return this.items.requireById(id);
   }
 
   async update(id: number, input: UpdateExpenseItemInput): Promise<ExpenseItemRow> {
-    await this.items.requireById(id);
+    const existing = await this.items.requireById(id);
     const data: Record<string, string | number | null> = {};
     if (input.name != null) {
       const name = input.name.trim();
@@ -106,7 +156,24 @@ export class ExpenseItemService {
       if (input.amount < 0) throw new ValidationError("Amount cannot be negative.");
       data.amount = input.amount;
     }
-    if (Object.keys(data).length === 0) return this.items.requireById(id);
+    if (input.frequency !== undefined) data.frequency = input.frequency;
+    if (input.nextRunDate !== undefined) data.next_run_date = input.nextRunDate;
+
+    const frequency =
+      input.frequency !== undefined ? input.frequency : existing.frequency;
+    const nextRunDate =
+      input.nextRunDate !== undefined ? input.nextRunDate : existing.next_run_date;
+    checkSchedule(
+      frequency,
+      nextRunDate,
+      input.amount !== undefined ? input.amount : existing.amount,
+    );
+    // Turning recurrence off also clears the schedule.
+    if (!frequency) {
+      data.next_run_date = null;
+    }
+
+    if (Object.keys(data).length === 0) return existing;
     data.updated_at = nowStamp();
     await this.items.update(id, data);
     return this.items.requireById(id);
@@ -116,6 +183,51 @@ export class ExpenseItemService {
     const item = await this.items.findById(id);
     if (!item) throw new NotFoundError("Expense item not found.");
     await this.items.deactivate(id);
+  }
+
+  /**
+   * Generate every recurring bill that is due on or before `onDate` as an
+   * unpaid (pay-later) expense, then advance the item's next run date. Idempotent
+   * by construction: the insert and the date advance commit in one transaction,
+   * and the catch-up loop runs on read (GET /api/expenses), so a server that was
+   * off simply catches up on the next request — no scheduler needed.
+   */
+  async generateDue(onDate = new Date().toISOString().slice(0, 10)): Promise<{ voucherNumbers: string[] }> {
+    const due = await this.items.listDue(this.companyId, onDate);
+    const voucherNumbers: string[] = [];
+
+    for (const item of due) {
+      if (!item.frequency || !item.next_run_date) continue;
+      const amount = Number(item.amount ?? 0);
+      // No fixed amount => still a manual "Pay items" entry, never auto-generated.
+      if (amount <= 0) continue;
+
+      await this.db.transaction(async () => {
+        const anchor = item.next_run_date as string;
+        const frequency = item.frequency as ExpenseFrequency;
+        let run = anchor;
+        let occurrence = 0;
+        while (run <= onDate) {
+          const result = await this.expenses.createExpense({
+            categoryId: item.category_id,
+            expenseDate: run,
+            amount,
+            paymentMethod: "BANK",
+            payLater: true,
+            dueDate: run,
+            description: item.name,
+          });
+          voucherNumbers.push(result.voucherNumber);
+          // Advance from the anchored first run date, not the clamped previous
+          // occurrence, so a bill on the 31st returns to the 31st after February.
+          occurrence += 1;
+          run = advanceDate(anchor, frequency, occurrence);
+        }
+        await this.items.update(item.id, { next_run_date: run, updated_at: nowStamp() });
+      });
+    }
+
+    return { voucherNumbers };
   }
 
   /** Pay the selected items, one expense voucher each. */
@@ -154,7 +266,9 @@ export class ExpenseItemService {
           expenseDate: input.expenseDate,
           amount: selection.amount,
           paymentMethod: input.paymentMethod,
-          bankAccountId: input.bankAccountId ?? null,
+          payLater: input.payLater === true,
+          dueDate: input.payLater ? input.dueDate ?? null : null,
+          bankAccountId: input.payLater ? null : input.bankAccountId ?? null,
           description,
           createdBy: input.createdBy ?? null,
         });

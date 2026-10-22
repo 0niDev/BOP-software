@@ -29,6 +29,7 @@ function newComponent(): ComponentDraft {
 export default function ManufacturingPage() {
   const [tab, setTab] = useState<Tab>("boms");
   const [boms, setBoms] = useState<Bom[]>([]);
+  const [showHiddenBoms, setShowHiddenBoms] = useState(false);
   const [bomQuery, setBomQuery] = useState("");
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -62,7 +63,7 @@ export default function ManufacturingPage() {
 
   async function refresh() {
     try {
-      setBoms(await api.boms());
+      setBoms(await api.boms(!showHiddenBoms));
       setOrders(await api.productionOrders());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load manufacturing data.");
@@ -72,7 +73,8 @@ export default function ManufacturingPage() {
   useEffect(() => {
     void refresh();
     void api.items({ activeOnly: false }).then(setItems).catch(() => undefined);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHiddenBoms]);
 
   const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
   const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
@@ -560,6 +562,14 @@ export default function ManufacturingPage() {
                 onChange={setBomQuery}
                 placeholder="Search BOMs or products…"
               />
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={showHiddenBoms}
+                  onChange={(e) => setShowHiddenBoms(e.target.checked)}
+                />
+                Show hidden
+              </label>
             </div>
             <table>
               <thead>

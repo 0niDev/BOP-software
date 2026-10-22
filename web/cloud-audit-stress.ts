@@ -1542,20 +1542,20 @@ async function sectionC(b: Baseline): Promise<void> {
     salesInvoiceId: creditId,
   });
   ok(
-    "C5 customer overpayment rejected with 400",
-    over.status === 400,
-    "400",
+    "C5 customer overpayment accepted as an advance",
+    over.status === 201,
+    "201",
     `${over.status} ${over.text.slice(0, 160)}`,
     "boundary",
   );
-  const arUnchanged = await num(
+  const arAfterC5 = await num(
     `SELECT COALESCE(SUM(CASE WHEN a.account_code='1100' THEN l.debit - l.credit ELSE 0 END),0) AS v
        FROM journal_entry_lines l JOIN journal_entries e ON e.id=l.journal_entry_id
        JOIN accounts a ON a.id=l.account_id WHERE e.is_posted=1`,
   );
-  okNum("C5 rejected overpayment moved nothing", arUnchanged, arBeforeC5, "posting");
+  okNum("C5 overpayment moved A/R by exactly the receipt", arAfterC5, r2(arBeforeC5 - 40), "posting");
 
-  // C6 supplier overpayment (no guard is expected here)
+  // C6 supplier overpayment (allowed as an advance, like C5)
   const creditPurchase = await purchase({
     supplierId,
     invoiceDate: TODAY,
@@ -1572,22 +1572,13 @@ async function sectionC(b: Baseline): Promise<void> {
     notes: `${RUN_ID} C6 overpay supplier`,
     purchaseInvoiceId: purchaseId,
   });
-  const apRow = await row<{ paid_amount: number; total_amount: number }>(
-    "SELECT paid_amount, total_amount FROM purchase_invoices WHERE id = ?",
-    [purchaseId],
-  );
   ok(
-    "C6 supplier overpayment rejected (or a credit note created)",
-    c6paid.status === 400,
-    "400 (a 1000.00 payment against a 20.00 payable must not be accepted)",
-    c6paid.status === 201
-      ? `201 accepted; paid_amount became ${apRow?.paid_amount} on a ${apRow?.total_amount} invoice (overpaid by ${r2(Number(apRow?.paid_amount ?? 0) - Number(apRow?.total_amount ?? 0))})`
-      : `${c6paid.status} ${c6paid.text.slice(0, 160)}`,
+    "C6 supplier overpayment accepted as an advance",
+    c6paid.status === 201,
+    "201",
+    `${c6paid.status} ${c6paid.text.slice(0, 160)}`,
     "boundary",
   );
-  if (c6paid.status === 201) {
-    obs("C6 root cause: PaymentService.paySupplier has no outstanding-balance guard (receivePayment does)", "boundary");
-  }
 
   // C7 duplicate numbers
   const explicit = `${RUN_ID}-DUP`;

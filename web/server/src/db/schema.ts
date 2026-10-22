@@ -533,6 +533,11 @@ CREATE TABLE IF NOT EXISTS expenses (
     expense_date        TEXT NOT NULL,
     amount              REAL NOT NULL,
     payment_method      TEXT NOT NULL CHECK (payment_method IN ('CASH','BANK','CHEQUE')),
+    -- On an UNPAID (pay-later) bill payment_method records the planned method;
+    -- the journal instead credits Accounts Payable until payExpense settles it.
+    status              TEXT NOT NULL DEFAULT 'PAID' CHECK (status IN ('PAID','UNPAID')),
+    due_date            TEXT,
+    settlement_journal_entry_id INTEGER REFERENCES journal_entries(id),
     bank_account_id     INTEGER REFERENCES bank_accounts(id),
     cheque_id           INTEGER REFERENCES cheques(id),
     description         TEXT,
@@ -594,6 +599,10 @@ CREATE TABLE IF NOT EXISTS expense_items (
     category_id         INTEGER NOT NULL REFERENCES expense_categories(id),
     name                TEXT NOT NULL,
     amount              REAL,
+    -- Optional recurrence: when set, due bills are generated automatically as
+    -- pay-later expenses and next_run_date advances by one interval each time.
+    frequency           TEXT CHECK (frequency IN ('WEEKLY','MONTHLY','QUARTERLY','YEARLY')),
+    next_run_date       TEXT,
     is_active           INTEGER NOT NULL DEFAULT 1,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT,

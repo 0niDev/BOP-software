@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Banknote,
-  CircleAlert,
-  Coins,
-  Plus,
-  RefreshCw,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { Banknote, Coins, Plus, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { api, ApiError } from "../api";
 import Card from "../components/ui/Card";
 import DeltaPill from "../components/ui/DeltaPill";
@@ -15,15 +7,13 @@ import StatCard from "../components/ui/StatCard";
 import StatusPill from "../components/ui/StatusPill";
 import { StaggerGroup, StaggerItem } from "../components/ui/motion";
 import ActivityList from "../components/dashboard/ActivityList";
-import AlertsCard from "../components/dashboard/AlertsCard";
 import BestSellersTable from "../components/dashboard/BestSellersTable";
-import CustomerDonut from "../components/dashboard/CustomerDonut";
 import ExpiringTable from "../components/dashboard/ExpiringTable";
+import LiquidityCard from "../components/dashboard/LiquidityCard";
 import LowStockTable from "../components/dashboard/LowStockTable";
-import ProfileDrawer from "../components/dashboard/ProfileDrawer";
 import RevenueTrendChart from "../components/dashboard/RevenueTrendChart";
-import { compact, dayLabel, money, percent, percentChange, share } from "../lib/format";
-import type { DashboardData, User } from "../types";
+import { compact, money, percent, percentChange, share } from "../lib/format";
+import type { DashboardData } from "../types";
 import type { Page } from "../App";
 
 function message(err: unknown, fallback: string): string {
@@ -31,17 +21,16 @@ function message(err: unknown, fallback: string): string {
 }
 
 /**
- * Landing page: an executive grid over the aggregated dashboard payload —
- * KPI strip, revenue trend, customer mix, recent activity, best sellers and the
- * inventory watchlists, with the signed-in profile and earnings in the right
- * column. Every figure comes from `/api/dashboard`; nothing is derived from a
- * placeholder.
+ * Landing page: an executive grid over the aggregated dashboard payload — a KPI
+ * strip, the revenue trend, the newest movements, best sellers and the two
+ * inventory watchlists, with the cash position beside the activity feed. Every
+ * figure comes from `/api/dashboard`; nothing is derived from a placeholder.
+ * Alerts are deliberately not repeated here: the server builds them from the
+ * same low-stock and expiry rows the tables below already show.
  */
 export default function DashboardPage({
-  user,
   onNavigate,
 }: {
-  user: User;
   onNavigate: (page: Page) => void;
 }) {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -99,7 +88,6 @@ export default function DashboardPage({
     latest && previous ? percentChange(latest.expenses, previous.expenses) : null;
   const margin = share(data.profitLoss.profit, data.profitLoss.revenue);
   const liquidity = data.balances.cash + data.balances.bank;
-  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="flex flex-col gap-6">
@@ -157,7 +145,7 @@ export default function DashboardPage({
         <StaggerItem className="h-full">
           <StatCard
             icon={Coins}
-            label={data.profitLoss.isProfit ? "Net profit" : "Net loss"}
+            label="Net loss / profit"
             value={compact(data.profitLoss.profit)}
             tone={data.profitLoss.isProfit ? "ok" : "amber"}
             badge={
@@ -174,84 +162,26 @@ export default function DashboardPage({
             label="Cash & bank"
             value={compact(liquidity)}
             tone="teal"
-            badge={<StatusPill tone="brand">{data.inventory.totalItems} items</StatusPill>}
             hint={`Cash ${money(data.balances.cash)} · Bank ${money(data.balances.bank)}`}
           />
         </StaggerItem>
       </StaggerGroup>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_336px]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <RevenueTrendChart trend={trend} />
-            <CustomerDonut rows={data.salesByCustomer} />
-          </div>
-          <ActivityList rows={data.recentTransactions} onNavigate={onNavigate} />
-          <BestSellersTable rows={data.topItems} />
-          <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-            <LowStockTable rows={data.inventory.lowStockItems} total={data.inventory.totalItems} />
-            <ExpiringTable rows={data.inventory.expiringItems} />
-          </div>
-        </div>
+      <RevenueTrendChart trend={trend} />
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_336px]">
+        <ActivityList rows={data.recentTransactions} onNavigate={onNavigate} />
         <aside className="flex min-w-0 flex-col gap-6">
-          <ProfileDrawer user={user} data={data} onNavigate={onNavigate} />
-          <AlertsCard alerts={data.alerts.alerts} generatedAt={today} />
+          <LiquidityCard data={data} onNavigate={onNavigate} />
         </aside>
       </div>
 
-      <Card
-        title="Watchlist"
-        subtitle="Stock value, receivables and payables at a glance"
-        compact
-        outline="cyan"
-        action={
-          <StatusPill
-            tone={data.receivablesPayables.receivable > data.receivablesPayables.payable ? "ok" : "amber"}
-            icon={<CircleAlert size={13} strokeWidth={2.4} aria-hidden />}
-          >
-            {data.receivablesPayables.receivable >= data.receivablesPayables.payable
-              ? "Net receivable"
-              : "Net payable"}
-          </StatusPill>
-        }
-      >
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
-              Receivables
-            </p>
-            <p className="num mt-1 text-[18px] font-extrabold text-ink">
-              {money(data.receivablesPayables.receivable)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
-              Payables
-            </p>
-            <p className="num mt-1 text-[18px] font-extrabold text-ink">
-              {money(data.receivablesPayables.payable)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
-              Inventory value
-            </p>
-            <p className="num mt-1 text-[18px] font-extrabold text-ink">
-              {money(data.balances.inventory)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">
-              Liquid + stock
-            </p>
-            <p className="num mt-1 text-[18px] font-extrabold text-ink">
-              {money(data.balances.total)}
-            </p>
-            <p className="mt-1 text-[12px] font-medium text-muted">As at {dayLabel(today)}</p>
-          </div>
-        </div>
-      </Card>
+      <BestSellersTable rows={data.topItems} />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <LowStockTable rows={data.inventory.lowStockItems} total={data.inventory.totalItems} />
+        <ExpiringTable rows={data.inventory.expiringItems} />
+      </div>
     </div>
   );
 }

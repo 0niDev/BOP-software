@@ -118,6 +118,8 @@ export class AccountingService {
     }
 
     const companyId = input.companyId ?? this.companyId;
+    await this.assertPostable(companyId, prepared.map(({ line }) => line.accountId));
+
     const voucherNumber =
       input.voucherNumber ??
       (await this.journal.nextVoucherNumber(companyId, input.voucherType));
@@ -145,6 +147,25 @@ export class AccountingService {
       },
       rows,
     );
+  }
+
+  /**
+   * A group/header account (one that has active sub-accounts) must never
+   * receive journal lines: the balance belongs to the leaf account, and
+   * posting to both would double-count as soon as balances roll up through
+   * the hierarchy. One query per entry keeps this cheap and catches every
+   * posting path (vouchers, expenses, opening balances, ...).
+   */
+  private async assertPostable(companyId: number, accountIds: readonly number[]): Promise<void> {
+    const groups = await this.accounts.findGroupIds(companyId);
+    if (groups.size === 0) return;
+    for (const accountId of new Set(accountIds)) {
+      if (!groups.has(accountId)) continue;
+      const account = await this.accounts.findById(accountId);
+      throw new ValidationError(
+        `Account ${account?.account_code ?? accountId} "${account?.account_name ?? ""}" has sub-accounts — post to a ledger sub-account instead.`,
+      );
+    }
   }
 
   async getJournalEntry(sourceTable: string, sourceId: number): Promise<Record<string, unknown> | null> {

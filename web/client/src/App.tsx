@@ -120,7 +120,7 @@ export default function App() {
         setUser(null);
       }}
     >
-      {page === "dashboard" && <DashboardPage user={user} onNavigate={setPage} />}
+      {page === "dashboard" && <DashboardPage onNavigate={setPage} />}
       {page === "sales" && <SalesInvoicesPage />}
       {page === "purchases" && <PurchaseInvoicesPage />}
       {page === "parties" && <PartiesPage />}

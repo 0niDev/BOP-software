@@ -11,6 +11,7 @@ import { isDebitNormal, SystemAccountCodes, type AccountType } from "../domain/e
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { AccountRepository, type AccountRow } from "../repositories/accountRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
+import { JournalRepository } from "../repositories/journalRepository.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
 
 export const ACCOUNT_TYPES: readonly AccountType[] = [
@@ -21,8 +22,16 @@ export const ACCOUNT_TYPES: readonly AccountType[] = [
   "EXPENSE",
 ];
 
+/**
+ * Maximum depth of the chart-of-accounts tree (class → group → ledger). The
+ * class level is the account type itself, so accounts may nest two deep:
+ * a group under the class, and a ledger account under the group.
+ */
+export const MAX_ACCOUNT_DEPTH = 3;
+
 export interface CreateAccountInput {
-  accountCode: string;
+  /** Blank/omitted → auto-generated (AC-00001 style), like customers/items. */
+  accountCode?: string;
   accountName: string;
   accountType: AccountType | string;
   parentAccountId?: number | null;
@@ -79,32 +88,28 @@ export class AccountService {
   }
 
   async create(input: CreateAccountInput): Promise<AccountRow> {
-    const accountCode = input.accountCode.trim();
+    let accountCode = input.accountCode?.trim() ?? "";
     const accountName = input.accountName.trim();
-    if (!accountCode) throw new ValidationError("Account code is required.");
     if (!accountName) throw new ValidationError("Account name is required.");
     if (!(ACCOUNT_TYPES as readonly string[]).includes(input.accountType)) {
       throw new ValidationError(`Invalid account type: ${input.accountType}`);
     }
     const accountType = input.accountType as AccountType;
-    if (await this.accounts.codeExists(accountCode, this.companyId)) {
+    if (accountCode && (await this.accounts.codeExists(accountCode, this.companyId))) {
       throw new ValidationError(`Account code '${accountCode}' already exists.`);
     }
 
     const parentAccountId = input.parentAccountId ?? null;
-    if (parentAccountId != null) {
-      const parent = await this.accounts.findById(parentAccountId);
-      if (!parent) throw new ValidationError("Selected parent account does not exist.");
-      if (parent.account_type !== accountType) {
-        throw new ValidationError(
-          "A sub-account must have the same account type as its parent.",
-        );
-      }
-    }
+    await this.assertParentUsable(parentAccountId, accountType, null);
 
     const openingBalance = input.openingBalance ?? 0;
 
     const id = await this.db.transaction(async () => {
+      if (!accountCode) {
+        // Same allocator as customers/items; sequence guarantees a free code.
+        const generated = await new JournalRepository(this.db).nextVoucherNumber(this.companyId, "ACCOUNT");
+        accountCode = generated;
+      }
       const newId = await this.accounts.insert({
         company_id: this.companyId,
         account_code: accountCode,
@@ -136,6 +141,11 @@ export class AccountService {
     }
     const accountName = input.accountName.trim();
     if (!accountName) throw new ValidationError("Account name is required.");
+    // Re-parenting (or clearing a parent) is validated; keeping the current
+    // parent is always allowed so legacy deep accounts stay editable.
+    if ((input.parentAccountId ?? null) !== existing.parent_account_id) {
+      await this.assertParentUsable(input.parentAccountId ?? null, existing.account_type, id);
+    }
 
     const oldOpening = Number(existing.opening_balance);
     const newOpening = input.openingBalance;
@@ -243,6 +253,70 @@ export class AccountService {
       totalCredit,
       accountsUpdated: resolved.length,
     };
+  }
+
+  /**
+   * Validate a proposed parent: it must exist in this company, be active, be
+   * of the same type, and produce a cycle-free tree no deeper than
+   * MAX_ACCOUNT_DEPTH — including the edited account's own subtree.
+   */
+  private async assertParentUsable(
+    parentAccountId: number | null,
+    accountType: AccountType,
+    selfId: number | null,
+  ): Promise<void> {
+    if (parentAccountId == null) return;
+    const parent = await this.accounts.findById(parentAccountId);
+    if (!parent || parent.company_id !== this.companyId) {
+      throw new ValidationError("Selected parent account does not exist.");
+    }
+    if (parent.is_active !== 1) {
+      throw new ValidationError("Selected parent account is inactive.");
+    }
+    if (parent.account_type !== accountType) {
+      throw new ValidationError(
+        "A sub-account must have the same account type as its parent.",
+      );
+    }
+
+    // Walk to the root: rejects cycles (self-parent / descendant loops) and
+    // measures how deep the saved account would sit.
+    let cursor: AccountRow | undefined = parent;
+    let parentDepth = 0;
+    const seen = new Set<number>();
+    while (cursor) {
+      if (seen.has(cursor.id)) {
+        throw new ValidationError("The account hierarchy contains a cycle.");
+      }
+      seen.add(cursor.id);
+      if (selfId !== null && cursor.id === selfId) {
+        throw new ValidationError(
+          "An account cannot be placed under itself or one of its own sub-accounts.",
+        );
+      }
+      parentDepth += 1;
+      cursor =
+        cursor.parent_account_id == null
+          ? undefined
+          : await this.accounts.findById(cursor.parent_account_id);
+    }
+
+    const ownDepth = parentDepth + 1;
+    const subtree = selfId == null ? 0 : await this.subtreeHeight(selfId);
+    if (ownDepth + subtree > MAX_ACCOUNT_DEPTH) {
+      throw new ValidationError(
+        `The chart of accounts is limited to ${MAX_ACCOUNT_DEPTH} levels.`,
+      );
+    }
+  }
+
+  /** Depth of the deepest descendant below `accountId` (0 = leaf). */
+  private async subtreeHeight(accountId: number): Promise<number> {
+    let height = 0;
+    for (const child of await this.accounts.findChildren(accountId)) {
+      height = Math.max(height, 1 + (await this.subtreeHeight(child.id)));
+    }
+    return height;
   }
 
   /** OPENING entry: this account +/- against Retained Earnings (3100). */

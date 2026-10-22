@@ -2,12 +2,16 @@ import type { SqlDatabase } from "../db/types.js";
 import { NotFoundError } from "../domain/errors.js";
 import { insertRow, type InsertData } from "./base.js";
 
+export type ExpenseFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+
 export interface ExpenseItemRow {
   id: number;
   company_id: number;
   category_id: number;
   name: string;
   amount: number | null;
+  frequency: ExpenseFrequency | null;
+  next_run_date: string | null;
   is_active: number;
   created_at: string;
   updated_at: string | null;
@@ -45,6 +49,22 @@ export class ExpenseItemRepository {
     return this.db.get<ExpenseItemRow>(
       "SELECT * FROM expense_items WHERE company_id = ? AND category_id = ? AND name = ?",
       [companyId, categoryId, name],
+    );
+  }
+
+  /** Active recurring items whose next bill is due on or before `onDate`. */
+  async listDue(companyId: number, onDate: string): Promise<ExpenseItemRow[]> {
+    return this.db.all<ExpenseItemRow>(
+      `SELECT * FROM expense_items
+        WHERE company_id = ? AND is_active = 1
+          AND frequency IS NOT NULL AND next_run_date IS NOT NULL
+          AND next_run_date <= ?
+          AND EXISTS (
+            SELECT 1 FROM expense_categories c
+             WHERE c.id = expense_items.category_id AND c.is_active = 1
+          )
+        ORDER BY next_run_date, id`,
+      [companyId, onDate],
     );
   }
 

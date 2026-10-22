@@ -224,6 +224,9 @@ export interface Expense {
   expense_date: string;
   amount: number;
   payment_method: SettlementMethod;
+  /** `UNPAID` = pay-later bill sitting on Accounts Payable. */
+  status: "PAID" | "UNPAID";
+  due_date: string | null;
 }
 
 export interface ExpenseResult {
@@ -232,6 +235,9 @@ export interface ExpenseResult {
   journalEntryId: number;
 }
 
+/** Auto-generation interval for a recurring expense item. */
+export type ExpenseFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+
 /** A recurring expense payee/bill within a category ("Pay Items"). */
 export interface ExpenseItem {
   id: number;
@@ -239,6 +245,8 @@ export interface ExpenseItem {
   category_id: number;
   name: string;
   amount: number | null;
+  frequency: ExpenseFrequency | null;
+  next_run_date: string | null;
   is_active: number;
   created_at: string;
   updated_at: string | null;

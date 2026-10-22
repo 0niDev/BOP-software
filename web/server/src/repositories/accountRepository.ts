@@ -80,6 +80,20 @@ export class AccountRepository {
     );
   }
 
+  /**
+   * Ids of accounts that act as headers: they have at least one *active*
+   * sub-account. Headers are not postable (posting must land on a leaf), which
+   * keeps balances from being split between a parent and its children.
+   */
+  async findGroupIds(companyId = 1): Promise<Set<number>> {
+    const rows = await this.db.all<{ parent_account_id: number }>(
+      `SELECT DISTINCT parent_account_id FROM accounts
+        WHERE company_id = ? AND parent_account_id IS NOT NULL AND is_active = 1`,
+      [companyId],
+    );
+    return new Set(rows.map((row) => Number(row.parent_account_id)));
+  }
+
   async update(id: number, data: InsertData): Promise<void> {
     const cols = Object.keys(data);
     if (cols.length === 0) return;

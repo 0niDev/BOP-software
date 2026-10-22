@@ -276,17 +276,31 @@ for the consumed cost. Omit `bomId` and supply `tempFinishedItemId` +
 | --- | --- | --- | --- |
 | `GET` | `/api/expense-categories` | — | `ExpenseCategory[]` |
 | `POST` | `/api/expense-categories` | `{ name, accountId? }` | `201` category |
-| `GET` | `/api/expenses` | — | `Expense[]` |
-| `POST` | `/api/expenses` | `{ categoryId, expenseDate, amount, paymentMethod, voucherNumber?, bankAccountId?, description? }` | `201` `{ id, voucherNumber, journalEntryId }` |
+| `GET` | `/api/expenses` | — | `Expense[]` (generates any due recurring bills first) |
+| `POST` | `/api/expenses` | `{ categoryId, expenseDate, amount, paymentMethod, payLater?, dueDate?, voucherNumber?, bankAccountId?, description? }` | `201` `{ id, voucherNumber, journalEntryId }` |
+| `POST` | `/api/expenses/:id/pay` | `{ paymentMethod, paymentDate?, bankAccountId? }` | `{ id, voucherNumber, journalEntryId }` |
 | `GET` | `/api/expense-items` | `?categoryId=&activeOnly=` | `ExpenseItem[]` |
-| `POST` | `/api/expense-items` | `{ categoryId, name, amount? }` | `201` item |
-| `PUT` | `/api/expense-items/:id` | `{ name?, amount? }` | item |
+| `POST` | `/api/expense-items` | `{ categoryId, name, amount?, frequency?, nextRunDate? }` | `201` item |
+| `PUT` | `/api/expense-items/:id` | `{ name?, amount?, frequency?, nextRunDate? }` | item |
 | `POST` | `/api/expense-items/:id/deactivate` | — | `{ ok: true }` |
 | `POST` | `/api/expense-items/pay` | `{ categoryId, paymentMethod, expenseDate, selections: [{ itemId, amount, description? }] }` | `201` `{ voucherNumbers, totalPaid }` |
 
 A category `accountId`, when given, must be an `EXPENSE` account; otherwise the
 expense posts to `6000`. Paying selected items creates one `EV-` voucher per
 item, all inside one outer transaction.
+
+`payLater: true` records an unpaid bill (`status: "UNPAID"`, optional `dueDate`)
+instead of paying immediately: **Dr expense / Cr Accounts Payable (2000)**.
+`POST /api/expenses/:id/pay` settles it once (**Dr AP / Cr cash|bank**); a second
+attempt is a `409`. `paymentMethod` on an unpaid bill is the planned method.
+
+`frequency` (`WEEKLY|MONTHLY|QUARTERLY|YEARLY`) plus `nextRunDate` and a
+positive `amount` turns an expense item into a recurring rule. Because there is
+no scheduler, `GET /api/expenses` catches up every bill that is due
+(`next_run_date <= today`) — one unpaid bill per missed period, dated on the due
+date — and then advances `next_run_date`. The written documents and the date
+advance share one transaction, so repeated calls never double-generate. Month-end
+dates clamp (Jan 31 → Feb 28) but return to the anchor day afterwards (→ Mar 31).
 
 ## Banking
 

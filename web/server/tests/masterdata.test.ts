@@ -333,10 +333,12 @@ describe("AccountService", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("rejects blanks and duplicate codes", async () => {
-    await expect(
-      accounts.create({ accountCode: "  ", accountName: "X", accountType: "ASSET" }),
-    ).rejects.toBeInstanceOf(ValidationError);
+  it("auto-generates a code when blank and rejects bad input", async () => {
+    const first = await accounts.create({ accountName: "Auto One", accountType: "ASSET" });
+    expect(first.account_code).toMatch(/^AC-\d{5}$/);
+    const second = await accounts.create({ accountCode: "  ", accountName: "Auto Two", accountType: "ASSET" });
+    expect(second.account_code).toMatch(/^AC-\d{5}$/);
+    expect(second.account_code).not.toBe(first.account_code);
     await expect(
       accounts.create({ accountCode: "7000", accountName: "  ", accountType: "ASSET" }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -348,6 +350,62 @@ describe("AccountService", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  it("limits the hierarchy to three levels (class → group → ledger)", async () => {
+    const group = await accounts.create({
+      accountCode: "1900",
+      accountName: "Receivables Group",
+      accountType: "ASSET",
+    });
+    const ledger = await accounts.create({
+      accountCode: "1901",
+      accountName: "Receivables Ledger",
+      accountType: "ASSET",
+      parentAccountId: group.id,
+    });
+    const detail = await accounts.create({
+      accountCode: "1902",
+      accountName: "Receivables Detail",
+      accountType: "ASSET",
+      parentAccountId: ledger.id,
+    });
+    // A fourth level below the class is rejected.
+    await expect(
+      accounts.create({
+        accountCode: "1903",
+        accountName: "Too Deep",
+        accountType: "ASSET",
+        parentAccountId: detail.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects re-parenting an account under its own descendant", async () => {
+    const group = await accounts.create({
+      accountCode: "1900",
+      accountName: "Group",
+      accountType: "ASSET",
+    });
+    const child = await accounts.create({
+      accountCode: "1901",
+      accountName: "Child",
+      accountType: "ASSET",
+      parentAccountId: group.id,
+    });
+    await expect(
+      accounts.update(group.id, {
+        accountName: "Group",
+        openingBalance: 0,
+        parentAccountId: child.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      accounts.update(group.id, {
+        accountName: "Group",
+        openingBalance: 0,
+        parentAccountId: group.id,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
   it("posts a non-zero opening balance to Retained Earnings and stays balanced", async () => {
     const reports = new ReportService(ctx.db);
     const account = await accounts.create({
