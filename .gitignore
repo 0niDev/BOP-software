@@ -21,11 +21,6 @@ node_modules/
 # Dependencies
 .venv/
 venv/
-env/
-# Each application owns its own environment file: python/.env and web/.env.
-.env
-.env.local
-.env.*
 # ...but the templates are meant to ship (python/.env.example, web/.env.example).
 !.env.example
 
