@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { moveRowFocus } from "../lib/gridKeys";
 import type { Item, Party, PaymentType, PurchaseInvoice } from "../types";
 
 interface LineDraft {
@@ -31,6 +33,12 @@ export default function PurchaseInvoicesPage() {
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  /** Payments attached to an invoice whose cancel was blocked. */
+  const [payDialog, setPayDialog] = useState<{
+    invoice: PurchaseInvoice;
+    rows: Array<Record<string, unknown>>;
+  } | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   const [supplierId, setSupplierId] = useState(0);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -38,6 +46,8 @@ export default function PurchaseInvoicesPage() {
   const [bankId, setBankId] = useState(0);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([newLine()]);
+  // Focus the first field of a line only when it was just added.
+  const addedLine = useRef(false);
 
   async function refresh() {
     try {
@@ -109,7 +119,79 @@ export default function PurchaseInvoicesPage() {
       setNotice(`Cancelled ${invoice.invoice_number}`);
       await refresh();
     } catch (err) {
+      // A paid credit invoice refuses to disappear; show what is attached to it.
+      // Anything else (returns still on the invoice) has no payments to list, so
+      // show the server's own reason instead of an empty payments dialog.
+      if (err instanceof ApiError && err.status === 409) {
+        await openPayments(invoice, err.message);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Failed to cancel invoice.");
+    }
+  }
+
+  async function openPayments(invoice: PurchaseInvoice, blockedReason?: string): Promise<void> {
+    setPayBusy(true);
+    try {
+      const rows = await api.invoicePayments("purchase", invoice.id);
+      if (rows.length === 0) {
+        setError(blockedReason ?? "This invoice cannot be cancelled yet.");
+        return;
+      }
+      setPayDialog({ invoice, rows });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load the invoice's payments.");
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  async function deletePaymentRow(row: Record<string, unknown>): Promise<void> {
+    const voucher = String(row.voucher_number ?? "");
+    if (!window.confirm(`Delete payment ${voucher}? Its journal entry is reversed.`)) return;
+    setPayBusy(true);
+    setError(null);
+    try {
+      await api.deletePayment(Number(row.id));
+      if (payDialog) {
+        const rows = await api.invoicePayments("purchase", payDialog.invoice.id);
+        // The dialog's invoice snapshot is stale once its last payment is gone.
+        const closed = rows.length === 0;
+        setPayDialog(closed ? null : { invoice: payDialog.invoice, rows });
+        setNotice(`${voucher} deleted.${closed ? " You can cancel the invoice now." : ""}`);
+      } else {
+        setNotice(`${voucher} deleted.`);
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete the payment.");
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  async function deleteAllAndCancel(): Promise<void> {
+    if (!payDialog) return;
+    const { invoice, rows } = payDialog;
+    if (
+      !window.confirm(
+        `Delete ${rows.length} payment${rows.length === 1 ? "" : "s"} and cancel invoice ${invoice.invoice_number}?`,
+      )
+    ) {
+      return;
+    }
+    setPayBusy(true);
+    setError(null);
+    try {
+      for (const row of rows) await api.deletePayment(Number(row.id));
+      await api.deletePurchaseInvoice(invoice.id);
+      setPayDialog(null);
+      setNotice(`Cancelled ${invoice.invoice_number}.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to cancel the invoice.");
+    } finally {
+      setPayBusy(false);
     }
   }
 
@@ -221,7 +303,7 @@ export default function PurchaseInvoicesPage() {
             />
           </div>
 
-          <table style={{ marginTop: 16 }}>
+          <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
             <thead>
               <tr>
                 <th>Item</th>
@@ -239,6 +321,7 @@ export default function PurchaseInvoicesPage() {
                   <td>
                     <SearchableSelect
                       value={String(line.itemId)}
+                      autoFocus={addedLine.current && line.key === lines.at(-1)?.key}
                       onChange={(next) => updateLine(line.key, { itemId: Number(next) })}
                       placeholder="Select item..."
                       options={[
@@ -256,8 +339,7 @@ export default function PurchaseInvoicesPage() {
                     />
                   </td>
                   <td className="num">
-                    <input
-                      type="number"
+                    <NumberInput
                       min="0"
                       step="0.001"
                       value={line.quantity}
@@ -266,8 +348,7 @@ export default function PurchaseInvoicesPage() {
                     />
                   </td>
                   <td className="num">
-                    <input
-                      type="number"
+                    <NumberInput
                       min="0"
                       step="0.01"
                       value={line.unitCost}
@@ -276,8 +357,7 @@ export default function PurchaseInvoicesPage() {
                     />
                   </td>
                   <td className="num">
-                    <input
-                      type="number"
+                    <NumberInput
                       min="0"
                       step="0.01"
                       value={line.taxAmount}
@@ -308,7 +388,11 @@ export default function PurchaseInvoicesPage() {
           </table>
 
           <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
-            <button type="button" onClick={() => setLines((prev) => [...prev, newLine()])}>
+            <button type="button" onClick={() => {
+                addedLine.current = true;
+                setLines((prev) => [...prev, newLine()]);
+              }}
+            >
               Add line
             </button>
             <div>
@@ -372,6 +456,64 @@ export default function PurchaseInvoicesPage() {
           </tbody>
         </table>
       </div>
+
+      {payDialog && (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal" role="dialog" aria-modal="true">
+            <h2>Invoice {payDialog.invoice.invoice_number} has payments</h2>
+            <p className="sub" style={{ marginTop: 0 }}>
+              {money(payDialog.invoice.paid_amount)} is recorded against it. Delete the payments
+              first, or delete them all and cancel the invoice.
+            </p>
+            {payDialog.rows.length === 0 && (
+              <p className="sub">No payments found for this supplier.</p>
+            )}
+            <table>
+              <thead>
+                <tr>
+                  <th>Voucher</th>
+                  <th>Date</th>
+                  <th className="num">Amount</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {payDialog.rows.map((row) => (
+                  <tr key={String(row.id)}>
+                    <td>{String(row.voucher_number ?? "")}</td>
+                    <td>{String(row.payment_date ?? "")}</td>
+                    <td className="num">{money(Number(row.amount ?? 0))}</td>
+                    <td>
+                      <button
+                        type="button"
+                        disabled={payBusy}
+                        onClick={() => void deletePaymentRow(row)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setPayDialog(null)}>
+                Close
+              </button>
+              {payDialog.rows.length > 0 && (
+                <button
+                  className="primary"
+                  type="button"
+                  disabled={payBusy}
+                  onClick={() => void deleteAllAndCancel()}
+                >
+                  {payBusy ? "Working…" : "Delete all & cancel invoice"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

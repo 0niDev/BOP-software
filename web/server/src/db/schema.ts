@@ -408,6 +408,7 @@ CREATE TABLE IF NOT EXISTS bill_of_materials (
     bom_name            TEXT NOT NULL,
     output_quantity     REAL NOT NULL DEFAULT 1,
     notes               TEXT,
+    phase               TEXT,
     is_active           INTEGER NOT NULL DEFAULT 1,
     is_temp             INTEGER NOT NULL DEFAULT 0,
     is_ghost            INTEGER NOT NULL DEFAULT 0,

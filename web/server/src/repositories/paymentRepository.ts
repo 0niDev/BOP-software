@@ -107,4 +107,83 @@ export class PaymentRepository {
       [amount, invoiceId],
     );
   }
+
+  async findPaymentById(id: number): Promise<PaymentRow | undefined> {
+    return this.db.get<PaymentRow>("SELECT * FROM payments WHERE id = ?", [id]);
+  }
+
+  async findReceiptById(id: number): Promise<ReceiptRow | undefined> {
+    return this.db.get<ReceiptRow>("SELECT * FROM receipts WHERE id = ?", [id]);
+  }
+
+  async insertPaymentAllocation(
+    paymentId: number,
+    purchaseInvoiceId: number,
+    amount: number,
+  ): Promise<void> {
+    await this.db.run(
+      `INSERT INTO payment_allocations (payment_id, purchase_invoice_id, allocated_amount)
+       VALUES (?, ?, ?)`,
+      [paymentId, purchaseInvoiceId, amount],
+    );
+  }
+
+  async insertReceiptAllocation(
+    receiptId: number,
+    salesInvoiceId: number,
+    amount: number,
+  ): Promise<void> {
+    await this.db.run(
+      `INSERT INTO receipt_allocations (receipt_id, sales_invoice_id, allocated_amount)
+       VALUES (?, ?, ?)`,
+      [receiptId, salesInvoiceId, amount],
+    );
+  }
+
+  async listPaymentAllocations(
+    paymentId: number,
+  ): Promise<Array<{ id: number; purchase_invoice_id: number; allocated_amount: number }>> {
+    return this.db.all(
+      "SELECT id, purchase_invoice_id, allocated_amount FROM payment_allocations WHERE payment_id = ?",
+      [paymentId],
+    );
+  }
+
+  async listReceiptAllocations(
+    receiptId: number,
+  ): Promise<Array<{ id: number; sales_invoice_id: number; allocated_amount: number }>> {
+    return this.db.all(
+      "SELECT id, sales_invoice_id, allocated_amount FROM receipt_allocations WHERE receipt_id = ?",
+      [receiptId],
+    );
+  }
+
+  async deleteAllocation(
+    table: "payment_allocations" | "receipt_allocations",
+    id: number,
+  ): Promise<void> {
+    await this.db.run(`DELETE FROM ${table} WHERE id = ?`, [id]);
+  }
+
+  async subtractPurchaseInvoicePaid(invoiceId: number, amount: number): Promise<void> {
+    await this.db.run(
+      "UPDATE purchase_invoices SET paid_amount = MAX(0, paid_amount - ?) WHERE id = ?",
+      [amount, invoiceId],
+    );
+  }
+
+  async subtractSalesInvoicePaid(invoiceId: number, amount: number): Promise<void> {
+    await this.db.run(
+      "UPDATE sales_invoices SET paid_amount = MAX(0, paid_amount - ?) WHERE id = ?",
+      [amount, invoiceId],
+    );
+  }
+
+  async deletePayment(id: number): Promise<void> {
+    await this.db.run("DELETE FROM payments WHERE id = ?", [id]);
+  }
+
+  async deleteReceipt(id: number): Promise<void> {
+    await this.db.run("DELETE FROM receipts WHERE id = ?", [id]);
+  }
 }

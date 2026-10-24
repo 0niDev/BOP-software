@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { moveRowFocus } from "../lib/gridKeys";
 import type { Bom, BomComponent, Item, ProductionOrder } from "../types";
-import { defaultPackUnit, packCount, PACK_UNITS } from "../lib/units";
+import { defaultPackUnit, packCount, packsToBulk, PACK_UNITS } from "../lib/units";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -30,6 +32,7 @@ export default function ManufacturingPage() {
   const [tab, setTab] = useState<Tab>("boms");
   const [boms, setBoms] = useState<Bom[]>([]);
   const [showHiddenBoms, setShowHiddenBoms] = useState(false);
+  const [bomPhase, setBomPhase] = useState("all");
   const [bomQuery, setBomQuery] = useState("");
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -40,6 +43,8 @@ export default function ManufacturingPage() {
   const [finishedItemId, setFinishedItemId] = useState(0);
   const [outputQuantity, setOutputQuantity] = useState(1);
   const [componentLines, setComponentLines] = useState<ComponentDraft[]>([newComponent()]);
+  // Focus the first field of a row only when it was just added.
+  const addedComponent = useRef(false);
   const [editingBomId, setEditingBomId] = useState<number | null>(null);
 
   // Order form
@@ -52,7 +57,10 @@ export default function ManufacturingPage() {
   const [ignoreStockOrders, setIgnoreStockOrders] = useState<Record<number, boolean>>({});
   const [packingOrderId, setPackingOrderId] = useState<number | null>(null);
   const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
-  const [packQuantity, setPackQuantity] = useState(0);
+  const [packBomId, setPackBomId] = useState<number | null>(null);
+  const [packFinishedItemId, setPackFinishedItemId] = useState(0);
+  const addedPacking = useRef(false);
+  const [packPacks, setPackPacks] = useState(0);
   const [packSize, setPackSize] = useState(1);
   const [packUnit, setPackUnit] = useState<string>("KG");
   const [packItemUnit, setPackItemUnit] = useState<string>("KG");
@@ -63,7 +71,7 @@ export default function ManufacturingPage() {
 
   async function refresh() {
     try {
-      setBoms(await api.boms(!showHiddenBoms));
+      setBoms(await api.boms(false));
       setOrders(await api.productionOrders());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load manufacturing data.");
@@ -74,7 +82,7 @@ export default function ManufacturingPage() {
     void refresh();
     void api.items({ activeOnly: false }).then(setItems).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHiddenBoms]);
+  }, []);
 
   const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
   const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
@@ -96,9 +104,17 @@ export default function ManufacturingPage() {
   }
 
   const itemName = (id: number) => items.find((i) => i.id === id)?.item_name ?? String(id);
+  const itemUnit = (id: number) => items.find((i) => i.id === id)?.unit ?? "UNIT";
 
-  const visibleBoms = boms.filter((bom) =>
-    matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
+  const savedBoms = boms.filter((bom) => bom.is_temp !== 1);
+  // Production (raw) orders use formulation BOMs; keep a legacy/edited order's
+  // own packing BOM visible so the select still shows its current value.
+  const orderBoms = savedBoms.filter((bom) => bom.phase === "FORMULATION" || bom.id === bomId);
+  const visibleBoms = boms.filter(
+    (bom) =>
+      (showHiddenBoms || (bom.is_active === 1 && bom.is_temp !== 1)) &&
+      (bomPhase === "all" || bom.phase === bomPhase) &&
+      matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
   );
 
   function bomComponentList(id: number) {
@@ -138,7 +154,10 @@ export default function ManufacturingPage() {
 
   const packingOrder = orders.find((o) => o.id === packingOrderId);
   const packAvailable = packingOrder?.unpacked_quantity ?? packingOrder?.actual_quantity ?? 0;
-  const packResult = packCount(packQuantity, packItemUnit, packSize, packUnit);
+  // The packer knows the pack size and how many packs the run makes; the bulk
+  // consumed from the unpacked batch is derived from those two.
+  const packBulk = packsToBulk(packPacks, packItemUnit, packSize, packUnit);
+  const packQuantity = packBulk.bulk;
 
   function updateComponentLine(key: number, patch: Partial<ComponentDraft>) {
     setComponentLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -346,11 +365,7 @@ export default function ManufacturingPage() {
   ): ComponentDraft[] {
     const ratio = qty / (output || 1);
     const lines = components
-      .filter(
-        (component) =>
-          items.find((i) => i.id === component.component_item_id)?.item_type ===
-          "PACKING_MATERIAL",
-      )
+      .filter((component) => isPackingComponent(component))
       .map((component) => ({
         key: componentKey++,
         itemId: component.component_item_id,
@@ -360,17 +375,81 @@ export default function ManufacturingPage() {
     return lines.length > 0 ? lines : [newComponent()];
   }
 
-  function changePackQuantity(next: number): void {
-    setPackQuantity(next);
-    if (next > 0) setPackingLines(packingLinesFor(next, packBom.components, packBom.output));
+  function isPackingComponent(component: BomComponent): boolean {
+    return (
+      items.find((i) => i.id === component.component_item_id)?.item_type === "PACKING_MATERIAL"
+    );
   }
 
-  /** Snap the quantity to the whole packs a pack size makes. */
+  /** The active packing BOM for a finished item; latest wins (same as the server). */
+  function packingBomFor(finishedItemId: number): Bom | undefined {
+    return savedBoms
+      .filter(
+        (bom) =>
+          bom.is_active === 1 &&
+          bom.phase === "PACKING" &&
+          bom.finished_item_id === finishedItemId,
+      )
+      .reduce<Bom | undefined>((latest, bom) => (!latest || bom.id > latest.id ? bom : latest), undefined);
+  }
+
+  const packingBomChoices = savedBoms.filter(
+    (bom) =>
+      bom.is_active === 1 && bom.phase === "PACKING" && bom.finished_item_id === packFinishedItemId,
+  );
+
+  async function changePackBom(nextId: number): Promise<void> {
+    setPackBomId(nextId);
+    try {
+      const detail = await api.bom(nextId);
+      const output = detail.bom.output_quantity || 1;
+      setPackBom({ components: detail.components, output });
+      applyRecipe(packItemUnit, output, detail.components);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load packing BOM.");
+    }
+  }
+
+  /**
+   * Adopt a packing BOM's recipe: its output quantity is one pack, so the pack
+   * size is set from it and the material lines are the BOM's per-output
+   * quantities scaled to the whole packs the unpacked stock makes.
+   */
+  function applyRecipe(
+    itemUnit: string,
+    output: number,
+    components: BomComponent[],
+    available = packAvailable,
+  ): void {
+    const unit = defaultPackUnit(itemUnit);
+    const whole =
+      available > 0 && output > 0 ? packCount(available, itemUnit, output, unit) : null;
+    const size = whole?.error ? available : output;
+    const packs = whole ? (whole.error ? 1 : whole.packs) : 0;
+    setPackSize(size);
+    setPackUnit(unit);
+    setPackPacks(packs);
+    const bulk = packsToBulk(packs, itemUnit, size, unit);
+    if (!bulk.error) {
+      setPackingLines(packingLinesFor(bulk.bulk, components, output));
+    }
+  }
+
+  /** Set the number of packs; the bulk drawn from stock is derived from it. */
+  function applyPacks(packs: number, size = packSize, unit = packUnit): void {
+    setPackPacks(packs);
+    // A first pack has no recipe to scale yet — leave the lines the user typed.
+    if (packBomId === null) return;
+    const bulk = packsToBulk(packs, packItemUnit, size, unit);
+    if (!bulk.error) {
+      setPackingLines(packingLinesFor(bulk.bulk, packBom.components, packBom.output));
+    }
+  }
+
+  /** Fill as many whole packs of the chosen size as the unpacked stock allows. */
   function refillWholePacks(size: number, unit: string): void {
     const whole = packCount(packAvailable, packItemUnit, size, unit);
-    if (whole.error || whole.packs === 0) return;
-    setPackQuantity(whole.packedBulk);
-    setPackingLines(packingLinesFor(whole.packedBulk, packBom.components, packBom.output));
+    applyPacks(whole.error ? packPacks : whole.packs, size, unit);
   }
 
   function changePackSize(next: number): void {
@@ -390,18 +469,30 @@ export default function ManufacturingPage() {
       // The BOM detail also carries the finished item for temporary BOMs,
       // which are hidden from the BOM list.
       const detail = await api.bom(order.bom_id);
-      const componentsForBom = detail.components;
-      setBomComponents((prev) => ({ ...prev, [order.bom_id]: componentsForBom }));
-      const output = detail.bom.output_quantity || 1;
-      // Default to everything still unpacked; the user may pack only part.
+      setBomComponents((prev) => ({ ...prev, [order.bom_id]: detail.components }));
+      const finishedItemId = detail.bom.finished_item_id;
+      // Split model: the order's BOM is the raw recipe, so the packing
+      // materials come from the active packing BOM for the same finished item.
+      const ownPacking = detail.components.some(isPackingComponent);
+      const packingBom = ownPacking ? undefined : packingBomFor(finishedItemId);
+      const source = packingBom ? await api.bom(packingBom.id) : detail;
+      const output = source.bom.output_quantity || 1;
       const available = order.unpacked_quantity ?? order.actual_quantity;
-      const unit = items.find((i) => i.id === detail.bom.finished_item_id)?.unit ?? "UNIT";
-      setPackBom({ components: componentsForBom, output });
+      const unit = itemUnit(finishedItemId);
+      setPackFinishedItemId(finishedItemId);
+      setPackBomId(packingBom ? packingBom.id : ownPacking ? order.bom_id : null);
+      setPackBom({ components: source.components, output });
       setPackItemUnit(unit);
-      setPackSize(1);
-      setPackUnit(defaultPackUnit(unit));
-      setPackQuantity(available);
-      setPackingLines(packingLinesFor(available, componentsForBom, output));
+      if (packingBom || ownPacking) {
+        // A saved packing BOM defines one pack: adopt its size and ratio.
+        applyRecipe(unit, output, source.components, available);
+      } else {
+        // First pack: no recipe yet, so start from the whole unpacked batch.
+        setPackSize(1);
+        setPackUnit(defaultPackUnit(unit));
+        setPackPacks(available);
+        setPackingLines(packingLinesFor(available, source.components, output));
+      }
       setPackingOrderId(order.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load packing materials.");
@@ -414,8 +505,8 @@ export default function ManufacturingPage() {
 
   async function confirmPack() {
     if (packingOrderId === null) return;
-    if (packResult.error) {
-      setError(packResult.error);
+    if (packBulk.error || packQuantity <= 0) {
+      setError(packBulk.error ?? "Enter how many packs to make.");
       return;
     }
     const batch = window.prompt("Final finished-goods batch number (optional):", "");
@@ -423,17 +514,22 @@ export default function ManufacturingPage() {
     const materials = packingLines
       .filter((l) => l.itemId > 0 && l.quantityRequired > 0)
       .map((l) => ({ itemId: l.itemId, quantity: l.quantityRequired }));
+    const perPack = packsToBulk(1, packItemUnit, packSize, packUnit);
     try {
       const result = await api.packProduction(packingOrderId, {
         quantity: packQuantity,
+        packSize: perPack.error ? undefined : perPack.bulk,
         materials,
         outputBatchNumber: batch || undefined,
         ignoreStock: ignoreStockOrders[packingOrderId] || undefined,
       });
-      setNotice(`Packed ${packQuantity} — production cost ${money(result.productionCost)}`);
+      setNotice(
+        `Packed ${packQuantity} — production cost ${money(result.productionCost)}` +
+          (result.packingBomName ? ` — saved packing BOM ${result.packingBomName}` : ""),
+      );
       setPackingOrderId(null);
       setPackingLines([newComponent()]);
-      setPackQuantity(0);
+      setPackPacks(0);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to pack order.");
@@ -478,8 +574,7 @@ export default function ManufacturingPage() {
               </div>
               <div>
                 <label>Output quantity</label>
-                <input
-                  type="number"
+                <NumberInput
                   min="0"
                   step="0.001"
                   value={outputQuantity}
@@ -489,7 +584,7 @@ export default function ManufacturingPage() {
               </div>
             </div>
 
-            <table style={{ marginTop: 16 }}>
+            <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
               <thead>
                 <tr>
                   <th>Component</th>
@@ -503,6 +598,7 @@ export default function ManufacturingPage() {
                     <td>
                       <SearchableSelect
                         value={String(line.itemId)}
+                        autoFocus={addedComponent.current && line.key === componentLines.at(-1)?.key}
                         onChange={(next) => updateComponentLine(line.key, { itemId: Number(next) })}
                         placeholder="Select..."
                         emptyText="No matching item"
@@ -510,8 +606,7 @@ export default function ManufacturingPage() {
                       />
                     </td>
                     <td className="num">
-                      <input
-                        type="number"
+                      <NumberInput
                         min="0"
                         step="0.001"
                         value={line.quantityRequired}
@@ -540,7 +635,10 @@ export default function ManufacturingPage() {
             <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
               <button
                 type="button"
-                onClick={() => setComponentLines((prev) => [...prev, newComponent()])}
+                onClick={() => {
+                  addedComponent.current = true;
+                  setComponentLines((prev) => [...prev, newComponent()]);
+                }}
               >
                 Add component
               </button>
@@ -570,6 +668,15 @@ export default function ManufacturingPage() {
                 />
                 Show hidden
               </label>
+              <select
+                value={bomPhase}
+                onChange={(e) => setBomPhase(e.target.value)}
+                aria-label="BOM phase"
+              >
+                <option value="all">All phases</option>
+                <option value="FORMULATION">Production (raw)</option>
+                <option value="PACKING">Packing</option>
+              </select>
             </div>
             <table>
               <thead>
@@ -633,16 +740,15 @@ export default function ManufacturingPage() {
                   onChange={selectBom}
                   placeholder="Search by product or BOM..."
                   emptyText="No matching BOM"
-                  options={boms.map((b) => ({
+                  options={orderBoms.map((b) => ({
                     value: String(b.id),
-                    label: `${itemName(b.finished_item_id)} — ${b.bom_name}`,
+                    label: `${itemName(b.finished_item_id)} — ${b.bom_name}${b.is_active ? "" : " (inactive)"}`,
                   }))}
                 />
               </div>
               <div>
                 <label>Planned quantity</label>
-                <input
-                  type="number"
+                <NumberInput
                   min="0"
                   step="0.001"
                   value={plannedQuantity}
@@ -659,9 +765,9 @@ export default function ManufacturingPage() {
                 />
               </div>
             </div>
-            {boms.length === 0 && (
+            {orderBoms.length === 0 && (
               <p style={{ opacity: 0.7, fontSize: 12 }}>
-                No saved BOMs yet. Create one under Bills of Materials first.
+                No production (raw) BOMs yet. Create one under Bills of Materials first.
               </p>
             )}
             {bomId > 0 && (
@@ -688,26 +794,48 @@ export default function ManufacturingPage() {
                 Pack order {orders.find((o) => o.id === packingOrderId)?.order_number ?? ""}
               </h2>
               <p style={{ opacity: 0.7, fontSize: 12 }}>
-                Choose how much to pack now — the rest stays unpacked in stock. Packing materials
-                are prefilled from the BOM for that quantity and can be changed.
+                Enter the pack size and how many packs the run makes — the quantity drawn from the
+                unpacked batch and the packing materials are worked out from those two. The rest
+                stays unpacked in stock. Materials are prefilled from the packing BOM, deducted from
+                stock scaled to the BOM, and can be changed. Tick Ignore stock to skip the stock
+                check and deduction.
               </p>
+              <div className="row" style={{ marginBottom: 12 }}>
+                <div>
+                  <label>Packing BOM</label>
+                  {packingBomChoices.length > 0 ? (
+                    <SearchableSelect
+                      value={String(packBomId ?? 0)}
+                      onChange={(next) => void changePackBom(Number(next))}
+                      placeholder="Search packing BOM..."
+                      emptyText="No matching packing BOM"
+                      options={packingBomChoices.map((b) => ({
+                        value: String(b.id),
+                        label: `${b.bom_name} — ${quantity(b.output_quantity)} ${itemUnit(b.finished_item_id)} per pack`,
+                      }))}
+                    />
+                  ) : (
+                    <p style={{ margin: 0, opacity: 0.7, fontSize: 12 }}>
+                      No packing BOM yet — the materials you use now are saved as one.
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
                 <div>
-                  <label>Quantity to pack ({packItemUnit})</label>
-                  <input
-                    type="number"
-                    min="0.001"
-                    step="0.001"
-                    value={packQuantity}
-                    onChange={(e) => changePackQuantity(Number(e.target.value))}
-                    style={{ width: 140 }}
+                  <label>Packs to make</label>
+                  <NumberInput
+                    min="1"
+                    step="1"
+                    value={packPacks}
+                    onChange={(e) => applyPacks(Number(e.target.value))}
+                    style={{ width: 100 }}
                   />
                 </div>
                 <div>
                   <label>Pack size</label>
                   <div className="row">
-                    <input
-                      type="number"
+                    <NumberInput
                       min="0.001"
                       step="0.001"
                       value={packSize}
@@ -724,14 +852,17 @@ export default function ManufacturingPage() {
                   </div>
                 </div>
                 <div style={{ alignSelf: "flex-end", paddingBottom: 6 }}>
-                  {packResult.error ? (
-                    <span style={{ color: "var(--danger)", fontSize: 12 }}>{packResult.error}</span>
+                  {packBulk.error ? (
+                    <span style={{ color: "var(--danger)", fontSize: 12 }}>{packBulk.error}</span>
                   ) : (
                     <span className="badge">
-                      → {quantity(packResult.packs)} packs of {quantity(packSize)} {packUnit}
-                      {packResult.remainder > 0
-                        ? ` (${quantity(packResult.remainder)} ${packItemUnit} left unpacked)`
-                        : ""}
+                      uses {quantity(packQuantity)} {packItemUnit} → {quantity(packPacks)} ×{" "}
+                      {quantity(packSize)} {packUnit}
+                      {packQuantity > packAvailable
+                        ? ` (only ${quantity(packAvailable)} unpacked)`
+                        : packAvailable - packQuantity > 0
+                          ? ` (${quantity(packAvailable - packQuantity)} ${packItemUnit} left unpacked)`
+                          : ""}
                     </span>
                   )}
                 </div>
@@ -753,6 +884,7 @@ export default function ManufacturingPage() {
                       <td>
                         <SearchableSelect
                           value={String(line.itemId)}
+                          autoFocus={addedPacking.current && line.key === packingLines.at(-1)?.key}
                           onChange={(next) =>
                             updatePackingLine(line.key, { itemId: Number(next) })
                           }
@@ -762,8 +894,7 @@ export default function ManufacturingPage() {
                         />
                       </td>
                       <td className="num">
-                        <input
-                          type="number"
+                        <NumberInput
                           min="0"
                           step="0.001"
                           value={line.quantityRequired}
@@ -793,11 +924,27 @@ export default function ManufacturingPage() {
               <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
                 <button
                   type="button"
-                  onClick={() => setPackingLines((prev) => [...prev, newComponent()])}
+                  onClick={() => {
+                    addedPacking.current = true;
+                    setPackingLines((prev) => [...prev, newComponent()]);
+                  }}
                 >
                   Add packing material
                 </button>
                 <div className="row">
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={ignoreStockOrders[packingOrderId] ?? false}
+                      onChange={(e) =>
+                        setIgnoreStockOrders((prev) => ({
+                          ...prev,
+                          [packingOrderId]: e.target.checked,
+                        }))
+                      }
+                    />
+                    Ignore stock
+                  </label>
                   <button
                     type="button"
                     onClick={() => {
@@ -842,7 +989,7 @@ export default function ManufacturingPage() {
                     <td>
                       {order.status === "DRAFT" && (
                         <>
-                          {boms.some((b) => b.id === order.bom_id) && (
+                          {boms.some((b) => b.id === order.bom_id && b.is_temp !== 1) && (
                             <>
                               <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
                             </>

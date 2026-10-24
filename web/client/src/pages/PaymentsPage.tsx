@@ -2,8 +2,17 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
-import type { BankAccount, Party, Payment, Receipt, SettlementMethod } from "../types";
+import type {
+  BankAccount,
+  Party,
+  Payment,
+  PurchaseInvoice,
+  Receipt,
+  SalesInvoice,
+  SettlementMethod,
+} from "../types";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -18,6 +27,9 @@ export default function PaymentsPage() {
   const [suppliers, setSuppliers] = useState<Party[]>([]);
   const [customers, setCustomers] = useState<Party[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
+  /** Open invoices, so a voucher can be applied to one and move its paid_amount. */
+  const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>([]);
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -26,9 +38,38 @@ export default function PaymentsPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
   const [bankId, setBankId] = useState(0);
+  /** Invoice this voucher settles; 0 = leave it as a party-level advance. */
+  const [invoiceId, setInvoiceId] = useState(0);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [outstanding, setOutstanding] = useState<number | null>(null);
+  /** Voucher being edited in the form above; null = recording a new one. */
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  function startEdit(row: Payment | Receipt): void {
+    setError(null);
+    setNotice(null);
+    setEditingId(row.id);
+    setPartyId(row.party_id);
+    setAmount(row.amount);
+    setDate("payment_date" in row ? row.payment_date : row.receipt_date);
+    setMethod(row.payment_method);
+    setBankId(row.bank_account_id ?? 0);
+  }
+
+  async function removeRow(row: Payment | Receipt): Promise<void> {
+    if (!window.confirm(`Delete ${row.voucher_number}? Its journal entry is reversed.`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      if (tab === "payments") await api.deletePayment(row.id);
+      else await api.deleteReceipt(row.id);
+      setNotice(`${row.voucher_number} deleted.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete.");
+    }
+  }
 
   useEffect(() => {
     if (!partyId) {
@@ -57,6 +98,8 @@ export default function PaymentsPage() {
     try {
       setPayments(await api.payments());
       setReceipts(await api.receipts());
+      setSalesInvoices(await api.salesInvoices());
+      setPurchaseInvoices(await api.purchaseInvoices());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load payments.");
     }
@@ -87,6 +130,29 @@ export default function PaymentsPage() {
     setBusy(true);
     try {
       const bankAccountId = method === "CASH" ? null : bankId || null;
+      if (editingId != null) {
+        if (tab === "payments") {
+          await api.updatePayment(editingId, {
+            supplierId: partyId,
+            amount,
+            paymentDate: date,
+            paymentMethod: method,
+            bankAccountId,
+          });
+        } else {
+          await api.updateReceipt(editingId, {
+            customerId: partyId,
+            amount,
+            paymentDate: date,
+            paymentMethod: method,
+            bankAccountId,
+          });
+        }
+        setNotice("Updated.");
+        setEditingId(null);
+        await refresh();
+        return;
+      }
       const result =
         tab === "payments"
           ? await api.paySupplier({
@@ -95,6 +161,7 @@ export default function PaymentsPage() {
               paymentDate: date,
               paymentMethod: method,
               bankAccountId,
+              purchaseInvoiceId: invoiceId || null,
             })
           : await api.receivePayment({
               customerId: partyId,
@@ -102,10 +169,12 @@ export default function PaymentsPage() {
               paymentDate: date,
               paymentMethod: method,
               bankAccountId,
+              salesInvoiceId: invoiceId || null,
             });
       setNotice(`Recorded ${result.voucherNumber} for ${money(amount)}`);
       setAmount(0);
       setPartyId(0);
+      setInvoiceId(0);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to record.");
@@ -116,6 +185,26 @@ export default function PaymentsPage() {
 
   const partyOptions = tab === "payments" ? suppliers : customers;
   const rows = tab === "payments" ? payments : receipts;
+  /** Unsettled invoices of the selected party; a voucher can be applied to one. */
+  const openInvoices = (tab === "payments" ? purchaseInvoices : salesInvoices)
+    .filter((inv) => {
+      const party =
+        tab === "payments" ? (inv as PurchaseInvoice).supplier_id : (inv as SalesInvoice).customer_id;
+      return (
+        party === partyId &&
+        inv.status === "CONFIRMED" &&
+        inv.paid_amount < inv.total_amount &&
+        // A cash invoice was settled at creation; the server refuses the receipt.
+        inv.payment_type !== "CASH"
+      );
+    })
+    .map((inv) => ({
+      id: inv.id,
+      remaining: inv.total_amount - inv.paid_amount,
+      label: `${inv.invoice_number} - ${money(inv.total_amount - inv.paid_amount)} of ${money(
+        inv.total_amount,
+      )} left`,
+    }));
   const overBalance = outstanding !== null && amount > 0 && amount > outstanding;
   const outstandingAmount = outstanding ?? 0;
   const visibleRows = rows.filter((row) =>
@@ -141,6 +230,8 @@ export default function PaymentsPage() {
               onClick={() => {
                 setTab("payments");
                 setPartyId(0);
+                setInvoiceId(0);
+                setEditingId(null);
               }}
             >
               Payments
@@ -150,6 +241,8 @@ export default function PaymentsPage() {
               onClick={() => {
                 setTab("receipts");
                 setPartyId(0);
+                setInvoiceId(0);
+                setEditingId(null);
               }}
             >
               Receipts
@@ -171,14 +264,21 @@ export default function PaymentsPage() {
 
       <form className="card" onSubmit={submit}>
         <h2>
-          {tab === "payments" ? "Record payment to supplier" : "Record receipt from customer"}
+          {editingId != null
+            ? "Edit voucher"
+            : tab === "payments"
+              ? "Record payment to supplier"
+              : "Record receipt from customer"}
         </h2>
         <div className="row">
           <div>
             <label>{tab === "payments" ? "Supplier" : "Customer"}</label>
             <SearchableSelect
               value={String(partyId)}
-              onChange={(next) => setPartyId(Number(next))}
+              onChange={(next) => {
+                setPartyId(Number(next));
+                setInvoiceId(0);
+              }}
               placeholder="Select..."
               options={[
                 { value: "0", label: "Select..." },
@@ -189,10 +289,28 @@ export default function PaymentsPage() {
               ]}
             />
           </div>
+          {editingId == null && (
+            <div>
+              <label>Invoice (optional)</label>
+              <SearchableSelect
+                value={String(invoiceId)}
+                onChange={(next) => {
+                  const id = Number(next);
+                  setInvoiceId(id);
+                  const invoice = openInvoices.find((inv) => inv.id === id);
+                  if (invoice) setAmount(invoice.remaining);
+                }}
+                placeholder="Not linked"
+                options={[
+                  { value: "0", label: "Not linked (advance)" },
+                  ...openInvoices.map((inv) => ({ value: String(inv.id), label: inv.label })),
+                ]}
+              />
+            </div>
+          )}
           <div>
             <label>Amount</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={amount}
@@ -215,8 +333,13 @@ export default function PaymentsPage() {
           </div>
           {method !== "CASH" && <BankSelect value={bankId} onChange={setBankId} />}
           <button className="primary" type="submit" disabled={busy}>
-            {busy ? "Saving..." : tab === "payments" ? "Record payment" : "Record receipt"}
+            {busy ? "Saving..." : editingId != null ? "Save changes" : tab === "payments" ? "Record payment" : "Record receipt"}
           </button>
+          {editingId != null && (
+            <button type="button" onClick={() => setEditingId(null)}>
+              Cancel
+            </button>
+          )}
         </div>
       </form>
 
@@ -237,6 +360,7 @@ export default function PaymentsPage() {
               <th>Method</th>
               <th>Bank</th>
               <th className="num">Amount</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -250,12 +374,22 @@ export default function PaymentsPage() {
                   <td>{row.payment_method}</td>
                   <td>{bankName(row.bank_account_id)}</td>
                   <td className="num">{money(row.amount)}</td>
+                  <td>
+                    <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                      <button type="button" onClick={() => startEdit(row)}>
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => void removeRow(row)}>
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   {rows.length === 0
                     ? "Nothing recorded yet."
                     : "No vouchers match this filter."}

@@ -55,4 +55,31 @@ export class ReturnsRepository {
     );
     return row !== undefined;
   }
+
+  // --- edit / delete support --------------------------------------------
+  async findSalesReturnById(id: number): Promise<Row | undefined> {
+    return this.db.get<Row>("SELECT * FROM sales_returns WHERE id = ?", [id]);
+  }
+
+  async findPurchaseReturnById(id: number): Promise<Row | undefined> {
+    return this.db.get<Row>("SELECT * FROM purchase_returns WHERE id = ?", [id]);
+  }
+
+  async listSalesReturnItems(returnId: number): Promise<Row[]> {
+    return this.db.all<Row>("SELECT * FROM sales_return_items WHERE return_id = ?", [returnId]);
+  }
+
+  async listPurchaseReturnItems(returnId: number): Promise<Row[]> {
+    return this.db.all<Row>("SELECT * FROM purchase_return_items WHERE return_id = ?", [returnId]);
+  }
+
+  async deleteSalesReturn(id: number): Promise<void> {
+    await this.db.run("DELETE FROM sales_return_items WHERE return_id = ?", [id]);
+    await this.db.run("DELETE FROM sales_returns WHERE id = ?", [id]);
+  }
+
+  async deletePurchaseReturn(id: number): Promise<void> {
+    await this.db.run("DELETE FROM purchase_return_items WHERE return_id = ?", [id]);
+    await this.db.run("DELETE FROM purchase_returns WHERE id = ?", [id]);
+  }
 }

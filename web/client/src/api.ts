@@ -17,11 +17,15 @@ import type {
   CreateSalesInvoiceRequest,
   DashboardData,
   DatabaseInfo,
+  DeletedRecord,
   Expense,
   ExpenseCategory,
   ExpenseFrequency,
   ExpenseItem,
   ExpenseResult,
+  JournalEntryDetail,
+  JournalEntryResult,
+  ManualJournalEntry,
   Item,
   Party,
   PartyType,
@@ -316,6 +320,8 @@ export const api = {
     paymentMethod: SettlementMethod;
     bankAccountId?: number | null;
     notes?: string | null;
+    /** Links the payment to an invoice so its paid_amount moves. */
+    purchaseInvoiceId?: number | null;
   }) =>
     request<PaymentResult>("/api/payments", { method: "POST", body: JSON.stringify(body) }),
   receivePayment: (body: {
@@ -325,8 +331,43 @@ export const api = {
     paymentMethod: SettlementMethod;
     bankAccountId?: number | null;
     notes?: string | null;
+    /** Links the receipt to an invoice so its paid_amount moves. */
+    salesInvoiceId?: number | null;
   }) =>
     request<PaymentResult>("/api/receipts", { method: "POST", body: JSON.stringify(body) }),
+  updatePayment: (
+    id: number,
+    body: {
+      supplierId: number;
+      amount: number;
+      paymentDate: string;
+      paymentMethod: SettlementMethod;
+      bankAccountId?: number | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<PaymentResult>(`/api/payments/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deletePayment: (id: number) =>
+    request<{ ok: boolean }>(`/api/payments/${id}`, { method: "DELETE" }),
+  updateReceipt: (
+    id: number,
+    body: {
+      customerId: number;
+      amount: number;
+      paymentDate: string;
+      paymentMethod: SettlementMethod;
+      bankAccountId?: number | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<PaymentResult>(`/api/receipts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteReceipt: (id: number) =>
+    request<{ ok: boolean }>(`/api/receipts/${id}`, { method: "DELETE" }),
+  /** Receipts/payments attached to an invoice, for the delete dialog. */
+  invoicePayments: (kind: "sales" | "purchase", id: number) =>
+    request<Array<Record<string, unknown>>>(
+      `/api/${kind}-invoices/${id}/payments`,
+    ),
   salesReturns: () => request<Record<string, unknown>[]>("/api/sales-returns"),
   createSalesReturn: (body: {
     invoiceId: number;
@@ -337,6 +378,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  salesReturn: (id: number) =>
+    request<{ return: Record<string, unknown>; items: Record<string, unknown>[] }>(
+      `/api/sales-returns/${id}`,
+    ),
+  updateSalesReturn: (
+    id: number,
+    body: {
+      invoiceId: number;
+      returnDate: string;
+      items: { invoiceItemId: number; quantity: number }[];
+      notes?: string | null;
+    },
+  ) =>
+    request<{ id: number; returnNumber: string; totalAmount: number }>(`/api/sales-returns/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteSalesReturn: (id: number) =>
+    request<{ ok: boolean }>(`/api/sales-returns/${id}`, { method: "DELETE" }),
   purchaseReturns: () => request<Record<string, unknown>[]>("/api/purchase-returns"),
   createPurchaseReturn: (body: {
     invoiceId: number;
@@ -347,6 +407,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  purchaseReturn: (id: number) =>
+    request<{ return: Record<string, unknown>; items: Record<string, unknown>[] }>(
+      `/api/purchase-returns/${id}`,
+    ),
+  updatePurchaseReturn: (
+    id: number,
+    body: {
+      invoiceId: number;
+      returnDate: string;
+      items: { invoiceItemId: number; quantity: number }[];
+      notes?: string | null;
+    },
+  ) =>
+    request<{ id: number; returnNumber: string; totalAmount: number }>(
+      `/api/purchase-returns/${id}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  deletePurchaseReturn: (id: number) =>
+    request<{ ok: boolean }>(`/api/purchase-returns/${id}`, { method: "DELETE" }),
   bankAccounts: () => request<BankAccount[]>("/api/bank-accounts"),
   createBankAccount: (body: {
     bankName: string;
@@ -365,6 +444,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateBankTransaction: (
+    id: number,
+    body: {
+      type: "DEPOSIT" | "WITHDRAWAL";
+      bankAccountId: number;
+      amount: number;
+      date: string;
+      referenceNo?: string | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<{ id: number }>(`/api/bank-transactions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteBankTransaction: (id: number) =>
+    request<{ ok: boolean }>(`/api/bank-transactions/${id}`, { method: "DELETE" }),
   cheques: (status?: string) =>
     request<Cheque[]>(`/api/cheques${status ? `?status=${status}` : ""}`),
   issueCheque: (body: {
@@ -385,12 +481,36 @@ export const api = {
     request<{ journalEntryId: number }>(`/api/cheques/${id}/clear`, { method: "POST" }),
   bounceCheque: (id: number) =>
     request<{ status: string }>(`/api/cheques/${id}/bounce`, { method: "POST" }),
+  updateCheque: (
+    id: number,
+    body: {
+      bankAccountId: number;
+      chequeNumber: string;
+      amount: number;
+      chequeDate: string;
+      partyId?: number | null;
+      notes?: string | null;
+    },
+  ) => request<Cheque>(`/api/cheques/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteCheque: (id: number) =>
+    request<{ ok: boolean }>(`/api/cheques/${id}`, { method: "DELETE" }),
+  cancelCheque: (id: number) =>
+    request<{ ok: boolean }>(`/api/cheques/${id}/cancel`, { method: "POST" }),
   expenseCategories: () => request<ExpenseCategory[]>("/api/expense-categories"),
-  createExpenseCategory: (name: string) =>
+  createExpenseCategory: (name: string, accountId?: number | null) =>
     request<{ id: number; name: string }>("/api/expense-categories", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, accountId }),
     }),
+  /** Relinking the account re-posts every existing expense in the category. */
+  updateExpenseCategory: (
+    id: number,
+    body: { name?: string; accountId?: number | null; isActive?: boolean },
+  ) =>
+    request<{ category: ExpenseCategory; reposted: number }>(
+      `/api/expense-categories/${id}`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
   expenses: () => request<Expense[]>("/api/expenses"),
   expenseItems: (categoryId?: number) =>
     request<ExpenseItem[]>(
@@ -451,6 +571,59 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateExpense: (
+    id: number,
+    body: {
+      categoryId: number;
+      expenseDate: string;
+      amount: number;
+      paymentMethod: SettlementMethod;
+      dueDate?: string | null;
+      bankAccountId?: number | null;
+      description?: string | null;
+    },
+  ) =>
+    request<ExpenseResult>(`/api/expenses/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteExpense: (id: number) =>
+    request<{ ok: boolean }>(`/api/expenses/${id}`, { method: "DELETE" }),
+  deleteExpenseSettlement: (id: number) =>
+    request<{ ok: boolean }>(`/api/expenses/${id}/settlement`, { method: "DELETE" }),
+  journalEntries: (params?: { from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    const suffix = query.toString();
+    return request<ManualJournalEntry[]>(`/api/journal-entries${suffix ? `?${suffix}` : ""}`);
+  },
+  journalEntry: (id: number) =>
+    request<JournalEntryDetail>(`/api/journal-entries/journal_entries/${id}`),
+  createJournalEntry: (body: {
+    entryDate: string;
+    narration?: string | null;
+    referenceNo?: string | null;
+    voucherNumber?: string | null;
+    lines: Array<{
+      accountId: number;
+      partyId?: number | null;
+      description?: string | null;
+      debit?: number;
+      credit?: number;
+    }>;
+  }) =>
+    request<JournalEntryResult>("/api/journal-entries", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  reverseJournalEntry: (id: number, body: { reversalDate?: string; narration?: string | null }) =>
+    request<JournalEntryResult>(`/api/journal-entries/${id}/reverse`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  journalVoucherXlsx: (id: number) =>
+    requestBlob(`/api/journal-entries/${id}/export.xlsx`),
   boms: (activeOnly = true) =>
     request<Bom[]>(`/api/boms${activeOnly ? "" : "?activeOnly=false"}`),
   bom: (id: number) =>
@@ -536,12 +709,16 @@ export const api = {
     outputBatchNumber?: string;
     ignoreStock?: boolean;
     quantity?: number;
+    packSize?: number;
     materials?: { itemId: number; quantity: number }[];
   }) =>
-    request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/pack`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    request<{ id: number; productionCost: number; packingBomName?: string }>(
+      `/api/production-orders/${id}/pack`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
   trialBalance: (from?: string, to?: string) =>
     request<TrialBalance>(`/api/reports/trial-balance${periodQuery(from, to)}`),
   profitAndLoss: (from?: string, to?: string) =>
@@ -603,6 +780,34 @@ export const api = {
     dueDate?: string | null;
     notes?: string | null;
   }) => request<Asset>("/api/assets", { method: "POST", body: JSON.stringify(body) }),
+  updateAsset: (
+    id: number,
+    body: {
+      assetName: string;
+      amount: number;
+      purchaseDate: string;
+      paymentType?: "CREDIT" | "CASH" | "BANK" | "CHEQUE";
+      classification?: "CURRENT" | "NON_CURRENT";
+      supplierId?: number | null;
+      dueDate?: string | null;
+      notes?: string | null;
+    },
+  ) => request<Asset>(`/api/assets/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteAsset: (id: number) =>
+    request<{ ok: boolean }>(`/api/assets/${id}`, { method: "DELETE" }),
+  disposeAsset: (
+    id: number,
+    body: { disposeDate: string; proceeds?: number; notes?: string | null },
+  ) =>
+    request<{ journalEntryId: number; gainLoss: number }>(`/api/assets/${id}/dispose`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // --- audit / restore -------------------------------------------------
+  deletedRecords: () => request<DeletedRecord[]>("/api/audit/deleted"),
+  restoreRecord: (id: number) =>
+    request<{ table: string; id: number }>(`/api/audit/${id}/restore`, { method: "POST" }),
 
   // --- administration: users, roles, settings -------------------------
   users: () => request<UserRow[]>("/api/users"),

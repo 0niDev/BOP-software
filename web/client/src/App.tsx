@@ -5,8 +5,10 @@ import AccountsPage from "./pages/AccountsPage";
 import AssetsPage from "./pages/AssetsPage";
 import BankingPage from "./pages/BankingPage";
 import DashboardPage from "./pages/DashboardPage";
+import DeletedRecordsPage from "./pages/DeletedRecordsPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import ItemsPage from "./pages/ItemsPage";
+import JournalVouchersPage from "./pages/JournalVouchersPage";
 import LoginPage from "./pages/LoginPage";
 import ManufacturingPage from "./pages/ManufacturingPage";
 import PartiesPage from "./pages/PartiesPage";
@@ -54,9 +56,11 @@ export type Page =
   | "returns"
   | "assets"
   | "accounts"
+  | "journal"
   | ReportPage
   | "users"
-  | "settings";
+  | "settings"
+  | "deleted";
 
 function isReportPage(page: Page): page is ReportPage {
   return page === "reports" || page.startsWith("report-");
@@ -132,9 +136,11 @@ export default function App() {
       {page === "returns" && <ReturnsPage />}
       {page === "assets" && <AssetsPage />}
       {page === "accounts" && <AccountsPage />}
+      {page === "journal" && <JournalVouchersPage />}
       {isReportPage(page) && <TrialBalancePage section={page} />}
       {page === "users" && <UsersPage />}
       {page === "settings" && <SettingsPage />}
+      {page === "deleted" && <DeletedRecordsPage />}
     </Layout>
   );
 }

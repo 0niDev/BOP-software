@@ -7,12 +7,14 @@ import {
   ChevronRight,
   Factory,
   FileBarChart,
+  History,
   Landmark,
   LayoutDashboard,
   Leaf,
   Package,
   Receipt,
   RotateCcw,
+  ScrollText,
   Settings,
   ShoppingCart,
   UserCog,
@@ -69,6 +71,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
   {
     title: "Insights",
     items: [
+      { id: "journal", label: "Journal Vouchers", icon: ScrollText },
       {
         id: "reports",
         label: "Reports",
@@ -89,6 +92,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
     items: [
       { id: "users", label: "Users", icon: UserCog },
       { id: "settings", label: "Settings", icon: Settings },
+      { id: "deleted", label: "Deleted Records", icon: History },
     ],
   },
 ];

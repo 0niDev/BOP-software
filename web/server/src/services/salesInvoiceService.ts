@@ -137,6 +137,56 @@ export class SalesInvoiceService {
     return { invoice, items };
   }
 
+  /**
+   * Receipts that settled this invoice, for the "delete the payments first"
+   * dialog. Allocations are authoritative; receipts recorded before allocations
+   * existed have no link, so same-customer receipts are offered as a fallback.
+   */
+  async listPaymentsForInvoice(id: number): Promise<Array<Record<string, unknown>>> {
+    const invoice = await this.sales.findById(id);
+    if (!invoice) throw new NotFoundError(`Sales invoice ${id} not found.`);
+    const allocated = await this.db.all<Record<string, unknown>>(
+      `SELECT r.* FROM receipts r
+         JOIN receipt_allocations a ON a.receipt_id = r.id
+        WHERE a.sales_invoice_id = ?
+        ORDER BY r.receipt_date DESC`,
+      [id],
+    );
+    if (allocated.length > 0) return allocated;
+    return this.db.all<Record<string, unknown>>(
+      "SELECT * FROM receipts WHERE company_id = ? AND party_id = ? ORDER BY receipt_date DESC",
+      [invoice.company_id, invoice.customer_id],
+    );
+  }
+
+  /** A credit invoice with money against it cannot be edited or cancelled. */
+  private assertUnpaid(invoice: SalesInvoiceRow, action: string): void {
+    if (invoice.payment_type === "CREDIT" && dec(invoice.paid_amount).greaterThan(0)) {
+      throw new ConflictError(
+        `Invoice ${invoice.invoice_number} has payments recorded (${Number(invoice.paid_amount).toFixed(2)}). Delete the payments before you ${action} it.`,
+      );
+    }
+  }
+
+  /**
+   * A returned invoice still has sales_returns rows pointing at its line ids,
+   * so deleting the lines would trip the foreign key. Refuse cleanly instead.
+   */
+  private async assertNoReturns(
+    invoice: { id: number; invoice_number: string },
+    action: string,
+  ): Promise<void> {
+    const row = await this.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM sales_returns WHERE invoice_id = ?",
+      [invoice.id],
+    );
+    if (Number(row?.n ?? 0) > 0) {
+      throw new ConflictError(
+        `Invoice ${invoice.invoice_number} has sales returns. Delete the returns before you ${action} it.`,
+      );
+    }
+  }
+
   private async prepare(input: CreateSalesInvoiceInput): Promise<PreparedSalesInvoice> {
     if (!PAYMENT_METHODS.includes(input.paymentType)) {
       throw new ValidationError(`Invalid payment type '${input.paymentType}'.`);
@@ -261,6 +311,8 @@ export class SalesInvoiceService {
     if (existing.status === "CANCELLED") {
       throw new ValidationError("A cancelled invoice cannot be edited.");
     }
+    this.assertUnpaid(existing, "edit");
+    await this.assertNoReturns(existing, "edit");
     const companyId = input.companyId ?? this.companyId;
     const warehouseId = input.warehouseId ?? existing.warehouse_id;
     const ctx = await this.prepare(input);
@@ -309,6 +361,8 @@ export class SalesInvoiceService {
     const existing = await this.sales.findById(id);
     if (!existing) throw new NotFoundError(`Sales invoice ${id} not found.`);
     if (existing.status === "CANCELLED") return;
+    this.assertUnpaid(existing, "cancel");
+    await this.assertNoReturns(existing, "cancel");
     await this.db.transaction(async () => {
       await this.clearEffects(id, existing.invoice_number);
       await this.sales.updateInvoice(id, {

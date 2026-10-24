@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently -k -n server,client -c blue,magenta \"npm -w @bop-erp/server run dev\" \"node scripts/wait-for-api.mjs && npm -w @bop-erp/client run dev\"",
+    "dev:testdb": "node scripts/dev-testdb.mjs",
     "dev:server": "npm -w @bop-erp/server run dev",
     "dev:client": "npm -w @bop-erp/client run dev",
     "build": "npm -w @bop-erp/server run build && npm -w @bop-erp/client run build",
@@ -19,6 +20,7 @@
     "test:units": "vitest run client/test/units.test.ts",
     "seed": "npm -w @bop-erp/server run seed",
     "seed:rich": "npm -w @bop-erp/server run seed:rich",
+    "backfill:bom-phase": "node scripts/backfill-bom-phase.mjs",
     "smoke": "npm -w @bop-erp/server run smoke",
     "test:e2e": "playwright test"
   },

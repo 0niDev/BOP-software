@@ -45,6 +45,7 @@ const SYSTEM_ACCOUNTS: ReadonlyArray<readonly [string, string, string, string | 
   ["5200", "Manufacturing Wastage Expense", "EXPENSE", null],
   ["5300", "Inventory Loss / Expiry Expense", "EXPENSE", null],
   ["6000", "General & Administrative Expenses", "EXPENSE", null],
+  ["6900", "Gain / Loss on Asset Disposal", "EXPENSE", null],
   ["6100", "Selling Expenses", "EXPENSE", null],
 ];
 
@@ -157,6 +158,8 @@ const ADDED_COLUMNS: ReadonlyArray<readonly [table: string, column: string, defi
   ["expenses", "settlement_journal_entry_id", "INTEGER"],
   ["expense_items", "frequency", "TEXT"],
   ["expense_items", "next_run_date", "TEXT"],
+  // BOM stage: 'FORMULATION' (raw materials) or 'PACKING' (packaging + finished good).
+  ["bill_of_materials", "phase", "TEXT"],
 ];
 
 async function ensureColumns(db: SqlDatabase): Promise<void> {

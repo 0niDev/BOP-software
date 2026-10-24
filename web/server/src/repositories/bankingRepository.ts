@@ -109,4 +109,26 @@ export class BankingRepository {
       id,
     ]);
   }
+
+  async deleteCheque(id: number): Promise<void> {
+    await this.db.run("DELETE FROM cheques WHERE id = ?", [id]);
+  }
+
+  async findTransactionById(id: number): Promise<BankTransactionRow | undefined> {
+    return this.db.get<BankTransactionRow>("SELECT * FROM bank_transactions WHERE id = ?", [id]);
+  }
+
+  async deleteTransaction(id: number): Promise<void> {
+    await this.db.run("DELETE FROM bank_transactions WHERE id = ?", [id]);
+  }
+
+  async updateTransaction(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    const assignments = cols.map((c) => `${c} = ?`).join(", ");
+    await this.db.run(`UPDATE bank_transactions SET ${assignments} WHERE id = ?`, [
+      ...cols.map((c) => data[c] ?? null),
+      id,
+    ]);
+  }
 }

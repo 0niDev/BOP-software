@@ -123,6 +123,48 @@ export class PurchaseInvoiceService {
     return { invoice, items };
   }
 
+  /** Payments that settled this invoice, for the delete-payments-first dialog. */
+  async listPaymentsForInvoice(id: number): Promise<Array<Record<string, unknown>>> {
+    const invoice = await this.purchases.findById(id);
+    if (!invoice) throw new NotFoundError(`Purchase invoice ${id} not found.`);
+    const allocated = await this.db.all<Record<string, unknown>>(
+      `SELECT p.* FROM payments p
+         JOIN payment_allocations a ON a.payment_id = p.id
+        WHERE a.purchase_invoice_id = ?
+        ORDER BY p.payment_date DESC`,
+      [id],
+    );
+    if (allocated.length > 0) return allocated;
+    return this.db.all<Record<string, unknown>>(
+      "SELECT * FROM payments WHERE company_id = ? AND party_id = ? ORDER BY payment_date DESC",
+      [invoice.company_id, invoice.supplier_id],
+    );
+  }
+
+  private assertUnpaid(invoice: PurchaseInvoiceRow, action: string): void {
+    if (invoice.payment_type === "CREDIT" && dec(invoice.paid_amount).greaterThan(0)) {
+      throw new ConflictError(
+        `Invoice ${invoice.invoice_number} has payments recorded (${Number(invoice.paid_amount).toFixed(2)}). Delete the payments before you ${action} it.`,
+      );
+    }
+  }
+
+  /** Refuse to clear lines that a purchase return still points at. */
+  private async assertNoReturns(
+    invoice: { id: number; invoice_number: string },
+    action: string,
+  ): Promise<void> {
+    const row = await this.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM purchase_returns WHERE invoice_id = ?",
+      [invoice.id],
+    );
+    if (Number(row?.n ?? 0) > 0) {
+      throw new ConflictError(
+        `Invoice ${invoice.invoice_number} has purchase returns. Delete the returns before you ${action} it.`,
+      );
+    }
+  }
+
   private async prepare(input: CreatePurchaseInvoiceInput): Promise<PreparedPurchaseInvoice> {
     if (!PAYMENT_METHODS.includes(input.paymentType)) {
       throw new ValidationError(`Invalid payment type '${input.paymentType}'.`);
@@ -246,6 +288,8 @@ export class PurchaseInvoiceService {
     if (existing.status === "CANCELLED") {
       throw new ValidationError("A cancelled invoice cannot be edited.");
     }
+    this.assertUnpaid(existing, "edit");
+    await this.assertNoReturns(existing, "edit");
     const companyId = input.companyId ?? this.companyId;
     const warehouseId = input.warehouseId ?? existing.warehouse_id;
     const ctx = await this.prepare(input);
@@ -294,6 +338,8 @@ export class PurchaseInvoiceService {
     const existing = await this.purchases.findById(id);
     if (!existing) throw new NotFoundError(`Purchase invoice ${id} not found.`);
     if (existing.status === "CANCELLED") return;
+    this.assertUnpaid(existing, "cancel");
+    await this.assertNoReturns(existing, "cancel");
     await this.db.transaction(async () => {
       await this.clearEffects(id, existing.invoice_number);
       await this.purchases.updateInvoice(id, {

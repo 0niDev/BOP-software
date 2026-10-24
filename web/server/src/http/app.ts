@@ -22,6 +22,7 @@ import { ExpenseService } from "../services/expenseService.js";
 import { ManufacturingService } from "../services/manufacturingService.js";
 import { PaymentService } from "../services/paymentService.js";
 import { PurchaseInvoiceService } from "../services/purchaseInvoiceService.js";
+import { RestoreService } from "../services/restoreService.js";
 import { ReturnsService } from "../services/returnsService.js";
 import { ReportService } from "../services/reportService.js";
 import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
@@ -106,6 +107,7 @@ export function createApp(
   const dashboard = new DashboardService(db, companyId);
   const expenseItems = new ExpenseItemService(db, companyId);
   const assets = new AssetService(db, companyId);
+  const restore = new RestoreService(db, companyId);
   const backups = new BackupService(
     db,
     options.engine ?? env.dbEngine,
@@ -285,6 +287,44 @@ export function createApp(
     res.status(201).json(await assets.create(body));
   });
 
+  const assetUpdateSchema = z.object({
+    assetName: z.string().min(1),
+    assetCode: z.string().min(1).optional(),
+    amount: z.number().positive(),
+    purchaseDate: z.string().min(1),
+    paymentType: z.enum(["CREDIT", "CASH", "BANK", "CHEQUE"]).optional(),
+    classification: z.enum(["CURRENT", "NON_CURRENT"]).optional(),
+    supplierId: z.number().int().positive().nullish(),
+    dueDate: z.string().nullish(),
+    notes: z.string().nullish(),
+  });
+
+  app.put("/api/assets/:id", requireAuth, async (req, res) => {
+    const body = parseBody(assetUpdateSchema, req.body);
+    res.json(await assets.update(Number(req.params.id), body));
+  });
+
+  app.delete("/api/assets/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await assets.delete(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/assets/:id/dispose", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        disposeDate: isoDateSchema,
+        proceeds: z.coerce.number().min(0).optional(),
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await assets.dispose(Number(req.params.id), { ...body, userId: user?.userId ?? null }),
+    );
+  });
+
   // --- parties (customers / suppliers) -----------------------------------
   app.get("/api/parties", requireAuth, async (req, res) => {
     const type = req.query.type;
@@ -435,6 +475,10 @@ export function createApp(
     res.json(await sales.getById(Number(req.params.id)));
   });
 
+  app.get("/api/sales-invoices/:id/payments", requireAuth, async (req, res) => {
+    res.json(await sales.listPaymentsForInvoice(Number(req.params.id)));
+  });
+
   app.post("/api/sales-invoices", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
@@ -517,6 +561,10 @@ export function createApp(
 
   app.get("/api/purchase-invoices/:id", requireAuth, async (req, res) => {
     res.json(await purchases.getById(Number(req.params.id)));
+  });
+
+  app.get("/api/purchase-invoices/:id/payments", requireAuth, async (req, res) => {
+    res.json(await purchases.listPaymentsForInvoice(Number(req.params.id)));
   });
 
   app.post("/api/purchase-invoices", requireAuth, async (req, res) => {
@@ -631,6 +679,60 @@ export function createApp(
       req.body,
     );
     res.status(201).json(await payments.receivePayment(body));
+  });
+
+  const paymentSchema = z.object({
+    supplierId: z.coerce.number().int().positive(),
+    amount: z.coerce.number().positive(),
+    paymentDate: isoDateSchema,
+    paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+    bankAccountId: z.coerce.number().int().positive().nullish(),
+    referenceNo: z.string().nullish(),
+    notes: z.string().nullish(),
+  });
+
+  const receiptSchema = z.object({
+    customerId: z.coerce.number().int().positive(),
+    amount: z.coerce.number().positive(),
+    paymentDate: isoDateSchema,
+    paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+    bankAccountId: z.coerce.number().int().positive().nullish(),
+    referenceNo: z.string().nullish(),
+    notes: z.string().nullish(),
+  });
+
+  app.put("/api/payments/:id", requireAuth, async (req, res) => {
+    const body = parseBody(paymentSchema, req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await payments.updatePayment(Number(req.params.id), {
+        ...body,
+        userId: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/payments/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await payments.deletePayment(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
+  app.put("/api/receipts/:id", requireAuth, async (req, res) => {
+    const body = parseBody(receiptSchema, req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await payments.updateReceipt(Number(req.params.id), {
+        ...body,
+        userId: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/receipts/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await payments.deleteReceipt(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
   });
 
   app.get("/api/boms", requireAuth, async (req, res) => {
@@ -815,6 +917,18 @@ export function createApp(
     res.status(201).json(await expenses.createCategory(body.name, body.accountId));
   });
 
+  app.put("/api/expense-categories/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        name: z.string().min(1).optional(),
+        accountId: z.coerce.number().int().positive().nullish(),
+        isActive: z.boolean().optional(),
+      }),
+      req.body,
+    );
+    res.json(await expenses.updateCategory(Number(req.params.id), body));
+  });
+
   app.get("/api/expenses", requireAuth, async (_req, res) => {
     // Catch up any recurring bills before listing (no background scheduler).
     await expenseItems.generateDue();
@@ -931,6 +1045,42 @@ export function createApp(
     );
   });
 
+  app.put("/api/expenses/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        categoryId: z.coerce.number().int().positive(),
+        expenseDate: isoDateSchema,
+        amount: z.coerce.number().positive(),
+        paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        dueDate: isoDateSchema.nullish(),
+        bankAccountId: z.coerce.number().int().positive().nullish(),
+        chequeId: z.coerce.number().int().positive().nullish(),
+        description: z.string().nullish(),
+      }),
+      req.body,
+    );
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await expenses.updateExpense(Number(req.params.id), {
+        ...body,
+        userId: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/expenses/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await expenses.deleteExpense(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
+  /** Reverse the settlement of a pay-later bill (returns it to UNPAID). */
+  app.delete("/api/expenses/:id/settlement", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await expenses.deleteExpenseSettlement(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
   app.get("/api/bank-accounts", requireAuth, async (_req, res) => {
     res.json(await banking.listBankAccounts());
   });
@@ -974,6 +1124,23 @@ export function createApp(
     res.status(201).json(await banking.withdraw(parseBody(movementSchema, req.body)));
   });
 
+  app.put("/api/bank-transactions/:id", requireAuth, async (req, res) => {
+    const body = parseBody(movementSchema.extend({ type: z.enum(["DEPOSIT", "WITHDRAWAL"]) }), req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await banking.updateTransaction(Number(req.params.id), {
+        ...body,
+        userId: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/bank-transactions/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await banking.deleteTransaction(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
   app.get("/api/cheques", requireAuth, async (req, res) => {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
     res.json(await banking.listCheques(status));
@@ -1010,8 +1177,35 @@ export function createApp(
     res.json({ status: "LOST" });
   });
 
+  app.put("/api/cheques/:id", requireAuth, async (req, res) => {
+    const body = parseBody(chequeSchema, req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await banking.updateCheque(Number(req.params.id), {
+        ...body,
+        userId: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/cheques/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await banking.deleteCheque(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/cheques/:id/cancel", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await banking.cancelCheque(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
   app.get("/api/sales-returns", requireAuth, async (_req, res) => {
     res.json(await returns.listSalesReturns());
+  });
+
+  app.get("/api/sales-returns/:id", requireAuth, async (req, res) => {
+    res.json(await returns.getSalesReturn(Number(req.params.id)));
   });
 
   app.post("/api/sales-returns", requireAuth, async (req, res) => {
@@ -1020,8 +1214,29 @@ export function createApp(
     res.status(201).json(await returns.createSalesReturn({ ...body, createdBy: user?.userId ?? null }));
   });
 
+  app.put("/api/sales-returns/:id", requireAuth, async (req, res) => {
+    const body = parseBody(returnSchema, req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await returns.updateSalesReturn(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/sales-returns/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await returns.deleteSalesReturn(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
   app.get("/api/purchase-returns", requireAuth, async (_req, res) => {
     res.json(await returns.listPurchaseReturns());
+  });
+
+  app.get("/api/purchase-returns/:id", requireAuth, async (req, res) => {
+    res.json(await returns.getPurchaseReturn(Number(req.params.id)));
   });
 
   app.post("/api/purchase-returns", requireAuth, async (req, res) => {
@@ -1032,6 +1247,32 @@ export function createApp(
       .json(await returns.createPurchaseReturn({ ...body, createdBy: user?.userId ?? null }));
   });
 
+  app.put("/api/purchase-returns/:id", requireAuth, async (req, res) => {
+    const body = parseBody(returnSchema, req.body);
+    const user = (req as Request & { user?: Session }).user;
+    res.json(
+      await returns.updatePurchaseReturn(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
+  });
+
+  app.delete("/api/purchase-returns/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    await returns.deletePurchaseReturn(Number(req.params.id), user?.userId ?? null);
+    res.json({ ok: true });
+  });
+
+  /** One manual journal voucher as a standalone Excel workbook. */
+  app.get("/api/journal-entries/:id/export.xlsx", requireAuth, async (req, res) => {
+    const file = await reportXlsx.journalVoucher(Number(req.params.id));
+    res.attachment(file.fileName);
+    res.type(SHEET_MIME);
+    res.send(file.buffer);
+  });
+
+  /** Read any document's backing entry, e.g. sourceTable "expenses". */
   app.get("/api/journal-entries/:sourceTable/:sourceId", requireAuth, async (req, res) => {
     const entry = await accounting.getJournalEntry(
       String(req.params.sourceTable),
@@ -1042,6 +1283,56 @@ export function createApp(
 
   const asAtQuery = (req: Request): string | null =>
     typeof req.query.asAt === "string" && req.query.asAt ? req.query.asAt : null;
+
+  const journalLineSchema = z.object({
+    accountId: z.coerce.number().int().positive(),
+    partyId: z.coerce.number().int().positive().nullish(),
+    description: z.string().nullish(),
+    debit: z.coerce.number().min(0).optional(),
+    credit: z.coerce.number().min(0).optional(),
+  });
+
+  const manualJournalSchema = z.object({
+    entryDate: isoDateSchema,
+    narration: z.string().nullish(),
+    referenceNo: z.string().nullish(),
+    voucherNumber: z.string().nullish(),
+    lines: z.array(journalLineSchema).min(2),
+  });
+
+  /** Manual journal vouchers (JV-), newest first. */
+  app.get("/api/journal-entries", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await accounting.listManualJournals({ from, to }));
+  });
+
+  app.post("/api/journal-entries", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    const body = parseBody(manualJournalSchema, req.body);
+    res
+      .status(201)
+      .json(
+        await accounting.createManualJournal({ ...body, createdBy: user?.userId ?? null }),
+      );
+  });
+
+  /** Correct a manual voucher by posting its opposite on a chosen date. */
+  app.post("/api/journal-entries/:id/reverse", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    const body = parseBody(
+      z.object({
+        reversalDate: isoDateSchema.optional(),
+        narration: z.string().nullish(),
+      }),
+      req.body ?? {},
+    );
+    res.status(201).json(
+      await accounting.reverseManualJournal(Number(req.params.id), {
+        ...body,
+        createdBy: user?.userId ?? null,
+      }),
+    );
+  });
 
   app.get("/api/reports/trial-balance", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
@@ -1259,6 +1550,16 @@ export function createApp(
     const group = String(req.params.group);
     const removed = await settings.deleteGroup(companyId, group);
     res.json({ group, removed });
+  });
+
+  // --- audit trail / restore ---------------------------------------------
+  app.get("/api/audit/deleted", requireAuth, async (_req, res) => {
+    res.json(await restore.listDeleted());
+  });
+
+  app.post("/api/audit/:id/restore", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    res.json(await restore.restore(Number(req.params.id), user?.userId ?? null));
   });
 
   // --- built client (single-process production mode) ----------------------

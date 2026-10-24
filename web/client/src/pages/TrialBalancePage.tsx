@@ -44,6 +44,18 @@ function amount(value: number): string {
   return value === 0 ? "" : money(value);
 }
 
+/** Any opening, period or closing balance on the account. */
+function hasMovement(row: TrialBalanceRow): boolean {
+  return [
+    row.openingDebit,
+    row.openingCredit,
+    row.debit,
+    row.credit,
+    row.closingDebit,
+    row.closingCredit,
+  ].some((value) => value !== 0);
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
@@ -208,6 +220,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [bs, setBs] = useState<BalanceSheet | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** A trial balance is read for its balances: hide the empty chart lines by default. */
+  const [showZero, setShowZero] = useState(false);
 
   // Report period (trial balance + P&L) and the balance-sheet date.
   const [from, setFrom] = useState("");
@@ -368,6 +382,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       `party-ledger_${periodTag(ledgerFrom, ledgerTo)}.xlsx`,
     );
   }
+
+  const visibleTbRows = tb ? (showZero ? tb.rows : tb.rows.filter(hasMovement)) : [];
 
   return (
     <>
@@ -549,7 +565,16 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           <h2 style={{ flex: 1, margin: 0 }}>
             Trial Balance{" "}
             {tb && <span className="badge">{tb.balanced ? "Balanced" : "OUT OF BALANCE"}</span>}
+            {tb && <span className="badge">{visibleTbRows.length} accounts</span>}
           </h2>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={showZero}
+              onChange={(event) => setShowZero(event.target.checked)}
+            />
+            Show zero balances
+          </label>
           <button onClick={() => void exportCsv()} disabled={csvBusy}>
             {csvBusy ? "Preparing…" : "Export CSV"}
           </button>
@@ -580,10 +605,10 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             </tr>
           </thead>
           <tbody>
-            {tb && groupTbRows(tb.rows).map((group) => (
+            {groupTbRows(visibleTbRows).map((group) => (
               <GroupedTbRows key={group.type} group={group} />
             ))}
-            {tb && tb.rows.length === 0 && (
+            {tb && visibleTbRows.length === 0 && (
               <tr>
                 <td colSpan={8}>No accounts with posted entries in this period.</td>
               </tr>

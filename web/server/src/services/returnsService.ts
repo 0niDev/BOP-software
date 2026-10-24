@@ -25,6 +25,8 @@ import { SalesRepository } from "../repositories/salesRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { AuditService } from "./auditService.js";
+import { deleteJournalBySource } from "./journalEffects.js";
 import { insertRow } from "../repositories/base.js";
 
 export interface ReturnLineInput {
@@ -95,6 +97,7 @@ export class ReturnsService {
   private readonly returns: ReturnsRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
+  private readonly audit: AuditService;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -107,6 +110,7 @@ export class ReturnsService {
     this.returns = new ReturnsRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.audit = new AuditService(db);
   }
 
   async listSalesReturns(): Promise<Record<string, unknown>[]> {
@@ -115,6 +119,22 @@ export class ReturnsService {
 
   async listPurchaseReturns(): Promise<Record<string, unknown>[]> {
     return this.returns.listPurchaseReturns(this.companyId);
+  }
+
+  async getSalesReturn(
+    id: number,
+  ): Promise<{ return: Record<string, unknown>; items: Record<string, unknown>[] }> {
+    const row = await this.returns.findSalesReturnById(id);
+    if (!row) throw new NotFoundError(`Sales return ${id} not found.`);
+    return { return: row, items: await this.returns.listSalesReturnItems(id) };
+  }
+
+  async getPurchaseReturn(
+    id: number,
+  ): Promise<{ return: Record<string, unknown>; items: Record<string, unknown>[] }> {
+    const row = await this.returns.findPurchaseReturnById(id);
+    if (!row) throw new NotFoundError(`Purchase return ${id} not found.`);
+    return { return: row, items: await this.returns.listPurchaseReturnItems(id) };
   }
 
   async createSalesReturn(input: CreateSalesReturnInput): Promise<ReturnResult> {
@@ -408,6 +428,150 @@ export class ReturnsService {
 
       return { id: returnId, returnNumber, totalAmount: toStorage(netTotal), journalEntryId };
     });
+  }
+
+  /** Edit a sales return in place: reverse the old one, re-post with its number. */
+  async updateSalesReturn(id: number, input: CreateSalesReturnInput): Promise<ReturnResult> {
+    const existing = await this.returns.findSalesReturnById(id);
+    if (!existing) throw new NotFoundError(`Sales return ${id} not found.`);
+
+    return this.db.transaction(async () => {
+      await this.clearSalesReturn(id);
+      const result = await this.createSalesReturn({
+        ...input,
+        returnNumber: String(existing.return_number),
+        companyId: input.companyId ?? Number(existing.company_id),
+      });
+      await this.audit.record({
+        userId: input.createdBy ?? null,
+        action: "UPDATE",
+        table: "sales_returns",
+        entityId: result.id,
+        details: { before: existing, after: input },
+      });
+      return result;
+    });
+  }
+
+  /** Delete a sales return: pull the returned stock back out and remove the journal. */
+  async deleteSalesReturn(id: number, userId: number | null = null): Promise<void> {
+    const existing = await this.returns.findSalesReturnById(id);
+    if (!existing) throw new NotFoundError(`Sales return ${id} not found.`);
+    const items = await this.returns.listSalesReturnItems(id);
+
+    await this.db.transaction(async () => {
+      await this.clearSalesReturn(id);
+      await this.audit.record({
+        userId,
+        action: "DELETE",
+        table: "sales_returns",
+        entityId: id,
+        details: {
+          returnNumber: existing.return_number,
+          input: {
+            invoiceId: existing.invoice_id,
+            returnDate: existing.return_date,
+            notes: existing.notes,
+            returnNumber: existing.return_number,
+            items: items.map((item) => ({
+              invoiceItemId: item.invoice_item_id,
+              quantity: item.quantity,
+            })),
+          },
+        },
+      });
+    });
+  }
+
+  /** Edit a purchase return in place. */
+  async updatePurchaseReturn(
+    id: number,
+    input: CreatePurchaseReturnInput,
+  ): Promise<ReturnResult> {
+    const existing = await this.returns.findPurchaseReturnById(id);
+    if (!existing) throw new NotFoundError(`Purchase return ${id} not found.`);
+
+    return this.db.transaction(async () => {
+      await this.clearPurchaseReturn(id);
+      const result = await this.createPurchaseReturn({
+        ...input,
+        returnNumber: String(existing.return_number),
+        companyId: input.companyId ?? Number(existing.company_id),
+      });
+      await this.audit.record({
+        userId: input.createdBy ?? null,
+        action: "UPDATE",
+        table: "purchase_returns",
+        entityId: result.id,
+        details: { before: existing, after: input },
+      });
+      return result;
+    });
+  }
+
+  /** Delete a purchase return: put the stock back and remove the journal. */
+  async deletePurchaseReturn(id: number, userId: number | null = null): Promise<void> {
+    const existing = await this.returns.findPurchaseReturnById(id);
+    if (!existing) throw new NotFoundError(`Purchase return ${id} not found.`);
+    const items = await this.returns.listPurchaseReturnItems(id);
+
+    await this.db.transaction(async () => {
+      await this.clearPurchaseReturn(id);
+      await this.audit.record({
+        userId,
+        action: "DELETE",
+        table: "purchase_returns",
+        entityId: id,
+        details: {
+          returnNumber: existing.return_number,
+          input: {
+            invoiceId: existing.invoice_id,
+            returnDate: existing.return_date,
+            notes: existing.notes,
+            returnNumber: existing.return_number,
+            items: items.map((item) => ({
+              invoiceItemId: item.invoice_item_id,
+              quantity: item.quantity,
+            })),
+          },
+        },
+      });
+    });
+  }
+
+  /** Reverse a return's stock movements, journal entry and rows. */
+  private async clearSalesReturn(id: number): Promise<void> {
+    await this.reverseStockMovements("sales_returns", id);
+    await deleteJournalBySource(this.db, "sales_returns", id);
+    await this.returns.deleteSalesReturn(id);
+  }
+
+  private async clearPurchaseReturn(id: number): Promise<void> {
+    await this.reverseStockMovements("purchase_returns", id);
+    await deleteJournalBySource(this.db, "purchase_returns", id);
+    await this.returns.deletePurchaseReturn(id);
+  }
+
+  /**
+   * Negate every stock movement the return wrote: a sales return put quantity
+   * back on the batch (delete takes it out), a purchase return took it off
+   * (delete puts it back).
+   */
+  private async reverseStockMovements(referenceTable: string, referenceId: number): Promise<void> {
+    const movements = await this.db.all<{ id: number; batch_id: number | null; quantity: number }>(
+      `SELECT id, batch_id, quantity FROM stock_movements
+        WHERE reference_table = ? AND reference_id = ?`,
+      [referenceTable, referenceId],
+    );
+    for (const movement of movements) {
+      if (movement.batch_id != null) {
+        await this.batches.adjustQuantity(movement.batch_id, -Number(movement.quantity));
+      }
+    }
+    await this.db.run("DELETE FROM stock_movements WHERE reference_table = ? AND reference_id = ?", [
+      referenceTable,
+      referenceId,
+    ]);
   }
 
   /** COGS account for an item type, falling back to 5000 when it is not seeded. */

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import type { Account, Party, PartyType } from "../types";
 
@@ -311,8 +312,7 @@ export default function PartiesPage() {
           </div>
           <div>
             <label>Credit limit</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={draft.creditLimit}

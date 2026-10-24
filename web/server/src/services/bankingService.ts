@@ -24,6 +24,8 @@ import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { AuditService } from "./auditService.js";
+import { deleteJournalById } from "./journalEffects.js";
 
 export interface CreateBankAccountInput {
   bankName: string;
@@ -57,6 +59,7 @@ export class BankingService {
   private readonly accounts: AccountRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
+  private readonly audit: AuditService;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -66,6 +69,7 @@ export class BankingService {
     this.accounts = new AccountRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.audit = new AuditService(db);
   }
 
   async listBankAccounts(): Promise<BankAccountRow[]> {
@@ -143,6 +147,7 @@ export class BankingService {
   private async movement(
     input: BankMovementInput,
     type: "DEPOSIT" | "WITHDRAWAL",
+    existingId?: number,
   ): Promise<{ id: number; journalEntryId: number }> {
     const amount = round2(input.amount);
     if (amount.lessThanOrEqualTo(0)) throw new ValidationError("Amount must be greater than 0.");
@@ -182,7 +187,7 @@ export class BankingService {
         narration: description,
         companyId: this.companyId,
       });
-      const id = await this.banks.insertTransaction({
+      const fields = {
         bank_account_id: account.id,
         transaction_type: type,
         amount: toStorage(amount),
@@ -190,13 +195,84 @@ export class BankingService {
         reference_no: input.referenceNo ?? null,
         notes: input.notes ?? null,
         journal_entry_id: journalEntryId,
-      });
+      };
+      if (existingId != null) {
+        await this.banks.updateTransaction(existingId, fields);
+        return { id: existingId, journalEntryId };
+      }
+      const id = await this.banks.insertTransaction(fields);
       return { id, journalEntryId };
     });
   }
 
   async listTransactions(): Promise<BankTransactionRow[]> {
     return this.banks.listTransactions(this.companyId);
+  }
+
+  /**
+   * Edit a manual deposit/withdrawal. Transactions raised by an invoice carry
+   * no journal_entry_id and belong to that document, so they are refused here.
+   */
+  async updateTransaction(
+    id: number,
+    input: BankMovementInput & { type: "DEPOSIT" | "WITHDRAWAL"; userId?: number | null },
+  ): Promise<{ id: number; journalEntryId: number }> {
+    const existing = await this.banks.findTransactionById(id);
+    if (!existing) throw new NotFoundError(`Bank transaction ${id} not found.`);
+    if (existing.journal_entry_id == null) {
+      throw new ConflictError(
+        "This transaction belongs to an invoice or cheque. Edit that document instead.",
+      );
+    }
+
+    return this.db.transaction(async () => {
+      // Drop the row's pointer first: bank_transactions.journal_entry_id is a
+      // FK, so the entry cannot be deleted while the transaction references it.
+      // The row itself is reused so the client's id stays valid.
+      await this.banks.updateTransaction(id, { journal_entry_id: null });
+      await deleteJournalById(this.db, existing.journal_entry_id as number);
+      const result = await this.movement(input, input.type, id);
+      await this.audit.record({
+        userId: input.userId ?? null,
+        action: "UPDATE",
+        table: "bank_transactions",
+        entityId: result.id,
+        details: { before: existing, after: { ...input } },
+      });
+      return result;
+    });
+  }
+
+  /** Delete a manual deposit/withdrawal and its journal entry. */
+  async deleteTransaction(id: number, userId: number | null = null): Promise<void> {
+    const existing = await this.banks.findTransactionById(id);
+    if (!existing) throw new NotFoundError(`Bank transaction ${id} not found.`);
+    if (existing.journal_entry_id == null) {
+      throw new ConflictError(
+        "This transaction belongs to an invoice or cheque. Delete that document instead.",
+      );
+    }
+
+    await this.db.transaction(async () => {
+      await this.banks.deleteTransaction(id);
+      await deleteJournalById(this.db, existing.journal_entry_id as number);
+      await this.audit.record({
+        userId,
+        action: "DELETE",
+        table: "bank_transactions",
+        entityId: id,
+        details: {
+          input: {
+            type: existing.transaction_type,
+            bankAccountId: existing.bank_account_id,
+            amount: existing.amount,
+            date: existing.transaction_date,
+            referenceNo: existing.reference_no,
+            notes: existing.notes,
+          },
+        },
+      });
+    });
   }
 
   async listCheques(status?: string): Promise<ChequeRow[]> {
@@ -299,6 +375,162 @@ export class BankingService {
 
   async loseCheque(chequeId: number): Promise<void> {
     await this.setChequeStatus(chequeId, "LOST");
+  }
+
+  /** Edit an uncleared cheque. Once cleared, the movement is in the ledger. */
+  async updateCheque(
+    chequeId: number,
+    input: ChequeInput & { userId?: number | null },
+  ): Promise<ChequeRow> {
+    const cheque = await this.banks.findChequeById(chequeId);
+    if (!cheque) throw new NotFoundError(`Cheque ${chequeId} not found.`);
+    if (cheque.status !== "UNCLEARED") {
+      throw new ConflictError(`Cheque is '${cheque.status}' and can no longer be edited.`);
+    }
+    const account = await this.banks.findBankAccountById(input.bankAccountId);
+    if (!account) throw new NotFoundError(`Bank account ${input.bankAccountId} not found.`);
+    const amount = round2(input.amount);
+    if (amount.lessThanOrEqualTo(0)) throw new ValidationError("Cheque amount must be greater than 0.");
+    if (!input.chequeNumber?.trim()) throw new ValidationError("Cheque number is required.");
+
+    await this.banks.updateCheque(chequeId, {
+      bank_account_id: account.id,
+      party_id: input.partyId ?? null,
+      cheque_number: input.chequeNumber.trim(),
+      amount: toStorage(amount),
+      cheque_date: input.chequeDate,
+      notes: input.notes ?? null,
+    });
+    await this.audit.record({
+      userId: input.userId ?? null,
+      action: "UPDATE",
+      table: "cheques",
+      entityId: chequeId,
+      details: { before: cheque, after: { ...input, amount: toStorage(amount) } },
+    });
+    const updated = await this.banks.findChequeById(chequeId);
+    return updated!;
+  }
+
+  /** Delete an uncleared cheque (nothing has reached the ledger yet). */
+  async deleteCheque(chequeId: number, userId: number | null = null): Promise<void> {
+    const cheque = await this.banks.findChequeById(chequeId);
+    if (!cheque) throw new NotFoundError(`Cheque ${chequeId} not found.`);
+    if (cheque.status === "CLEARED") {
+      throw new ConflictError(
+        `Cheque ${cheque.cheque_number} has cleared. Cancel it instead so the bank movement is reversed.`,
+      );
+    }
+    await this.assertChequeUnreferenced(chequeId);
+
+    await this.db.transaction(async () => {
+      await this.banks.deleteCheque(chequeId);
+      await this.audit.record({
+        userId,
+        action: "DELETE",
+        table: "cheques",
+        entityId: chequeId,
+        details: {
+          input: {
+            chequeType: cheque.cheque_type,
+            bankAccountId: cheque.bank_account_id,
+            chequeNumber: cheque.cheque_number,
+            amount: cheque.amount,
+            chequeDate: cheque.cheque_date,
+            partyId: cheque.party_id,
+            notes: cheque.notes,
+          },
+        },
+      });
+    });
+  }
+
+  /**
+   * Cancel a cheque. A cleared cheque gets the opposite journal entry before
+   * the row is removed, so the bank and party balances go back to where they
+   * were; an uncleared one simply disappears.
+   */
+  async cancelCheque(chequeId: number, userId: number | null = null): Promise<void> {
+    const cheque = await this.banks.findChequeById(chequeId);
+    if (!cheque) throw new NotFoundError(`Cheque ${chequeId} not found.`);
+    await this.assertChequeUnreferenced(chequeId);
+
+    const cleared = cheque.status === "CLEARED";
+    const account = await this.banks.findBankAccountById(cheque.bank_account_id);
+    if (!account) throw new NotFoundError("Bank account for cheque not found.");
+
+    await this.db.transaction(async () => {
+      if (cleared) {
+        const resolver = new SystemAccountResolver(this.db, this.companyId);
+        const amount = dec(cheque.amount);
+        if (cheque.cheque_type === "RECEIVED") {
+          const balance = dec(await this.accounts.getCurrentBalance(account.account_id));
+          if (amount.greaterThan(balance)) {
+            throw new ValidationError(
+              `Cannot cancel cheque ${cheque.cheque_number}: bank balance ${balance.toFixed(2)} < ${amount.toFixed(2)}.`,
+            );
+          }
+        }
+        const lines: JournalLineInput[] =
+          cheque.cheque_type === "ISSUED"
+            ? [
+                { accountId: account.account_id, debit: amount, description: `Cheque ${cheque.cheque_number} cancelled` },
+                {
+                  accountId: await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE),
+                  credit: amount,
+                  partyId: cheque.party_id,
+                  description: `Cheque ${cheque.cheque_number} cancelled`,
+                },
+              ]
+            : [
+                {
+                  accountId: await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE),
+                  debit: amount,
+                  partyId: cheque.party_id,
+                  description: `Cheque ${cheque.cheque_number} cancelled`,
+                },
+                { accountId: account.account_id, credit: amount, description: `Cheque ${cheque.cheque_number} cancelled` },
+              ];
+        await this.accounting.postJournalEntry({
+          voucherType: "JOURNAL",
+          entryDate: new Date().toISOString().slice(0, 10),
+          lines,
+          narration: `Cheque ${cheque.cheque_number} cancelled`,
+          companyId: this.companyId,
+        });
+      }
+
+      await this.banks.deleteCheque(chequeId);
+      await this.audit.record({
+        userId,
+        action: "CANCEL",
+        table: "cheques",
+        entityId: chequeId,
+        details: {
+          status: cheque.status,
+          input: {
+            chequeType: cheque.cheque_type,
+            bankAccountId: cheque.bank_account_id,
+            chequeNumber: cheque.cheque_number,
+            amount: cheque.amount,
+            chequeDate: cheque.cheque_date,
+            partyId: cheque.party_id,
+            notes: cheque.notes,
+          },
+        },
+      });
+    });
+  }
+
+  private async assertChequeUnreferenced(chequeId: number): Promise<void> {
+    const row = await this.db.get<{ count: number }>(
+      `SELECT (SELECT COUNT(*) FROM expenses WHERE cheque_id = ?) +
+              (SELECT COUNT(*) FROM payments WHERE cheque_id = ?) AS count`,
+      [chequeId, chequeId],
+    );
+    if (Number(row?.count ?? 0) > 0) {
+      throw new ConflictError("This cheque is referenced by an expense or payment.");
+    }
   }
 
   private async setChequeStatus(chequeId: number, status: string): Promise<void> {

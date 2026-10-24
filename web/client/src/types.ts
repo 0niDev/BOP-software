@@ -197,6 +197,9 @@ export interface BankTransaction {
   amount: number;
   transaction_date: string;
   reference_no: string | null;
+  notes: string | null;
+  /** NULL = raised by an invoice/cheque, so it is edited through that document. */
+  journal_entry_id: number | null;
 }
 
 export interface Cheque {
@@ -208,6 +211,8 @@ export interface Cheque {
   amount: number;
   cheque_date: string;
   status: string;
+  cleared_date: string | null;
+  notes: string | null;
 }
 
 export interface ExpenseCategory {
@@ -220,6 +225,7 @@ export interface ExpenseCategory {
 export interface Expense {
   id: number;
   voucher_number: string;
+  category_id: number;
   category_name: string;
   expense_date: string;
   amount: number;
@@ -227,6 +233,10 @@ export interface Expense {
   /** `UNPAID` = pay-later bill sitting on Accounts Payable. */
   status: "PAID" | "UNPAID";
   due_date: string | null;
+  settlement_journal_entry_id: number | null;
+  bank_account_id: number | null;
+  cheque_id: number | null;
+  description: string | null;
 }
 
 export interface ExpenseResult {
@@ -252,12 +262,49 @@ export interface ExpenseItem {
   updated_at: string | null;
 }
 
+/** A manual journal voucher row (list view). */
+export interface ManualJournalEntry {
+  id: number;
+  voucher_number: string;
+  entry_date: string;
+  narration: string | null;
+  reference_no: string | null;
+  total_debit: number;
+  line_count: number;
+}
+
+export interface JournalEntryLine {
+  account_id: number;
+  account_code: string;
+  account_name: string;
+  debit: number;
+  credit: number;
+  description: string | null;
+}
+
+/** Full entry returned by GET /api/journal-entries/journal_entries/:id. */
+export interface JournalEntryDetail {
+  id: number;
+  voucher_number: string;
+  entry_date: string;
+  narration: string | null;
+  reference_no: string | null;
+  lines: JournalEntryLine[];
+}
+
+export interface JournalEntryResult {
+  id: number;
+  voucherNumber: string;
+}
+
 export interface Bom {
   id: number;
   bom_name: string;
   finished_item_id: number;
   output_quantity: number;
+  phase?: string | null;
   is_active: number;
+  is_temp?: number;
 }
 
 export interface BomComponent {
@@ -285,23 +332,27 @@ export interface ProductionOrder {
 export interface Payment {
   id: number;
   voucher_number: string;
+  party_id: number;
   party_name: string;
   party_code: string;
   payment_date: string;
   payment_method: SettlementMethod;
   bank_account_id: number | null;
   amount: number;
+  notes: string | null;
 }
 
 export interface Receipt {
   id: number;
   voucher_number: string;
+  party_id: number;
   party_name: string;
   party_code: string;
   receipt_date: string;
   payment_method: SettlementMethod;
   bank_account_id: number | null;
   amount: number;
+  notes: string | null;
 }
 
 export interface PaymentResult {
@@ -479,4 +530,16 @@ export interface DashboardData {
   }>;
   /** Sales mix by customer, ranked by revenue (dashboard service). */
   salesByCustomer: Array<{ partyName: string; revenue: number; invoices: number }>;
+}
+
+/** One row of the audit trail's deleted-records screen. */
+export interface DeletedRecord {
+  id: number;
+  user_id: number | null;
+  action: "DELETE";
+  entity_table: string;
+  entity_id: number | null;
+  details: string | null;
+  created_at: string;
+  restored: boolean;
 }

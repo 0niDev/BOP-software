@@ -13,8 +13,8 @@
  * combined one.
  */
 import writeXlsxFile, { type Cell, type CellObject, type SheetData } from "write-excel-file/node";
-import type { DateRangeOptions } from "./accountingService.js";
-import { ValidationError } from "../domain/errors.js";
+import { AccountingService, type DateRangeOptions } from "./accountingService.js";
+import { NotFoundError, ValidationError } from "../domain/errors.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
@@ -182,10 +182,12 @@ const TWO_COLUMN: Columns = [{ width: 32 }, { width: 18 }];
 export class ReportXlsx {
   private readonly reports: ReportService;
   private readonly parties: PartyRepository;
+  private readonly accounting: AccountingService;
 
   constructor(db: SqlDatabase, companyId = 1) {
     this.reports = new ReportService(db, companyId);
     this.parties = new PartyRepository(db);
+    this.accounting = new AccountingService(db, companyId);
   }
 
   /** Render one report (or all of them) to an .xlsx buffer. */
@@ -265,6 +267,68 @@ export class ReportXlsx {
     return {
       fileName: `all-reports_${periodSlug(options.from, options.to)}.xlsx`,
       buffer: await this.write(sheets),
+    };
+  }
+
+  /**
+   * One manual journal voucher as a standalone workbook: title block, header
+   * facts, every line, and the debit/credit totals. Same money formatting as
+   * the reports, so the workbook is the printable form of that voucher.
+   */
+  async journalVoucher(id: number): Promise<XlsxFile> {
+    const entry = await this.accounting.getJournalEntry("journal_entries", id);
+    if (!entry) throw new NotFoundError(`Journal voucher ${id} not found.`);
+    const lines = entry.lines as Array<{
+      account_code: string;
+      account_name: string;
+      description: string | null;
+      debit: number;
+      credit: number;
+    }>;
+    const voucherNumber = String(entry.voucher_number);
+    const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit), 0);
+    const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit), 0);
+
+    const data: SheetData = [
+      ...heading(`Journal Voucher — ${voucherNumber}`, `Dated ${String(entry.entry_date)}`),
+      [text("Narration", HEADER), text(String(entry.narration ?? "—"))],
+      [text("Reference", HEADER), text(String(entry.reference_no ?? "—"))],
+      [],
+      [
+        text("Account Code", HEADER),
+        text("Account Name", HEADER),
+        text("Description", HEADER),
+        text("Debit", HEADER),
+        text("Credit", HEADER),
+      ],
+      ...lines.map(
+        (line): Cell[] => [
+          text(String(line.account_code)),
+          text(String(line.account_name)),
+          line.description ?? null,
+          moneyOrBlank(Number(line.debit)),
+          moneyOrBlank(Number(line.credit)),
+        ],
+      ),
+      [null, null, text("Totals", TOTAL), money(totalDebit, TOTAL), money(totalCredit, TOTAL)],
+    ];
+
+    return {
+      fileName: `journal-voucher_${voucherNumber}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "Journal Voucher",
+          columns: [
+            { width: 14 },
+            { width: 34 },
+            { width: 40 },
+            { width: 14 },
+            { width: 14 },
+          ],
+          stickyRowsCount: 8,
+        },
+      ]),
     };
   }
 

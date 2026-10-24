@@ -275,6 +275,14 @@ input::placeholder,
 textarea::placeholder {
   color: var(--muted);
 }
+/* Checkboxes/radios: native size is ~13px, below the 18px audit minimum. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--accent);
+}
 input:focus,
 select:focus,
 textarea:focus {

@@ -121,7 +121,7 @@ also returns `current_stock` aggregated across active batches.
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `bill_of_materials` | `company_id`, `finished_item_id`, `bom_name`, `output_quantity`, `notes`, `is_active`, `is_temp`, `is_ghost` | `is_temp = 1` marks a one-use BOM created by a production order; such BOMs are filtered out of the list |
+| `bill_of_materials` | `company_id`, `finished_item_id`, `bom_name`, `output_quantity`, `notes`, `phase`, `is_active`, `is_temp`, `is_ghost` | `is_temp = 1` marks a one-use BOM created by a production order; such BOMs are filtered out of the list. `phase`: `FORMULATION` (raw materials) or `PACKING` (packing materials + finished good) — set automatically from the components |
 | `bom_components` | `bom_id` (cascade), `component_item_id`, `quantity_required`, `wastage_percent` | Percent 0–100 |
 | `production_orders` | `company_id`, `warehouse_id`, `order_number` UNIQUE(company), `bom_id`, `planned_quantity`, `actual_quantity`, `wastage_quantity`, `output_batch_number`, `manufacturing_date`, `expiry_date`, `production_cost`, `raw_material_cost`, `packing_material_cost`, `status`, `completed_at`, `is_ghost` | `status`: `DRAFT` → `IN_PROGRESS` → `COMPLETED`, or `CANCELLED` |
 | `production_consumption` | `production_order_id` (cascade), `component_item_id`, `batch_id`, `quantity_consumed`, `unit_cost` | One row per batch actually consumed |

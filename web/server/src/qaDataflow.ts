@@ -313,6 +313,15 @@ async function main(): Promise<void> {
       outputQuantity: 1_000,
       components: [
         { componentItemId: rmA.id, quantityRequired: COMPONENT_RM_PER_1000.toNumber(), wastagePercent: RM_WASTAGE_PERCENT.toNumber() },
+      ],
+    }),
+  );
+  // Packing stage is a separate BOM for the same finished item.
+  await db.transaction(() =>
+    manufacturing.createBom({
+      finishedItemId: fgA.id,
+      outputQuantity: 1_000,
+      components: [
         { componentItemId: pmA.id, quantityRequired: COMPONENT_PM_PER_1000.toNumber(), wastagePercent: 0 },
       ],
     }),

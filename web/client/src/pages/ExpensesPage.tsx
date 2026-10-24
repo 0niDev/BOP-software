@@ -2,25 +2,19 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { moveRowFocus } from "../lib/gridKeys";
 import type {
+  Account,
   Expense,
   ExpenseCategory,
-  ExpenseFrequency,
   ExpenseItem,
   SettlementMethod,
 } from "../types";
 
 /** Selected amount per expense-item id for the "Pay items" grid. */
 type PayAmounts = Record<number, number>;
-
-const FREQUENCIES: ReadonlyArray<{ value: "" | ExpenseFrequency; label: string }> = [
-  { value: "", label: "Does not repeat" },
-  { value: "WEEKLY", label: "Weekly" },
-  { value: "MONTHLY", label: "Monthly" },
-  { value: "QUARTERLY", label: "Quarterly" },
-  { value: "YEARLY", label: "Yearly" },
-];
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -37,8 +31,10 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
   const [bankId, setBankId] = useState(0);
-  const [dueDate, setDueDate] = useState("");
   const [newCategory, setNewCategory] = useState("");
+  const [newCategoryAccountId, setNewCategoryAccountId] = useState(0);
+  const [expenseAccounts, setExpenseAccounts] = useState<Account[]>([]);
+  const [linkingId, setLinkingId] = useState<number | null>(null);
 
   /** One-off expense (no recurring item): name + amount typed in the dialog. */
   const [oneOffDescription, setOneOffDescription] = useState("");
@@ -49,10 +45,87 @@ export default function ExpensesPage() {
   const [payAmounts, setPayAmounts] = useState<PayAmounts>({});
   const [newItemName, setNewItemName] = useState("");
   const [newItemAmount, setNewItemAmount] = useState(0);
-  const [frequency, setFrequency] = useState<"" | ExpenseFrequency>("");
-  const [nextRunDate, setNextRunDate] = useState("");
   const [payBusy, setPayBusy] = useState(false);
   const [query, setQuery] = useState("");
+
+  // Edit dialog for one already-recorded expense.
+  const [editing, setEditing] = useState<Expense | null>(null);
+  const [editCategoryId, setEditCategoryId] = useState(0);
+  const [editDate, setEditDate] = useState("");
+  const [editAmount, setEditAmount] = useState(0);
+  const [editMethod, setEditMethod] = useState<SettlementMethod>("CASH");
+  const [editBankId, setEditBankId] = useState(0);
+  const [editDescription, setEditDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function openEdit(expense: Expense): void {
+    setError(null);
+    setNotice(null);
+    setEditing(expense);
+    setEditCategoryId(expense.category_id);
+    setEditDate(expense.expense_date);
+    setEditAmount(expense.amount);
+    setEditMethod(expense.payment_method);
+    setEditBankId(expense.bank_account_id ?? 0);
+    setEditDescription(expense.description ?? "");
+  }
+
+  async function saveEdit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateExpense(editing.id, {
+        categoryId: editCategoryId,
+        expenseDate: editDate,
+        amount: editAmount,
+        paymentMethod: editMethod,
+        bankAccountId: editMethod === "CASH" ? null : editBankId || null,
+        description: editDescription.trim() || null,
+      });
+      setEditing(null);
+      setNotice(`Expense ${editing.voucher_number} updated.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update the expense.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeExpense(expense: Expense): Promise<void> {
+    if (!window.confirm(`Delete expense ${expense.voucher_number}? Its journal entry is reversed.`)) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteExpense(expense.id);
+      setNotice(`Expense ${expense.voucher_number} deleted.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete the expense.");
+    }
+  }
+
+  async function unsettle(expense: Expense): Promise<void> {
+    if (
+      !window.confirm(
+        `Reverse the settlement of ${expense.voucher_number}? It returns to an unpaid bill.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.deleteExpenseSettlement(expense.id);
+      setNotice(`Settlement of ${expense.voucher_number} reversed.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to reverse the settlement.");
+    }
+  }
 
   async function loadItems(currentCategoryId: number): Promise<void> {
     if (!currentCategoryId) {
@@ -76,8 +149,12 @@ export default function ExpensesPage() {
 
   async function refresh() {
     try {
-      const categoryList = await api.expenseCategories();
+      const [categoryList, accountList] = await Promise.all([
+        api.expenseCategories(),
+        api.accounts(),
+      ]);
       setCategories(categoryList);
+      setExpenseAccounts(accountList.filter((a) => a.account_type === "EXPENSE" && a.is_active));
       setExpenses(await api.expenses());
       const first = categoryList[0];
       if (categoryId === 0 && first) setCategoryId(first.id);
@@ -95,11 +172,32 @@ export default function ExpensesPage() {
     event.preventDefault();
     if (!newCategory.trim()) return;
     try {
-      await api.createExpenseCategory(newCategory.trim());
+      await api.createExpenseCategory(newCategory.trim(), newCategoryAccountId || null);
       setNewCategory("");
+      setNewCategoryAccountId(0);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add category.");
+    }
+  }
+
+  /** Changing the linked account re-posts the category's expenses on the server. */
+  async function linkCategoryAccount(category: ExpenseCategory, value: string) {
+    setError(null);
+    setNotice(null);
+    setLinkingId(category.id);
+    try {
+      const { category: updated, reposted } = await api.updateExpenseCategory(category.id, {
+        accountId: value ? Number(value) : null,
+      });
+      setNotice(
+        `'${updated.name}' re-posted${reposted ? ` (${reposted} expense${reposted === 1 ? "" : "s"})` : ""}.`,
+      );
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to relink the category.");
+    } finally {
+      setLinkingId(null);
     }
   }
 
@@ -120,20 +218,16 @@ export default function ExpensesPage() {
         categoryId,
         name: newItemName.trim(),
         amount: newItemAmount,
-        frequency: frequency || null,
-        nextRunDate: frequency ? nextRunDate || null : null,
       });
       setNewItemName("");
       setNewItemAmount(0);
-      setFrequency("");
-      setNextRunDate("");
       await loadItems(categoryId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add the item.");
     }
   }
 
-  async function submitItems(payLater: boolean): Promise<void> {
+  async function submitItems(): Promise<void> {
     setError(null);
     setNotice(null);
     if (!categoryId) {
@@ -159,18 +253,13 @@ export default function ExpensesPage() {
         const result = await api.payExpenseItems({
           categoryId,
           paymentMethod: method,
-          bankAccountId: payLater || method === "CASH" ? null : bankId || null,
+          bankAccountId: method === "CASH" ? null : bankId || null,
           expenseDate: date,
-          payLater,
-          dueDate: payLater ? dueDate || null : null,
           selections,
         });
         parts.push(
-          payLater
-            ? `${result.voucherNumbers.length} bill(s) — ${money(result.totalPaid)} ` +
-                `(${result.voucherNumbers.join(", ")}) — due ${dueDate || "whenever"}`
-            : `Paid ${result.voucherNumbers.length} item(s) — ${money(result.totalPaid)} ` +
-                `(${result.voucherNumbers.join(", ")})`,
+          `Paid ${result.voucherNumbers.length} item(s) — ${money(result.totalPaid)} ` +
+            `(${result.voucherNumbers.join(", ")})`,
         );
       }
       if (hasOneOff) {
@@ -179,18 +268,12 @@ export default function ExpensesPage() {
           expenseDate: date,
           amount: oneOffAmount,
           paymentMethod: method,
-          payLater,
-          dueDate: payLater ? dueDate || null : null,
-          bankAccountId: payLater || method === "CASH" ? null : bankId || null,
+          bankAccountId: method === "CASH" ? null : bankId || null,
           description: oneOffDescription.trim() || null,
         });
-        parts.push(
-          payLater
-            ? `Bill ${result.voucherNumber} for ${money(oneOffAmount)} — due ${dueDate || "whenever"}`
-            : `Expense ${result.voucherNumber} for ${money(oneOffAmount)}`,
-        );
+        parts.push(`Expense ${result.voucherNumber} for ${money(oneOffAmount)}`);
       }
-      setNotice((payLater ? "Added — " : "Recorded — ") + parts.join("; "));
+      setNotice("Recorded — " + parts.join("; "));
       setPayAmounts({});
       setOneOffDescription("");
       setOneOffAmount(0);
@@ -204,22 +287,25 @@ export default function ExpensesPage() {
     }
   }
 
-  /** Settle an unpaid bill with the method selected in the dialog. */
-  async function payBill(expense: Expense) {
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await api.payExpense(expense.id, {
-        paymentMethod: expense.payment_method,
-        paymentDate: new Date().toISOString().slice(0, 10),
-        bankAccountId: expense.payment_method === "CASH" ? null : bankId || null,
-      });
-      setNotice(`Settled ${result.voucherNumber} (${money(expense.amount)})`);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to pay the bill.");
-    }
-  }
+  const accountOptions = [
+    { value: "", label: "6000 - General & Administrative (fallback)" },
+    ...expenseAccounts.map((a) => ({
+      value: String(a.id),
+      label: `${a.account_code} - ${a.account_name}`,
+    })),
+  ];
+
+  const accountLabels = new Map(
+    expenseAccounts.map((a) => [a.id, `${a.account_code} - ${a.account_name}`]),
+  );
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  /** Where the category's journal entry actually posts (null link = 6000 fallback). */
+  const ledgerFor = (categoryId: number): string => {
+    const accountId = categoryById.get(categoryId)?.account_id;
+    return accountId != null
+      ? accountLabels.get(accountId) ?? "—"
+      : "6000 - General & Administrative (fallback)";
+  };
 
   const visibleExpenses = expenses.filter((expense) =>
     matchesQuery(query, [
@@ -227,7 +313,6 @@ export default function ExpensesPage() {
       expense.expense_date,
       expense.category_name,
       expense.payment_method,
-      expense.status,
       expense.amount,
     ]),
   );
@@ -257,6 +342,9 @@ export default function ExpensesPage() {
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDialogOpen(false);
           }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setDialogOpen(false);
+          }}
         >
           <div className="modal" role="dialog" aria-modal="true" aria-label="Record expenses">
             <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
@@ -268,8 +356,7 @@ export default function ExpensesPage() {
             <p className="sub" style={{ marginTop: 0 }}>
               Every item in the category starts at 0. Type an amount next to the ones you want —
               items above 0 are recorded, zeros are skipped. Anything that is not an item goes in
-              the one-off row. Pay them now, or add them to Pay Later to settle from the list
-              below.
+              the one-off row.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -285,8 +372,12 @@ export default function ExpensesPage() {
                   }}
                   placeholder="Select..."
                   emptyText="No matching category"
+                  autoFocus
                   options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
                 />
+                <span className="sub" style={{ fontSize: 11 }}>
+                  Posts to: {categoryId ? ledgerFor(categoryId) : "—"}
+                </span>
               </div>
               <div>
                 <label>Date</label>
@@ -307,11 +398,10 @@ export default function ExpensesPage() {
               {method !== "CASH" && <BankSelect value={bankId} onChange={setBankId} />}
             </div>
 
-            <table style={{ marginTop: 12 }}>
+            <table style={{ marginTop: 12 }} onKeyDown={moveRowFocus}>
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Repeats</th>
                   <th className="num">Amount</th>
                 </tr>
               </thead>
@@ -319,14 +409,8 @@ export default function ExpensesPage() {
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td>{item.name}</td>
-                    <td>
-                      {item.frequency
-                        ? `${item.frequency} · next ${item.next_run_date ?? "—"}`
-                        : "—"}
-                    </td>
                     <td className="num">
-                      <input
-                        type="number"
+                      <NumberInput
                         min="0"
                         step="0.01"
                         aria-label={`Amount for ${item.name}`}
@@ -351,12 +435,8 @@ export default function ExpensesPage() {
                       aria-label="One-off expense description"
                     />
                   </td>
-                  <td>
-                    <span className="sub">Not an item</span>
-                  </td>
                   <td className="num">
-                    <input
-                      type="number"
+                    <NumberInput
                       min="0"
                       step="0.01"
                       aria-label="One-off expense amount"
@@ -368,7 +448,7 @@ export default function ExpensesPage() {
                 </tr>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={3}>
+                    <td colSpan={2}>
                       <span className="sub">
                         No items in this category yet — add one with “Add expense item” below.
                       </span>
@@ -384,35 +464,10 @@ export default function ExpensesPage() {
                 className="primary"
                 type="button"
                 disabled={payBusy}
-                onClick={() => void submitItems(false)}
+                onClick={() => void submitItems()}
               >
-                {payBusy ? "Working…" : "Pay now"}
+                {payBusy ? "Working…" : "Record"}
               </button>
-            </div>
-
-            <div
-              className="row"
-              style={{
-                alignItems: "flex-end",
-                marginTop: 12,
-                paddingTop: 12,
-                borderTop: "1px solid var(--grid-line)",
-              }}
-            >
-              <div>
-                <label>Due date</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              </div>
-              <button
-                type="button"
-                disabled={payBusy}
-                onClick={() => void submitItems(true)}
-              >
-                Add to pay later
-              </button>
-              <span className="sub" style={{ flex: 1 }}>
-                Unpaid bills go to Accounts Payable; settle them from the recorded expenses list.
-              </span>
             </div>
 
             <form
@@ -434,8 +489,7 @@ export default function ExpensesPage() {
               </div>
               <div>
                 <label>Default amount</label>
-                <input
-                  type="number"
+                <NumberInput
                   min="0"
                   step="0.01"
                   value={newItemAmount}
@@ -443,49 +497,141 @@ export default function ExpensesPage() {
                   style={{ width: 130 }}
                 />
               </div>
-              <div>
-                <label>Repeat</label>
-                <select
-                  value={frequency}
-                  onChange={(e) => setFrequency(e.target.value as "" | ExpenseFrequency)}
-                >
-                  {FREQUENCIES.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {frequency && (
-                <div>
-                  <label>First bill date</label>
-                  <input
-                    type="date"
-                    value={nextRunDate}
-                    onChange={(e) => setNextRunDate(e.target.value)}
-                  />
-                </div>
-              )}
               <button type="submit">Add item</button>
             </form>
           </div>
         </div>
       )}
 
-      <form className="card" onSubmit={addCategory}>
-        <h2>Add expense category</h2>
-        <div className="row">
+      <div className="card">
+        <h2>Expense categories</h2>
+        <p className="sub" style={{ marginTop: 0 }}>
+          Each category posts its expenses to this ledger account. Changing it re-posts the
+          category's existing expenses too, so the trial balance moves with it.
+        </p>
+        <form className="row" onSubmit={addCategory}>
           <div>
-            <label>Name</label>
+            <label>New category</label>
             <input
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="e.g. Utilities"
             />
           </div>
+          <div>
+            <label>Ledger account</label>
+            <SearchableSelect
+              value={String(newCategoryAccountId || "")}
+              onChange={(next) => setNewCategoryAccountId(Number(next) || 0)}
+              options={accountOptions}
+              placeholder="Search accounts…"
+            />
+          </div>
           <button type="submit">Add category</button>
+        </form>
+        <table style={{ marginTop: 12 }}>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Ledger account</th>
+            </tr>
+          </thead>
+          <tbody>
+            {categories.map((category) => (
+              <tr key={category.id}>
+                <td>{category.name}</td>
+                <td>
+                  <SearchableSelect
+                    value={String(category.account_id ?? "")}
+                    onChange={(next) => void linkCategoryAccount(category, next)}
+                    options={accountOptions}
+                    disabled={linkingId === category.id}
+                    placeholder="Search accounts…"
+                    ariaLabel={`Ledger account for ${category.name}`}
+                  />
+                </td>
+              </tr>
+            ))}
+            {categories.length === 0 && (
+              <tr>
+                <td colSpan={2}>No categories yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditing(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setEditing(null);
+          }}
+        >
+          <form className="modal" role="dialog" aria-modal="true" onSubmit={saveEdit}>
+            <h2>Edit expense {editing.voucher_number}</h2>
+            <p className="sub" style={{ marginTop: 0 }}>
+              The original journal entry is replaced. A settled bill must have its settlement
+              reversed first.
+            </p>
+            <div className="row">
+              <div>
+                <label>Category</label>
+                <SearchableSelect
+                  value={String(editCategoryId)}
+                  onChange={(next) => setEditCategoryId(Number(next))}
+                  options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
+                />
+              </div>
+              <div>
+                <label>Date</label>
+                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+              </div>
+              <div>
+                <label>Amount</label>
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label>Method</label>
+                <SearchableSelect
+                  value={editMethod}
+                  onChange={(next) => setEditMethod(next as SettlementMethod)}
+                  options={(["CASH", "BANK", "CHEQUE"] as const).map((m) => ({
+                    value: m,
+                    label: m,
+                  }))}
+                />
+              </div>
+              {editMethod !== "CASH" && <BankSelect value={editBankId} onChange={setEditBankId} />}
+            </div>
+            <div>
+              <label>Description</label>
+              <input
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="What was this for?"
+              />
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      )}
 
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>
@@ -501,10 +647,12 @@ export default function ExpensesPage() {
               <th>Voucher</th>
               <th>Date</th>
               <th>Category</th>
+              <th>Ledger account</th>
+              <th>Description</th>
               <th>Method</th>
               <th>Status</th>
               <th className="num">Amount</th>
-              <th></th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -513,29 +661,31 @@ export default function ExpensesPage() {
                 <td>{expense.voucher_number}</td>
                 <td>{expense.expense_date}</td>
                 <td>{expense.category_name}</td>
+                <td>{ledgerFor(expense.category_id)}</td>
+                <td>{expense.description ?? "—"}</td>
                 <td>{expense.payment_method}</td>
-                <td>
-                  {expense.status === "UNPAID" ? (
-                    <span className="badge">
-                      Unpaid{expense.due_date ? ` · due ${expense.due_date}` : ""}
-                    </span>
-                  ) : (
-                    "Paid"
-                  )}
-                </td>
+                <td>{expense.status === "UNPAID" ? "Unpaid" : "Paid"}</td>
                 <td className="num">{money(expense.amount)}</td>
                 <td>
-                  {expense.status === "UNPAID" && (
-                    <button type="button" className="primary" onClick={() => void payBill(expense)}>
-                      Pay ({expense.payment_method})
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <button type="button" onClick={() => openEdit(expense)}>
+                      Edit
                     </button>
-                  )}
+                    {expense.settlement_journal_entry_id != null && (
+                      <button type="button" onClick={() => void unsettle(expense)}>
+                        Unsettle
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void removeExpense(expense)}>
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
             {visibleExpenses.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={9}>
                   {expenses.length === 0
                     ? "No expenses recorded yet."
                     : "No expenses match this filter."}

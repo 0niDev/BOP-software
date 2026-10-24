@@ -45,6 +45,15 @@ export class ExpenseRepository {
     return this.db.get<ExpenseCategoryRow>("SELECT * FROM expense_categories WHERE id = ?", [id]);
   }
 
+  async updateCategory(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    await this.db.run(
+      `UPDATE expense_categories SET ${cols.map((col) => `${col} = ?`).join(", ")} WHERE id = ?`,
+      [...cols.map((col) => data[col] ?? null), id],
+    );
+  }
+
   async categoryNameExists(name: string, companyId = 1): Promise<boolean> {
     const row = await this.db.get<{ id: number }>(
       "SELECT id FROM expense_categories WHERE name = ? AND company_id = ?",
@@ -76,6 +85,28 @@ export class ExpenseRepository {
 
   async findExpenseById(id: number): Promise<ExpenseRow | undefined> {
     return this.db.get<ExpenseRow>("SELECT * FROM expenses WHERE id = ?", [id]);
+  }
+
+  async updateExpense(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    const assignments = cols.map((c) => `${c} = ?`).join(", ");
+    await this.db.run(`UPDATE expenses SET ${assignments} WHERE id = ?`, [
+      ...cols.map((c) => data[c] ?? null),
+      id,
+    ]);
+  }
+
+  async deleteExpense(id: number): Promise<void> {
+    await this.db.run("DELETE FROM expenses WHERE id = ?", [id]);
+  }
+
+  /** Every expense in one category, for re-posting when the category is relinked. */
+  async listExpensesForCategory(companyId: number, categoryId: number): Promise<ExpenseRow[]> {
+    return this.db.all<ExpenseRow>(
+      "SELECT * FROM expenses WHERE company_id = ? AND category_id = ? ORDER BY id",
+      [companyId, categoryId],
+    );
   }
 
   async listExpenses(companyId = 1, limit = 200): Promise<ExpenseListRow[]> {

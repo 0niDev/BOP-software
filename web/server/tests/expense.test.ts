@@ -53,6 +53,25 @@ describe("ExpenseService", () => {
     expect(lines.find((l) => l.account_code === "6100")?.debit).toBe(100);
   });
 
+  it("relinking a category moves the expenses already posted to the old account", async () => {
+    const recorded = await expenses.createExpense({
+      categoryId,
+      expenseDate: "2026-10-08",
+      amount: 300,
+      paymentMethod: "CASH",
+    });
+    const sellingId = await accountId(ctx.db, "6100");
+
+    const { reposted } = await expenses.updateCategory(categoryId, { accountId: sellingId });
+    expect(reposted).toBe(1);
+
+    const je = await accounting.getJournalEntry("expenses", recorded.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(lines.find((l) => l.account_code === "6100")?.debit).toBe(300);
+    expect(lines.find((l) => l.account_code === "6000")).toBeUndefined();
+    expect(lines.find((l) => l.account_code === "1000")?.credit).toBe(300);
+  });
+
   it("rejects a category linked to a non-expense account", async () => {
     const cashId = await accountId(ctx.db, "1000");
     await expect(expenses.createCategory("Bad", cashId)).rejects.toBeInstanceOf(ValidationError);

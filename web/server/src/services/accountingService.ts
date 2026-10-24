@@ -9,7 +9,7 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { isDebitNormal, type AccountType, type VoucherType } from "../domain/enums.js";
-import { UnbalancedJournalEntryError, ValidationError } from "../domain/errors.js";
+import { UnbalancedJournalEntryError, ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { Decimal, round2, toStorage, type MoneyLike } from "../domain/money.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository, type JournalLineRow } from "../repositories/journalRepository.js";
@@ -35,6 +35,29 @@ export interface PostJournalEntryInput {
   createdBy?: number | null;
   companyId?: number;
   voucherNumber?: string | null;
+}
+
+export interface ManualJournalLineInput {
+  accountId: number;
+  partyId?: number | null;
+  description?: string | null;
+  debit?: MoneyLike;
+  credit?: MoneyLike;
+}
+
+export interface CreateManualJournalInput {
+  entryDate: string;
+  narration?: string | null;
+  referenceNo?: string | null;
+  voucherNumber?: string | null;
+  lines: ManualJournalLineInput[];
+  companyId?: number;
+  createdBy?: number | null;
+}
+
+export interface ManualJournalResult {
+  id: number;
+  voucherNumber: string;
 }
 
 export interface TrialBalanceRow {
@@ -147,6 +170,113 @@ export class AccountingService {
       },
       rows,
     );
+  }
+
+  /**
+   * A manual journal voucher: free-form balanced lines posted straight to the
+   * ledger, numbered JV- through the JOURNAL_VOUCHER sequence. Unlike every
+   * other posting path there is no business document — the entry is its own
+   * source, so `source_id` self-references after insert and the ledger lookup
+   * route resolves it like any other voucher.
+   */
+  async createManualJournal(
+    input: CreateManualJournalInput,
+  ): Promise<ManualJournalResult> {
+    const companyId = input.companyId ?? this.companyId;
+    if (!input.entryDate) throw new ValidationError("Entry date is required.");
+    if (input.lines.length < 2) {
+      throw new ValidationError("A journal voucher needs at least two lines.");
+    }
+
+    const lines: JournalLineInput[] = input.lines.map((line, index) => {
+      const debit = round2(line.debit ?? 0);
+      const credit = round2(line.credit ?? 0);
+      if (debit.isZero() && credit.isZero()) {
+        throw new ValidationError(`Line ${index + 1} needs a debit or a credit amount.`);
+      }
+      return {
+        accountId: line.accountId,
+        partyId: line.partyId ?? null,
+        description: line.description ?? null,
+        debit,
+        credit,
+      };
+    });
+
+    const voucherNumber = input.voucherNumber?.trim() || null;
+    if (voucherNumber && (await this.journal.voucherExists(companyId, voucherNumber))) {
+      throw new ConflictError(`Journal voucher '${voucherNumber}' already exists.`);
+    }
+
+    return this.db.transaction(async () => {
+      const id = await this.postJournalEntry({
+        voucherType: "JOURNAL",
+        entryDate: input.entryDate,
+        voucherNumber,
+        referenceNo: input.referenceNo ?? null,
+        narration: input.narration ?? null,
+        lines,
+        sourceTable: "journal_entries",
+        companyId,
+        createdBy: input.createdBy ?? null,
+      });
+      await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [id, id]);
+      const row = await this.journal.findById(id);
+      return { id, voucherNumber: String(row?.voucher_number ?? "") };
+    });
+  }
+
+  /** Manual vouchers, newest first; auto-posted JOURNAL entries are excluded. */
+  async listManualJournals(options: DateRangeOptions = {}): Promise<Record<string, unknown>[]> {
+    return this.journal.listManual(this.companyId, options.from, options.to);
+  }
+
+  /**
+   * Post the opposite of a manual voucher on a chosen date. Posted entries are
+   * immutable, so reversal is the correction path (Zoho/ERPNext behaviour).
+   * Entries owned by another document (expenses, banking, assets) are refused —
+   * those are corrected through their own module.
+   */
+  async reverseManualJournal(
+    id: number,
+    input: { reversalDate?: string; narration?: string | null; createdBy?: number | null } = {},
+  ): Promise<ManualJournalResult> {
+    const companyId = this.companyId;
+    const entry = await this.journal.findById(id);
+    if (!entry) throw new NotFoundError(`Journal entry ${id} not found.`);
+    if (entry.voucher_type !== "JOURNAL" || entry.source_table !== "journal_entries") {
+      throw new ValidationError(
+        "Only manual journal vouchers can be reversed here — correct the source document instead.",
+      );
+    }
+
+    const original = await this.journal.findLinesForEntry(id);
+    const reversalDate = input.reversalDate || new Date().toISOString().slice(0, 10);
+
+    return this.db.transaction(async () => {
+      const reversalId = await this.postJournalEntry({
+        voucherType: "JOURNAL",
+        entryDate: reversalDate,
+        referenceNo: String(entry.voucher_number),
+        narration: input.narration ?? `Reversal of ${entry.voucher_number}`,
+        lines: original.map((line) => ({
+          accountId: Number(line.account_id),
+          partyId: line.party_id == null ? null : Number(line.party_id),
+          description: (line.description as string | null) ?? null,
+          debit: Number(line.credit),
+          credit: Number(line.debit),
+        })),
+        sourceTable: "journal_entries",
+        companyId,
+        createdBy: input.createdBy ?? null,
+      });
+      await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [
+        reversalId,
+        reversalId,
+      ]);
+      const row = await this.journal.findById(reversalId);
+      return { id: reversalId, voucherNumber: String(row?.voucher_number ?? "") };
+    });
   }
 
   /**

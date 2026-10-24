@@ -16,11 +16,15 @@ import { JournalRepository } from "../repositories/journalRepository.js";
 import {
   PaymentRepository,
   type PaymentListRow,
+  type PaymentRow,
   type ReceiptListRow,
+  type ReceiptRow,
 } from "../repositories/paymentRepository.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService } from "./accountingService.js";
+import { AuditService } from "./auditService.js";
+import { deleteJournalByVoucher, findJournalByVoucher } from "./journalEffects.js";
 
 export type SettlementMethod = "CASH" | "BANK" | "CHEQUE";
 
@@ -34,6 +38,7 @@ export interface PaySupplierInput {
   notes?: string | null;
   purchaseInvoiceId?: number | null;
   companyId?: number;
+  userId?: number | null;
 }
 
 export interface ReceivePaymentInput {
@@ -46,6 +51,7 @@ export interface ReceivePaymentInput {
   notes?: string | null;
   salesInvoiceId?: number | null;
   companyId?: number;
+  userId?: number | null;
 }
 
 export interface PaymentResult {
@@ -60,6 +66,7 @@ export class PaymentService {
   private readonly accounts: AccountRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
+  private readonly audit: AuditService;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -70,6 +77,7 @@ export class PaymentService {
     this.accounts = new AccountRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.audit = new AuditService(db);
   }
 
   async listPayments(): Promise<PaymentListRow[]> {
@@ -183,6 +191,13 @@ export class PaymentService {
       });
 
       if (input.purchaseInvoiceId) {
+        // Record the link so deleting this payment can put the invoice's
+        // paid_amount back exactly as it was.
+        await this.payments.insertPaymentAllocation(
+          id,
+          input.purchaseInvoiceId,
+          toStorage(amount),
+        );
         await this.payments.addPurchaseInvoicePaid(input.purchaseInvoiceId, toStorage(amount));
       }
 
@@ -284,10 +299,190 @@ export class PaymentService {
       });
 
       if (input.salesInvoiceId) {
+        await this.payments.insertReceiptAllocation(id, input.salesInvoiceId, toStorage(amount));
         await this.payments.addSalesInvoicePaid(input.salesInvoiceId, toStorage(amount));
       }
 
       return { id, voucherNumber, journalEntryId };
+    });
+  }
+
+  /**
+   * Edit a supplier payment. The old journal entry and row are replaced inside
+   * one transaction, so the ledger never keeps a stale disbursement. Payments
+   * already allocated to an invoice must be deleted instead — re-pointing an
+   * allocation would silently move paid_amount between invoices.
+   */
+  async updatePayment(id: number, input: PaySupplierInput): Promise<PaymentResult> {
+    const existing = await this.payments.findPaymentById(id);
+    if (!existing) throw new NotFoundError(`Payment ${id} not found.`);
+    const allocations = await this.payments.listPaymentAllocations(id);
+    if (allocations.length > 0) {
+      throw new ConflictError(
+        `Payment ${existing.voucher_number} is applied to an invoice. Delete it and record the corrected payment instead.`,
+      );
+    }
+    const journalRow = await findJournalByVoucher(
+      this.db,
+      existing.company_id,
+      existing.voucher_number,
+    );
+
+    return this.db.transaction(async () => {
+      await deleteJournalByVoucher(this.db, existing.company_id, existing.voucher_number);
+      await this.payments.deletePayment(id);
+      const result = await this.paySupplier({
+        ...input,
+        companyId: existing.company_id,
+        purchaseInvoiceId: null,
+      });
+      await this.audit.record({
+        userId: input.userId ?? null,
+        action: "UPDATE",
+        table: "payments",
+        entityId: result.id,
+        details: {
+          before: existing,
+          beforeReferenceNo: (journalRow?.reference_no as string | null) ?? null,
+          after: { ...input, voucherNumber: result.voucherNumber },
+        },
+      });
+      return result;
+    });
+  }
+
+  /** Delete a supplier payment, its journal entry and its invoice allocation. */
+  async deletePayment(id: number, userId: number | null = null): Promise<void> {
+    const existing = await this.payments.findPaymentById(id);
+    if (!existing) throw new NotFoundError(`Payment ${id} not found.`);
+    await this.reversePayment(
+      "payments",
+      existing,
+      await this.payments.listPaymentAllocations(id),
+      userId,
+    );
+  }
+
+  /** Edit a customer receipt (same rules as updatePayment). */
+  async updateReceipt(id: number, input: ReceivePaymentInput): Promise<PaymentResult> {
+    const existing = await this.payments.findReceiptById(id);
+    if (!existing) throw new NotFoundError(`Receipt ${id} not found.`);
+    const allocations = await this.payments.listReceiptAllocations(id);
+    if (allocations.length > 0) {
+      throw new ConflictError(
+        `Receipt ${existing.voucher_number} is applied to an invoice. Delete it and record the corrected receipt instead.`,
+      );
+    }
+    const journalRow = await findJournalByVoucher(
+      this.db,
+      existing.company_id,
+      existing.voucher_number,
+    );
+
+    return this.db.transaction(async () => {
+      await deleteJournalByVoucher(this.db, existing.company_id, existing.voucher_number);
+      await this.payments.deleteReceipt(id);
+      const result = await this.receivePayment({
+        ...input,
+        companyId: existing.company_id,
+        salesInvoiceId: null,
+      });
+      await this.audit.record({
+        userId: input.userId ?? null,
+        action: "UPDATE",
+        table: "receipts",
+        entityId: result.id,
+        details: {
+          before: existing,
+          beforeReferenceNo: (journalRow?.reference_no as string | null) ?? null,
+          after: { ...input, voucherNumber: result.voucherNumber },
+        },
+      });
+      return result;
+    });
+  }
+
+  /** Delete a customer receipt, its journal entry and its invoice allocation. */
+  async deleteReceipt(id: number, userId: number | null = null): Promise<void> {
+    const existing = await this.payments.findReceiptById(id);
+    if (!existing) throw new NotFoundError(`Receipt ${id} not found.`);
+    await this.reversePayment(
+      "receipts",
+      existing,
+      await this.payments.listReceiptAllocations(id),
+      userId,
+    );
+  }
+
+  /** Shared delete path for payments and receipts. */
+  private async reversePayment(
+    table: "payments" | "receipts",
+    existing: PaymentRow | ReceiptRow,
+    allocations: Array<{ id: number; purchase_invoice_id?: number; sales_invoice_id?: number; allocated_amount: number }>,
+    userId: number | null,
+  ): Promise<void> {
+    const isPayment = table === "payments";
+    const journalRow = await findJournalByVoucher(
+      this.db,
+      existing.company_id,
+      existing.voucher_number,
+    );
+    const invoiceId = isPayment
+      ? (allocations[0]?.purchase_invoice_id ?? null)
+      : (allocations[0]?.sales_invoice_id ?? null);
+
+    await this.db.transaction(async () => {
+      for (const allocation of allocations) {
+        if (isPayment) {
+          await this.payments.subtractPurchaseInvoicePaid(
+            allocation.purchase_invoice_id as number,
+            allocation.allocated_amount,
+          );
+        } else {
+          await this.payments.subtractSalesInvoicePaid(
+            allocation.sales_invoice_id as number,
+            allocation.allocated_amount,
+          );
+        }
+        await this.payments.deleteAllocation(
+          isPayment ? "payment_allocations" : "receipt_allocations",
+          allocation.id,
+        );
+      }
+      await deleteJournalByVoucher(this.db, existing.company_id, existing.voucher_number);
+      if (isPayment) await this.payments.deletePayment(existing.id);
+      else await this.payments.deleteReceipt(existing.id);
+
+      await this.audit.record({
+        userId,
+        action: "DELETE",
+        table,
+        entityId: existing.id,
+        details: {
+          voucherNumber: existing.voucher_number,
+          input: isPayment
+            ? {
+                supplierId: existing.party_id,
+                amount: existing.amount,
+                paymentDate: (existing as PaymentRow).payment_date,
+                paymentMethod: existing.payment_method,
+                bankAccountId: existing.bank_account_id,
+                referenceNo: (journalRow?.reference_no as string | null) ?? null,
+                notes: existing.notes,
+                purchaseInvoiceId: invoiceId,
+              }
+            : {
+                customerId: existing.party_id,
+                amount: existing.amount,
+                paymentDate: (existing as ReceiptRow).receipt_date,
+                paymentMethod: existing.payment_method,
+                bankAccountId: existing.bank_account_id,
+                referenceNo: (journalRow?.reference_no as string | null) ?? null,
+                notes: existing.notes,
+                salesInvoiceId: invoiceId,
+              },
+        },
+      });
     });
   }
 

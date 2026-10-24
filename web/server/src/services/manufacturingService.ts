@@ -29,6 +29,9 @@ import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
 
+/** Item-name prefix applied to finished goods produced through the unpacked stage. */
+const UNPACKED_ITEM_PREFIX = "(unpacked) ";
+
 export interface BomComponentInput {
   componentItemId: number;
   quantityRequired: number | string;
@@ -91,6 +94,8 @@ export interface PackProductionInput {
   ignoreStock?: boolean;
   /** How much of the unpacked stock to pack now. Omit to pack all of it. */
   quantity?: number | string;
+  /** Bulk held by one pack of the finished good (its stock unit). */
+  packSize?: number | string;
   /** Packing materials chosen by the user. Omit to fall back to the BOM. */
   materials?: readonly { itemId: number; quantity: number | string }[];
 }
@@ -160,9 +165,10 @@ export class ManufacturingService {
         bom_name: bomName,
         output_quantity: toStorage(outputQuantity),
         notes: input.notes ?? null,
+        phase: components.phase,
         is_active: 1,
       });
-      for (const component of components) {
+      for (const component of components.components) {
         await this.manufacturing.insertBomComponent({
           bom_id: bomId,
           component_item_id: component.componentItemId,
@@ -206,10 +212,11 @@ export class ManufacturingService {
         bom_name: bomName,
         output_quantity: toStorage(outputQuantity),
         notes: input.notes ?? existing.notes,
+        phase: components.phase,
         is_active: input.isActive === false ? 0 : existing.is_active,
       });
       await this.manufacturing.deleteBomComponents(id);
-      for (const component of components) {
+      for (const component of components.components) {
         await this.manufacturing.insertBomComponent({
           bom_id: id,
           component_item_id: component.componentItemId,
@@ -238,8 +245,12 @@ export class ManufacturingService {
 
   private async validateComponents(
     components: readonly BomComponentInput[],
-  ): Promise<ValidatedComponent[]> {
+  ): Promise<{ components: ValidatedComponent[]; phase: "FORMULATION" | "PACKING" }> {
     const validated: ValidatedComponent[] = [];
+    let hasRawMaterial = false;
+    let hasPackingMaterial = false;
+    let firstRawName = "";
+    let firstPackingName = "";
     for (const raw of components) {
       const quantityRequired = dec(raw.quantityRequired);
       if (!raw.componentItemId || quantityRequired.lessThanOrEqualTo(0)) {
@@ -251,13 +262,30 @@ export class ManufacturingService {
           `Component '${item.item_name}' must be RAW_MATERIAL or PACKING_MATERIAL.`,
         );
       }
+      if (item.item_type === "RAW_MATERIAL") {
+        hasRawMaterial = true;
+        if (!firstRawName) firstRawName = item.item_name;
+      } else {
+        hasPackingMaterial = true;
+        if (!firstPackingName) firstPackingName = item.item_name;
+      }
       const wastagePercent = dec(raw.wastagePercent ?? 0);
       if (wastagePercent.lessThan(0) || wastagePercent.greaterThan(100)) {
         throw new ValidationError("Wastage percentage must be between 0 and 100.");
       }
       validated.push({ componentItemId: item.id, quantityRequired, wastagePercent });
     }
-    return validated;
+    // Raw materials and packing materials never belong to the same BOM: the
+    // formulation stage and the packing stage are separate recipes.
+    if (hasRawMaterial && hasPackingMaterial) {
+      throw new ValidationError(
+        `A BOM cannot mix raw materials and packing materials ('${firstRawName}' + '${firstPackingName}'). ` +
+          "Keep the formulation BOM (raw materials) and the packing BOM (packing materials) separate.",
+      );
+    }
+    // The BOM stage follows from its components: any raw material makes it a
+    // formulation BOM; otherwise it is the packing stage.
+    return { components: validated, phase: hasRawMaterial ? "FORMULATION" : "PACKING" };
   }
 
   // --- Production orders -------------------------------------------------
@@ -306,10 +334,11 @@ export class ManufacturingService {
           bom_name: `TEMP-${orderNumber}`,
           output_quantity: 1,
           notes: "Temporary one-use BOM",
+          phase: components.phase,
           is_active: 1,
           is_temp: 1,
         });
-        for (const component of components) {
+        for (const component of components.components) {
           await this.manufacturing.insertBomComponent({
             bom_id: bomId,
             component_item_id: component.componentItemId,
@@ -339,7 +368,6 @@ export class ManufacturingService {
     }
     const bom = await this.manufacturing.findBomById(input.bomId);
     if (!bom) throw new ValidationError("BOM does not exist.");
-    if (!bom.is_active) throw new ValidationError("BOM is not active.");
 
     const id = await this.manufacturing.insertOrder({
       company_id: companyId,
@@ -368,7 +396,6 @@ export class ManufacturingService {
     }
     const bom = await this.manufacturing.findBomById(input.bomId);
     if (!bom) throw new ValidationError("BOM does not exist.");
-    if (!bom.is_active) throw new ValidationError("BOM is not active.");
 
     await this.manufacturing.updateOrder(id, {
       bom_id: bom.id,
@@ -501,6 +528,19 @@ export class ManufacturingService {
     const unpackedName = await this.unpackedBatchName(order, input.outputBatchNumber, bom.finished_item_id);
 
     return this.db.transaction(async () => {
+      // Old BOMs can point at an inactive finished item (ghost imports). The
+      // unpacked output must land on an Active item, so reactivate it and mark
+      // its name with the unpacked prefix. Other items are left untouched.
+      const finished = await this.items.requireById(bom.finished_item_id);
+      if (!finished.is_active) {
+        await this.items.update(finished.id, {
+          is_active: 1,
+          item_name: finished.item_name.startsWith(UNPACKED_ITEM_PREFIX)
+            ? finished.item_name
+            : `${UNPACKED_ITEM_PREFIX}${finished.item_name}`,
+        });
+      }
+
       await this.manufacturing.updateOrder(orderId, {
         actual_quantity: toQuantity(actualQuantity),
         wastage_quantity: toQuantity(wastageQuantity),
@@ -582,7 +622,13 @@ export class ManufacturingService {
   async packProduction(
     orderId: number,
     input: PackProductionInput = {},
-  ): Promise<{ id: number; productionCost: number; journalEntryId: number }> {
+  ): Promise<{
+    id: number;
+    productionCost: number;
+    journalEntryId: number;
+    /** The packing BOM saved from a first pack, when there was none yet. */
+    packingBomName?: string;
+  }> {
     const order = await this.manufacturing.findOrderById(orderId);
     if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
     if (order.status !== "IN_PROGRESS") {
@@ -623,6 +669,26 @@ export class ManufacturingService {
     const packsEverything = packQuantity.equals(available);
     const ratio = packQuantity.dividedBy(dec(bom.output_quantity));
 
+    // In the split model the order's BOM is the formulation recipe and the
+    // packing materials live on a separate packing BOM for the same good.
+    const bomHasPacking =
+      Number(
+        (
+          await this.db.get<{ n: number }>(
+            `SELECT COUNT(*) AS n FROM bom_components c
+               JOIN items i ON i.id = c.component_item_id
+              WHERE c.bom_id = ? AND i.item_type = 'PACKING_MATERIAL'`,
+            [bom.id],
+          )
+        )?.n ?? 0,
+      ) > 0;
+    const packingBom = bomHasPacking
+      ? bom
+      : await this.manufacturing.findPackingBomForFinished(bom.finished_item_id);
+    const packingRatio = packingBom
+      ? packQuantity.dividedBy(dec(packingBom.output_quantity))
+      : ratio;
+
     // Packing materials can be chosen at pack time; the BOM list is only the
     // fallback for the one-click Complete API.
     const requested: Array<{ itemId: number; quantity: Decimal }> = [];
@@ -639,10 +705,13 @@ export class ManufacturingService {
         requested.push({ itemId: raw.itemId, quantity });
       }
     } else {
-      for (const component of bomComponents) {
+      const components = packingBom
+        ? await this.manufacturing.findBomComponents(packingBom.id)
+        : [];
+      for (const component of components) {
         const item = await this.items.requireById(component.component_item_id);
         if (item.item_type !== "PACKING_MATERIAL") continue;
-        const requiredQty = dec(component.quantity_required).times(ratio);
+        const requiredQty = dec(component.quantity_required).times(packingRatio);
         const wastageQty = requiredQty.times(dec(component.wastage_percent).dividedBy(100));
         requested.push({
           itemId: component.component_item_id,
@@ -719,9 +788,8 @@ export class ManufacturingService {
       });
     }
 
-    return this.db.transaction(async () => {
-      for (const material of materials) {
-        if (input.ignoreStock || material.batchId === null) continue;
+    const result = await this.db.transaction(async () => {
+      for (const material of materials) {        if (input.ignoreStock || material.batchId === null) continue;
         await this.manufacturing.insertConsumption({
           production_order_id: orderId,
           component_item_id: material.componentItemId,
@@ -816,6 +884,37 @@ export class ManufacturingService {
         journalEntryId,
       };
     });
+
+    // First pack of this good: keep the materials actually used as its packing
+    // BOM so the next pack prefills from them. When the client reports the pack
+    // size, the BOM is stored per pack ("5 L -> 2 bottles, 1 sticker") so the
+    // pack dialog can read the ratio straight off it. The pack is already
+    // committed, so a failure to save the recipe must not fail it.
+    if (!packingBom && materials.length > 0) {
+      try {
+        const perPack =
+          input.packSize != null && dec(input.packSize).greaterThan(0)
+            ? dec(input.packSize)
+            : packQuantity;
+        const packs = packQuantity.dividedBy(perPack);
+        const saved = await this.createBom({
+          finishedItemId: bom.finished_item_id,
+          outputQuantity: toStorage(perPack),
+          components: materials.map((material) => ({
+            componentItemId: material.componentItemId,
+            quantityRequired: toStorage(material.quantity.dividedBy(packs)),
+          })),
+          notes: `Saved from the first pack of order ${order.order_number}`,
+        });
+        return { ...result, packingBomName: saved.bomName };
+      } catch (err) {
+        console.warn(
+          `Could not save the packing BOM for finished item ${bom.finished_item_id}:`,
+          err,
+        );
+      }
+    }
+    return result;
   }
 
   /** Produce then pack in one call (kept for the one-click Complete action/API). */

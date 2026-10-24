@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import type { BankAccount, BankTransaction, Cheque } from "../types";
 
@@ -26,6 +27,16 @@ export default function BankingPage() {
   // movement
   const [bankAccountId, setBankAccountId] = useState(0);
   const [amount, setAmount] = useState(0);
+  const [txnDate, setTxnDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [editingTxnId, setEditingTxnId] = useState<number | null>(null);
+
+  // cheque edit
+  const [editingCheque, setEditingCheque] = useState<Cheque | null>(null);
+  const [chequeBankId, setChequeBankId] = useState(0);
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeAmount, setChequeAmount] = useState(0);
+  const [chequeDate, setChequeDate] = useState("");
+  const [chequeNotes, setChequeNotes] = useState("");
 
   async function refresh() {
     try {
@@ -64,13 +75,111 @@ export default function BankingPage() {
       return;
     }
     try {
-      const date = new Date().toISOString().slice(0, 10);
-      await (kind === "deposit" ? api.deposit : api.withdraw)({ bankAccountId, amount, date });
-      setNotice(`Recorded ${kind} of ${money(amount)}`);
+      if (editingTxnId != null) {
+        await api.updateBankTransaction(editingTxnId, {
+          type: kind === "deposit" ? "DEPOSIT" : "WITHDRAWAL",
+          bankAccountId,
+          amount,
+          date: txnDate,
+        });
+        setNotice("Transaction updated.");
+        setEditingTxnId(null);
+      } else {
+        await (kind === "deposit" ? api.deposit : api.withdraw)({
+          bankAccountId,
+          amount,
+          date: txnDate,
+        });
+        setNotice(`Recorded ${kind} of ${money(amount)}`);
+      }
       setAmount(0);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `Failed to ${kind}.`);
+    }
+  }
+
+  function startTxnEdit(t: BankTransaction): void {
+    setError(null);
+    setNotice(null);
+    setEditingTxnId(t.id);
+    setBankAccountId(t.bank_account_id);
+    setAmount(t.amount);
+    setTxnDate(t.transaction_date);
+  }
+
+  async function removeTxn(t: BankTransaction): Promise<void> {
+    if (!window.confirm(`Delete this ${t.transaction_type.toLowerCase()} of ${money(t.amount)}?`)) return;
+    setError(null);
+    try {
+      await api.deleteBankTransaction(t.id);
+      setNotice("Transaction deleted.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete the transaction.");
+    }
+  }
+
+  function startChequeEdit(c: Cheque): void {
+    setError(null);
+    setNotice(null);
+    setEditingCheque(c);
+    setChequeBankId(c.bank_account_id);
+    setChequeNumber(c.cheque_number);
+    setChequeAmount(c.amount);
+    setChequeDate(c.cheque_date);
+    setChequeNotes(c.notes ?? "");
+  }
+
+  async function saveCheque(): Promise<void> {
+    if (!editingCheque) return;
+    setError(null);
+    try {
+      await api.updateCheque(editingCheque.id, {
+        bankAccountId: chequeBankId,
+        chequeNumber,
+        amount: chequeAmount,
+        chequeDate,
+        partyId: editingCheque.party_id,
+        notes: chequeNotes.trim() || null,
+      });
+      setNotice(`Cheque ${chequeNumber} updated.`);
+      setEditingCheque(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update the cheque.");
+    }
+  }
+
+  async function removeCheque(c: Cheque): Promise<void> {
+    if (!window.confirm(`Delete cheque ${c.cheque_number}?`)) return;
+    setError(null);
+    try {
+      await api.deleteCheque(c.id);
+      setNotice(`Cheque ${c.cheque_number} deleted.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete the cheque.");
+    }
+  }
+
+  async function cancelCheque(c: Cheque): Promise<void> {
+    if (
+      !window.confirm(
+        c.status === "CLEARED"
+          ? `Cancel cheque ${c.cheque_number}? The bank movement is reversed.`
+          : `Remove cheque ${c.cheque_number}?`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.cancelCheque(c.id);
+      setNotice(`Cheque ${c.cheque_number} cancelled.`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to cancel the cheque.");
     }
   }
 
@@ -119,8 +228,7 @@ export default function BankingPage() {
               </div>
               <div>
                 <label>Opening balance</label>
-                <input
-                  type="number"
+                <NumberInput
                   min="0"
                   step="0.01"
                   value={openingBalance}
@@ -185,8 +293,7 @@ export default function BankingPage() {
               </div>
               <div>
                 <label>Amount</label>
-                <input
-                  type="number"
+                <NumberInput
                   min="0"
                   step="0.01"
                   value={amount}
@@ -194,10 +301,19 @@ export default function BankingPage() {
                   style={{ width: 130 }}
                 />
               </div>
+              <div>
+                <label>Date</label>
+                <input type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
+              </div>
               <button className="primary" onClick={() => void move("deposit")}>
                 Deposit
               </button>
               <button onClick={() => void move("withdraw")}>Withdraw</button>
+              {editingTxnId != null && (
+                <button type="button" onClick={() => setEditingTxnId(null)}>
+                  Cancel edit
+                </button>
+              )}
             </div>
           </div>
           <div className="card">
@@ -208,6 +324,7 @@ export default function BankingPage() {
                   <th>Type</th>
                   <th className="num">Amount</th>
                   <th>Reference</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,11 +334,25 @@ export default function BankingPage() {
                     <td>{t.transaction_type}</td>
                     <td className="num">{money(t.amount)}</td>
                     <td>{t.reference_no ?? "—"}</td>
+                    <td>
+                      {t.journal_entry_id == null ? (
+                        <span className="sub">Invoice</span>
+                      ) : (
+                        <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                          <button type="button" onClick={() => startTxnEdit(t)}>
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => void removeTxn(t)}>
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {transactions.length === 0 && (
                   <tr>
-                    <td colSpan={4}>No transactions yet.</td>
+                    <td colSpan={5}>No transactions yet.</td>
                   </tr>
                 )}
               </tbody>
@@ -252,9 +383,24 @@ export default function BankingPage() {
                   <td className="num">{money(c.amount)}</td>
                   <td>{c.status}</td>
                   <td>
-                    {c.status === "UNCLEARED" && (
-                      <button onClick={() => void clear(c.id)}>Clear</button>
-                    )}
+                    <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                      {c.status === "UNCLEARED" && (
+                        <>
+                          <button onClick={() => void clear(c.id)}>Clear</button>
+                          <button type="button" onClick={() => startChequeEdit(c)}>
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => void removeCheque(c)}>
+                            Delete
+                          </button>
+                        </>
+                      )}
+                      {c.status !== "UNCLEARED" && (
+                        <button type="button" onClick={() => void cancelCheque(c)}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -265,6 +411,56 @@ export default function BankingPage() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editingCheque && (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal" role="dialog" aria-modal="true">
+            <h2>Edit cheque {editingCheque.cheque_number}</h2>
+            <div className="row">
+              <div>
+                <label>Bank account</label>
+                <SearchableSelect
+                  value={String(chequeBankId)}
+                  onChange={(next) => setChequeBankId(Number(next))}
+                  options={accounts.map((a) => ({
+                    value: String(a.id),
+                    label: `${a.bank_name} - ${a.account_number}`,
+                  }))}
+                />
+              </div>
+              <div>
+                <label>Cheque number</label>
+                <input value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
+              </div>
+              <div>
+                <label>Amount</label>
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={chequeAmount}
+                  onChange={(e) => setChequeAmount(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label>Date</label>
+                <input type="date" value={chequeDate} onChange={(e) => setChequeDate(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label>Notes</label>
+              <input value={chequeNotes} onChange={(e) => setChequeNotes(e.target.value)} />
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setEditingCheque(null)}>
+                Cancel
+              </button>
+              <button className="primary" type="button" onClick={() => void saveCheque()}>
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

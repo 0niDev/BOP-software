@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import type { Asset, Party } from "../types";
 
@@ -37,6 +38,14 @@ export default function AssetsPage() {
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
+  /** Account being edited in the form; null = recording a new purchase. */
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
+
+  // Disposal dialog
+  const [disposeTarget, setDisposeTarget] = useState<Asset | null>(null);
+  const [disposeDate, setDisposeDate] = useState(today);
+  const [proceeds, setProceeds] = useState(0);
+  const [disposeNotes, setDisposeNotes] = useState("");
 
   async function refresh(): Promise<void> {
     try {
@@ -75,20 +84,35 @@ export default function AssetsPage() {
     }
     setBusy(true);
     try {
-      const created = await api.createAsset({
-        assetName: assetName.trim(),
-        assetCode,
-        amount,
-        purchaseDate,
-        paymentType,
-        classification,
-        supplierId: paymentType === "CREDIT" ? supplierId : null,
-        dueDate: classification === "CURRENT" ? dueDate || null : null,
-        notes: notes || null,
-      });
-      setNotice(
-        `Recorded ${created.account_code} — ${money(amount)} (${paymentType.toLowerCase()}).`,
-      );
+      if (editingAccountId != null) {
+        await api.updateAsset(editingAccountId, {
+          assetName: assetName.trim(),
+          amount,
+          purchaseDate,
+          paymentType,
+          classification,
+          supplierId: paymentType === "CREDIT" ? supplierId : null,
+          dueDate: classification === "CURRENT" ? dueDate || null : null,
+          notes: notes || null,
+        });
+        setNotice(`Asset updated — ${money(amount)} (${paymentType.toLowerCase()}).`);
+        setEditingAccountId(null);
+      } else {
+        const created = await api.createAsset({
+          assetName: assetName.trim(),
+          assetCode,
+          amount,
+          purchaseDate,
+          paymentType,
+          classification,
+          supplierId: paymentType === "CREDIT" ? supplierId : null,
+          dueDate: classification === "CURRENT" ? dueDate || null : null,
+          notes: notes || null,
+        });
+        setNotice(
+          `Recorded ${created.account_code} — ${money(amount)} (${paymentType.toLowerCase()}).`,
+        );
+      }
       setAssetName("");
       setAmount(0);
       setNotes("");
@@ -96,6 +120,66 @@ export default function AssetsPage() {
       await refresh();
     } catch (err) {
       setError(message(err, "Failed to record the asset."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startEdit(asset: Asset): void {
+    setError(null);
+    setNotice(null);
+    setEditingAccountId(asset.account_id);
+    setAssetName(asset.account_name.replace(" (Asset)", ""));
+    setAssetCode(asset.account_code);
+    setAmount(asset.purchase_amount ?? 0);
+    setPurchaseDate(asset.purchase_date ?? today());
+    setPaymentType(asset.supplier_id != null ? "CREDIT" : "CASH");
+    setClassification(
+      (asset.asset_type ?? asset.account_subtype) === "CURRENT" ? "CURRENT" : "NON_CURRENT",
+    );
+    setSupplierId(asset.supplier_id ?? null);
+    setDueDate(asset.due_date ?? "");
+    setNotes(asset.notes ?? "");
+  }
+
+  async function removeAsset(asset: Asset): Promise<void> {
+    if (!window.confirm(`Delete ${asset.account_name.replace(" (Asset)", "")}? Its purchase entry is reversed.`)) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteAsset(asset.account_id);
+      setNotice("Asset deleted.");
+      if (editingAccountId === asset.account_id) setEditingAccountId(null);
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to delete the asset."));
+    }
+  }
+
+  async function submitDisposal(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!disposeTarget) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await api.disposeAsset(disposeTarget.account_id, {
+        disposeDate,
+        proceeds,
+        notes: disposeNotes.trim() || null,
+      });
+      setNotice(
+        `${disposeTarget.account_name.replace(" (Asset)", "")} disposed — ${
+          result.gainLoss < 0 ? "loss" : "gain"
+        } ${money(Math.abs(result.gainLoss))}.`,
+      );
+      setDisposeTarget(null);
+      setProceeds(0);
+      setDisposeNotes("");
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to dispose of the asset."));
     } finally {
       setBusy(false);
     }
@@ -139,6 +223,7 @@ export default function AssetsPage() {
               <th className="num">Purchase amount</th>
               <th className="num">Book value</th>
               <th>Due date</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -153,11 +238,33 @@ export default function AssetsPage() {
                 </td>
                 <td className="num">{money(asset.current_balance)}</td>
                 <td>{asset.due_date ?? "—"}</td>
+                <td>
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <button type="button" onClick={() => startEdit(asset)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setDisposeTarget(asset);
+                        setDisposeDate(today());
+                        setProceeds(0);
+                        setDisposeNotes("");
+                      }}
+                    >
+                      Dispose
+                    </button>
+                    <button type="button" onClick={() => void removeAsset(asset)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {visibleAssets.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   {assets.length === 0
                     ? "No fixed asset accounts."
                     : "No assets match this filter."}
@@ -173,7 +280,7 @@ export default function AssetsPage() {
       </div>
 
       <form className="card" onSubmit={submit}>
-        <h2>Record an asset purchase</h2>
+        <h2>{editingAccountId != null ? "Edit asset purchase" : "Record an asset purchase"}</h2>
         <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label>Asset name</label>
@@ -190,6 +297,7 @@ export default function AssetsPage() {
               onChange={setAssetCode}
               placeholder="Search code…"
               emptyText="No matching code"
+              disabled={editingAccountId != null}
               options={codes.map((entry) => ({
                 value: entry.code,
                 label: `${entry.code} — ${entry.label}`,
@@ -198,8 +306,7 @@ export default function AssetsPage() {
           </div>
           <div>
             <label>Purchase amount</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={amount}
@@ -268,10 +375,58 @@ export default function AssetsPage() {
             <input value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
           <button className="primary" type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Record asset"}
+            {busy ? "Saving…" : editingAccountId != null ? "Save changes" : "Record asset"}
           </button>
+          {editingAccountId != null && (
+            <button type="button" onClick={() => setEditingAccountId(null)}>
+              Cancel
+            </button>
+          )}
         </div>
       </form>
+
+      {disposeTarget && (
+        <div className="modal-overlay" role="presentation">
+          <form className="modal" role="dialog" aria-modal="true" onSubmit={submitDisposal}>
+            <h2>Dispose of {disposeTarget.account_name.replace(" (Asset)", "")}</h2>
+            <p className="sub" style={{ marginTop: 0 }}>
+              Book value {money(disposeTarget.current_balance)}. The difference to the proceeds goes
+              to Gain / Loss on Asset Disposal (6900).
+            </p>
+            <div className="row">
+              <div>
+                <label>Disposal date</label>
+                <input
+                  type="date"
+                  value={disposeDate}
+                  onChange={(e) => setDisposeDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label>Proceeds (cash)</label>
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={proceeds}
+                  onChange={(e) => setProceeds(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <div>
+              <label>Notes</label>
+              <input value={disposeNotes} onChange={(e) => setDisposeNotes(e.target.value)} />
+            </div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setDisposeTarget(null)}>
+                Cancel
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? "Disposing…" : "Dispose"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   );
 }

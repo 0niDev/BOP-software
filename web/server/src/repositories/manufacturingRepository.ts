@@ -8,6 +8,8 @@ export interface BomRow {
   bom_name: string;
   output_quantity: number;
   notes: string | null;
+  /** 'FORMULATION' (raw materials) or 'PACKING' (packaging + finished good). */
+  phase: string | null;
   is_active: number;
   is_temp: number;
   is_ghost: number;
@@ -93,6 +95,25 @@ export class ManufacturingRepository {
 
   async findBomById(id: number): Promise<BomRow | undefined> {
     return this.db.get<BomRow>("SELECT * FROM bill_of_materials WHERE id = ?", [id]);
+  }
+
+  /**
+   * The active packing-stage BOM for a finished item (the recipe whose
+   * components are packing materials). Used by the pack step when the order's
+   * own BOM is the formulation recipe. Latest one wins when several exist.
+   */
+  async findPackingBomForFinished(finishedItemId: number): Promise<BomRow | undefined> {
+    return this.db.get<BomRow>(
+      `SELECT b.* FROM bill_of_materials b
+        WHERE b.finished_item_id = ? AND b.is_active = 1 AND b.is_temp = 0
+          AND EXISTS (
+            SELECT 1 FROM bom_components c
+              JOIN items i ON i.id = c.component_item_id
+             WHERE c.bom_id = b.id AND i.item_type = 'PACKING_MATERIAL'
+          )
+        ORDER BY b.id DESC LIMIT 1`,
+      [finishedItemId],
+    );
   }
 
   async findBomComponents(bomId: number): Promise<BomComponentRow[]> {

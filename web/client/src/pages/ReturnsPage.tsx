@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import NumberInput from "../components/NumberInput";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,6 +18,8 @@ export default function ReturnsPage() {
   const [invoiceId, setInvoiceId] = useState(0);
   const [invoiceItemId, setInvoiceItemId] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  /** Return being edited in the form; null = creating a new one. */
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   async function refresh() {
     try {
@@ -42,14 +45,63 @@ export default function ReturnsPage() {
         returnDate: date,
         items: [{ invoiceItemId, quantity }],
       };
-      const result =
-        tab === "sales"
-          ? await api.createSalesReturn(body)
-          : await api.createPurchaseReturn(body);
-      setNotice(`Created ${result.returnNumber} for ${money(result.totalAmount)}`);
+      if (editingId != null) {
+        const result =
+          tab === "sales"
+            ? await api.updateSalesReturn(editingId, body)
+            : await api.updatePurchaseReturn(editingId, body);
+        setNotice(`Updated ${result.returnNumber} for ${money(result.totalAmount)}`);
+        setEditingId(null);
+      } else {
+        const result =
+          tab === "sales"
+            ? await api.createSalesReturn(body)
+            : await api.createPurchaseReturn(body);
+        setNotice(`Created ${result.returnNumber} for ${money(result.totalAmount)}`);
+      }
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create return.");
+    }
+  }
+
+  /** Load a return into the form. Multi-line returns are not editable here. */
+  async function startEdit(row: Record<string, unknown>): Promise<void> {
+    setError(null);
+    setNotice(null);
+    try {
+      const id = Number(row.id);
+      const detail =
+        tab === "sales" ? await api.salesReturn(id) : await api.purchaseReturn(id);
+      if (detail.items.length !== 1) {
+        setError("This return has more than one line. Delete it and record it again.");
+        return;
+      }
+      const item = detail.items[0] as Record<string, unknown>;
+      setEditingId(id);
+      setInvoiceId(Number(detail.return.invoice_id));
+      setInvoiceItemId(Number(item.invoice_item_id));
+      setQuantity(Number(item.quantity));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load the return.");
+    }
+  }
+
+  async function remove(row: Record<string, unknown>): Promise<void> {
+    if (!window.confirm(`Delete return ${String(row.return_number ?? "")}? Stock is put back.`)) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      const id = Number(row.id);
+      if (tab === "sales") await api.deleteSalesReturn(id);
+      else await api.deletePurchaseReturn(id);
+      setNotice(`Return ${String(row.return_number ?? "")} deleted.`);
+      if (editingId === id) setEditingId(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete the return.");
     }
   }
 
@@ -62,10 +114,10 @@ export default function ReturnsPage() {
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Returns</h2>
           <div className="row">
-            <button className={tab === "sales" ? "primary" : ""} onClick={() => setTab("sales")}>
+            <button className={tab === "sales" ? "primary" : ""} onClick={() => { setTab("sales"); setEditingId(null); }}>
               Sales Returns
             </button>
-            <button className={tab === "purchase" ? "primary" : ""} onClick={() => setTab("purchase")}>
+            <button className={tab === "purchase" ? "primary" : ""} onClick={() => { setTab("purchase"); setEditingId(null); }}>
               Purchase Returns
             </button>
           </div>
@@ -75,15 +127,14 @@ export default function ReturnsPage() {
       </div>
 
       <form className="card" onSubmit={submit}>
-        <h2>New {tab === "sales" ? "sales" : "purchase"} return</h2>
+        <h2>{editingId != null ? "Edit return" : `New ${tab === "sales" ? "sales" : "purchase"} return`}</h2>
         <p className="sub" style={{ color: "#adb5bd", fontSize: 13 }}>
           Enter the invoice id, the invoice line id (from the invoice detail API) and quantity.
         </p>
         <div className="row">
           <div>
             <label>Invoice id</label>
-            <input
-              type="number"
+            <NumberInput
               min="1"
               value={invoiceId}
               onChange={(e) => setInvoiceId(Number(e.target.value))}
@@ -92,8 +143,7 @@ export default function ReturnsPage() {
           </div>
           <div>
             <label>Invoice line id</label>
-            <input
-              type="number"
+            <NumberInput
               min="1"
               value={invoiceItemId}
               onChange={(e) => setInvoiceItemId(Number(e.target.value))}
@@ -102,8 +152,7 @@ export default function ReturnsPage() {
           </div>
           <div>
             <label>Quantity</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.001"
               value={quantity}
@@ -112,8 +161,13 @@ export default function ReturnsPage() {
             />
           </div>
           <button className="primary" type="submit">
-            Create return
+            {editingId != null ? "Save changes" : "Create return"}
           </button>
+          {editingId != null && (
+            <button type="button" onClick={() => setEditingId(null)}>
+              Cancel
+            </button>
+          )}
         </div>
       </form>
 
@@ -125,6 +179,7 @@ export default function ReturnsPage() {
               <th>Invoice</th>
               <th>Date</th>
               <th className="num">Amount</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -134,11 +189,21 @@ export default function ReturnsPage() {
                 <td>{String(row[invoiceKey] ?? "")}</td>
                 <td>{String(row.return_date ?? "")}</td>
                 <td className="num">{money(Number(row.total_amount ?? 0))}</td>
+                <td>
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <button type="button" onClick={() => void startEdit(row)}>
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => void remove(row)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4}>No returns recorded yet.</td>
+                <td colSpan={5}>No returns recorded yet.</td>
               </tr>
             )}
           </tbody>

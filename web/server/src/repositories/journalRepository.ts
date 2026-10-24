@@ -93,6 +93,49 @@ export class JournalRepository {
     return `${row.prefix}${String(row.next_number).padStart(Number(row.padding), "0")}`;
   }
 
+  async findById(id: number): Promise<Row | undefined> {
+    return this.db.get<Row>("SELECT * FROM journal_entries WHERE id = ?", [id]);
+  }
+
+  async voucherExists(companyId: number, voucherNumber: string): Promise<boolean> {
+    const row = await this.db.get<{ id: number }>(
+      "SELECT id FROM journal_entries WHERE company_id = ? AND voucher_number = ?",
+      [companyId, voucherNumber],
+    );
+    return row !== undefined;
+  }
+
+  /**
+   * Manual journal vouchers only. Expenses, banking and assets also post
+   * `JOURNAL`-type entries, so `source_table = 'journal_entries'` is the
+   * discriminator — every manual voucher points at itself.
+   */
+  async listManual(
+    companyId: number,
+    from?: string | null,
+    to?: string | null,
+  ): Promise<Row[]> {
+    let sql = `
+      SELECT je.id, je.voucher_number, je.entry_date, je.narration, je.reference_no,
+             COALESCE(SUM(jel.debit), 0) AS total_debit,
+             COUNT(jel.id) AS line_count
+        FROM journal_entries je
+        LEFT JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+       WHERE je.company_id = ? AND je.voucher_type = 'JOURNAL'
+         AND je.source_table = 'journal_entries'`;
+    const params: Array<string | number> = [companyId];
+    if (from) {
+      sql += " AND je.entry_date >= ?";
+      params.push(from);
+    }
+    if (to) {
+      sql += " AND je.entry_date <= ?";
+      params.push(to);
+    }
+    sql += " GROUP BY je.id ORDER BY je.entry_date DESC, je.id DESC";
+    return this.db.all<Row>(sql, params);
+  }
+
   async findLinesForEntry(journalEntryId: number): Promise<Row[]> {
     return this.db.all<Row>(
       `SELECT jel.*, a.account_code, a.account_name

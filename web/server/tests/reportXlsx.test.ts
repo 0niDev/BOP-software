@@ -8,10 +8,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync, type Unzipped } from "fflate";
+import { AccountingService } from "../src/services/accountingService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
-import { closeDb, freshDb, type TestContext } from "./helpers/db.js";
+import { accountId, closeDb, freshDb, type TestContext } from "./helpers/db.js";
 
 const SHEET_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -169,6 +170,29 @@ describe("xlsx report exports", () => {
 
   it("rejects a party ledger request without a party", async () => {
     await expect(xlsx.partyLedger({ kind: "party-ledger" })).rejects.toThrow(/partyId is required/);
+  });
+
+  it("prints one journal voucher with its lines and totals", async () => {
+    const accounting = new AccountingService(ctx.db);
+    const created = await accounting.createManualJournal({
+      entryDate: saleDate,
+      narration: "Depreciation adjustment",
+      lines: [
+        { accountId: await accountId(ctx.db, "1000"), debit: 120.5 },
+        { accountId: await accountId(ctx.db, "4000"), credit: 120.5 },
+      ],
+    });
+
+    const file = await xlsx.journalVoucher(created.id);
+    expect(file.fileName).toBe(`journal-voucher_${created.voucherNumber}.xlsx`);
+
+    const files = open(file.buffer);
+    expect(sheetNames(files)).toEqual(["Journal Voucher"]);
+    expect(strings(files)).toContain(created.voucherNumber);
+    expect(strings(files)).toContain("Depreciation adjustment");
+    expect(strings(files)).toContain("Totals");
+    // Debit and credit are real numbers, so Excel can total the columns.
+    expect(worksheet(files)).toContain("<v>120.5</v>");
   });
 });
 

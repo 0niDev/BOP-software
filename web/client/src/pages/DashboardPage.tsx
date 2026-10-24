@@ -173,6 +173,7 @@ export default function DashboardPage({
         <ActivityList rows={data.recentTransactions} onNavigate={onNavigate} />
         <aside className="flex min-w-0 flex-col gap-6">
           <LiquidityCard data={data} onNavigate={onNavigate} />
+          <CashReconciliation ledgerCash={data.balances.cash} />
         </aside>
       </div>
 
@@ -183,5 +184,51 @@ export default function DashboardPage({
         <ExpiringTable rows={data.inventory.expiringItems} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Cash count vs the ledger. Purely a counting aid: nothing is posted, it just
+ * shows how far the physical drawer is from Cash in Hand (1000).
+ */
+function CashReconciliation({ ledgerCash }: { ledgerCash: number }) {
+  const [counted, setCounted] = useState("");
+  const hasCount = counted.trim() !== "" && !Number.isNaN(Number(counted));
+  const difference = hasCount ? Number(counted) - ledgerCash : null;
+
+  return (
+    <Card title="Cash reconciliation" subtitle="Count the drawer, compare to the ledger">
+      <div className="flex items-end gap-3">
+        <label className="flex-1">
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+            Counted cash
+          </span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={counted}
+            placeholder="0.00"
+            onChange={(event) => setCounted(event.target.value)}
+          />
+        </label>
+        <div className="pb-1 text-right">
+          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Ledger</div>
+          <div className="text-[15px] font-bold text-ink">{money(ledgerCash)}</div>
+        </div>
+      </div>
+      {difference != null && (
+        <p className="mt-3 text-[13px] font-semibold">
+          {difference === 0 ? (
+            <span className="text-[var(--ok)]">Balanced</span>
+          ) : (
+            <span className={difference > 0 ? "text-[var(--amber)]" : "text-[var(--danger)]"}>
+              {difference > 0 ? "Over by " : "Short by "}
+              {money(Math.abs(difference))}
+            </span>
+          )}
+        </p>
+      )}
+    </Card>
   );
 }

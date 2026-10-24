@@ -360,14 +360,16 @@ export async function seedRichDemoData(
       expenseDate: demoDate,
     });
 
-    // -- Manufacturing: BOM + production order for second FG --
+    // -- Manufacturing: formulation BOM + packing BOM + production order --
     const bom = await manufacturing.createBom({
       finishedItemId: secondFgId,
       outputQuantity: 100,
-      components: [
-        { componentItemId: rawItemId, quantityRequired: 50 },
-        { componentItemId: packingItemId, quantityRequired: 100 },
-      ],
+      components: [{ componentItemId: rawItemId, quantityRequired: 50 }],
+    });
+    await manufacturing.createBom({
+      finishedItemId: secondFgId,
+      outputQuantity: 100,
+      components: [{ componentItemId: packingItemId, quantityRequired: 100 }],
     });
     const order = await manufacturing.createProductionOrder({
       bomId: bom.id,

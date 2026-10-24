@@ -293,6 +293,9 @@ item, all inside one outer transaction.
 instead of paying immediately: **Dr expense / Cr Accounts Payable (2000)**.
 `POST /api/expenses/:id/pay` settles it once (**Dr AP / Cr cash|bank**); a second
 attempt is a `409`. `paymentMethod` on an unpaid bill is the planned method.
+The web Expenses page no longer exposes pay-later or recurring auto-bills (both
+understood for desktop parity only); corrections and adjustments go through
+manual journal vouchers instead.
 
 `frequency` (`WEEKLY|MONTHLY|QUARTERLY|YEARLY`) plus `nextRunDate` and a
 positive `amount` turns an expense item into a recurring rule. Because there is
@@ -344,13 +347,30 @@ the quantity guard is per request.
 
 ## Journal entries
 
-| Method | Path | Response |
-| --- | --- | --- |
-| `GET` | `/api/journal-entries/:sourceTable/:sourceId` | The entry header plus its lines, or `null` |
+| Method | Path | Body / query | Response |
+| --- | --- | --- | --- |
+| `GET` | `/api/journal-entries` | `?from=&to=` | Manual `JV-` vouchers, newest first |
+| `POST` | `/api/journal-entries` | `{ entryDate, narration?, referenceNo?, voucherNumber?, lines: [{ accountId, partyId?, description?, debit?, credit? }] }` | `201` `{ id, voucherNumber }` |
+| `POST` | `/api/journal-entries/:id/reverse` | `{ reversalDate?, narration? }` | `201` `{ id, voucherNumber }` |
+| `GET` | `/api/journal-entries/:id/export.xlsx` | — | Excel workbook of that voucher (lines + totals) |
+| `GET` | `/api/journal-entries/:sourceTable/:sourceId` | — | The entry header plus its lines, or `null` |
 
-`sourceTable` matches `journal_entries.source_table` (`sales_invoices`,
-`purchase_invoices`, `payments`, `receipts`, `expenses`, `production_orders`,
-`sales_returns`, `purchase_returns`, …).
+Manual vouchers are free-form balanced entries: at least two lines, each with a
+debit or a credit (never both, never neither), and equal debit/credit totals.
+There is no business document behind one — the entry is its own source, so
+`sourceTable = "journal_entries"` and `sourceId` is the entry id. Numbers come
+from the `JOURNAL_VOUCHER` sequence (`JV-`). Group/header accounts (accounts with
+sub-accounts) are rejected as posting targets.
+
+Posted vouchers are immutable. `POST /api/journal-entries/:id/reverse` posts the
+opposite entry on the given date (defaults to today) and links it back through
+`reference_no`; the original stays in the ledger. Only manual vouchers can be
+reversed here — entries owned by a document are corrected through their own
+module.
+
+`sourceTable` on the lookup route matches `journal_entries.source_table`
+(`sales_invoices`, `purchase_invoices`, `payments`, `receipts`, `expenses`,
+`production_orders`, `sales_returns`, `purchase_returns`, …).
 
 ## Reports
 

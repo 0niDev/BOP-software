@@ -13,7 +13,7 @@
  * plus a full-page screenshot per page in `e2e/.artifacts/` for a human look.
  * Run with `npm run test:e2e` (boots the API + Vite dev server itself).
  */
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -42,6 +42,7 @@ const PAGES: PageUnderAudit[] = [
   { nav: "Reports", expectData: true },
   { nav: "Users", expectData: true },
   { nav: "Settings" },
+  { nav: "Deleted Records" },
 ];
 
 interface Monitor {
@@ -346,6 +347,68 @@ test("the Manufacturing page builds a production order from a saved BOM", async 
   expect(watched.errors).toEqual([]);
   expect(watched.apiFailures).toEqual([]);
 });
+
+test("the Pack action picks a packing BOM, lists its components and honours Ignore stock", async ({
+  page,
+}) => {
+  const watched = monitor(page);
+  await signIn(page);
+  await openPage(page, "Manufacturing");
+
+  // A deterministic packing BOM: 2 boxes per unit of Demo Small Bottle.
+  const bomForm = page.locator("form", { hasText: "New bill of materials" });
+  await pickCombobox(page, bomForm.getByRole("combobox").first(), "Demo Small Bottle");
+  await pickCombobox(page, bomForm.getByRole("combobox").nth(1), "Demo Packing Box");
+  await bomForm.locator('tbody input[inputmode="decimal"]').first().fill("2");
+  await bomForm.getByRole("button", { name: "Create BOM" }).click();
+  await expect(page.getByRole("cell", { name: /^BOM-/ }).first()).toBeVisible();
+
+  // A production order from the seeded formulation BOM, produced but not packed.
+  await page.getByRole("button", { name: "Production Orders" }).click();
+  const orderForm = page.locator("form", { hasText: "New production order" });
+  await pickCombobox(page, orderForm.getByRole("combobox"), "Demo Small Bottle");
+  await expect(orderForm).toContainText("Components from this BOM");
+  await orderForm.locator('input[inputmode="decimal"]').fill("30");
+  await orderForm.getByRole("button", { name: "Create order" }).click();
+  await expect(page.locator(".badge", { hasText: "Created production order" })).toBeVisible();
+
+  const newest = page.locator("tbody tr").first();
+  const orderNumber = (await newest.locator("td").first().innerText()).trim();
+  const orderRow = page.locator("tbody tr", { hasText: orderNumber });
+  await orderRow.getByRole("button", { name: "Start" }).click();
+  await expect(orderRow.getByRole("button", { name: "Produce" })).toBeVisible();
+
+  // Produce asks two prompt() dialogs: quantity, then the unpacked batch name.
+  const answers = ["30", "E2E-UNPACKED", "E2E-PACKED"];
+  page.on("dialog", (dialog) => void dialog.accept(answers.shift() ?? ""));
+  await orderRow.getByRole("checkbox").check();
+  await orderRow.getByRole("button", { name: "Produce" }).click();
+  await expect(orderRow).toContainText("UNPACKED");
+
+  // Pack lists the packing BOM's components, scaled to what is being packed.
+  await orderRow.getByRole("button", { name: "Pack" }).click();
+  const packCard = page.locator(".card", { hasText: "Pack order" });
+  await expect(packCard).toContainText("Packing BOM");
+  const packLine = packCard.locator("tbody tr").first();
+  await expect(packLine.getByRole("combobox")).toHaveValue("Demo Packing Box");
+  await expect(packLine.locator('input[inputmode="decimal"]')).toHaveValue("60");
+
+  // Ignore stock skips the stock check and deduction; the pack still completes.
+  await packCard.getByRole("checkbox").check();
+  await packCard.getByRole("button", { name: "Confirm pack" }).click();
+  await expect(page.locator(".badge", { hasText: "Packed 30" })).toBeVisible();
+  await expect(orderRow).toContainText("COMPLETED");
+
+  expect(watched.errors).toEqual([]);
+  expect(watched.apiFailures).toEqual([]);
+});
+
+/** Open a type-to-filter combobox, narrow it, and click the first match. */
+async function pickCombobox(page: Page, combo: Locator, query: string): Promise<void> {
+  await combo.click();
+  await combo.fill(query);
+  await page.getByRole("option", { name: new RegExp(query) }).first().click();
+}
 
 /** Labels in this app wrap their control, so match the label text directly. */
 function getByLabelText(scope: ReturnType<Page["locator"]>, text: string) {

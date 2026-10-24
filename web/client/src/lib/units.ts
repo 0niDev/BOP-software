@@ -91,3 +91,38 @@ export function packCount(
     remainder: Math.max(0, (bulkBase - packedBase) / item.toBase),
   };
 }
+
+export type PacksBulkResult =
+  | { bulk: number; error?: undefined }
+  | { bulk: 0; error: string };
+
+/**
+ * Bulk (in `itemUnit`) drawn from stock for `packs` packs of `packSize`
+ * `packUnit` — the inverse of packCount. The packer knows the pack size and
+ * how many packs the run outputs; the quantity consumed is derived.
+ */
+export function packsToBulk(
+  packs: number,
+  itemUnit: string,
+  packSize: number,
+  packUnit: string,
+): PacksBulkResult {
+  const item = MEASURES[itemUnit];
+  const pack = MEASURES[packUnit];
+  if (!item) {
+    return { bulk: 0, error: `Unknown item unit '${itemUnit}'.` };
+  }
+  if (!pack) {
+    return { bulk: 0, error: `Unknown pack unit '${packUnit}'.` };
+  }
+  if (item.dimension !== pack.dimension) {
+    return {
+      bulk: 0,
+      error: `${itemUnit} and ${packUnit} can't be divided — pick a matching unit.`,
+    };
+  }
+  if (!(packs > 0) || !(packSize > 0)) {
+    return { bulk: 0, error: "Pack size and number of packs must be greater than 0." };
+  }
+  return { bulk: (packs * packSize * pack.toBase) / item.toBase };
+}

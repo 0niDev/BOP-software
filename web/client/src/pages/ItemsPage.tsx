@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
@@ -333,8 +334,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Quantity</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={stockQty}
@@ -344,8 +344,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Unit cost</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={stockCost}
@@ -434,8 +433,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Purchase price</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={draft.purchasePrice}
@@ -445,8 +443,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Selling price</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={draft.sellingPrice}
@@ -456,8 +453,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Min stock</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={draft.minimumStock}
@@ -467,8 +463,7 @@ export default function ItemsPage() {
           </div>
           <div>
             <label>Max stock</label>
-            <input
-              type="number"
+            <NumberInput
               min="0"
               step="0.01"
               value={draft.maximumStock}

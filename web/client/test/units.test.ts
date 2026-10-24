@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { defaultPackUnit, packCount } from "../src/lib/units";
+import { defaultPackUnit, packCount, packsToBulk } from "../src/lib/units";
 
 test("trial balance rows group by COA type with closing subtotals", async () => {
   const { groupTbRows } = await import("../src/pages/TrialBalancePage");
@@ -51,4 +51,61 @@ test("pack units default from the item unit", () => {
   expect(defaultPackUnit("KG")).toBe("KG");
   expect(defaultPackUnit("ML")).toBe("ML");
   expect(defaultPackUnit("TABLET")).toBe("UNIT");
+});
+
+test("20 packs of 500 g consume 10 kg", () => {
+  expect(packsToBulk(20, "KG", 500, "G").bulk).toBe(10);
+});
+
+test("10 packs of 5 kg consume the same 50 kg packCount derives", () => {
+  expect(packsToBulk(10, "KG", 5, "KG").bulk).toBe(packCount(50, "KG", 5, "KG").packedBulk);
+});
+
+test("packsToBulk rejects mismatched dimensions and non-positive inputs", () => {
+  expect(packsToBulk(10, "KG", 500, "ML").error).toBeTruthy();
+  expect(packsToBulk(0, "KG", 5, "KG").error).toBeTruthy();
+  expect(packsToBulk(10, "KG", 0, "KG").error).toBeTruthy();
+});
+
+// --- table arrow navigation (lib/gridKeys) -------------------------------
+
+/** Minimal table DOM: spec[row][col] = 1 when the cell holds an input, 0 when empty. */
+function makeTable(spec: (0 | 1)[][]) {
+  const rows = spec.map(() => ({ children: [] as unknown[], parentElement: null as unknown, querySelector: () => null }));
+  const body = { children: rows };
+  rows.forEach((row) => (row.parentElement = body));
+  const inputs: (object | null)[][] = [];
+  spec.forEach((cols, r) => {
+    inputs[r] = [];
+    cols.forEach((present, c) => {
+      let input: { tagName: string; closest: (s: string) => unknown } | null = null;
+      const cell: { closest: (s: string) => unknown; querySelector: () => unknown } = {
+        closest: (s) => (s === "tr" ? rows[r] : null),
+        querySelector: () => input,
+      };
+      if (present) {
+        input = { tagName: "INPUT", closest: (s) => (s === "td" ? cell : null) };
+      }
+      (rows[r].children as unknown[])[c] = cell;
+      inputs[r][c] = input;
+    });
+  });
+  return { rows, field: (r: number, c: number) => inputs[r][c] as never };
+}
+
+test("arrows move to the same column in the neighbouring row", async () => {
+  const { nextRowField } = await import("../src/lib/gridKeys");
+  const table = makeTable([
+    [1, 1],
+    [1, 1],
+    [1, 1],
+  ]);
+  const middle = table.field(1, 1);
+  expect(nextRowField(middle, 1)).toBe(table.field(2, 1));
+  expect(nextRowField(middle, -1)).toBe(table.field(0, 1));
+  // edge rows do not wrap
+  expect(nextRowField(table.field(2, 1), 1)).toBeNull();
+  expect(nextRowField(table.field(0, 1), -1)).toBeNull();
+  // a column with no field falls through to the first field of the next row
+  expect(nextRowField(table.field(1, 0), 1)).toBe(table.field(2, 0));
 });

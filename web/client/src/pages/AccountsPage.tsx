@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../api";
+import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { moveRowFocus } from "../lib/gridKeys";
 import type { Account, AccountType } from "../types";
 
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -434,7 +436,7 @@ export default function AccountsPage() {
           equity credited; use “Calculate equity” to absorb the difference, then post — all amounts
           go into a single balanced OPENING journal entry.
         </p>
-        <table>
+        <table onKeyDown={moveRowFocus}>
           <thead>
             <tr>
               <th>Code</th>
@@ -450,8 +452,8 @@ export default function AccountsPage() {
                 <td>{account.account_name}</td>
                 <td>{account.account_type}</td>
                 <td className="num">
-                  <input
-                    type="number"
+                  <NumberInput
+                    
                     step="0.01"
                     value={opening[account.id] ?? 0}
                     onChange={(e) =>
@@ -516,8 +518,8 @@ export default function AccountsPage() {
           </div>
           <div>
             <label>Opening balance</label>
-            <input
-              type="number"
+            <NumberInput
+              
               step="0.01"
               value={draft.openingBalance}
               onChange={(e) => set("openingBalance", Number(e.target.value))}
