@@ -15,9 +15,6 @@ const TYPE_LABELS: Record<AccountType, string> = {
   EXPENSE: "Expenses",
 };
 
-/** Same rule as the server: class → group → ledger, three levels. */
-const MAX_ACCOUNT_DEPTH = 3;
-
 function byCode(a: Account, b: Account): number {
   return a.account_code.localeCompare(b.account_code, undefined, { numeric: true });
 }
@@ -173,18 +170,6 @@ export default function AccountsPage() {
     )
     .sort(byCode);
 
-  /** 1-based level of an account in the tree (class level is 1). */
-  function levelOf(account: Account): number {
-    let level = 1;
-    let cursor: Account | undefined = account;
-    while (cursor?.parent_account_id != null) {
-      cursor = accountsById.get(cursor.parent_account_id);
-      if (!cursor) break;
-      level += 1;
-    }
-    return level;
-  }
-
   function subtreeIds(rootId: number): Set<number> {
     const ids = new Set<number>();
     const stack = [rootId];
@@ -270,15 +255,14 @@ export default function AccountsPage() {
   }
 
   // Parents must be same-type, active, not the account itself nor one of its
-  // descendants, and still have room for one more level.
+  // descendants.
   const editingSubtree = editing ? subtreeIds(editing.id) : new Set<number>();
   const parentOptions = accounts.filter(
     (account) =>
       account.account_type === draft.accountType &&
       account.id !== editing?.id &&
       !editingSubtree.has(account.id) &&
-      account.is_active === 1 &&
-      levelOf(account) < MAX_ACCOUNT_DEPTH,
+      account.is_active === 1,
   );
 
   /** One tree row per account, indented by depth, children under their parent. */

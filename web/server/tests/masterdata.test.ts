@@ -350,7 +350,7 @@ describe("AccountService", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("limits the hierarchy to three levels (class → group → ledger)", async () => {
+  it("allows nesting an account under any existing sub-account", async () => {
     const group = await accounts.create({
       accountCode: "1900",
       accountName: "Receivables Group",
@@ -368,13 +368,20 @@ describe("AccountService", () => {
       accountType: "ASSET",
       parentAccountId: ledger.id,
     });
-    // A fourth level below the class is rejected.
+    const deeper = await accounts.create({
+      accountCode: "1903",
+      accountName: "Receivables Deeper",
+      accountType: "ASSET",
+      parentAccountId: detail.id,
+    });
+    expect(deeper.parent_account_id).toBe(detail.id);
+
     await expect(
       accounts.create({
-        accountCode: "1903",
-        accountName: "Too Deep",
-        accountType: "ASSET",
-        parentAccountId: detail.id,
+        accountCode: "1904",
+        accountName: "Wrong Type",
+        accountType: "EXPENSE",
+        parentAccountId: deeper.id,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });

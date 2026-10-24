@@ -22,13 +22,6 @@ export const ACCOUNT_TYPES: readonly AccountType[] = [
   "EXPENSE",
 ];
 
-/**
- * Maximum depth of the chart-of-accounts tree (class → group → ledger). The
- * class level is the account type itself, so accounts may nest two deep:
- * a group under the class, and a ledger account under the group.
- */
-export const MAX_ACCOUNT_DEPTH = 3;
-
 export interface CreateAccountInput {
   /** Blank/omitted → auto-generated (AC-00001 style), like customers/items. */
   accountCode?: string;
@@ -257,8 +250,8 @@ export class AccountService {
 
   /**
    * Validate a proposed parent: it must exist in this company, be active, be
-   * of the same type, and produce a cycle-free tree no deeper than
-   * MAX_ACCOUNT_DEPTH — including the edited account's own subtree.
+   * of the same type, and not be the edited account itself or one of its
+   * descendants (cycle-free tree).
    */
   private async assertParentUsable(
     parentAccountId: number | null,
@@ -279,10 +272,8 @@ export class AccountService {
       );
     }
 
-    // Walk to the root: rejects cycles (self-parent / descendant loops) and
-    // measures how deep the saved account would sit.
+    // Walk to the root: rejects cycles (self-parent / descendant loops).
     let cursor: AccountRow | undefined = parent;
-    let parentDepth = 0;
     const seen = new Set<number>();
     while (cursor) {
       if (seen.has(cursor.id)) {
@@ -294,29 +285,11 @@ export class AccountService {
           "An account cannot be placed under itself or one of its own sub-accounts.",
         );
       }
-      parentDepth += 1;
       cursor =
         cursor.parent_account_id == null
           ? undefined
           : await this.accounts.findById(cursor.parent_account_id);
     }
-
-    const ownDepth = parentDepth + 1;
-    const subtree = selfId == null ? 0 : await this.subtreeHeight(selfId);
-    if (ownDepth + subtree > MAX_ACCOUNT_DEPTH) {
-      throw new ValidationError(
-        `The chart of accounts is limited to ${MAX_ACCOUNT_DEPTH} levels.`,
-      );
-    }
-  }
-
-  /** Depth of the deepest descendant below `accountId` (0 = leaf). */
-  private async subtreeHeight(accountId: number): Promise<number> {
-    let height = 0;
-    for (const child of await this.accounts.findChildren(accountId)) {
-      height = Math.max(height, 1 + (await this.subtreeHeight(child.id)));
-    }
-    return height;
   }
 
   /** OPENING entry: this account +/- against Retained Earnings (3100). */
