@@ -7,8 +7,7 @@ interface Options {
   gap?: number;
   /** Used when the popover copies the trigger's width. */
   minWidth?: number;
-  maxWidth?: number;
-  /** Copy the trigger's width (dropdowns) instead of sizing to the content (menus). */
+  /** Size to the content (dropdowns) instead of the trigger, never narrower than the trigger. */
   matchWidth?: boolean;
 }
 
@@ -26,7 +25,7 @@ export default function useAnchoredPosition(
   open: boolean,
   anchorRef: RefObject<HTMLElement | null>,
   popoverRef: RefObject<HTMLElement | null>,
-  { align = "left", gap = 6, minWidth = 140, maxWidth = 380, matchWidth = false }: Options = {},
+  { align = "left", gap = 6, minWidth = 140, matchWidth = false }: Options = {},
 ): void {
   useEffect(() => {
     if (!open) return;
@@ -38,7 +37,14 @@ export default function useAnchoredPosition(
 
       const rect = anchor.getBoundingClientRect();
       if (matchWidth) {
-        popover.style.width = `${Math.min(Math.max(rect.width, minWidth), maxWidth)}px`;
+        // Fit the widest option rather than the trigger, so long names are not
+        // cut off; the viewport is the only ceiling.
+        const cap = Math.max(minWidth, window.innerWidth - 16);
+        popover.style.maxWidth = "none";
+        popover.style.width = "auto";
+        const contentWidth = popover.offsetWidth;
+        popover.style.maxWidth = `${cap}px`;
+        popover.style.width = `${Math.min(Math.max(contentWidth, rect.width, minWidth), cap)}px`;
       }
 
       const width = popover.offsetWidth;
@@ -63,5 +69,5 @@ export default function useAnchoredPosition(
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, anchorRef, popoverRef, align, gap, minWidth, maxWidth, matchWidth]);
+  }, [open, anchorRef, popoverRef, align, gap, minWidth, matchWidth]);
 }
