@@ -89,6 +89,9 @@ export default function ManufacturingPage() {
       setBoms(await api.boms(false));
       setOrders(await api.productionOrders());
       setPackingOrders(await api.packingOrders());
+      // Creating a formulation BOM creates its "(Unpacked)" item, so the item
+      // list has to come along on every refresh.
+      setItems(await api.items({ activeOnly: false }));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load manufacturing data.");
     }
@@ -96,7 +99,6 @@ export default function ManufacturingPage() {
 
   useEffect(() => {
     void refresh();
-    void api.items({ activeOnly: false }).then(setItems).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1005,9 +1007,9 @@ export default function ManufacturingPage() {
                           </label>
                         </>
                       )}
-                      {order.status === "IN_PROGRESS" && order.actual_quantity > 0 && (
+                      {order.status === "COMPLETED" && order.output_batch_number && (
                         <span style={{ opacity: 0.7, fontSize: 12 }}>
-                          produced ({order.output_batch_number})
+                          batch {order.output_batch_number}
                         </span>
                       )}
                     </td>
