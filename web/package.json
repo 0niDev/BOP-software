@@ -21,6 +21,7 @@
     "seed": "npm -w @bop-erp/server run seed",
     "seed:rich": "npm -w @bop-erp/server run seed:rich",
     "backfill:bom-phase": "node scripts/backfill-bom-phase.mjs",
+    "fix:clone-formulation-boms": "node scripts/clone-legacy-formulation-boms.mjs",
     "smoke": "npm -w @bop-erp/server run smoke",
     "test:e2e": "playwright test"
   },

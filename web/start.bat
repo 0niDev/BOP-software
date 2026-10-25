@@ -24,13 +24,17 @@ if errorlevel 1 goto :no_node
 REM --- 1/3: dependencies -----------------------------------------------------
 echo [1/3] Checking npm packages...
 if not exist node_modules goto :install
+REM Spot-check a transitive dep: npm ls only inspects top-level packages, so a
+REM truncated node_modules (broken yargs breaks concurrently) would slip through.
+if not exist node_modules\yargs\index.mjs goto :install
 call npm ls --depth=0 >nul 2>&1
 if errorlevel 1 goto :install
 echo       All packages are installed.
 goto :env
 
 :install
-echo       Missing packages - running npm install (this can take a few minutes)...
+echo       Broken or missing packages - reinstalling (this can take a few minutes)...
+if exist node_modules rmdir /s /q node_modules
 call npm install --no-audit --no-fund
 if errorlevel 1 goto :npm_failed
 

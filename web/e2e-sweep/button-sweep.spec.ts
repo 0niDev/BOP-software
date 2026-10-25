@@ -142,7 +142,19 @@ async function signInSafely(page: Page): Promise<void> {
 }
 
 async function openPage(page: Page, nav: string, recorder: Recorder): Promise<void> {
-  await page.locator("nav").getByRole("button", { name: nav, exact: true }).click();
+  // A dialog left open by the previous click covers the nav. Playwright's default
+  // action timeout is unlimited, so the intercepted click would retry until the
+  // whole test times out. Close it (Escape, then reload if it ignores Escape) and
+  // keep the click bounded.
+  if (await page.locator(".modal-overlay").isVisible().catch(() => false)) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(150);
+    if (await page.locator(".modal-overlay").isVisible().catch(() => false)) await page.reload();
+  }
+  await page
+    .locator("nav")
+    .getByRole("button", { name: nav, exact: true })
+    .click({ timeout: 15_000 });
   await settle(page, recorder);
 }
 

@@ -109,3 +109,36 @@ test("arrows move to the same column in the neighbouring row", async () => {
   // a column with no field falls through to the first field of the next row
   expect(nextRowField(table.field(1, 0), 1)).toBe(table.field(2, 0));
 });
+
+test("jv account labels are names only", async () => {
+  const { accountLabel } = await import("../src/pages/JournalVouchersPage");
+  const { filterOptions } = await import("../src/components/SearchableSelect");
+  const kashif = {
+    id: 3,
+    account_code: "1111",
+    account_name: "Kashif",
+    account_type: "ASSET" as const,
+    account_subtype: null,
+    parent_account_id: 2,
+    opening_balance: 0,
+    is_system_account: 0,
+    is_active: 1,
+  };
+  expect(accountLabel(kashif)).toBe("1111 — Kashif");
+  expect(filterOptions([{ value: "3", label: accountLabel(kashif) }], "kashif")).toHaveLength(1);
+});
+
+test("picking a group narrows the account list to that branch", async () => {
+  const { subtreeIds } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const accounts = [
+    { ...base, id: 1, account_code: "1100", account_name: "Assets", parent_account_id: null },
+    { ...base, id: 2, account_code: "1110", account_name: "Admin Salary", parent_account_id: 1 },
+    { ...base, id: 3, account_code: "1111", account_name: "Kashif", parent_account_id: 2 },
+    { ...base, id: 4, account_code: "1120", account_name: "Marketing", parent_account_id: 1 },
+    { ...base, id: 5, account_code: "1121", account_name: "Kashif", parent_account_id: 4 },
+  ];
+  expect([...subtreeIds(accounts, 2)]).toEqual([3]);
+  expect([...subtreeIds(accounts, 1)].sort()).toEqual([2, 3, 4, 5]);
+  expect([...subtreeIds(accounts, 3)]).toEqual([]);
+});

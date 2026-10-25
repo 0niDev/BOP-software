@@ -16,6 +16,17 @@ export interface SelectOption {
   label: string;
 }
 
+/** Every typed word must appear somewhere in the label, in any order, so
+ * "salary kashif" still finds "Admin Salary › Kashif". */
+export function filterOptions(options: readonly SelectOption[], query: string): SelectOption[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return options as SelectOption[];
+  return options.filter((option) => {
+    const haystack = `${option.label} ${option.value}`.toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
+}
+
 interface Props {
   value: string;
   /** Receives the option's value directly (not a change event). */
@@ -58,14 +69,7 @@ export default function SearchableSelect({
 
   const selected = options.find((option) => option.value === value);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter(
-      (option) =>
-        option.label.toLowerCase().includes(needle) || option.value.toLowerCase().includes(needle),
-    );
-  }, [options, query]);
+  const filtered = useMemo(() => filterOptions(options, query), [options, query]);
 
   // Close when the click lands outside (blur alone is not enough: the panel
   // lives inside the same wrapper).

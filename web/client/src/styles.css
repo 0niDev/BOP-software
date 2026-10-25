@@ -662,6 +662,14 @@ tr.total td {
   padding: 24px;
   box-shadow: var(--shadow-lg);
 }
+/* Dialogs whose grid needs more room than the default 760px. */
+.modal-wide {
+  width: min(1060px, 100%);
+}
+/* Keeps a wide grid inside the dialog on narrow screens instead of spilling. */
+.modal-scroll {
+  overflow-x: auto;
+}
 
 /* Searchable dropdown (components/SearchableSelect.tsx) — replaces <select>. */
 .sselect {

@@ -14,13 +14,15 @@ import type {
  * inputs can be cleared without snapping to 0 mid-typing. */
 interface DraftLine {
   accountId: number;
+  /** Group account the account must sit under; 0 = search every account. */
+  parentId: number;
   description: string;
   debit: string;
   credit: string;
 }
 
 function newLine(): DraftLine {
-  return { accountId: 0, description: "", debit: "", credit: "" };
+  return { accountId: 0, parentId: 0, description: "", debit: "", credit: "" };
 }
 
 function money(value: number): string {
@@ -33,6 +35,32 @@ function today(): string {
 
 function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
+}
+
+/** "1120 — Marketing". Plain names only: the Group column already says which
+ * branch a line belongs to. */
+export function accountLabel(account: Account): string {
+  return `${account.account_code} — ${account.account_name}`;
+}
+
+/** Every account id below `rootId`, at any depth (not `rootId` itself). */
+export function subtreeIds(accounts: readonly Account[], rootId: number): Set<number> {
+  const childrenOf = new Map<number, number[]>();
+  for (const account of accounts) {
+    if (account.parent_account_id == null) continue;
+    const list = childrenOf.get(account.parent_account_id) ?? [];
+    list.push(account.id);
+    childrenOf.set(account.parent_account_id, list);
+  }
+  const ids = new Set<number>();
+  const stack = [...(childrenOf.get(rootId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop() as number;
+    if (ids.has(id)) continue;
+    ids.add(id);
+    stack.push(...(childrenOf.get(id) ?? []));
+  }
+  return ids;
 }
 
 export default function JournalVouchersPage() {
@@ -77,8 +105,22 @@ export default function JournalVouchersPage() {
   const postable = accounts.filter((account) => !parentIds.has(account.id));
   const accountOptions = postable.map((account) => ({
     value: String(account.id),
-    label: `${account.account_code} — ${account.account_name}`,
+    label: accountLabel(account),
   }));
+
+  // Group accounts are the ones allowed in the first column; picking one
+  // narrows the account list to its branch.
+  const groupOptions = accounts
+    .filter((account) => parentIds.has(account.id))
+    .map((account) => ({ value: String(account.id), label: accountLabel(account) }));
+  const optionsUnder = new Map<number, typeof accountOptions>();
+  for (const group of groupOptions) {
+    const ids = subtreeIds(accounts, Number(group.value));
+    optionsUnder.set(
+      Number(group.value),
+      accountOptions.filter((option) => ids.has(Number(option.value))),
+    );
+  }
 
   const totalDebit = lines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
   const totalCredit = lines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
@@ -230,7 +272,12 @@ export default function JournalVouchersPage() {
             if (event.key === "Escape") closeDialog();
           }}
         >
-          <div className="modal" role="dialog" aria-modal="true" aria-label="New journal voucher">
+          <div
+            className="modal modal-wide"
+            role="dialog"
+            aria-modal="true"
+            aria-label="New journal voucher"
+          >
             <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
               <h2 style={{ flex: 1, margin: 0 }}>New journal voucher</h2>
               <button type="button" onClick={closeDialog}>
@@ -239,6 +286,7 @@ export default function JournalVouchersPage() {
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
               Debit at least one ledger account and credit at least one for the same total.
+              Pick a group first to narrow the account list to that branch.
               Posted vouchers cannot be edited — reverse one to correct it.
             </p>
             {error && <div className="error">{error}</div>}
@@ -258,97 +306,112 @@ export default function JournalVouchersPage() {
               </div>
             </div>
 
-            <table style={{ marginTop: 12 }} onKeyDown={moveRowFocus}>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Description</th>
-                  <th className="num">Debit</th>
-                  <th className="num">Credit</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, index) => (
-                  <tr key={index}>
-                    <td style={{ minWidth: 220 }}>
-                      <SearchableSelect
-                        value={String(line.accountId)}
-                        autoFocus={justAdded.current && index === lines.length - 1}
-                        onChange={(next) => updateLine(index, { accountId: Number(next) })}
-                        placeholder="Select account..."
-                        emptyText="No matching account"
-                        options={accountOptions}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        value={line.description}
-                        onChange={(e) => updateLine(index, { description: e.target.value })}
-                        placeholder="Line description"
-                        aria-label={`Line ${index + 1} description`}
-                      />
-                    </td>
-                    <td className="num">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.debit}
-                        onChange={(e) => updateLine(index, { debit: e.target.value })}
-                        aria-label={`Line ${index + 1} debit`}
-                        style={{ width: 120, textAlign: "right" }}
-                      />
-                    </td>
-                    <td className="num">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={line.credit}
-                        onChange={(e) => updateLine(index, { credit: e.target.value })}
-                        aria-label={`Line ${index + 1} credit`}
-                        style={{ width: 120, textAlign: "right" }}
-                      />
-                    </td>
-                    <td>
+            <div className="modal-scroll">
+              <table style={{ marginTop: 12 }} onKeyDown={moveRowFocus}>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Account</th>
+                    <th>Description</th>
+                    <th className="num">Debit</th>
+                    <th className="num">Credit</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line, index) => (
+                    <tr key={index}>
+                      <td style={{ minWidth: 200 }}>
+                        <SearchableSelect
+                          value={String(line.parentId)}
+                          onChange={(next) =>
+                            updateLine(index, { parentId: Number(next), accountId: 0 })
+                          }
+                          placeholder="Any group..."
+                          emptyText="No matching group"
+                          options={groupOptions}
+                          ariaLabel={`Line ${index + 1} group`}
+                        />
+                      </td>
+                      <td style={{ minWidth: 220 }}>
+                        <SearchableSelect
+                          value={String(line.accountId)}
+                          autoFocus={justAdded.current && index === lines.length - 1}
+                          onChange={(next) => updateLine(index, { accountId: Number(next) })}
+                          placeholder="Select account..."
+                          emptyText="No matching account"
+                          options={optionsUnder.get(line.parentId) ?? accountOptions}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          value={line.description}
+                          onChange={(e) => updateLine(index, { description: e.target.value })}
+                          placeholder="Line description"
+                          aria-label={`Line ${index + 1} description`}
+                        />
+                      </td>
+                      <td className="num">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.debit}
+                          onChange={(e) => updateLine(index, { debit: e.target.value })}
+                          aria-label={`Line ${index + 1} debit`}
+                          style={{ width: 120, textAlign: "right" }}
+                        />
+                      </td>
+                      <td className="num">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={line.credit}
+                          onChange={(e) => updateLine(index, { credit: e.target.value })}
+                          aria-label={`Line ${index + 1} credit`}
+                          style={{ width: 120, textAlign: "right" }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          aria-label={`Remove line ${index + 1}`}
+                          disabled={lines.length <= 2}
+                          onClick={() =>
+                            setLines((current) => current.filter((_, i) => i !== index))
+                          }
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3}>
                       <button
                         type="button"
-                        aria-label={`Remove line ${index + 1}`}
-                        disabled={lines.length <= 2}
-                        onClick={() =>
-                          setLines((current) => current.filter((_, i) => i !== index))
-                        }
+                        onClick={() => {
+                          justAdded.current = true;
+                          setLines((current) => [...current, newLine()]);
+                        }}
                       >
-                        ×
+                        Add line
                       </button>
                     </td>
+                    <td className="num">
+                      <strong>{money(totalDebit)}</strong>
+                    </td>
+                    <td className="num">
+                      <strong>{money(totalCredit)}</strong>
+                    </td>
+                    <td></td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={2}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        justAdded.current = true;
-                        setLines((current) => [...current, newLine()]);
-                      }}
-                    >
-                      Add line
-                    </button>
-                  </td>
-                  <td className="num">
-                    <strong>{money(totalDebit)}</strong>
-                  </td>
-                  <td className="num">
-                    <strong>{money(totalCredit)}</strong>
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+                </tfoot>
+              </table>
+            </div>
 
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
               <span className="sub" style={{ flex: 1 }}>
