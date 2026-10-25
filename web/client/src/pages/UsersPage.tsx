@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
+import { formatDate } from "../lib/format";
 import type { Role, UserRow } from "../types";
 
 interface Draft {
@@ -28,7 +29,7 @@ function message(err: unknown, fallback: string): string {
 
 function when(value: string | null): string {
   if (!value) return "—";
-  return value.slice(0, 19).replace("T", " ");
+  return formatDate(value, true);
 }
 
 export default function UsersPage() {

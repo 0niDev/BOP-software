@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { formatDate } from "../lib/format";
 import type { BankAccount, BankTransaction, Cheque } from "../types";
 
 function money(value: number): string {
@@ -330,7 +331,7 @@ export default function BankingPage() {
               <tbody>
                 {transactions.map((t) => (
                   <tr key={t.id}>
-                    <td>{t.transaction_date}</td>
+                    <td>{formatDate(t.transaction_date)}</td>
                     <td>{t.transaction_type}</td>
                     <td className="num">{money(t.amount)}</td>
                     <td>{t.reference_no ?? "—"}</td>
@@ -379,7 +380,7 @@ export default function BankingPage() {
                 <tr key={c.id}>
                   <td>{c.cheque_number}</td>
                   <td>{c.cheque_type}</td>
-                  <td>{c.cheque_date}</td>
+                  <td>{formatDate(c.cheque_date)}</td>
                   <td className="num">{money(c.amount)}</td>
                   <td>{c.status}</td>
                   <td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import { formatDate } from "../lib/format";
 import type { DeletedRecord } from "../types";
 
 const TABLE_LABELS: Record<string, string> = {
@@ -110,7 +111,7 @@ export default function DeletedRecordsPage() {
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              <td>{row.created_at}</td>
+              <td>{formatDate(row.created_at, true)}</td>
               <td>{label(row.entity_table)}</td>
               <td>{summary(row)}</td>
               <td>

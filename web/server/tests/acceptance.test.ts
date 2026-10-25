@@ -54,7 +54,8 @@ async function count(sql: string, ...params: Array<string | number>): Promise<nu
 describe("rich demo acceptance audit", () => {
   it("loads every module and re-running it adds nothing", async () => {
     expect(await count("SELECT COUNT(*) AS n FROM parties WHERE company_id = ?", COMPANY)).toBe(4);
-    expect(await count("SELECT COUNT(*) AS n FROM items WHERE company_id = ?", COMPANY)).toBe(4);
+    // 4 demo items + the "(Unpacked) Demo Formulation" item the BOM creates.
+    expect(await count("SELECT COUNT(*) AS n FROM items WHERE company_id = ?", COMPANY)).toBe(5);
     expect(await count("SELECT COUNT(*) AS n FROM stock_batches")).toBeGreaterThanOrEqual(4);
     expect(
       await count("SELECT COUNT(*) AS n FROM bank_accounts WHERE company_id = ?", COMPANY),
@@ -70,6 +71,9 @@ describe("rich demo acceptance audit", () => {
     ).toBeGreaterThanOrEqual(1);
     expect(
       await count("SELECT COUNT(*) AS n FROM production_orders WHERE company_id = ?", COMPANY),
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      await count("SELECT COUNT(*) AS n FROM packing_orders WHERE company_id = ?", COMPANY),
     ).toBeGreaterThanOrEqual(1);
     expect(
       await count("SELECT COUNT(*) AS n FROM sales_returns WHERE company_id = ?", COMPANY),

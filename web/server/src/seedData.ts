@@ -360,16 +360,11 @@ export async function seedRichDemoData(
       expenseDate: demoDate,
     });
 
-    // -- Manufacturing: formulation BOM + packing BOM + production order --
+    // -- Manufacturing: formulation BOM -> unpacked bulk -> packing order -> FG --
     const bom = await manufacturing.createBom({
-      finishedItemId: secondFgId,
+      bomName: "Demo Formulation",
       outputQuantity: 100,
       components: [{ componentItemId: rawItemId, quantityRequired: 50 }],
-    });
-    await manufacturing.createBom({
-      finishedItemId: secondFgId,
-      outputQuantity: 100,
-      components: [{ componentItemId: packingItemId, quantityRequired: 100 }],
     });
     const order = await manufacturing.createProductionOrder({
       bomId: bom.id,
@@ -377,9 +372,23 @@ export async function seedRichDemoData(
       manufacturingDate: demoDate,
     });
     await manufacturing.startProduction(order.id);
-    await manufacturing.completeProduction(order.id, {
+    await manufacturing.produceProduction(order.id, {
       actualQuantity: 100,
       outputBatchNumber: "PROD-DEMO-001",
+    });
+    const packingOrder = await manufacturing.createPackingOrder({
+      packingBomName: "Demo Packing",
+      plannedQuantity: 100,
+      manufacturingDate: demoDate,
+      outputItemId: secondFgId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 100,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 100 }],
+    });
+    await manufacturing.startPacking(packingOrder.id);
+    await manufacturing.packPackingOrder(packingOrder.id, {
+      units: 100,
+      outputBatchNumber: "PROD-DEMO-001-FG",
     });
 
     // -- Sales return (partial: return 50 of the 200 units sold) --

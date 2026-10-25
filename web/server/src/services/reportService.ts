@@ -36,6 +36,8 @@ export interface LedgerEntry {
   debit: number;
   credit: number;
   balance: number;
+  /** Invoice already settled at creation (cash/bank/cheque): shown, not owed. */
+  settled?: boolean;
 }
 
 function csvEscape(value: string): string {
@@ -136,7 +138,10 @@ export class ReportService {
       SELECT je.entry_date AS date, je.voucher_number, je.voucher_type,
              COALESCE(jel.description, je.narration) AS description,
              COALESCE(si.notes, pi.notes) AS notes,
-             jel.debit, jel.credit
+             jel.debit, jel.credit,
+             CASE WHEN (si.payment_type IS NOT NULL AND si.payment_type <> 'CREDIT')
+                    OR (pi.payment_type IS NOT NULL AND pi.payment_type <> 'CREDIT')
+                  THEN 1 ELSE 0 END AS settled
       FROM journal_entry_lines jel
       JOIN journal_entries je ON je.id = jel.journal_entry_id
       LEFT JOIN sales_invoices si
@@ -185,7 +190,10 @@ export class ReportService {
     return rows.map((row) => {
       const debit = new Decimal(Number(row.debit ?? 0));
       const credit = new Decimal(Number(row.credit ?? 0));
-      balance = balance.plus(debit).minus(credit);
+      const settled = Number(row.settled ?? 0) === 1;
+      // A settled invoice line (cash/bank/cheque) is informational only: it
+      // must not move the running balance, which tracks what the party owes.
+      if (!settled) balance = balance.plus(debit).minus(credit);
       return {
         date: String(row.date ?? ""),
         voucherNumber: String(row.voucher_number ?? ""),
@@ -195,6 +203,7 @@ export class ReportService {
         debit: toStorage(debit),
         credit: toStorage(credit),
         balance: toStorage(balance),
+        settled,
       };
     });
   }

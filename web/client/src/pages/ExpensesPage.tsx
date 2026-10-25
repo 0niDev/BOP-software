@@ -4,6 +4,8 @@ import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
+import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import type {
   Account,
@@ -47,6 +49,9 @@ export default function ExpensesPage() {
   const [newItemAmount, setNewItemAmount] = useState(0);
   const [payBusy, setPayBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState<SortState | null>(null);
 
   // Edit dialog for one already-recorded expense.
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -307,14 +312,38 @@ export default function ExpensesPage() {
       : "6000 - General & Administrative (fallback)";
   };
 
-  const visibleExpenses = expenses.filter((expense) =>
-    matchesQuery(query, [
-      expense.voucher_number,
-      expense.expense_date,
-      expense.category_name,
-      expense.payment_method,
-      expense.amount,
-    ]),
+  const visibleExpenses = sortRows(
+    expenses.filter(
+      (expense) =>
+        matchesQuery(query, [
+          expense.voucher_number,
+          expense.expense_date,
+          expense.category_name,
+          expense.payment_method,
+          expense.amount,
+        ]) && inDateRange(expense.expense_date, from, to),
+    ),
+    sort,
+    (expense, key) => {
+      switch (key) {
+        case "voucher":
+          return expense.voucher_number;
+        case "date":
+          return expense.expense_date;
+        case "category":
+          return expense.category_name;
+        case "description":
+          return expense.description;
+        case "method":
+          return expense.payment_method;
+        case "status":
+          return expense.status;
+        case "amount":
+          return expense.amount;
+        default:
+          return "";
+      }
+    },
   );
 
   /** Live total of the amounts typed into the dialog (items + one-off). */
@@ -634,24 +663,25 @@ export default function ExpensesPage() {
       )}
 
       <div className="card">
-        <div className="row" style={{ alignItems: "center" }}>
+        <div className="row" style={{ alignItems: "flex-end" }}>
           <h2 style={{ flex: 1, margin: 0 }}>
             Recorded expenses{" "}
             <span className="badge">{visibleExpenses.length} of {expenses.length}</span>
           </h2>
+          <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
           <FilterBox value={query} onChange={setQuery} />
         </div>
         <table>
           <thead>
             <tr>
-              <th>Voucher</th>
-              <th>Date</th>
-              <th>Category</th>
+              <SortTh label="Voucher" sortKey="voucher" sort={sort} setSort={setSort} />
+              <SortTh label="Date" sortKey="date" sort={sort} setSort={setSort} />
+              <SortTh label="Category" sortKey="category" sort={sort} setSort={setSort} />
               <th>Ledger account</th>
-              <th>Description</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th className="num">Amount</th>
+              <SortTh label="Description" sortKey="description" sort={sort} setSort={setSort} />
+              <SortTh label="Method" sortKey="method" sort={sort} setSort={setSort} />
+              <SortTh label="Status" sortKey="status" sort={sort} setSort={setSort} />
+              <SortTh label="Amount" sortKey="amount" sort={sort} setSort={setSort} className="num" />
               <th>Actions</th>
             </tr>
           </thead>
@@ -659,7 +689,7 @@ export default function ExpensesPage() {
             {visibleExpenses.map((expense) => (
               <tr key={expense.id}>
                 <td>{expense.voucher_number}</td>
-                <td>{expense.expense_date}</td>
+                <td>{formatDate(expense.expense_date)}</td>
                 <td>{expense.category_name}</td>
                 <td>{ledgerFor(expense.category_id)}</td>
                 <td>{expense.description ?? "—"}</td>

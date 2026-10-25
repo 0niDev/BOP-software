@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api, ApiError, getToken } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
+import { DATE_FORMATS, formatDate, setDateFormat } from "../lib/format";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
 import type { BackupStatus, DatabaseInfo, MirrorStatus, ShortcutEntry } from "../types";
 
 /** Picker lists ported from settings_view.py. */
 const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SAR", "AED"];
-const DATE_FORMATS = ["yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "dd.MM.yyyy"];
 
 function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<string>("dark");
   const [companyName, setCompanyName] = useState("");
   const [currency, setCurrency] = useState("PKR");
-  const [dateFormat, setDateFormat] = useState("yyyy-MM-dd");
+  const [dateFormat, setDateFormatValue] = useState("dd/MM/yyyy");
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -204,7 +204,7 @@ export default function SettingsPage() {
         const general = all.GENERAL ?? {};
         if (typeof general.company_name === "string") setCompanyName(general.company_name);
         if (typeof general.currency === "string") setCurrency(general.currency);
-        if (typeof general.date_format === "string") setDateFormat(general.date_format);
+        if (typeof general.date_format === "string") setDateFormatValue(general.date_format);
         setLoaded(true);
       })
       .catch((err) => setError(message(err, "Failed to load settings.")));
@@ -241,6 +241,7 @@ export default function SettingsPage() {
         currency,
         date_format: dateFormat,
       });
+      setDateFormat(dateFormat);
       setNotice("Company profile saved.");
     } catch (err) {
       setError(message(err, "Failed to save the company profile."));
@@ -338,7 +339,7 @@ export default function SettingsPage() {
             <label>Date format</label>
             <SearchableSelect
               value={dateFormat}
-              onChange={setDateFormat}
+              onChange={setDateFormatValue}
               placeholder="Date format"
               options={DATE_FORMATS.map((format) => ({ value: format, label: format }))}
             />
@@ -522,7 +523,7 @@ export default function SettingsPage() {
                   ? `⚠ Could not save to your computer (${mirror.pcDirectory}): ${mirror.pcError}`
                   : `Copied to your computer (${mirror.pcDirectory})${
                       mirror.pcUpdatedAt
-                        ? ` at ${mirror.pcUpdatedAt.slice(0, 19).replace("T", " ")}`
+                        ? ` at ${formatDate(mirror.pcUpdatedAt, true)}`
                         : ""
                     }.`}
               </p>
@@ -578,7 +579,7 @@ export default function SettingsPage() {
               <tr key={entry.file}>
                 <td>{entry.file}</td>
                 <td className="num">{formatBytes(entry.bytes)}</td>
-                <td>{entry.modifiedAt.slice(0, 19).replace("T", " ")}</td>
+                <td>{formatDate(entry.modifiedAt, true)}</td>
                 <td>
                   <button onClick={() => void download(entry.file)}>Download</button>
                 </td>

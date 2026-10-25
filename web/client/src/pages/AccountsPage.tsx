@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import { moveRowFocus } from "../lib/gridKeys";
 import type { Account, AccountType } from "../types";
 
@@ -57,6 +58,7 @@ export default function AccountsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [activeType, setActiveType] = useState<"all" | AccountType>("all");
+  const [query, setQuery] = useState("");
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Account | null>(null);
@@ -143,9 +145,21 @@ export default function AccountsPage() {
   }
 
   // --- hierarchy ---------------------------------------------------------
-  const accountsById = new Map(accounts.map((account) => [account.id, account]));
+  // Filtering happens before the tree is built, so a matching child whose
+  // parent is hidden simply surfaces as a root under its type section.
+  const visibleAccounts = query
+    ? accounts.filter((account) =>
+        matchesQuery(query, [
+          account.account_code,
+          account.account_name,
+          account.account_type,
+          account.account_subtype,
+        ]),
+      )
+    : accounts;
+  const accountsById = new Map(visibleAccounts.map((account) => [account.id, account]));
   const childrenByParent = new Map<number, Account[]>();
-  for (const account of accounts) {
+  for (const account of visibleAccounts) {
     const parentId = account.parent_account_id;
     if (parentId == null || !accountsById.has(parentId)) continue;
     const list = childrenByParent.get(parentId) ?? [];
@@ -163,7 +177,7 @@ export default function AccountsPage() {
     }
   }
 
-  const roots = accounts
+  const roots = visibleAccounts
     .filter(
       (account) =>
         account.parent_account_id == null || !accountsById.has(account.parent_account_id),
@@ -313,6 +327,7 @@ export default function AccountsPage() {
       <div className="card">
         <div className="row" style={{ alignItems: "flex-end" }}>
           <h2 style={{ flex: 1, margin: 0 }}>Chart of Accounts</h2>
+          <FilterBox value={query} onChange={setQuery} placeholder="Search code, name, type…" />
           <div>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <input

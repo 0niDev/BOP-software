@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
+import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import type { Item, Party, PaymentType, SalesInvoice } from "../types";
 
@@ -38,6 +41,10 @@ export default function SalesInvoicesPage() {
     rows: Array<Record<string, unknown>>;
   } | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const [customerId, setCustomerId] = useState(0);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -251,6 +258,36 @@ export default function SalesInvoicesPage() {
     }
   }
 
+  const visibleInvoices = sortRows(
+    invoices.filter(
+      (inv) =>
+        matchesQuery(query, [
+          inv.invoice_number,
+          inv.invoice_date,
+          inv.customer_name,
+          inv.payment_type,
+          inv.total_amount,
+          inv.paid_amount,
+          inv.status,
+        ]) && inDateRange(inv.invoice_date, from, to),
+    ),
+    sort,
+    (inv, key) => {
+      switch (key) {
+        case "number":
+          return inv.invoice_number;
+        case "date":
+          return inv.invoice_date;
+        case "customer":
+          return inv.customer_name;
+        case "total":
+          return inv.total_amount;
+        default:
+          return "";
+      }
+    },
+  );
+
   return (
     <>
       <div className="card">
@@ -422,24 +459,28 @@ export default function SalesInvoicesPage() {
       )}
 
       <div className="card">
+        <div className="row" style={{ marginBottom: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <FilterBox value={query} onChange={setQuery} placeholder="Search number, customer, status…" />
+          <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+        </div>
         <table>
           <thead>
             <tr>
-              <th>Number</th>
-              <th>Date</th>
-              <th>Customer</th>
+              <SortTh label="Number" sortKey="number" sort={sort} setSort={setSort} />
+              <SortTh label="Date" sortKey="date" sort={sort} setSort={setSort} />
+              <SortTh label="Customer" sortKey="customer" sort={sort} setSort={setSort} />
               <th>Payment</th>
-              <th className="num">Total</th>
+              <SortTh label="Total" sortKey="total" sort={sort} setSort={setSort} className="num" />
               <th className="num">Paid</th>
               <th>Status</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv) => (
+            {visibleInvoices.map((inv) => (
               <tr key={inv.id}>
                 <td>{inv.invoice_number}</td>
-                <td>{inv.invoice_date}</td>
+                <td>{formatDate(inv.invoice_date)}</td>
                 <td>{inv.customer_name}</td>
                 <td>{inv.payment_type}</td>
                 <td className="num">{money(inv.total_amount)}</td>
@@ -459,9 +500,11 @@ export default function SalesInvoicesPage() {
                 </td>
               </tr>
             ))}
-            {invoices.length === 0 && (
+            {visibleInvoices.length === 0 && (
               <tr>
-                <td colSpan={8}>No invoices yet.</td>
+                <td colSpan={8}>
+                  {invoices.length === 0 ? "No invoices yet." : "No invoices match this filter."}
+                </td>
               </tr>
             )}
           </tbody>
@@ -492,7 +535,7 @@ export default function SalesInvoicesPage() {
                 {payDialog.rows.map((row) => (
                   <tr key={String(row.id)}>
                     <td>{String(row.voucher_number ?? "")}</td>
-                    <td>{String(row.receipt_date ?? "")}</td>
+                    <td>{formatDate(String(row.receipt_date ?? ""))}</td>
                     <td className="num">{money(Number(row.amount ?? 0))}</td>
                     <td>
                       <button

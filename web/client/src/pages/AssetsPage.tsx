@@ -3,6 +3,8 @@ import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { SortTh, sortRows, type SortState } from "../components/Sort";
+import { formatDate } from "../lib/format";
 import type { Asset, Party } from "../types";
 
 const PAYMENT_TYPES = ["CREDIT", "CASH", "BANK", "CHEQUE"] as const;
@@ -28,6 +30,7 @@ export default function AssetsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const [assetName, setAssetName] = useState("");
   const [assetCode, setAssetCode] = useState("1503");
@@ -186,16 +189,39 @@ export default function AssetsPage() {
   }
 
   const total = assets.reduce((sum, asset) => sum + asset.current_balance, 0);
-  const visibleAssets = assets.filter((asset) =>
-    matchesQuery(query, [
-      asset.account_code,
-      asset.account_name,
-      asset.asset_type,
-      asset.account_subtype,
-      asset.purchase_date,
-      asset.purchase_amount,
-      asset.due_date,
-    ]),
+  const visibleAssets = sortRows(
+    assets.filter((asset) =>
+      matchesQuery(query, [
+        asset.account_code,
+        asset.account_name,
+        asset.asset_type,
+        asset.account_subtype,
+        asset.purchase_date,
+        asset.purchase_amount,
+        asset.due_date,
+      ]),
+    ),
+    sort,
+    (asset, key) => {
+      switch (key) {
+        case "code":
+          return asset.account_code;
+        case "asset":
+          return asset.account_name;
+        case "classification":
+          return asset.asset_type ?? asset.account_subtype;
+        case "purchased":
+          return asset.purchase_date;
+        case "purchase":
+          return asset.purchase_amount;
+        case "book":
+          return asset.current_balance;
+        case "due":
+          return asset.due_date;
+        default:
+          return "";
+      }
+    },
   );
 
   return (
@@ -216,13 +242,13 @@ export default function AssetsPage() {
         <table>
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Asset</th>
-              <th>Classification</th>
-              <th>Purchased</th>
-              <th className="num">Purchase amount</th>
-              <th className="num">Book value</th>
-              <th>Due date</th>
+              <SortTh label="Code" sortKey="code" sort={sort} setSort={setSort} />
+              <SortTh label="Asset" sortKey="asset" sort={sort} setSort={setSort} />
+              <SortTh label="Classification" sortKey="classification" sort={sort} setSort={setSort} />
+              <SortTh label="Purchased" sortKey="purchased" sort={sort} setSort={setSort} />
+              <SortTh label="Purchase amount" sortKey="purchase" sort={sort} setSort={setSort} className="num" />
+              <SortTh label="Book value" sortKey="book" sort={sort} setSort={setSort} className="num" />
+              <SortTh label="Due date" sortKey="due" sort={sort} setSort={setSort} />
               <th>Actions</th>
             </tr>
           </thead>
@@ -232,12 +258,12 @@ export default function AssetsPage() {
                 <td>{asset.account_code}</td>
                 <td>{asset.account_name.replace(" (Asset)", "")}</td>
                 <td>{asset.asset_type ?? asset.account_subtype ?? "N/A"}</td>
-                <td>{asset.purchase_date ?? "—"}</td>
+                <td>{formatDate(asset.purchase_date) || "—"}</td>
                 <td className="num">
                   {asset.purchase_amount == null ? "—" : money(asset.purchase_amount)}
                 </td>
                 <td className="num">{money(asset.current_balance)}</td>
-                <td>{asset.due_date ?? "—"}</td>
+                <td>{formatDate(asset.due_date) || "—"}</td>
                 <td>
                   <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
                     <button type="button" onClick={() => startEdit(asset)}>

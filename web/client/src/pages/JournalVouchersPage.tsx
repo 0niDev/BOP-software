@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
+import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import { saveBlob } from "../lib/download";
 import type {
@@ -496,7 +497,7 @@ export default function JournalVouchersPage() {
             {visible.map((entry) => (
               <tr key={entry.id}>
                 <td>{entry.voucher_number}</td>
-                <td>{entry.entry_date}</td>
+                <td>{formatDate(entry.entry_date)}</td>
                 <td>{entry.narration ?? "—"}</td>
                 <td>{entry.reference_no ?? "—"}</td>
                 <td className="num">{money(Number(entry.total_debit))}</td>

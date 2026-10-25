@@ -3,6 +3,7 @@ import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
+import { formatDate } from "../lib/format";
 import type { AccountType, BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
@@ -156,10 +157,13 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
       <tbody>
         {rows.map((row, index) => (
           <tr key={`${row.voucherNumber}-${index}`}>
-            <td>{row.date}</td>
+            <td>{formatDate(row.date)}</td>
             <td>{row.voucherNumber}</td>
             <td>{row.voucherType}</td>
-            <td>{row.description ?? "—"}</td>
+            <td>
+              {row.description ?? "—"}
+              {row.settled ? <span style={{ opacity: 0.6 }}> · settled</span> : null}
+            </td>
             <td>{row.notes ?? "—"}</td>
             <td className="num">{amount(row.debit)}</td>
             <td className="num">{amount(row.credit)}</td>
@@ -480,7 +484,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
         <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
           One file containing the trial balance, profit &amp; loss, balance sheet (as at the
           period end) and cash book for {""}
-          <strong>{selectedPeriod ? `${selectedPeriod.from} → ${selectedPeriod.to}` : "—"}</strong>.
+          <strong>
+            {selectedPeriod
+              ? `${formatDate(selectedPeriod.from)} → ${formatDate(selectedPeriod.to)}`
+              : "—"}
+          </strong>
+          .
         </p>
       </div>
       )}
@@ -530,7 +539,9 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             <div className="row" style={{ alignItems: "center" }}>
               <h2 style={{ flex: 1, margin: 0 }}>
                 Balance Sheet{" "}
-                <span className="badge">{asAt ? `as at ${asAt}` : "as at today"}</span>{" "}
+                <span className="badge">
+                  {asAt ? `as at ${formatDate(asAt)}` : "as at today"}
+                </span>{" "}
                 <span className="badge">{bs.balanced ? "Balanced" : "OUT OF BALANCE"}</span>
               </h2>
               <button

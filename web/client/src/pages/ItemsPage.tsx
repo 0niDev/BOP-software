@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { SortTh, sortRows, type SortState } from "../components/Sort";
 import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
@@ -50,6 +51,7 @@ export default function ItemsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Item | null>(null);
@@ -218,6 +220,25 @@ export default function ItemsPage() {
     }
   }
 
+  const sortedItems = sortRows(items, sort, (item, key) => {
+    switch (key) {
+      case "code":
+        return item.item_code;
+      case "name":
+        return item.item_name;
+      case "type":
+        return item.item_type;
+      case "purchase":
+        return item.purchase_price;
+      case "selling":
+        return item.selling_price;
+      case "stock":
+        return item.current_stock;
+      default:
+        return "";
+    }
+  });
+
   return (
     <>
       <div className="card">
@@ -267,20 +288,20 @@ export default function ItemsPage() {
         <table>
           <thead>
             <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Type</th>
+              <SortTh label="Code" sortKey="code" sort={sort} setSort={setSort} />
+              <SortTh label="Name" sortKey="name" sort={sort} setSort={setSort} />
+              <SortTh label="Type" sortKey="type" sort={sort} setSort={setSort} />
               <th>Unit</th>
-              <th className="num">Purchase</th>
-              <th className="num">Selling</th>
+              <SortTh label="Purchase" sortKey="purchase" sort={sort} setSort={setSort} className="num" />
+              <SortTh label="Selling" sortKey="selling" sort={sort} setSort={setSort} className="num" />
               <th className="num">Min / Max</th>
-              <th className="num">Stock</th>
+              <SortTh label="Stock" sortKey="stock" sort={sort} setSort={setSort} className="num" />
               <th>Status</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
+            {sortedItems.map((item) => (
               <tr key={item.id}>
                 <td>{item.item_code}</td>
                 <td>{item.item_name}</td>

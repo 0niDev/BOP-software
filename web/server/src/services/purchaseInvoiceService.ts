@@ -499,7 +499,9 @@ export class PurchaseInvoiceService {
     if (input.paymentType === "CASH") {
       return {
         accountId: await resolver.idFor(SystemAccountCodes.CASH_IN_HAND),
-        partyId: null,
+        // Tag the party so a cash purchase still shows in the party ledger (as
+        // a settled row; the ledger query keeps it out of the running balance).
+        partyId: supplierId,
         description: "Cash payment",
       };
     }
@@ -511,13 +513,13 @@ export class PurchaseInvoiceService {
       if (!bank) throw new ValidationError("Selected bank account not found.");
       return {
         accountId: bank.account_id,
-        partyId: null,
+        partyId: supplierId,
         description: `${input.paymentType} payment - ${bank.bank_name}`,
       };
     }
     return {
       accountId: await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS),
-      partyId: null,
+      partyId: supplierId,
       description: `${input.paymentType} payment`,
     };
   }

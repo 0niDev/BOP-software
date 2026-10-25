@@ -308,96 +308,152 @@ test("the Shortcuts editor and Database card work end to end", async ({ page }) 
   expect(watched.apiFailures).toEqual([]);
 });
 
-test("the Manufacturing page builds a production order from a saved BOM", async ({ page }) => {
-  const watched = monitor(page);
-  await signIn(page);
-  await openPage(page, "Manufacturing");
-
-  // A production order needs a saved BOM, so make one: finished good + component.
-  const bomForm = page.locator("form", { hasText: "New bill of materials" });
-  await bomForm.getByRole("combobox").first().click();
-  await page.getByRole("option").nth(1).click();
-  await bomForm.getByRole("combobox").nth(1).click();
-  await page.getByRole("option").nth(1).click();
-  await bomForm.getByRole("button", { name: "Create BOM" }).click();
-  await expect(page.getByRole("cell", { name: /^BOM-/ }).first()).toBeVisible();
-
-  await page.getByRole("button", { name: "Production Orders" }).click();
-
-  const form = page.locator("form", { hasText: "New production order" });
-  // A saved BOM is the only way to create an order: one searchable picker.
-  await expect(form.getByRole("combobox")).toHaveCount(1);
-  await expect(form.getByRole("combobox")).toHaveAttribute("placeholder", /search/i);
-
-  // Every picker is now a type-to-filter combobox, so drive it the way a user
-  // would: open it, narrow the list by typing, click an option, keep the choice.
-  const bomPicker = form.getByRole("combobox");
-  await bomPicker.click();
-  const bomName = (await page.getByRole("option").first().innerText()).trim();
-  await bomPicker.fill(bomName.slice(0, 6));
-  const bomOption = page.getByRole("option", { name: bomName, exact: true });
-  await expect(bomOption).toHaveCount(1);
-  await bomOption.click();
-  await expect(bomPicker).toHaveValue(bomName);
-
-  // The chosen BOM's components are shown instead of asking for them by hand.
-  await expect(form).toContainText("Components from this BOM");
-  await expect(form.getByRole("combobox")).toHaveCount(1);
-
-  expect(watched.errors).toEqual([]);
-  expect(watched.apiFailures).toEqual([]);
-});
-
-test("the Pack action picks a packing BOM, lists its components and honours Ignore stock", async ({
+test("the Manufacturing page creates a formulation BOM and produces an unpacked batch", async ({
   page,
 }) => {
   const watched = monitor(page);
   await signIn(page);
   await openPage(page, "Manufacturing");
 
-  // A deterministic packing BOM: 2 boxes per unit of Demo Small Bottle.
-  const bomForm = page.locator("form", { hasText: "New bill of materials" });
-  await pickCombobox(page, bomForm.getByRole("combobox").first(), "Demo Small Bottle");
-  await pickCombobox(page, bomForm.getByRole("combobox").nth(1), "Demo Packing Box");
-  await bomForm.locator('tbody input[inputmode="decimal"]').first().fill("2");
-  await bomForm.getByRole("button", { name: "Create BOM" }).click();
-  await expect(page.getByRole("cell", { name: /^BOM-/ }).first()).toBeVisible();
+  // Three stages, each its own tab.
+  const tabs = page.getByRole("tablist");
+  await expect(tabs.getByRole("tab")).toHaveText(["Formulations", "Production", "Packing"]);
 
-  // A production order from the seeded formulation BOM, produced but not packed.
-  await page.getByRole("button", { name: "Production Orders" }).click();
+  // A formulation BOM asks only for raw materials: its "(Unpacked)" output
+  // item is created in inventory automatically.
+  const bomForm = page.locator("form", { hasText: "New bill of materials" });
+  await expect(bomForm.getByRole("combobox")).toHaveCount(1);
+  await bomForm.getByPlaceholder("e.g. Syrup 500ml").fill("E2E Formulation");
+  await pickCombobox(
+    page,
+    bomForm.getByRole("combobox", { name: "Component item" }),
+    "Demo Raw Material",
+  );
+  await bomForm.locator('input[aria-label="Component quantity"]').fill("5");
+  await bomForm.getByRole("button", { name: "Create BOM" }).click();
+  await expect(page.locator(".badge", { hasText: "Created BOM E2E Formulation" })).toBeVisible();
+
+  const bomRow = page.locator("tbody tr", { hasText: "E2E Formulation" });
+  await expect(bomRow).toContainText("Formulation");
+  await expect(bomRow).toContainText("(Unpacked) E2E Formulation");
+
+  // Production: pick the saved formulation BOM, plan 10, start, produce 10.
+  await page.getByRole("tab", { name: "Production" }).click();
   const orderForm = page.locator("form", { hasText: "New production order" });
-  await pickCombobox(page, orderForm.getByRole("combobox"), "Demo Small Bottle");
+  await pickCombobox(
+    page,
+    orderForm.getByRole("combobox", { name: "Production BOM" }),
+    "E2E Formulation",
+  );
   await expect(orderForm).toContainText("Components from this BOM");
-  await orderForm.locator('input[inputmode="decimal"]').fill("30");
+  await orderForm.locator('input[aria-label="Total output quantity"]').fill("10");
   await orderForm.getByRole("button", { name: "Create order" }).click();
   await expect(page.locator(".badge", { hasText: "Created production order" })).toBeVisible();
 
-  const newest = page.locator("tbody tr").first();
+  const ordersCard = page.locator(".card", { hasText: "Production orders" });
+  const newest = ordersCard.locator("tbody tr").first();
   const orderNumber = (await newest.locator("td").first().innerText()).trim();
-  const orderRow = page.locator("tbody tr", { hasText: orderNumber });
+  const orderRow = ordersCard.locator("tbody tr", { hasText: orderNumber });
   await orderRow.getByRole("button", { name: "Start" }).click();
   await expect(orderRow.getByRole("button", { name: "Produce" })).toBeVisible();
 
-  // Produce asks two prompt() dialogs: quantity, then the unpacked batch name.
-  const answers = ["30", "E2E-UNPACKED", "E2E-PACKED"];
+  // Produce asks for the unpacked quantity, then the batch number.
+  const answers = ["10", "E2E-UNPACKED"];
   page.on("dialog", (dialog) => void dialog.accept(answers.shift() ?? ""));
-  await orderRow.getByRole("checkbox").check();
   await orderRow.getByRole("button", { name: "Produce" }).click();
-  await expect(orderRow).toContainText("UNPACKED");
+  await expect(orderRow).toContainText("COMPLETED");
+  await expect(orderRow).toContainText("E2E-UNPACKED");
 
-  // Pack lists the packing BOM's components, scaled to what is being packed.
-  await orderRow.getByRole("button", { name: "Pack" }).click();
+  expect(watched.errors).toEqual([]);
+  expect(watched.apiFailures).toEqual([]);
+});
+
+test("manual production and packing runs save their BOMs and honour Ignore stock", async ({
+  page,
+}) => {
+  const watched = monitor(page);
+  await signIn(page);
+  await openPage(page, "Manufacturing");
+  await page.getByRole("tab", { name: "Production" }).click();
+
+  // No saved BOM selected: enter the run's totals and a name to save them as a
+  // per-unit BOM.
+  const orderForm = page.locator("form", { hasText: "New production order" });
+  await expect(orderForm.getByRole("combobox", { name: "Production BOM" })).toHaveValue(
+    /Manual run/,
+  );
+  await orderForm.getByPlaceholder("e.g. Syrup 500ml").fill("E2E Manual Run");
+  await pickCombobox(
+    page,
+    orderForm.getByRole("combobox", { name: "Raw material" }),
+    "Demo Raw Material",
+  );
+  await orderForm.locator('input[aria-label="Total output quantity"]').fill("10");
+  await orderForm.locator('input[aria-label="Total consumed"]').fill("20");
+  await orderForm.getByRole("button", { name: "Create order" }).click();
+  await expect(page.locator(".badge", { hasText: "Created production order" })).toBeVisible();
+
+  const ordersCard = page.locator(".card", { hasText: "Production orders" });
+  const newest = ordersCard.locator("tbody tr").first();
+  const orderNumber = (await newest.locator("td").first().innerText()).trim();
+  const orderRow = ordersCard.locator("tbody tr", { hasText: orderNumber });
+  await orderRow.getByRole("button", { name: "Start" }).click();
+  await orderRow.getByRole("checkbox").check();
+
+  const answers = ["10", "E2E-MANUAL-UNPACKED"];
+  page.on("dialog", (dialog) => void dialog.accept(answers.shift() ?? ""));
+  await orderRow.getByRole("button", { name: "Produce" }).click();
+  await expect(orderRow).toContainText("COMPLETED");
+
+  // Packing: an independent order that turns the unpacked bulk plus packaging
+  // into the finished good. Unpacked used = items generated x size per item.
+  await page.getByRole("tab", { name: "Packing" }).click();
+  const packingForm = page.locator("form", { hasText: "New packing order" });
+  await expect(packingForm.getByRole("combobox", { name: "Packing BOM" })).toHaveValue(
+    /Manual run/,
+  );
+  await packingForm.getByPlaceholder("e.g. Syrup 500ml bottle").fill("E2E Packing");
+  await pickCombobox(
+    page,
+    packingForm.getByRole("combobox", { name: "Output item" }),
+    "Demo Small Bottle",
+  );
+  await pickCombobox(
+    page,
+    packingForm.getByRole("combobox", { name: "Unpacked material" }),
+    "(Unpacked) E2E Manual Run",
+  );
+  await packingForm.locator('input[aria-label="Items generated"]').fill("10");
+  await packingForm.locator('input[aria-label="Size per item"]').fill("1");
+  await expect(packingForm.locator(".badge", { hasText: "Unpacked used: 10 KG" })).toBeVisible();
+  await pickCombobox(
+    page,
+    packingForm.getByRole("combobox", { name: "Packing material" }),
+    "Demo Packing Box",
+  );
+  await packingForm.locator('input[aria-label="Total used"]').fill("10");
+  await packingForm.getByRole("button", { name: "Create packing order" }).click();
+  await expect(page.locator(".badge", { hasText: "Created packing order" })).toBeVisible();
+
+  const packingCard = page.locator(".card", { hasText: "Packing orders" });
+  const newestPack = packingCard.locator("tbody tr").first();
+  const packNumber = (await newestPack.locator("td").first().innerText()).trim();
+  const packRow = packingCard.locator("tbody tr", { hasText: packNumber });
+  await packRow.getByRole("button", { name: "Start" }).click();
+  await packRow.getByRole("button", { name: "Pack" }).click();
+
+  // The pack dialog is prefilled from the saved BOM, scaled to the order.
   const packCard = page.locator(".card", { hasText: "Pack order" });
-  await expect(packCard).toContainText("Packing BOM");
-  const packLine = packCard.locator("tbody tr").first();
-  await expect(packLine.getByRole("combobox")).toHaveValue("Demo Packing Box");
-  await expect(packLine.locator('input[inputmode="decimal"]')).toHaveValue("60");
+  await expect(packCard.locator('input[aria-label="Items generated"]')).toHaveValue("10");
+  await expect(packCard.locator('input[aria-label="Unpacked used"]')).toHaveValue("10");
+  await expect(packCard.locator('input[aria-label="Quantity used"]')).toHaveValue("10");
 
   // Ignore stock skips the stock check and deduction; the pack still completes.
   await packCard.getByRole("checkbox").check();
+  page.once("dialog", (dialog) => void dialog.accept("E2E-PACKED"));
   await packCard.getByRole("button", { name: "Confirm pack" }).click();
-  await expect(page.locator(".badge", { hasText: "Packed 30" })).toBeVisible();
-  await expect(orderRow).toContainText("COMPLETED");
+  await expect(page.locator(".badge", { hasText: "Packed 10" })).toBeVisible();
+  await expect(packRow).toContainText("COMPLETED");
 
   expect(watched.errors).toEqual([]);
   expect(watched.apiFailures).toEqual([]);

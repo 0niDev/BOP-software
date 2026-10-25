@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
+import { formatDate } from "../lib/format";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -187,7 +188,7 @@ export default function ReturnsPage() {
               <tr key={String(row.id)}>
                 <td>{String(row.return_number ?? "")}</td>
                 <td>{String(row[invoiceKey] ?? "")}</td>
-                <td>{String(row.return_date ?? "")}</td>
+                <td>{formatDate(String(row.return_date ?? ""))}</td>
                 <td className="num">{money(Number(row.total_amount ?? 0))}</td>
                 <td>
                   <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>

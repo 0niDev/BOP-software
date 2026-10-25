@@ -8,7 +8,7 @@ export interface BomRow {
   bom_name: string;
   output_quantity: number;
   notes: string | null;
-  /** 'FORMULATION' (raw materials) or 'PACKING' (packaging + finished good). */
+  /** 'FORMULATION' (raw materials) or 'PACKING' (unpacked bulk + packaging). */
   phase: string | null;
   is_active: number;
   is_temp: number;
@@ -45,8 +45,27 @@ export interface ProductionOrderRow {
   created_at: string;
   updated_at: string | null;
   completed_at: string | null;
-  /** Remaining unpacked stock (only meaningful while the order is IN_PROGRESS). */
-  unpacked_quantity?: number;
+}
+
+export interface PackingOrderRow {
+  id: number;
+  company_id: number;
+  warehouse_id: number;
+  order_number: string;
+  bom_id: number;
+  /** Items/packages to make. */
+  planned_quantity: number;
+  actual_quantity: number;
+  output_batch_number: string | null;
+  manufacturing_date: string;
+  expiry_date: string | null;
+  production_cost: number;
+  status: string;
+  notes: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string | null;
+  completed_at: string | null;
 }
 
 export class ManufacturingRepository {
@@ -87,33 +106,16 @@ export class ManufacturingRepository {
 
   async countOrdersUsingBom(bomId: number): Promise<number> {
     const row = await this.db.get<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM production_orders WHERE bom_id = ? AND status <> 'CANCELLED'",
-      [bomId],
+      `SELECT
+         (SELECT COUNT(*) FROM production_orders WHERE bom_id = ? AND status <> 'CANCELLED') +
+         (SELECT COUNT(*) FROM packing_orders WHERE bom_id = ? AND status <> 'CANCELLED') AS n`,
+      [bomId, bomId],
     );
     return Number(row?.n ?? 0);
   }
 
   async findBomById(id: number): Promise<BomRow | undefined> {
     return this.db.get<BomRow>("SELECT * FROM bill_of_materials WHERE id = ?", [id]);
-  }
-
-  /**
-   * The active packing-stage BOM for a finished item (the recipe whose
-   * components are packing materials). Used by the pack step when the order's
-   * own BOM is the formulation recipe. Latest one wins when several exist.
-   */
-  async findPackingBomForFinished(finishedItemId: number): Promise<BomRow | undefined> {
-    return this.db.get<BomRow>(
-      `SELECT b.* FROM bill_of_materials b
-        WHERE b.finished_item_id = ? AND b.is_active = 1 AND b.is_temp = 0
-          AND EXISTS (
-            SELECT 1 FROM bom_components c
-              JOIN items i ON i.id = c.component_item_id
-             WHERE c.bom_id = b.id AND i.item_type = 'PACKING_MATERIAL'
-          )
-        ORDER BY b.id DESC LIMIT 1`,
-      [finishedItemId],
-    );
   }
 
   async findBomComponents(bomId: number): Promise<BomComponentRow[]> {
@@ -126,7 +128,7 @@ export class ManufacturingRepository {
   async listBoms(companyId = 1, activeOnly = true): Promise<BomRow[]> {
     return this.db.all<BomRow>(
       "SELECT * FROM bill_of_materials WHERE company_id = ?" +
-        (activeOnly ? " AND is_active = 1 AND is_temp = 0" : "") +
+        (activeOnly ? " AND is_active = 1" : "") +
         " ORDER BY bom_name",
       [companyId],
     );
@@ -151,16 +153,7 @@ export class ManufacturingRepository {
 
   async listOrders(companyId = 1): Promise<ProductionOrderRow[]> {
     return this.db.all<ProductionOrderRow>(
-      `SELECT po.*,
-              CASE WHEN po.output_batch_number LIKE 'UNPACKED-%'
-                   THEN COALESCE(sb.quantity_in_stock, 0) ELSE 0 END AS unpacked_quantity
-         FROM production_orders po
-         LEFT JOIN stock_batches sb
-                ON sb.batch_number = po.output_batch_number
-               AND sb.warehouse_id = po.warehouse_id
-               AND sb.item_id = (SELECT finished_item_id FROM bill_of_materials b WHERE b.id = po.bom_id)
-        WHERE po.company_id = ?
-        ORDER BY po.id DESC LIMIT 200`,
+      "SELECT * FROM production_orders WHERE company_id = ? ORDER BY id DESC LIMIT 200",
       [companyId],
     );
   }
@@ -186,6 +179,55 @@ export class ManufacturingRepository {
   async findConsumptions(orderId: number): Promise<Row[]> {
     return this.db.all<Row>(
       "SELECT * FROM production_consumption WHERE production_order_id = ? ORDER BY id",
+      [orderId],
+    );
+  }
+
+  // --- Packing orders ----------------------------------------------------
+  async packingOrderNumberExists(orderNumber: string, companyId = 1): Promise<boolean> {
+    const row = await this.db.get<{ id: number }>(
+      "SELECT id FROM packing_orders WHERE company_id = ? AND order_number = ?",
+      [companyId, orderNumber],
+    );
+    return row !== undefined;
+  }
+
+  async insertPackingOrder(data: InsertData): Promise<number> {
+    return insertRow(this.db, "packing_orders", data);
+  }
+
+  async findPackingOrderById(id: number): Promise<PackingOrderRow | undefined> {
+    return this.db.get<PackingOrderRow>("SELECT * FROM packing_orders WHERE id = ?", [id]);
+  }
+
+  async listPackingOrders(companyId = 1): Promise<PackingOrderRow[]> {
+    return this.db.all<PackingOrderRow>(
+      "SELECT * FROM packing_orders WHERE company_id = ? ORDER BY id DESC LIMIT 200",
+      [companyId],
+    );
+  }
+
+  async updatePackingOrder(id: number, data: InsertData): Promise<void> {
+    const cols = Object.keys(data);
+    if (cols.length === 0) return;
+    const assignments = cols.map((c) => `${c} = ?`).join(", ");
+    await this.db.run(`UPDATE packing_orders SET ${assignments} WHERE id = ?`, [
+      ...cols.map((c) => data[c] ?? null),
+      id,
+    ]);
+  }
+
+  async deletePackingOrder(id: number): Promise<void> {
+    await this.db.run("DELETE FROM packing_orders WHERE id = ?", [id]);
+  }
+
+  async insertPackingConsumption(data: InsertData): Promise<number> {
+    return insertRow(this.db, "packing_consumption", data);
+  }
+
+  async findPackingConsumptions(orderId: number): Promise<Row[]> {
+    return this.db.all<Row>(
+      "SELECT * FROM packing_consumption WHERE packing_order_id = ? ORDER BY id",
       [orderId],
     );
   }

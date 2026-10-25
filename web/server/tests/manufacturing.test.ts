@@ -9,6 +9,9 @@ let ctx: TestContext;
 let mfg: ManufacturingService;
 let accounting: AccountingService;
 let rawItemId: number;
+let packingItemId: number;
+
+const DATE = "2026-10-08";
 
 beforeEach(async () => {
   ctx = await freshDb();
@@ -34,99 +37,179 @@ beforeEach(async () => {
     quantity_in_stock: 100,
     is_active: 1,
   });
+  packingItemId = await insertRow(ctx.db, "items", {
+    company_id: 1,
+    item_code: "PM-1",
+    item_name: "Bottle 1 Lit",
+    unit: "UNIT",
+    item_type: "PACKING_MATERIAL",
+    purchase_price: 2,
+    selling_price: 0,
+    minimum_stock: 0,
+    maximum_stock: 0,
+    is_active: 1,
+  });
+  await insertRow(ctx.db, "stock_batches", {
+    item_id: packingItemId,
+    warehouse_id: 1,
+    batch_number: "PM-1-BATCH",
+    purchase_price: 2,
+    quantity_in_stock: 100,
+    is_active: 1,
+  });
 });
 afterEach(async () => {
   await ctx.db.close();
 });
 
-async function rawQty(): Promise<number> {
+async function batchQty(batchNumber: string): Promise<number> {
   const row = await ctx.db.get<{ qty: number }>(
-    "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'RM-1-BATCH'",
+    "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = ?",
+    [batchNumber],
   );
   return row?.qty ?? 0;
 }
 
-describe("ManufacturingService", () => {
-  it("marks the BOM phase from its components", async () => {
-    const packingItemId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-1",
-      item_name: "Bottle 1 Lit",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 1,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
+/** A formulation BOM producing 10 units of "(Unpacked) Syrup" from 5 KG raw. */
+async function formulationBom() {
+  return mfg.createBom({
+    bomName: "Syrup",
+    outputQuantity: 10,
+    components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
+  });
+}
 
-    const formulation = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
+async function producedBulk(): Promise<{
+  bom: { id: number; finishedItemId: number };
+  order: { id: number };
+}> {
+  const bom = await formulationBom();
+  const order = await mfg.createProductionOrder({
+    bomId: bom.id,
+    plannedQuantity: 10,
+    manufacturingDate: DATE,
+  });
+  await mfg.startProduction(order.id);
+  await mfg.produceProduction(order.id, { actualQuantity: 10, outputBatchNumber: "BULK-1" });
+  return { bom, order };
+}
+
+describe("ManufacturingService — BOMs", () => {
+  it("creates the (Unpacked) output item automatically for a formulation BOM", async () => {
+    const bom = await formulationBom();
+    const detail = await mfg.getBom(bom.id);
+    expect(detail.bom.phase).toBe("FORMULATION");
+    expect(bom.finishedItemId).not.toBe(ctx.ids.itemId);
+
+    const item = await ctx.db.get<{ item_name: string; item_type: string; unit: string }>(
+      "SELECT item_name, item_type, unit FROM items WHERE id = ?",
+      [bom.finishedItemId],
+    );
+    expect(item?.item_name).toBe("(Unpacked) Syrup");
+    expect(item?.item_type).toBe("FINISHED_GOOD");
+    // Bulk is measured in the raw material's unit.
+    expect(item?.unit).toBe("KG");
+  });
+
+  it("reuses the (Unpacked) item when the same BOM name is created again", async () => {
+    const first = await formulationBom();
+    const second = await formulationBom().catch(() => null);
+    expect(second).toBeNull(); // duplicate BOM name rejected
+    const item = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM items WHERE item_name = '(Unpacked) Syrup'",
+    );
+    expect(item?.id).toBe(first.finishedItemId);
+  });
+
+  it("auto-generates a BOM name and names its output item after it", async () => {
+    const bom = await mfg.createBom({
       outputQuantity: 10,
       components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
     });
-    expect((await mfg.getBom(formulation.id)).bom.phase).toBe("FORMULATION");
+    expect(bom.bomName).toMatch(/^BOM-\d+$/);
+    const item = await ctx.db.get<{ item_name: string }>(
+      "SELECT item_name FROM items WHERE id = ?",
+      [bom.finishedItemId],
+    );
+    expect(item?.item_name).toBe(`(Unpacked) ${bom.bomName}`);
+    const { components } = await mfg.getBom(bom.id);
+    expect(components).toHaveLength(1);
+    expect(components[0]!.quantity_required).toBe(5);
+  });
 
+  it("marks a packing BOM from its finished-good component and requires the output item", async () => {
+    const unpacked = await formulationBom();
     const packing = await mfg.createBom({
+      bomName: "Syrup bottles",
       finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+      outputQuantity: 1,
+      components: [
+        { componentItemId: unpacked.finishedItemId, quantityRequired: 1 },
+        { componentItemId: packingItemId, quantityRequired: 1 },
+      ],
     });
-    expect((await mfg.getBom(packing.id)).bom.phase).toBe("PACKING");
+    const detail = await mfg.getBom(packing.id);
+    expect(detail.bom.phase).toBe("PACKING");
+    expect(detail.bom.finished_item_id).toBe(ctx.ids.itemId);
 
-    await mfg.updateBom(packing.id, {
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    expect((await mfg.getBom(packing.id)).bom.phase).toBe("FORMULATION");
+    // A packing BOM without its output item is rejected.
+    await expect(
+      mfg.createBom({
+        bomName: "No output",
+        outputQuantity: 1,
+        components: [{ componentItemId: packingItemId, quantityRequired: 1 }],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
 
+    // More than one unpacked material is ambiguous.
     await expect(
       mfg.createBom({
         finishedItemId: ctx.ids.itemId,
+        outputQuantity: 1,
+        components: [
+          { componentItemId: unpacked.finishedItemId, quantityRequired: 1 },
+          { componentItemId: ctx.ids.itemId, quantityRequired: 1 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects a BOM that mixes raw materials with packing or finished goods", async () => {
+    await expect(
+      mfg.createBom({
         outputQuantity: 10,
         components: [
           { componentItemId: rawItemId, quantityRequired: 5 },
           { componentItemId: packingItemId, quantityRequired: 1 },
         ],
       }),
-    ).rejects.toThrow(/cannot mix raw materials and packing materials/i);
+    ).rejects.toThrow(/cannot mix raw materials/i);
   });
 
-  it("creates a BOM with an auto-generated name", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    expect(bom.bomName).toMatch(/^BOM-\d+$/);
-    const { components } = await mfg.getBom(bom.id);
-    expect(components).toHaveLength(1);
-    expect(components[0]!.quantity_required).toBe(5);
-  });
-
-  it("edits and deletes a BOM", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-
+  it("renaming a formulation BOM leaves its (Unpacked) item untouched", async () => {
+    const bom = await formulationBom();
     await mfg.updateBom(bom.id, {
-      finishedItemId: ctx.ids.itemId,
+      bomName: "Syrup v2",
       outputQuantity: 20,
       components: [{ componentItemId: rawItemId, quantityRequired: 3 }],
     });
     const updated = await mfg.getBom(bom.id);
+    expect(updated.bom.bom_name).toBe("Syrup v2");
     expect(updated.bom.output_quantity).toBe(20);
-    expect(updated.components).toHaveLength(1);
-    expect(updated.components[0]!.quantity_required).toBe(3);
+    expect(updated.bom.finished_item_id).toBe(bom.finishedItemId);
+    const item = await ctx.db.get<{ item_name: string }>(
+      "SELECT item_name FROM items WHERE id = ?",
+      [bom.finishedItemId],
+    );
+    expect(item?.item_name).toBe("(Unpacked) Syrup");
+  });
 
+  it("deletes an unused BOM and refuses one used by an order", async () => {
+    const bom = await formulationBom();
     const order = await mfg.createProductionOrder({
       bomId: bom.id,
       plannedQuantity: 1,
-      manufacturingDate: "2026-10-08",
+      manufacturingDate: DATE,
     });
     await expect(mfg.deleteBom(bom.id)).rejects.toBeInstanceOf(ValidationError);
     await mfg.deleteProductionOrder(order.id);
@@ -134,16 +217,31 @@ describe("ManufacturingService", () => {
     expect(await mfg.getBom(bom.id).catch(() => null)).toBeNull();
   });
 
-  it("edits and deletes a draft production order", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 1,
-      components: [{ componentItemId: rawItemId, quantityRequired: 1 }],
+  it("allows a deactivated BOM to be used for a production order", async () => {
+    const bom = await formulationBom();
+    await mfg.updateBom(bom.id, {
+      outputQuantity: 10,
+      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
+      isActive: false,
     });
+    expect((await mfg.listBoms(true)).some((row) => row.id === bom.id)).toBe(false);
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 2,
+      manufacturingDate: DATE,
+    });
+    expect(order.bomId).toBe(bom.id);
+    await mfg.deleteProductionOrder(order.id);
+  });
+});
+
+describe("ManufacturingService — production", () => {
+  it("edits and deletes a draft production order", async () => {
+    const bom = await formulationBom();
     const order = await mfg.createProductionOrder({
       bomId: bom.id,
       plannedQuantity: 1,
-      manufacturingDate: "2026-10-08",
+      manufacturingDate: DATE,
     });
     await mfg.updateProductionOrder(order.id, {
       bomId: bom.id,
@@ -158,70 +256,73 @@ describe("ManufacturingService", () => {
     await expect(mfg.getProductionOrder(order.id)).rejects.toBeTruthy();
   });
 
-  it("allows a deactivated BOM to be used for a production order", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 1,
-      components: [{ componentItemId: rawItemId, quantityRequired: 1 }],
-    });
-    await mfg.updateBom(bom.id, {
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 1,
-      components: [{ componentItemId: rawItemId, quantityRequired: 1 }],
-      isActive: false,
-    });
-    expect((await mfg.listBoms(true)).some((row) => row.id === bom.id)).toBe(false);
-
+  it("saves a per-unit BOM from a manual run's totals", async () => {
     const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 2,
-      manufacturingDate: "2026-10-08",
+      bomName: "Ad hoc batch",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      components: [{ componentItemId: rawItemId, quantityRequired: 20 }],
     });
-    expect(order.bomId).toBe(bom.id);
-    await mfg.deleteProductionOrder(order.id);
+    expect(order.orderNumber).toMatch(/^PO-\d+$/);
+
+    const { bom, components } = await mfg.getBom(order.bomId);
+    expect(bom.bom_name).toBe("Ad hoc batch");
+    expect(bom.output_quantity).toBe(1);
+    expect(bom.phase).toBe("FORMULATION");
+    expect(components).toHaveLength(1);
+    expect(components[0]!.quantity_required).toBe(2);
+    const item = await ctx.db.get<{ item_name: string }>(
+      "SELECT item_name FROM items WHERE id = ?",
+      [order.finishedItemId],
+    );
+    expect(item?.item_name).toBe("(Unpacked) Ad hoc batch");
+
+    await mfg.startProduction(order.id);
+    // 20 KG of totals over 10 units = 2 KG/unit; producing 10 consumes 20 KG @20.
+    const result = await mfg.produceProduction(order.id, { actualQuantity: 10 });
+    expect(result.productionCost).toBe(400);
+    expect(await batchQty("RM-1-BATCH")).toBe(80);
   });
 
-  it("rejects a BOM whose finished item is not a finished good", async () => {
+  it("rejects a manual run without totals or with a packing BOM", async () => {
     await expect(
-      mfg.createBom({
-        finishedItemId: rawItemId,
-        outputQuantity: 1,
-        components: [{ componentItemId: rawItemId, quantityRequired: 1 }],
-      }),
+      mfg.createProductionOrder({ plannedQuantity: 1, manufacturingDate: DATE }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const packing = await mfg.createBom({
+      finishedItemId: ctx.ids.itemId,
+      outputQuantity: 1,
+      components: [{ componentItemId: packingItemId, quantityRequired: 1 }],
+    });
+    await expect(
+      mfg.createProductionOrder({ bomId: packing.id, plannedQuantity: 1, manufacturingDate: DATE }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("completes a production order: consumes stock and posts to inventory", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
+  it("produces unpacked stock, consumes raw materials and posts to inventory", async () => {
+    const bom = await formulationBom();
     const order = await mfg.createProductionOrder({
       bomId: bom.id,
       plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
+      manufacturingDate: DATE,
     });
     await mfg.startProduction(order.id);
-    const result = await mfg.completeProduction(order.id, {
+    const result = await mfg.produceProduction(order.id, {
       actualQuantity: 10,
       outputBatchNumber: "FG-PROD-1",
     });
 
-    // 5 units of raw material at cost 20 => 100
+    // 5 KG of raw at 20 => 100.
     expect(result.productionCost).toBe(100);
-    expect(await rawQty()).toBe(95);
+    expect(await batchQty("RM-1-BATCH")).toBe(95);
 
-    // The unpacked output is its own batch; the pre-existing DEMO-BATCH is untouched.
-    const finished = await ctx.db.get<{ qty: number; purchase_price: number }>(
-      "SELECT quantity_in_stock AS qty, purchase_price FROM stock_batches WHERE batch_number = 'FG-PROD-1'",
+    const unpacked = await ctx.db.get<{ qty: number; purchase_price: number; item_id: number }>(
+      "SELECT quantity_in_stock AS qty, purchase_price, item_id FROM stock_batches WHERE batch_number = 'FG-PROD-1'",
     );
-    expect(finished?.qty).toBe(10);
-    expect(finished?.purchase_price).toBe(10);
-    const demo = await ctx.db.get<{ qty: number }>(
-      "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'DEMO-BATCH'",
-    );
-    expect(demo?.qty).toBe(1000);
+    expect(unpacked?.qty).toBe(10);
+    expect(unpacked?.purchase_price).toBe(10);
+    expect(unpacked?.item_id).toBe(bom.finishedItemId);
+    expect(await batchQty("DEMO-BATCH")).toBe(1000);
 
     const je = await accounting.getJournalEntry("production_orders", order.id);
     const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
@@ -232,476 +333,188 @@ describe("ManufacturingService", () => {
     );
   });
 
-  it("produces unpacked stock, then packs it consuming packing materials", async () => {
-    const packingItemId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-1",
-      item_name: "Packing Material 1",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 2,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
-    await insertRow(ctx.db, "stock_batches", {
-      item_id: packingItemId,
-      warehouse_id: 1,
-      batch_number: "PM-1-BATCH",
-      purchase_price: 2,
-      quantity_in_stock: 100,
-      is_active: 1,
-    });
-    const unusedPackingId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-2",
-      item_name: "Packing Material 2",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 5,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
-    await insertRow(ctx.db, "stock_batches", {
-      item_id: unusedPackingId,
-      warehouse_id: 1,
-      batch_number: "PM-2-BATCH",
-      purchase_price: 5,
-      quantity_in_stock: 50,
-      is_active: 1,
-    });
+  it("refuses to produce with insufficient stock unless Ignore stock is set", async () => {
     const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    // Packing stage is a separate BOM for the same finished item.
-    await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [
-        { componentItemId: packingItemId, quantityRequired: 10 },
-        { componentItemId: unusedPackingId, quantityRequired: 10 },
-      ],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-
-    // Stage 1: raw only, output held as an unpacked batch that sales cannot see.
-    const produced = await mfg.produceProduction(order.id, {
-      actualQuantity: 10,
-      outputBatchNumber: "FG-STAGE",
-    });
-    expect(produced.productionCost).toBe(100);
-    expect(await rawQty()).toBe(95);
-    const packingQty = async () =>
-      (
-        await ctx.db.get<{ qty: number }>(
-          "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'PM-1-BATCH'",
-        )
-      )?.qty ?? 0;
-    expect(await packingQty()).toBe(100);
-
-    const unpacked = await ctx.db.get<{ qty: number; batch_number: string }>(
-      "SELECT quantity_in_stock AS qty, batch_number FROM stock_batches WHERE batch_number = 'UNPACKED-FG-STAGE'",
-    );
-    expect(unpacked?.qty).toBe(10);
-
-    // Stage 2: packing materials are consumed and the batch becomes saleable.
-    const packed = await mfg.packProduction(order.id, {
-      outputBatchNumber: "FG-PACKED",
-      materials: [{ itemId: packingItemId, quantity: 10 }],
-    });
-    expect(packed.productionCost).toBe(120);
-    expect(await packingQty()).toBe(90);
-    const unusedQty = await ctx.db.get<{ qty: number }>(
-      "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'PM-2-BATCH'",
-    );
-    expect(unusedQty?.qty).toBe(50);
-    const finalBatch = await ctx.db.get<{ qty: number; purchase_price: number }>(
-      "SELECT quantity_in_stock AS qty, purchase_price FROM stock_batches WHERE batch_number = 'FG-PACKED'",
-    );
-    expect(finalBatch?.qty).toBe(10);
-    expect(finalBatch?.purchase_price).toBe(12);
-
-    const { order: finished } = await mfg.getProductionOrder(order.id);
-    expect(finished.status).toBe("COMPLETED");
-    expect(finished.raw_material_cost).toBe(100);
-    expect(finished.packing_material_cost).toBe(20);
-
-    const journals = await ctx.db.all<{ total_debit: number }>(
-      `SELECT SUM(jel.debit) AS total_debit FROM journal_entries je
-         JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
-        WHERE je.source_table = 'production_orders' AND je.source_id = ?`,
-      [order.id],
-    );
-    expect(Number(journals[0]?.total_debit ?? 0)).toBe(120);
-  });
-
-  it("activates an inactive finished item and marks it as unpacked", async () => {
-    await ctx.db.run("UPDATE items SET is_active = 0 WHERE id = ?", [ctx.ids.itemId]);
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-    await mfg.produceProduction(order.id, { actualQuantity: 10 });
-
-    const finished = await ctx.db.get<{ item_name: string; is_active: number }>(
-      "SELECT item_name, is_active FROM items WHERE id = ?",
-      [ctx.ids.itemId],
-    );
-    expect(finished?.is_active).toBe(1);
-    expect(finished?.item_name).toBe("(unpacked) Demo Finished Good");
-
-    // Other items are untouched.
-    const raw = await ctx.db.get<{ item_name: string; is_active: number }>(
-      "SELECT item_name, is_active FROM items WHERE id = ?",
-      [rawItemId],
-    );
-    expect(raw?.item_name).toBe("Raw Material 1");
-    expect(raw?.is_active).toBe(1);
-
-    // A later production must not double-prefix the name.
-    const secondBom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    const secondOrder = await mfg.createProductionOrder({
-      bomId: secondBom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-09",
-    });
-    await mfg.startProduction(secondOrder.id);
-    await mfg.produceProduction(secondOrder.id, { actualQuantity: 10 });
-    const afterSecond = await ctx.db.get<{ item_name: string }>(
-      "SELECT item_name FROM items WHERE id = ?",
-      [ctx.ids.itemId],
-    );
-    expect(afterSecond?.item_name).toBe("(unpacked) Demo Finished Good");
-  });
-
-  it("packs only part of the unpacked stock and leaves the rest", async () => {
-    const packingItemId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-P",
-      item_name: "Packing Material P",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 2,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
-    await insertRow(ctx.db, "stock_batches", {
-      item_id: packingItemId,
-      warehouse_id: 1,
-      batch_number: "PM-P-BATCH",
-      purchase_price: 2,
-      quantity_in_stock: 100,
-      is_active: 1,
-    });
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    // Packing stage is a separate BOM for the same finished item.
-    await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: packingItemId, quantityRequired: 10 }],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-    await mfg.produceProduction(order.id, {
-      actualQuantity: 10,
-      outputBatchNumber: "FG-PART",
-    });
-
-    // Pack 4 of the 10 unpacked units: raw unit cost is 10, packing is 2/unit.
-    const packed = await mfg.packProduction(order.id, {
-      quantity: 4,
-      materials: [{ itemId: packingItemId, quantity: 4 }],
-    });
-    expect(packed.productionCost).toBe(48);
-
-    const remainder = await ctx.db.get<{ qty: number }>(
-      "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'UNPACKED-FG-PART'",
-    );
-    expect(remainder?.qty).toBe(6);
-    const packedBatch = await ctx.db.get<{ qty: number; purchase_price: number }>(
-      "SELECT quantity_in_stock AS qty, purchase_price FROM stock_batches WHERE batch_number = 'FG-PART'",
-    );
-    expect(packedBatch?.qty).toBe(4);
-    expect(packedBatch?.purchase_price).toBe(12);
-
-    const { order: partial } = await mfg.getProductionOrder(order.id);
-    expect(partial.status).toBe("IN_PROGRESS");
-    expect(partial.output_batch_number).toBe("UNPACKED-FG-PART");
-
-    // Packing the rest completes the order; the unpacked batch is renamed away.
-    await mfg.packProduction(order.id, {
-      materials: [{ itemId: packingItemId, quantity: 6 }],
-    });
-    const unpackedGone = await ctx.db.get<{ qty: number }>(
-      "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'UNPACKED-FG-PART'",
-    );
-    expect(unpackedGone).toBeUndefined();
-    const totalPacked = await ctx.db.get<{ qty: number }>(
-      `SELECT SUM(quantity_in_stock) AS qty FROM stock_batches
-        WHERE item_id = ? AND batch_number LIKE 'FG-PART%'`,
-      [ctx.ids.itemId],
-    );
-    expect(totalPacked?.qty).toBe(10);
-    const { order: done } = await mfg.getProductionOrder(order.id);
-    expect(done.status).toBe("COMPLETED");
-  });
-
-  it("saves the packing materials from a first pack as the item's packing BOM", async () => {
-    const packingItemId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-N",
-      item_name: "Packing Material N",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 2,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
-    await insertRow(ctx.db, "stock_batches", {
-      item_id: packingItemId,
-      warehouse_id: 1,
-      batch_number: "PM-N-BATCH",
-      purchase_price: 2,
-      quantity_in_stock: 100,
-      is_active: 1,
-    });
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-    await mfg.produceProduction(order.id, { actualQuantity: 10 });
-
-    const packed = await mfg.packProduction(order.id, {
-      packSize: 5,
-      materials: [{ itemId: packingItemId, quantity: 20 }],
-    });
-    expect(packed.packingBomName).toMatch(/^BOM-\d+$/);
-
-    const saved = await ctx.db.get<{
-      id: number;
-      phase: string;
-      output_quantity: number;
-      is_active: number;
-    }>(
-      "SELECT id, phase, output_quantity, is_active FROM bill_of_materials WHERE bom_name = ?",
-      [packed.packingBomName],
-    );
-    expect(saved?.phase).toBe("PACKING");
-    // 20 bottles for 2 packs of 5 L are stored as the ratio 10 per 5 L pack.
-    expect(saved?.output_quantity).toBe(5);
-    expect(saved?.is_active).toBe(1);
-    const components = await ctx.db.all<{
-      component_item_id: number;
-      quantity_required: number;
-    }>("SELECT component_item_id, quantity_required FROM bom_components WHERE bom_id = ?", [
-      saved!.id,
-    ]);
-    expect(components).toHaveLength(1);
-    expect(components[0]!.component_item_id).toBe(packingItemId);
-    expect(components[0]!.quantity_required).toBe(10);
-  });
-
-  it("packs from the separate packing BOM when no materials are passed", async () => {
-    const packingItemId = await insertRow(ctx.db, "items", {
-      company_id: 1,
-      item_code: "PM-F",
-      item_name: "Packing Material F",
-      unit: "PCS",
-      item_type: "PACKING_MATERIAL",
-      purchase_price: 3,
-      selling_price: 0,
-      minimum_stock: 0,
-      maximum_stock: 0,
-      is_active: 1,
-    });
-    await insertRow(ctx.db, "stock_batches", {
-      item_id: packingItemId,
-      warehouse_id: 1,
-      batch_number: "PM-F-BATCH",
-      purchase_price: 3,
-      quantity_in_stock: 100,
-      is_active: 1,
-    });
-    await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: packingItemId, quantityRequired: 10 }],
-    });
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 10,
-      components: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-    await mfg.produceProduction(order.id, { actualQuantity: 10, outputBatchNumber: "FG-FALLBACK" });
-
-    const packed = await mfg.packProduction(order.id, {});
-    expect(packed.productionCost).toBe(130); // raw 100 + packing 10 × 3
-    const packing = await ctx.db.get<{ qty: number }>(
-      "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'PM-F-BATCH'",
-    );
-    expect(packing?.qty).toBe(90);
-  });
-
-  it("creates a hidden temporary one-use BOM for an ad-hoc order", async () => {
-    const order = await mfg.createProductionOrder({
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-      tempFinishedItemId: ctx.ids.itemId,
-      tempComponents: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    expect(order.orderNumber).toMatch(/^PO-\d+$/);
-
-    const { bom, components } = await mfg.getBom(order.bomId);
-    expect(bom.is_temp).toBe(1);
-    expect(bom.bom_name).toBe(`TEMP-${order.orderNumber}`);
-    // Components are expressed per ONE unit of output, like the Python path.
-    expect(bom.output_quantity).toBe(1);
-    expect(components).toHaveLength(1);
-    expect(components[0]!.quantity_required).toBe(5);
-
-    // …and the temp BOM is invisible in the BOM list.
-    const boms = await mfg.listBoms();
-    expect(boms.some((row) => row.id === order.bomId)).toBe(false);
-    expect(boms.some((row) => row.is_temp === 1)).toBe(false);
-  });
-
-  it("runs a temporary production order end to end", async () => {
-    const order = await mfg.createProductionOrder({
-      orderNumber: "PO-TEMP-1",
-      plannedQuantity: 10,
-      manufacturingDate: "2026-10-08",
-      tempFinishedItemId: ctx.ids.itemId,
-      tempComponents: [{ componentItemId: rawItemId, quantityRequired: 5 }],
-    });
-    expect(order.orderNumber).toBe("PO-TEMP-1");
-
-    await mfg.startProduction(order.id);
-    const result = await mfg.completeProduction(order.id, {
-      actualQuantity: 10,
-      outputBatchNumber: "FG-TEMP-1",
-    });
-
-    // 5 units of raw material per output unit x 10 output units at cost 20.
-    expect(result.productionCost).toBe(1000);
-    expect(await rawQty()).toBe(50);
-    const je = await accounting.getJournalEntry("production_orders", order.id);
-    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
-    expect(lines.find((l) => l.account_code === "1220")?.debit).toBe(1000);
-    expect(lines.find((l) => l.account_code === "1200")?.credit).toBe(1000);
-  });
-
-  it("rejects a malformed temporary or saved production order", async () => {
-    const base = { plannedQuantity: 1, manufacturingDate: "2026-10-08" };
-    // No BOM and no temporary details.
-    await expect(mfg.createProductionOrder(base)).rejects.toBeInstanceOf(ValidationError);
-    // Temporary production needs a finished good as the output item.
-    await expect(
-      mfg.createProductionOrder({
-        ...base,
-        tempFinishedItemId: rawItemId,
-        tempComponents: [{ componentItemId: rawItemId, quantityRequired: 1 }],
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
-    // …and at least one component, which must be raw/packing material.
-    await expect(
-      mfg.createProductionOrder({ ...base, tempFinishedItemId: ctx.ids.itemId, tempComponents: [] }),
-    ).rejects.toBeInstanceOf(ValidationError);
-    await expect(
-      mfg.createProductionOrder({
-        ...base,
-        tempFinishedItemId: ctx.ids.itemId,
-        tempComponents: [{ componentItemId: ctx.ids.itemId, quantityRequired: 1 }],
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  it("refuses to complete when component stock is insufficient", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
+      bomName: "Huge batch",
       outputQuantity: 1,
       components: [{ componentItemId: rawItemId, quantityRequired: 1000 }],
     });
     const order = await mfg.createProductionOrder({
       bomId: bom.id,
       plannedQuantity: 1,
-      manufacturingDate: "2026-10-08",
+      manufacturingDate: DATE,
     });
     await mfg.startProduction(order.id);
     await expect(
-      mfg.completeProduction(order.id, { actualQuantity: 1 }),
+      mfg.produceProduction(order.id, { actualQuantity: 1 }),
     ).rejects.toBeInstanceOf(InsufficientStockError);
-    expect(await rawQty()).toBe(100);
-  });
+    expect(await batchQty("RM-1-BATCH")).toBe(100);
 
-  it("can complete with ignore stock when component stock is insufficient", async () => {
-    const bom = await mfg.createBom({
-      finishedItemId: ctx.ids.itemId,
-      outputQuantity: 1,
-      components: [{ componentItemId: rawItemId, quantityRequired: 1000 }],
-    });
-    const order = await mfg.createProductionOrder({
-      bomId: bom.id,
-      plannedQuantity: 1,
-      manufacturingDate: "2026-10-08",
-    });
-    await mfg.startProduction(order.id);
-
-    const result = await mfg.completeProduction(order.id, {
+    const forced = await mfg.produceProduction(order.id, {
       actualQuantity: 1,
       ignoreStock: true,
     });
-    expect(result.productionCost).toBe(20_000);
-    expect(await rawQty()).toBe(100);
-
+    expect(forced.productionCost).toBe(20_000);
+    expect(await batchQty("RM-1-BATCH")).toBe(100);
     const { consumptions } = await mfg.getProductionOrder(order.id);
     expect(consumptions).toHaveLength(0);
-    const je = await accounting.getJournalEntry("production_orders", order.id);
-    expect(je).not.toBeNull();
+    expect(await accounting.getJournalEntry("production_orders", order.id)).not.toBeNull();
+  });
+});
+
+describe("ManufacturingService — packing", () => {
+  it("packs unpacked bulk with packing materials into finished goods", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Syrup bottles",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    expect(packing.orderNumber).toMatch(/^PCO-\d+$/);
+
+    const saved = await mfg.getBom(packing.bomId);
+    expect(saved.bom.phase).toBe("PACKING");
+    expect(saved.bom.finished_item_id).toBe(ctx.ids.itemId);
+    expect(saved.bom.output_quantity).toBe(1);
+    expect(saved.components).toHaveLength(2);
+    // Per unit: 1 unit of unpacked bulk + 1 bottle.
+    expect(saved.components.map((c) => c.quantity_required).sort()).toEqual([1, 1]);
+
+    await mfg.startPacking(packing.id);
+    const result = await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-PACKED" });
+
+    // Unpacked 10 @10 = 100, bottles 10 @2 = 20.
+    expect(result.productionCost).toBe(120);
+    expect(await batchQty("BULK-1")).toBe(0);
+    expect(await batchQty("PM-1-BATCH")).toBe(90);
+
+    const fg = await ctx.db.get<{ qty: number; purchase_price: number; item_id: number }>(
+      "SELECT quantity_in_stock AS qty, purchase_price, item_id FROM stock_batches WHERE batch_number = 'FG-PACKED'",
+    );
+    expect(fg?.qty).toBe(10);
+    expect(fg?.purchase_price).toBe(12);
+    expect(fg?.item_id).toBe(ctx.ids.itemId);
+
+    const { order } = await mfg.getPackingOrder(packing.id);
+    expect(order.status).toBe("COMPLETED");
+    expect(order.production_cost).toBe(120);
+
+    const je = await accounting.getJournalEntry("packing_orders", packing.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(lines.find((l) => l.account_code === "1220")?.debit).toBe(120);
+    expect(lines.find((l) => l.account_code === "1210")?.credit).toBe(20);
+    expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
+      lines.reduce((a, l) => a + l.credit, 0),
+    );
+  });
+
+  it("packs part of a packing order and completes it with the rest", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Partial pack",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+
+    const partial = await mfg.packPackingOrder(packing.id, {
+      units: 4,
+      unpackedQuantity: 4,
+      materials: [{ itemId: packingItemId, quantity: 4 }],
+    });
+    expect(partial.productionCost).toBe(48);
+    expect(await batchQty("BULK-1")).toBe(6);
+    expect((await mfg.getPackingOrder(packing.id)).order.status).toBe("IN_PROGRESS");
+
+    await mfg.packPackingOrder(packing.id, {
+      units: 6,
+      unpackedQuantity: 6,
+      materials: [{ itemId: packingItemId, quantity: 6 }],
+    });
+    expect((await mfg.getPackingOrder(packing.id)).order.status).toBe("COMPLETED");
+    expect(await batchQty("BULK-1")).toBe(0);
+  });
+
+  it("packs from a saved packing BOM, using its per-unit recipe", async () => {
+    const { bom } = await producedBulk();
+    const packingBom = await mfg.createBom({
+      bomName: "Saved packing",
+      finishedItemId: ctx.ids.itemId,
+      outputQuantity: 1,
+      components: [
+        { componentItemId: bom.finishedItemId, quantityRequired: 1 },
+        { componentItemId: packingItemId, quantityRequired: 2 },
+      ],
+    });
+    const order = await mfg.createPackingOrder({
+      bomId: packingBom.id,
+      plannedQuantity: 5,
+      manufacturingDate: DATE,
+    });
+    await mfg.startPacking(order.id);
+    const result = await mfg.packPackingOrder(order.id);
+    // 5 unpacked @10 + 10 bottles @2 = 70.
+    expect(result.productionCost).toBe(70);
+    expect(await batchQty("PM-1-BATCH")).toBe(90);
+  });
+
+  it("refuses a formulation BOM for packing and vice versa", async () => {
+    const bom = await formulationBom();
+    await expect(
+      mfg.createPackingOrder({ bomId: bom.id, plannedQuantity: 1, manufacturingDate: DATE }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const packing = await mfg.createBom({
+      finishedItemId: ctx.ids.itemId,
+      outputQuantity: 1,
+      components: [{ componentItemId: packingItemId, quantityRequired: 1 }],
+    });
+    await expect(
+      mfg.createProductionOrder({ bomId: packing.id, plannedQuantity: 1, manufacturingDate: DATE }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuses packing with insufficient stock unless Ignore stock is set", async () => {
+    const { bom } = await producedBulk();
+    const order = await mfg.createPackingOrder({
+      packingBomName: "Too many bottles",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 500 }],
+    });
+    await mfg.startPacking(order.id);
+    await expect(mfg.packPackingOrder(order.id)).rejects.toBeInstanceOf(InsufficientStockError);
+    expect(await batchQty("PM-1-BATCH")).toBe(100);
+
+    const forced = await mfg.packPackingOrder(order.id, { ignoreStock: true });
+    expect(forced.productionCost).toBe(1100); // 10 @10 + 500 @2
+    expect(await batchQty("PM-1-BATCH")).toBe(100);
+    expect((await mfg.getPackingOrder(order.id)).consumptions).toHaveLength(0);
+  });
+
+  it("deletes a draft packing order and refuses to delete its BOM while it exists", async () => {
+    const { bom } = await producedBulk();
+    const order = await mfg.createPackingOrder({
+      packingBomName: "Draft pack",
+      plannedQuantity: 1,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 1,
+    });
+    await expect(mfg.deleteBom(order.bomId)).rejects.toBeInstanceOf(ValidationError);
+    await mfg.deletePackingOrder(order.id);
+    await mfg.deleteBom(order.bomId);
   });
 });

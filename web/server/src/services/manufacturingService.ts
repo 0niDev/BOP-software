@@ -1,36 +1,38 @@
 /**
- * Manufacturing service. Port of create_bom / create_production_order /
- * start_production / complete_production from services/manufacturing_service.py.
+ * Manufacturing service, two independent stages:
  *
- * completeProduction consumes raw/packing stock and posts:
- *   Dr Inventory - Finished Goods      total cost
- *     Cr Inventory - Raw Materials            raw cost
- *     Cr Inventory - Packing Materials        packing cost
+ *  Production (formulation): raw materials -> a batch of the "(Unpacked) <BOM>"
+ *  finished-good item. Journals Dr Inventory - Finished Goods / Cr the raw
+ *  material inventory accounts.
  *
- * createProductionOrder also supports the Python app's "temporary one-use BOM"
- * path: pass `tempFinishedItemId` + `tempComponents` instead of a saved BOM and
- * a hidden BOM flagged `is_temp = 1`, named `TEMP-<order number>`, is created and
- * linked to the order. Those BOMs never appear in the BOM list.
+ *  Packing: unpacked bulk + packing materials -> saleable finished goods, on its
+ *  own packing order. Journals Dr Inventory - Finished Goods / Cr the inventory
+ *  accounts of everything consumed (the unpacked bulk is itself finished goods).
+ *
+ * Both stages create Draft orders; stock and journals only move when the user
+ * explicitly produces or packs.
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import { InsufficientStockError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
 import { insertRow } from "../repositories/base.js";
-import { ItemRepository } from "../repositories/itemRepository.js";
+import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import {
   ManufacturingRepository,
   type BomComponentRow,
   type BomRow,
+  type PackingOrderRow,
   type ProductionOrderRow,
 } from "../repositories/manufacturingRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { INVENTORY_ACCOUNT_BY_TYPE, ItemService } from "./itemService.js";
 
-/** Item-name prefix applied to finished goods produced through the unpacked stage. */
-const UNPACKED_ITEM_PREFIX = "(unpacked) ";
+/** Prefix of the intermediate inventory item a formulation BOM produces. */
+export const UNPACKED_ITEM_PREFIX = "(Unpacked) ";
 
 export interface BomComponentInput {
   componentItemId: number;
@@ -39,7 +41,11 @@ export interface BomComponentInput {
 }
 
 export interface CreateBomInput {
-  finishedItemId: number;
+  /**
+   * Formulation BOMs may omit it: the "(Unpacked) <BOM name>" output item is
+   * created (or reused) automatically. Packing BOMs require the finished good.
+   */
+  finishedItemId?: number | null;
   outputQuantity: number | string;
   components: readonly BomComponentInput[];
   bomName?: string | null;
@@ -48,7 +54,7 @@ export interface CreateBomInput {
 }
 
 export interface UpdateBomInput {
-  finishedItemId: number;
+  finishedItemId?: number | null;
   outputQuantity: number | string;
   components: readonly BomComponentInput[];
   bomName?: string | null;
@@ -57,7 +63,7 @@ export interface UpdateBomInput {
 }
 
 export interface CreateProductionOrderInput {
-  /** Saved BOM to produce from — omit for a temporary one-use production. */
+  /** Saved formulation BOM to produce from — omit for a manual run. */
   bomId?: number | null;
   plannedQuantity: number | string;
   manufacturingDate: string;
@@ -67,10 +73,10 @@ export interface CreateProductionOrderInput {
   warehouseId?: number;
   createdBy?: number | null;
   companyId?: number;
-  /** Temporary (one-use) production: the finished item to make … */
-  tempFinishedItemId?: number | null;
-  /** … and the raw/packing materials consumed, as for a BOM. */
-  tempComponents?: readonly BomComponentInput[] | null;
+  /** Manual run: name for the per-unit BOM saved from this run … */
+  bomName?: string | null;
+  /** … and the raw-material totals consumed by the whole run. */
+  components?: readonly BomComponentInput[] | null;
 }
 
 export interface CompleteProductionInput {
@@ -89,21 +95,62 @@ export interface UpdateProductionOrderInput {
   notes?: string | null;
 }
 
-export interface PackProductionInput {
+export interface CreatePackingOrderInput {
+  /** Saved packing BOM — omit for a manual run (which saves one). */
+  bomId?: number | null;
+  plannedQuantity: number | string;
+  manufacturingDate: string;
+  orderNumber?: string | null;
+  expiryDate?: string | null;
+  notes?: string | null;
+  warehouseId?: number;
+  createdBy?: number | null;
+  companyId?: number;
+  /** Manual run: name for the per-unit packing BOM … */
+  packingBomName?: string | null;
+  /** … the finished good produced … */
+  outputItemId?: number | null;
+  /** … the unpacked bulk consumed … */
+  unpackedItemId?: number | null;
+  /** … its total quantity for the run … */
+  unpackedQuantity?: number | string | null;
+  /** … and the packing-material totals for the run. */
+  materials?: readonly BomComponentInput[] | null;
+}
+
+export interface UpdatePackingOrderInput {
+  bomId: number;
+  plannedQuantity: number | string;
+  manufacturingDate: string;
+  expiryDate?: string | null;
+  notes?: string | null;
+}
+
+export interface PackPackingOrderInput {
+  /** Items/packages to make now. Defaults to the order's planned quantity. */
+  units?: number | string | null;
+  /** Unpacked bulk consumed now. Defaults to the BOM ratio. */
+  unpackedQuantity?: number | string | null;
+  /** Packing materials used now. Defaults to the BOM ratio. */
+  materials?: readonly { itemId: number; quantity: number | string }[] | null;
   outputBatchNumber?: string | null;
   ignoreStock?: boolean;
-  /** How much of the unpacked stock to pack now. Omit to pack all of it. */
-  quantity?: number | string;
-  /** Bulk held by one pack of the finished good (its stock unit). */
-  packSize?: number | string;
-  /** Packing materials chosen by the user. Omit to fall back to the BOM. */
-  materials?: readonly { itemId: number; quantity: number | string }[];
 }
 
 interface ValidatedComponent {
   componentItemId: number;
   quantityRequired: Decimal;
   wastagePercent: Decimal;
+  itemType: ItemType;
+}
+
+interface ConsumedMaterial {
+  itemId: number;
+  itemType: ItemType;
+  batchId: number | null;
+  quantity: Decimal;
+  unitCost: Decimal;
+  cost: Decimal;
 }
 
 export class ManufacturingService {
@@ -112,6 +159,7 @@ export class ManufacturingService {
   private readonly manufacturing: ManufacturingRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
+  private readonly itemService: ItemService;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -122,6 +170,7 @@ export class ManufacturingService {
     this.manufacturing = new ManufacturingRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.itemService = new ItemService(db, companyId);
   }
 
   // --- BOM ---------------------------------------------------------------
@@ -136,12 +185,10 @@ export class ManufacturingService {
     return { bom, components };
   }
 
-  async createBom(input: CreateBomInput): Promise<{ id: number; bomName: string }> {
+  async createBom(
+    input: CreateBomInput,
+  ): Promise<{ id: number; bomName: string; finishedItemId: number }> {
     const companyId = input.companyId ?? this.companyId;
-    const finished = await this.items.requireById(input.finishedItemId);
-    if (finished.item_type !== "FINISHED_GOOD") {
-      throw new ValidationError("Finished item must be of type FINISHED_GOOD.");
-    }
     const outputQuantity = dec(input.outputQuantity);
     if (outputQuantity.lessThanOrEqualTo(0)) {
       throw new ValidationError("Output quantity must be greater than 0.");
@@ -149,16 +196,25 @@ export class ManufacturingService {
     if (!input.components || input.components.length === 0) {
       throw new ValidationError("At least one component is required.");
     }
-
     const name = input.bomName?.trim() || null;
     if (name && (await this.manufacturing.findBomByName(name, companyId))) {
       throw new ValidationError(`BOM name '${name}' already exists.`);
     }
 
     const components = await this.validateComponents(input.components);
+    if (components.phase === "PACKING" && input.finishedItemId == null) {
+      throw new ValidationError("A packing BOM needs the finished output item.");
+    }
+    if (input.finishedItemId != null) {
+      await this.requireFinishedItem(input.finishedItemId);
+    }
 
     return this.db.transaction(async () => {
       const bomName = name ?? (await this.journal.nextVoucherNumber(companyId, "BOM"));
+      const finished =
+        input.finishedItemId != null
+          ? await this.items.requireById(input.finishedItemId)
+          : await this.ensureUnpackedItem(bomName, components.components);
       const bomId = await this.manufacturing.insertBom({
         company_id: companyId,
         finished_item_id: finished.id,
@@ -176,21 +232,14 @@ export class ManufacturingService {
           wastage_percent: toStorage(component.wastagePercent),
         });
       }
-      return { id: bomId, bomName };
+      return { id: bomId, bomName, finishedItemId: finished.id };
     });
   }
 
   async updateBom(id: number, input: UpdateBomInput): Promise<{ id: number; bomName: string }> {
     const existing = await this.manufacturing.findBomById(id);
     if (!existing) throw new NotFoundError(`BOM ${id} not found.`);
-    if (existing.is_temp) {
-      throw new ValidationError("A temporary one-use BOM cannot be edited.");
-    }
 
-    const finished = await this.items.requireById(input.finishedItemId);
-    if (finished.item_type !== "FINISHED_GOOD") {
-      throw new ValidationError("Finished item must be of type FINISHED_GOOD.");
-    }
     const outputQuantity = dec(input.outputQuantity);
     if (outputQuantity.lessThanOrEqualTo(0)) {
       throw new ValidationError("Output quantity must be greater than 0.");
@@ -205,10 +254,13 @@ export class ManufacturingService {
       }
     }
     const components = await this.validateComponents(input.components);
+    // Renaming a formulation BOM must not touch its "(Unpacked)" item (Q3).
+    const finishedItemId = input.finishedItemId ?? existing.finished_item_id;
+    await this.requireFinishedItem(finishedItemId);
 
     await this.db.transaction(async () => {
       await this.manufacturing.updateBom(id, {
-        finished_item_id: finished.id,
+        finished_item_id: finishedItemId,
         bom_name: bomName,
         output_quantity: toStorage(outputQuantity),
         notes: input.notes ?? existing.notes,
@@ -231,11 +283,8 @@ export class ManufacturingService {
   async deleteBom(id: number): Promise<void> {
     const existing = await this.manufacturing.findBomById(id);
     if (!existing) throw new NotFoundError(`BOM ${id} not found.`);
-    if (existing.is_temp) {
-      throw new ValidationError("A temporary one-use BOM cannot be deleted on its own.");
-    }
     if ((await this.manufacturing.countOrdersUsingBom(id)) > 0) {
-      throw new ValidationError("Cannot delete a BOM that is used by production orders.");
+      throw new ValidationError("Cannot delete a BOM that is used by production or packing orders.");
     }
     await this.db.transaction(async () => {
       await this.manufacturing.deleteBomComponents(id);
@@ -243,49 +292,84 @@ export class ManufacturingService {
     });
   }
 
+  private async requireFinishedItem(id: number): Promise<ItemRow> {
+    const item = await this.items.requireById(id);
+    if (item.item_type !== "FINISHED_GOOD") {
+      throw new ValidationError("Finished item must be of type FINISHED_GOOD.");
+    }
+    return item;
+  }
+
+  /** The "(Unpacked) <BOM name>" output item of a formulation BOM. */
+  private async ensureUnpackedItem(
+    bomName: string,
+    components: readonly ValidatedComponent[],
+  ): Promise<ItemRow> {
+    const itemName = `${UNPACKED_ITEM_PREFIX}${bomName}`;
+    const existing = await this.items.findByName(itemName, this.companyId);
+    if (existing) return existing;
+    // Bulk is measured in the first component's unit (e.g. KG or L).
+    const first = await this.items.requireById(components[0]!.componentItemId);
+    return this.itemService.create({
+      itemName,
+      itemType: "FINISHED_GOOD",
+      unit: first.unit,
+    });
+  }
+
   private async validateComponents(
     components: readonly BomComponentInput[],
   ): Promise<{ components: ValidatedComponent[]; phase: "FORMULATION" | "PACKING" }> {
     const validated: ValidatedComponent[] = [];
-    let hasRawMaterial = false;
-    let hasPackingMaterial = false;
-    let firstRawName = "";
-    let firstPackingName = "";
+    let rawName = "";
+    let otherName = "";
+    let finishedCount = 0;
+
     for (const raw of components) {
       const quantityRequired = dec(raw.quantityRequired);
       if (!raw.componentItemId || quantityRequired.lessThanOrEqualTo(0)) {
         throw new ValidationError("Each component requires an item and quantity.");
       }
       const item = await this.items.requireById(raw.componentItemId);
-      if (item.item_type !== "RAW_MATERIAL" && item.item_type !== "PACKING_MATERIAL") {
+      if (
+        item.item_type !== "RAW_MATERIAL" &&
+        item.item_type !== "PACKING_MATERIAL" &&
+        item.item_type !== "FINISHED_GOOD"
+      ) {
         throw new ValidationError(
-          `Component '${item.item_name}' must be RAW_MATERIAL or PACKING_MATERIAL.`,
+          `Component '${item.item_name}' must be a raw, packing or finished-good item.`,
         );
       }
       if (item.item_type === "RAW_MATERIAL") {
-        hasRawMaterial = true;
-        if (!firstRawName) firstRawName = item.item_name;
+        rawName ||= item.item_name;
       } else {
-        hasPackingMaterial = true;
-        if (!firstPackingName) firstPackingName = item.item_name;
+        otherName ||= item.item_name;
+        if (item.item_type === "FINISHED_GOOD") finishedCount += 1;
       }
       const wastagePercent = dec(raw.wastagePercent ?? 0);
       if (wastagePercent.lessThan(0) || wastagePercent.greaterThan(100)) {
         throw new ValidationError("Wastage percentage must be between 0 and 100.");
       }
-      validated.push({ componentItemId: item.id, quantityRequired, wastagePercent });
+      validated.push({
+        componentItemId: item.id,
+        quantityRequired,
+        wastagePercent,
+        itemType: item.item_type,
+      });
     }
-    // Raw materials and packing materials never belong to the same BOM: the
-    // formulation stage and the packing stage are separate recipes.
-    if (hasRawMaterial && hasPackingMaterial) {
+
+    // The formulation stage (raw materials) and the packing stage (unpacked
+    // bulk + packaging) are separate recipes and never mix.
+    if (rawName && otherName) {
       throw new ValidationError(
-        `A BOM cannot mix raw materials and packing materials ('${firstRawName}' + '${firstPackingName}'). ` +
-          "Keep the formulation BOM (raw materials) and the packing BOM (packing materials) separate.",
+        `A BOM cannot mix raw materials and packing/finished materials ('${rawName}' + '${otherName}'). ` +
+          "Keep the formulation BOM (raw materials) and the packing BOM separate.",
       );
     }
-    // The BOM stage follows from its components: any raw material makes it a
-    // formulation BOM; otherwise it is the packing stage.
-    return { components: validated, phase: hasRawMaterial ? "FORMULATION" : "PACKING" };
+    if (finishedCount > 1) {
+      throw new ValidationError("A packing BOM can consume only one unpacked material.");
+    }
+    return { components: validated, phase: rawName ? "FORMULATION" : "PACKING" };
   }
 
   // --- Production orders -------------------------------------------------
@@ -304,7 +388,7 @@ export class ManufacturingService {
 
   async createProductionOrder(
     input: CreateProductionOrderInput,
-  ): Promise<{ id: number; orderNumber: string; bomId: number }> {
+  ): Promise<{ id: number; orderNumber: string; bomId: number; finishedItemId: number }> {
     const companyId = input.companyId ?? this.companyId;
     const warehouseId = input.warehouseId ?? 1;
     const plannedQuantity = dec(input.plannedQuantity);
@@ -312,45 +396,30 @@ export class ManufacturingService {
       throw new ValidationError("Planned quantity must be greater than 0.");
     }
 
-    // Temporary one-use production: a hidden BOM is created for the order.
-    if (input.tempFinishedItemId != null && input.tempComponents != null) {
-      const finished = await this.items.requireById(input.tempFinishedItemId);
-      if (finished.item_type !== "FINISHED_GOOD") {
-        throw new ValidationError("Finished item must be of type FINISHED_GOOD.");
+    // Manual run: no saved BOM, so save a per-unit one from the run's totals.
+    if (input.bomId == null) {
+      if (!input.bomName?.trim() || !input.components || input.components.length === 0) {
+        throw new ValidationError(
+          "A saved BOM, or a BOM name with the run's component totals, is required.",
+        );
       }
-      if (input.tempComponents.length === 0) {
-        throw new ValidationError("At least one component is required.");
-      }
-      const components = await this.validateComponents(input.tempComponents);
-
       return this.db.transaction(async () => {
-        // The order number is allocated inside the transaction so a failure
-        // rolls the sequence back with the rows (no gaps), exactly like the
-        // Python app's temporary-BOM path.
-        const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
-        const bomId = await this.manufacturing.insertBom({
-          company_id: companyId,
-          finished_item_id: finished.id,
-          bom_name: `TEMP-${orderNumber}`,
-          output_quantity: 1,
-          notes: "Temporary one-use BOM",
-          phase: components.phase,
-          is_active: 1,
-          is_temp: 1,
+        const bom = await this.createBom({
+          bomName: input.bomName,
+          outputQuantity: 1,
+          components: input.components!.map((component) => ({
+            componentItemId: component.componentItemId,
+            quantityRequired: toStorage(dec(component.quantityRequired).dividedBy(plannedQuantity)),
+          })),
+          notes: "Saved from a production run",
+          companyId,
         });
-        for (const component of components.components) {
-          await this.manufacturing.insertBomComponent({
-            bom_id: bomId,
-            component_item_id: component.componentItemId,
-            quantity_required: toStorage(component.quantityRequired),
-            wastage_percent: toStorage(component.wastagePercent),
-          });
-        }
+        const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
         const id = await this.manufacturing.insertOrder({
           company_id: companyId,
           warehouse_id: warehouseId,
           order_number: orderNumber,
-          bom_id: bomId,
+          bom_id: bom.id,
           planned_quantity: toStorage(plannedQuantity),
           manufacturing_date: input.manufacturingDate,
           expiry_date: input.expiryDate ?? null,
@@ -358,16 +427,16 @@ export class ManufacturingService {
           created_by: input.createdBy ?? null,
           status: "DRAFT",
         });
-        return { id, orderNumber, bomId };
+        return { id, orderNumber, bomId: bom.id, finishedItemId: bom.finishedItemId };
       });
     }
 
     const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
-    if (input.bomId == null) {
-      throw new ValidationError("A BOM is required for a saved production order.");
-    }
     const bom = await this.manufacturing.findBomById(input.bomId);
     if (!bom) throw new ValidationError("BOM does not exist.");
+    if (bom.phase === "PACKING") {
+      throw new ValidationError("This is a packing BOM — create a packing order instead.");
+    }
 
     const id = await this.manufacturing.insertOrder({
       company_id: companyId,
@@ -381,7 +450,7 @@ export class ManufacturingService {
       created_by: input.createdBy ?? null,
       status: "DRAFT",
     });
-    return { id, orderNumber, bomId: bom.id };
+    return { id, orderNumber, bomId: bom.id, finishedItemId: bom.finished_item_id };
   }
 
   async updateProductionOrder(id: number, input: UpdateProductionOrderInput): Promise<void> {
@@ -440,18 +509,18 @@ export class ManufacturingService {
     await this.manufacturing.updateOrder(orderId, { status: "IN_PROGRESS" });
   }
 
-  /** Stage 1: consume raw materials and put an unpacked batch of the finished good into stock. */
+  /** Consume raw materials and put a batch of the unpacked item into stock. */
   async produceProduction(
     orderId: number,
     input: CompleteProductionInput,
-  ): Promise<{ id: number; productionCost: number; journalEntryId: number }> {
+  ): Promise<{ id: number; productionCost: number; journalEntryId: number; outputBatchNumber: string }> {
     const order = await this.manufacturing.findOrderById(orderId);
     if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
     if (order.status !== "IN_PROGRESS") {
       throw new ValidationError(`Cannot produce an order with status '${order.status}'.`);
     }
     if (dec(order.actual_quantity).greaterThan(0)) {
-      throw new ValidationError("This order has already been produced; use Pack.");
+      throw new ValidationError("This order has already been produced.");
     }
     const actualQuantity = dec(input.actualQuantity);
     if (actualQuantity.lessThanOrEqualTo(0)) {
@@ -467,18 +536,13 @@ export class ManufacturingService {
     const bomComponents = await this.manufacturing.findBomComponents(bom.id);
     const ratio = actualQuantity.dividedBy(dec(bom.output_quantity));
 
+    const materials: ConsumedMaterial[] = [];
     let rawCost = new Decimal(0);
-    const materials: Array<{
-      componentItemId: number;
-      batchId: number | null;
-      quantity: Decimal;
-      unitCost: Decimal;
-    }> = [];
 
     for (const component of bomComponents) {
       const item = await this.items.requireById(component.component_item_id);
-      // Packing materials are consumed in the second stage, after the good exists.
-      if (item.item_type === "PACKING_MATERIAL") continue;
+      // Packing and unpacked materials belong to the packing stage.
+      if (item.item_type !== "RAW_MATERIAL") continue;
 
       const requiredQty = dec(component.quantity_required).times(ratio);
       const wastageQty = requiredQty.times(dec(component.wastage_percent).dividedBy(100));
@@ -501,67 +565,58 @@ export class ManufacturingService {
         }
       }
       const unitCost = dec(batch?.purchase_price ?? item.purchase_price);
-      rawCost = rawCost.plus(round2(totalRequired.times(unitCost)));
+      const cost = round2(totalRequired.times(unitCost));
+      rawCost = rawCost.plus(cost);
       materials.push({
-        componentItemId: component.component_item_id,
+        itemId: component.component_item_id,
+        itemType: item.item_type,
         batchId: batch?.id ?? null,
         quantity: totalRequired,
         unitCost,
+        cost,
       });
     }
-
-    const resolver = new SystemAccountResolver(this.db, this.companyId);
-    const journalLines: JournalLineInput[] = [];
-    if (rawCost.greaterThan(0)) {
-      journalLines.push({
-        accountId: await resolver.idFor(SystemAccountCodes.INVENTORY_FINISHED_GOODS),
-        debit: rawCost,
-        description: `Unpacked production output - ${order.order_number}`,
-      });
-      journalLines.push({
-        accountId: await resolver.idFor(SystemAccountCodes.INVENTORY_RAW_MATERIALS),
-        credit: rawCost,
-        description: `Raw materials consumed - ${order.order_number}`,
-      });
+    if (materials.length === 0) {
+      throw new ValidationError("This BOM has no raw materials to produce.");
     }
 
-    const unpackedName = await this.unpackedBatchName(order, input.outputBatchNumber, bom.finished_item_id);
+    const outputBatchNumber = await this.uniqueBatchNumber(
+      bom.finished_item_id,
+      order.warehouse_id,
+      input.outputBatchNumber,
+      order.order_number,
+    );
+    const journalLines = await this.consumptionJournal(
+      materials,
+      SystemAccountCodes.INVENTORY_FINISHED_GOODS,
+      `Unpacked production output - ${order.order_number}`,
+      `Raw materials consumed - ${order.order_number}`,
+    );
 
     return this.db.transaction(async () => {
-      // Old BOMs can point at an inactive finished item (ghost imports). The
-      // unpacked output must land on an Active item, so reactivate it and mark
-      // its name with the unpacked prefix. Other items are left untouched.
-      const finished = await this.items.requireById(bom.finished_item_id);
-      if (!finished.is_active) {
-        await this.items.update(finished.id, {
-          is_active: 1,
-          item_name: finished.item_name.startsWith(UNPACKED_ITEM_PREFIX)
-            ? finished.item_name
-            : `${UNPACKED_ITEM_PREFIX}${finished.item_name}`,
-        });
-      }
-
       await this.manufacturing.updateOrder(orderId, {
         actual_quantity: toQuantity(actualQuantity),
         wastage_quantity: toQuantity(wastageQuantity),
-        output_batch_number: unpackedName,
+        output_batch_number: outputBatchNumber,
         production_cost: toStorage(rawCost),
         raw_material_cost: toStorage(rawCost),
         packing_material_cost: 0,
+        status: "COMPLETED",
+        completed_at: new Date().toISOString(),
       });
 
       for (const material of materials) {
         if (input.ignoreStock || material.batchId === null) continue;
         await this.manufacturing.insertConsumption({
           production_order_id: orderId,
-          component_item_id: material.componentItemId,
+          component_item_id: material.itemId,
           batch_id: material.batchId,
           quantity_consumed: toQuantity(material.quantity),
           unit_cost: toStorage(material.unitCost),
         });
         await this.batches.adjustQuantity(material.batchId, -toQuantity(material.quantity));
         await insertRow(this.db, "stock_movements", {
-          item_id: material.componentItemId,
+          item_id: material.itemId,
           batch_id: material.batchId,
           warehouse_id: order.warehouse_id,
           movement_type: "PRODUCTION_CONSUME",
@@ -570,21 +625,19 @@ export class ManufacturingService {
           reference_table: "production_orders",
           reference_id: orderId,
           movement_date: order.manufacturing_date,
-          notes: `Production order ${order.order_number} (unpacked stage)`,
+          notes: `Production order ${order.order_number}`,
         });
       }
 
-      // The intermediate batch is explicitly marked UNPACKED- and is hidden
-      // from FIFO/sales until the packing stage renames it.
-      const rawUnit = rawCost.dividedBy(actualQuantity);
+      const unitCost = rawCost.dividedBy(actualQuantity);
       const outputBatchId = await this.batches.insert({
         item_id: bom.finished_item_id,
         warehouse_id: order.warehouse_id,
-        batch_number: unpackedName,
+        batch_number: outputBatchNumber,
         manufacturing_date: order.manufacturing_date,
         expiry_date: order.expiry_date,
-        purchase_price: toStorage(rawUnit),
-        raw_unit_cost: toStorage(rawUnit),
+        purchase_price: toStorage(unitCost),
+        raw_unit_cost: toStorage(unitCost),
         packing_unit_cost: 0,
         quantity_in_stock: toQuantity(actualQuantity),
         is_active: 1,
@@ -595,7 +648,7 @@ export class ManufacturingService {
         warehouse_id: order.warehouse_id,
         movement_type: "PRODUCTION_IN",
         quantity: toQuantity(actualQuantity),
-        unit_cost: toStorage(rawUnit),
+        unit_cost: toStorage(unitCost),
         reference_table: "production_orders",
         reference_id: orderId,
         movement_date: order.manufacturing_date,
@@ -609,90 +662,221 @@ export class ManufacturingService {
             lines: journalLines,
             sourceTable: "production_orders",
             sourceId: orderId,
-            narration: `Production order ${order.order_number} produced (unpacked)`,
+            narration: `Production order ${order.order_number} produced`,
             companyId: this.companyId,
           })
         : 0;
 
-      return { id: orderId, productionCost: toStorage(rawCost), journalEntryId };
+      return {
+        id: orderId,
+        productionCost: toStorage(rawCost),
+        journalEntryId,
+        outputBatchNumber,
+      };
     });
   }
 
-  /** Stage 2: consume packing materials and turn the unpacked batch into saleable finished goods. */
-  async packProduction(
+  // --- Packing orders ----------------------------------------------------
+  async listPackingOrders(): Promise<PackingOrderRow[]> {
+    return this.manufacturing.listPackingOrders(this.companyId);
+  }
+
+  async getPackingOrder(
+    id: number,
+  ): Promise<{ order: PackingOrderRow; consumptions: Record<string, unknown>[] }> {
+    const order = await this.manufacturing.findPackingOrderById(id);
+    if (!order) throw new NotFoundError(`Packing order ${id} not found.`);
+    const consumptions = await this.manufacturing.findPackingConsumptions(id);
+    return { order, consumptions };
+  }
+
+  async createPackingOrder(
+    input: CreatePackingOrderInput,
+  ): Promise<{ id: number; orderNumber: string; bomId: number; outputItemId: number }> {
+    const companyId = input.companyId ?? this.companyId;
+    const warehouseId = input.warehouseId ?? 1;
+    const plannedQuantity = dec(input.plannedQuantity);
+    if (plannedQuantity.lessThanOrEqualTo(0)) {
+      throw new ValidationError("Items generated must be greater than 0.");
+    }
+
+    // Manual run: save a per-unit packing BOM from the run's totals.
+    if (input.bomId == null) {
+      if (input.outputItemId == null || input.unpackedItemId == null) {
+        throw new ValidationError("A packing order needs an output item and an unpacked material.");
+      }
+      const unpackedQuantity = dec(input.unpackedQuantity);
+      if (unpackedQuantity.lessThanOrEqualTo(0)) {
+        throw new ValidationError("Unpacked quantity must be greater than 0.");
+      }
+      const output = await this.requireFinishedItem(input.outputItemId);
+      if (output.id === input.unpackedItemId) {
+        throw new ValidationError("The output item must differ from the unpacked material.");
+      }
+      await this.requireFinishedItem(input.unpackedItemId);
+      const materials = input.materials ?? [];
+      for (const material of materials) {
+        const item = await this.items.requireById(material.componentItemId);
+        if (item.item_type !== "PACKING_MATERIAL") {
+          throw new ValidationError(`'${item.item_name}' is not a packing material.`);
+        }
+      }
+
+      return this.db.transaction(async () => {
+        const bom = await this.createBom({
+          finishedItemId: output.id,
+          outputQuantity: 1,
+          bomName: input.packingBomName?.trim() || null,
+          components: [
+            {
+              componentItemId: input.unpackedItemId!,
+              quantityRequired: toStorage(unpackedQuantity.dividedBy(plannedQuantity)),
+            },
+            ...materials.map((material) => ({
+              componentItemId: material.componentItemId,
+              quantityRequired: toStorage(
+                dec(material.quantityRequired).dividedBy(plannedQuantity),
+              ),
+            })),
+          ],
+          notes: "Saved from a packing run",
+          companyId,
+        });
+        const orderNumber = await this.resolvePackingOrderNumber(input.orderNumber, companyId);
+        const id = await this.manufacturing.insertPackingOrder({
+          company_id: companyId,
+          warehouse_id: warehouseId,
+          order_number: orderNumber,
+          bom_id: bom.id,
+          planned_quantity: toStorage(plannedQuantity),
+          manufacturing_date: input.manufacturingDate,
+          expiry_date: input.expiryDate ?? null,
+          notes: input.notes ?? null,
+          created_by: input.createdBy ?? null,
+          status: "DRAFT",
+        });
+        return { id, orderNumber, bomId: bom.id, outputItemId: output.id };
+      });
+    }
+
+    const bom = await this.manufacturing.findBomById(input.bomId);
+    if (!bom) throw new ValidationError("BOM does not exist.");
+    if (bom.phase !== "PACKING") {
+      throw new ValidationError("Packing needs a packing BOM.");
+    }
+    const orderNumber = await this.resolvePackingOrderNumber(input.orderNumber, companyId);
+    const id = await this.manufacturing.insertPackingOrder({
+      company_id: companyId,
+      warehouse_id: warehouseId,
+      order_number: orderNumber,
+      bom_id: bom.id,
+      planned_quantity: toStorage(plannedQuantity),
+      manufacturing_date: input.manufacturingDate,
+      expiry_date: input.expiryDate ?? null,
+      notes: input.notes ?? null,
+      created_by: input.createdBy ?? null,
+      status: "DRAFT",
+    });
+    return { id, orderNumber, bomId: bom.id, outputItemId: bom.finished_item_id };
+  }
+
+  async updatePackingOrder(id: number, input: UpdatePackingOrderInput): Promise<void> {
+    const order = await this.manufacturing.findPackingOrderById(id);
+    if (!order) throw new NotFoundError(`Packing order ${id} not found.`);
+    if (order.status !== "DRAFT") {
+      throw new ValidationError(`Cannot edit an order with status '${order.status}'.`);
+    }
+    const plannedQuantity = dec(input.plannedQuantity);
+    if (plannedQuantity.lessThanOrEqualTo(0)) {
+      throw new ValidationError("Items generated must be greater than 0.");
+    }
+    const bom = await this.manufacturing.findBomById(input.bomId);
+    if (!bom) throw new ValidationError("BOM does not exist.");
+    if (bom.phase !== "PACKING") throw new ValidationError("Packing needs a packing BOM.");
+
+    await this.manufacturing.updatePackingOrder(id, {
+      bom_id: bom.id,
+      planned_quantity: toStorage(plannedQuantity),
+      manufacturing_date: input.manufacturingDate,
+      expiry_date: input.expiryDate ?? null,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async deletePackingOrder(id: number): Promise<void> {
+    const order = await this.manufacturing.findPackingOrderById(id);
+    if (!order) throw new NotFoundError(`Packing order ${id} not found.`);
+    if (order.status !== "DRAFT") {
+      throw new ValidationError(`Cannot delete an order with status '${order.status}'.`);
+    }
+    await this.manufacturing.deletePackingOrder(id);
+  }
+
+  private async resolvePackingOrderNumber(
+    requested: string | null | undefined,
+    companyId: number,
+  ): Promise<string> {
+    const orderNumber = requested?.trim() || "";
+    if (!orderNumber) {
+      return this.journal.nextVoucherNumber(companyId, "PACKING_ORDER");
+    }
+    if (await this.manufacturing.packingOrderNumberExists(orderNumber, companyId)) {
+      throw new ValidationError(`Order number '${orderNumber}' already exists.`);
+    }
+    return orderNumber;
+  }
+
+  async startPacking(orderId: number): Promise<void> {
+    const order = await this.manufacturing.findPackingOrderById(orderId);
+    if (!order) throw new NotFoundError(`Packing order ${orderId} not found.`);
+    if (order.status !== "DRAFT") {
+      throw new ValidationError(`Cannot start an order with status '${order.status}'.`);
+    }
+    await this.manufacturing.updatePackingOrder(orderId, { status: "IN_PROGRESS" });
+  }
+
+  /** Consume unpacked bulk + packing materials and put finished goods into stock. */
+  async packPackingOrder(
     orderId: number,
-    input: PackProductionInput = {},
-  ): Promise<{
-    id: number;
-    productionCost: number;
-    journalEntryId: number;
-    /** The packing BOM saved from a first pack, when there was none yet. */
-    packingBomName?: string;
-  }> {
-    const order = await this.manufacturing.findOrderById(orderId);
-    if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
+    input: PackPackingOrderInput = {},
+  ): Promise<{ id: number; productionCost: number; journalEntryId: number; outputBatchNumber: string }> {
+    const order = await this.manufacturing.findPackingOrderById(orderId);
+    if (!order) throw new NotFoundError(`Packing order ${orderId} not found.`);
     if (order.status !== "IN_PROGRESS") {
       throw new ValidationError(`Cannot pack an order with status '${order.status}'.`);
     }
-    if (dec(order.actual_quantity).lessThanOrEqualTo(0)) {
-      throw new ValidationError("Produce this order before packing.");
-    }
-    const unpackedName = order.output_batch_number;
-    if (!unpackedName || !unpackedName.startsWith("UNPACKED-")) {
-      throw new ValidationError("This order has no unpacked batch to pack.");
-    }
-
     const bom = await this.manufacturing.findBomById(order.bom_id);
     if (!bom) throw new ValidationError("BOM not found.");
     const bomComponents = await this.manufacturing.findBomComponents(bom.id);
-
-    const unpackedBatch = await this.batches.findByNumber(
-      bom.finished_item_id,
-      order.warehouse_id,
-      unpackedName,
-    );
-    if (!unpackedBatch) {
-      throw new ValidationError("The unpacked output batch is missing from stock.");
+    const ratio = dec(input.units ?? order.planned_quantity).dividedBy(dec(bom.output_quantity));
+    const units = dec(input.units ?? order.planned_quantity);
+    if (units.lessThanOrEqualTo(0)) {
+      throw new ValidationError("Items generated must be greater than 0.");
     }
-    const available = dec(unpackedBatch.quantity_in_stock);
-    const packQuantity =
-      input.quantity == null ? available : dec(input.quantity);
-    if (packQuantity.lessThanOrEqualTo(0)) {
-      throw new ValidationError("Packing quantity must be greater than 0.");
-    }
-    if (packQuantity.greaterThan(available)) {
-      throw new ValidationError(
-        `Cannot pack ${packQuantity.toFixed(2)} — only ${available.toFixed(2)} unpacked.`,
-      );
-    }
-    // Packing the lot renames the batch; a partial pack splits a new one off.
-    const packsEverything = packQuantity.equals(available);
-    const ratio = packQuantity.dividedBy(dec(bom.output_quantity));
 
-    // In the split model the order's BOM is the formulation recipe and the
-    // packing materials live on a separate packing BOM for the same good.
-    const bomHasPacking =
-      Number(
-        (
-          await this.db.get<{ n: number }>(
-            `SELECT COUNT(*) AS n FROM bom_components c
-               JOIN items i ON i.id = c.component_item_id
-              WHERE c.bom_id = ? AND i.item_type = 'PACKING_MATERIAL'`,
-            [bom.id],
-          )
-        )?.n ?? 0,
-      ) > 0;
-    const packingBom = bomHasPacking
-      ? bom
-      : await this.manufacturing.findPackingBomForFinished(bom.finished_item_id);
-    const packingRatio = packingBom
-      ? packQuantity.dividedBy(dec(packingBom.output_quantity))
-      : ratio;
+    let unpacked: { itemId: number; quantity: Decimal } | null = null;
+    const bomMaterials: Array<{ itemId: number; quantity: Decimal }> = [];
+    for (const component of bomComponents) {
+      const item = await this.items.requireById(component.component_item_id);
+      const required = dec(component.quantity_required)
+        .times(ratio)
+        .times(dec(component.wastage_percent).dividedBy(100).plus(1));
+      if (item.item_type === "FINISHED_GOOD") {
+        unpacked = { itemId: item.id, quantity: required };
+      } else if (item.item_type === "PACKING_MATERIAL") {
+        bomMaterials.push({ itemId: item.id, quantity: required });
+      }
+    }
 
-    // Packing materials can be chosen at pack time; the BOM list is only the
-    // fallback for the one-click Complete API.
+    const unpackedQuantity =
+      input.unpackedQuantity != null ? dec(input.unpackedQuantity) : (unpacked?.quantity ?? new Decimal(0));
+    if (!unpacked || unpackedQuantity.lessThanOrEqualTo(0)) {
+      throw new ValidationError("This packing BOM has no unpacked material to consume.");
+    }
+
     const requested: Array<{ itemId: number; quantity: Decimal }> = [];
-    if (input.materials !== undefined) {
+    if (input.materials != null) {
       for (const raw of input.materials) {
         const item = await this.items.requireById(raw.itemId);
         if (item.item_type !== "PACKING_MATERIAL") {
@@ -702,166 +886,121 @@ export class ManufacturingService {
         if (quantity.lessThanOrEqualTo(0)) {
           throw new ValidationError(`Quantity for '${item.item_name}' must be greater than 0.`);
         }
-        requested.push({ itemId: raw.itemId, quantity });
+        requested.push({ itemId: item.id, quantity });
       }
     } else {
-      const components = packingBom
-        ? await this.manufacturing.findBomComponents(packingBom.id)
-        : [];
-      for (const component of components) {
-        const item = await this.items.requireById(component.component_item_id);
-        if (item.item_type !== "PACKING_MATERIAL") continue;
-        const requiredQty = dec(component.quantity_required).times(packingRatio);
-        const wastageQty = requiredQty.times(dec(component.wastage_percent).dividedBy(100));
-        requested.push({
-          itemId: component.component_item_id,
-          quantity: requiredQty.plus(wastageQty),
-        });
-      }
+      requested.push(...bomMaterials);
     }
 
-    let packingCost = new Decimal(0);
-    const materials: Array<{
-      componentItemId: number;
-      batchId: number | null;
-      quantity: Decimal;
-      unitCost: Decimal;
-    }> = [];
-
-    for (const request of requested) {
-      const item = await this.items.requireById(request.itemId);
-      const totalRequired = request.quantity;
-      const batch = await this.batches.findByItemAndWarehouse(
-        request.itemId,
-        order.warehouse_id,
-      );
+    const consumed: ConsumedMaterial[] = [];
+    let totalCost = new Decimal(0);
+    const toConsume = [
+      { itemId: unpacked.itemId, quantity: unpackedQuantity },
+      ...requested,
+    ];
+    for (const entry of toConsume) {
+      const item = await this.items.requireById(entry.itemId);
+      const batch = await this.batches.findByItemAndWarehouse(entry.itemId, order.warehouse_id);
       if (!input.ignoreStock) {
         if (!batch) {
           throw new InsufficientStockError(
-            `No stock batch found for ${item.item_name}. Required: ${totalRequired.toFixed(2)}`,
+            `No stock batch found for ${item.item_name}. Required: ${entry.quantity.toFixed(2)}`,
           );
         }
-        if (dec(batch.quantity_in_stock).lessThan(totalRequired)) {
+        if (dec(batch.quantity_in_stock).lessThan(entry.quantity)) {
           throw new InsufficientStockError(
-            `Insufficient stock for ${item.item_name}. Required: ${totalRequired.toFixed(2)}, available: ${dec(batch.quantity_in_stock).toFixed(2)}`,
+            `Insufficient stock for ${item.item_name}. Required: ${entry.quantity.toFixed(2)}, available: ${dec(batch.quantity_in_stock).toFixed(2)}`,
           );
         }
       }
       const unitCost = dec(batch?.purchase_price ?? item.purchase_price);
-      packingCost = packingCost.plus(round2(totalRequired.times(unitCost)));
-      materials.push({
-        componentItemId: request.itemId,
+      const cost = round2(entry.quantity.times(unitCost));
+      totalCost = totalCost.plus(cost);
+      consumed.push({
+        itemId: entry.itemId,
+        itemType: item.item_type,
         batchId: batch?.id ?? null,
-        quantity: totalRequired,
+        quantity: entry.quantity,
         unitCost,
+        cost,
       });
     }
 
-    const rawUnit = dec(order.raw_material_cost).dividedBy(dec(order.actual_quantity));
-    const packedRawCost = round2(rawUnit.times(packQuantity));
-    const packedUnitCost = packedRawCost.plus(packingCost).dividedBy(packQuantity);
-    const packingUnitCost = packingCost.dividedBy(packQuantity);
+    const outputBatchNumber = await this.uniqueBatchNumber(
+      bom.finished_item_id,
+      order.warehouse_id,
+      input.outputBatchNumber,
+      order.order_number,
+    );
+    const journalLines = await this.consumptionJournal(
+      consumed,
+      SystemAccountCodes.INVENTORY_FINISHED_GOODS,
+      `Packed finished goods - ${order.order_number}`,
+      `Packing materials consumed - ${order.order_number}`,
+    );
 
-    // Packing the lot reuses the unpacked batch (renamed); a partial pack needs
-    // its own batch number, so find one that is still free.
-    const baseName =
-      input.outputBatchNumber?.trim() || unpackedName.slice("UNPACKED-".length);
-    let finalName = baseName;
-    let suffix = 1;
-    while (await this.batches.findByNumber(bom.finished_item_id, order.warehouse_id, finalName)) {
-      finalName = `${baseName}-${suffix}`;
-      suffix += 1;
-    }
-
-    const resolver = new SystemAccountResolver(this.db, this.companyId);
-    const journalLines: JournalLineInput[] = [];
-    if (packingCost.greaterThan(0)) {
-      journalLines.push({
-        accountId: await resolver.idFor(SystemAccountCodes.INVENTORY_FINISHED_GOODS),
-        debit: packingCost,
-        description: `Packing cost - ${order.order_number}`,
-      });
-      journalLines.push({
-        accountId: await resolver.idFor(SystemAccountCodes.INVENTORY_PACKING_MATERIALS),
-        credit: packingCost,
-        description: `Packing materials consumed - ${order.order_number}`,
-      });
-    }
-
-    const result = await this.db.transaction(async () => {
-      for (const material of materials) {        if (input.ignoreStock || material.batchId === null) continue;
-        await this.manufacturing.insertConsumption({
-          production_order_id: orderId,
-          component_item_id: material.componentItemId,
+    return this.db.transaction(async () => {
+      for (const material of consumed) {
+        if (input.ignoreStock || material.batchId === null) continue;
+        await this.manufacturing.insertPackingConsumption({
+          packing_order_id: orderId,
+          component_item_id: material.itemId,
           batch_id: material.batchId,
           quantity_consumed: toQuantity(material.quantity),
           unit_cost: toStorage(material.unitCost),
         });
         await this.batches.adjustQuantity(material.batchId, -toQuantity(material.quantity));
         await insertRow(this.db, "stock_movements", {
-          item_id: material.componentItemId,
+          item_id: material.itemId,
           batch_id: material.batchId,
           warehouse_id: order.warehouse_id,
           movement_type: "PRODUCTION_CONSUME",
           quantity: -toQuantity(material.quantity),
           unit_cost: toStorage(material.unitCost),
-          reference_table: "production_orders",
+          reference_table: "packing_orders",
           reference_id: orderId,
           movement_date: order.manufacturing_date,
-          notes: `Production order ${order.order_number} (packing stage)`,
+          notes: `Packing order ${order.order_number}`,
         });
       }
 
-      if (packsEverything) {
-        // Rename the unpacked batch into the saleable finished-goods batch.
-        await this.db.run(
-          `UPDATE stock_batches
-              SET batch_number = ?, purchase_price = ?, packing_unit_cost = ?, raw_unit_cost = ?
-            WHERE id = ?`,
-          [
-            finalName,
-            toStorage(packedUnitCost),
-            toStorage(packingUnitCost),
-            toStorage(rawUnit),
-            unpackedBatch.id,
-          ],
-        );
-      } else {
-        // Leave the rest unpacked and split the packed quantity into a new batch.
-        await this.batches.adjustQuantity(unpackedBatch.id, -toQuantity(packQuantity));
-        const packedBatchId = await this.batches.insert({
-          item_id: bom.finished_item_id,
-          warehouse_id: order.warehouse_id,
-          batch_number: finalName,
-          manufacturing_date: order.manufacturing_date,
-          expiry_date: order.expiry_date,
-          purchase_price: toStorage(packedUnitCost),
-          raw_unit_cost: toStorage(rawUnit),
-          packing_unit_cost: toStorage(packingUnitCost),
-          quantity_in_stock: toQuantity(packQuantity),
-          is_active: 1,
-        });
-        await insertRow(this.db, "stock_movements", {
-          item_id: bom.finished_item_id,
-          batch_id: packedBatchId,
-          warehouse_id: order.warehouse_id,
-          movement_type: "PRODUCTION_IN",
-          quantity: toQuantity(packQuantity),
-          unit_cost: toStorage(packedUnitCost),
-          reference_table: "production_orders",
-          reference_id: orderId,
-          movement_date: order.manufacturing_date,
-          notes: `Production order ${order.order_number} (packed)`,
-        });
-      }
+      const unpackedCost = consumed
+        .filter((material) => material.itemType === "FINISHED_GOOD")
+        .reduce((sum, material) => sum.plus(material.cost), new Decimal(0));
+      const packingCost = totalCost.minus(unpackedCost);
+      const outputUnitCost = totalCost.dividedBy(units);
 
-      const cumulativePacking = dec(order.packing_material_cost).plus(packingCost);
-      await this.manufacturing.updateOrder(orderId, {
-        // Partial packs keep the unpacked batch active for the next pack.
-        output_batch_number: packsEverything ? finalName : unpackedName,
-        production_cost: toStorage(dec(order.raw_material_cost).plus(cumulativePacking)),
-        packing_material_cost: toStorage(cumulativePacking),
-        ...(packsEverything
+      const outputBatchId = await this.batches.insert({
+        item_id: bom.finished_item_id,
+        warehouse_id: order.warehouse_id,
+        batch_number: outputBatchNumber,
+        manufacturing_date: order.manufacturing_date,
+        expiry_date: order.expiry_date,
+        purchase_price: toStorage(outputUnitCost),
+        raw_unit_cost: toStorage(unpackedCost.dividedBy(units)),
+        packing_unit_cost: toStorage(packingCost.dividedBy(units)),
+        quantity_in_stock: toQuantity(units),
+        is_active: 1,
+      });
+      await insertRow(this.db, "stock_movements", {
+        item_id: bom.finished_item_id,
+        batch_id: outputBatchId,
+        warehouse_id: order.warehouse_id,
+        movement_type: "PRODUCTION_IN",
+        quantity: toQuantity(units),
+        unit_cost: toStorage(outputUnitCost),
+        reference_table: "packing_orders",
+        reference_id: orderId,
+        movement_date: order.manufacturing_date,
+        notes: `Packing order ${order.order_number}`,
+      });
+
+      const cumulative = dec(order.actual_quantity).plus(units);
+      await this.manufacturing.updatePackingOrder(orderId, {
+        actual_quantity: toQuantity(cumulative),
+        output_batch_number: outputBatchNumber,
+        production_cost: toStorage(dec(order.production_cost).plus(totalCost)),
+        ...(cumulative.greaterThanOrEqualTo(dec(order.planned_quantity))
           ? { status: "COMPLETED", completed_at: new Date().toISOString() }
           : {}),
       });
@@ -871,77 +1010,71 @@ export class ManufacturingService {
             voucherType: "MANUFACTURING",
             entryDate: new Date().toISOString().slice(0, 10),
             lines: journalLines,
-            sourceTable: "production_orders",
+            sourceTable: "packing_orders",
             sourceId: orderId,
-            narration: `Production order ${order.order_number} packed`,
+            narration: `Packing order ${order.order_number} packed`,
             companyId: this.companyId,
           })
         : 0;
 
       return {
         id: orderId,
-        productionCost: toStorage(packedRawCost.plus(packingCost)),
+        productionCost: toStorage(totalCost),
         journalEntryId,
+        outputBatchNumber,
       };
     });
-
-    // First pack of this good: keep the materials actually used as its packing
-    // BOM so the next pack prefills from them. When the client reports the pack
-    // size, the BOM is stored per pack ("5 L -> 2 bottles, 1 sticker") so the
-    // pack dialog can read the ratio straight off it. The pack is already
-    // committed, so a failure to save the recipe must not fail it.
-    if (!packingBom && materials.length > 0) {
-      try {
-        const perPack =
-          input.packSize != null && dec(input.packSize).greaterThan(0)
-            ? dec(input.packSize)
-            : packQuantity;
-        const packs = packQuantity.dividedBy(perPack);
-        const saved = await this.createBom({
-          finishedItemId: bom.finished_item_id,
-          outputQuantity: toStorage(perPack),
-          components: materials.map((material) => ({
-            componentItemId: material.componentItemId,
-            quantityRequired: toStorage(material.quantity.dividedBy(packs)),
-          })),
-          notes: `Saved from the first pack of order ${order.order_number}`,
-        });
-        return { ...result, packingBomName: saved.bomName };
-      } catch (err) {
-        console.warn(
-          `Could not save the packing BOM for finished item ${bom.finished_item_id}:`,
-          err,
-        );
-      }
-    }
-    return result;
   }
 
-  /** Produce then pack in one call (kept for the one-click Complete action/API). */
-  async completeProduction(
-    orderId: number,
-    input: CompleteProductionInput,
-  ): Promise<{ id: number; productionCost: number; journalEntryId: number }> {
-    const order = await this.manufacturing.findOrderById(orderId);
-    if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
-    if (order.status === "IN_PROGRESS" && dec(order.actual_quantity).isZero()) {
-      await this.produceProduction(orderId, input);
+  /** Dr the output inventory account, Cr each consumed item's inventory account. */
+  private async consumptionJournal(
+    consumed: readonly ConsumedMaterial[],
+    debitAccountCode: string,
+    debitDescription: string,
+    creditDescription: string,
+  ): Promise<JournalLineInput[]> {
+    const total = consumed.reduce((sum, material) => sum.plus(material.cost), new Decimal(0));
+    if (total.lessThanOrEqualTo(0)) return [];
+    const resolver = new SystemAccountResolver(this.db, this.companyId);
+    const credits = new Map<string, Decimal>();
+    for (const material of consumed) {
+      if (material.cost.lessThanOrEqualTo(0)) continue;
+      const code =
+        INVENTORY_ACCOUNT_BY_TYPE[material.itemType] ??
+        SystemAccountCodes.INVENTORY_RAW_MATERIALS;
+      credits.set(code, (credits.get(code) ?? new Decimal(0)).plus(material.cost));
     }
-    return this.packProduction(orderId, {
-      outputBatchNumber: input.outputBatchNumber,
-      ignoreStock: input.ignoreStock,
-    });
+    const lines: JournalLineInput[] = [
+      {
+        accountId: await resolver.idFor(debitAccountCode),
+        debit: total,
+        description: debitDescription,
+      },
+    ];
+    for (const [code, amount] of credits) {
+      lines.push({
+        accountId: await resolver.idFor(code),
+        credit: amount,
+        description: creditDescription,
+      });
+    }
+    return lines;
   }
 
-  /** A unique stock-batch name for the intermediate unpacked output. */
-  private async unpackedBatchName(
-    order: { order_number: string; warehouse_id: number },
-    requested: string | null | undefined,
+  /** A free stock-batch number: the requested one, or the order number, with a suffix on clash. */
+  private async uniqueBatchNumber(
     itemId: number,
+    warehouseId: number,
+    requested: string | null | undefined,
+    fallback: string,
   ): Promise<string> {
-    const base = requested?.trim() || order.order_number;
-    const preferred = `UNPACKED-${base}`;
-    const clash = await this.batches.findByNumber(itemId, order.warehouse_id, preferred);
-    return clash ? `${preferred}-${order.order_number}` : preferred;
+    const base = requested?.trim() || fallback;
+    let name = base;
+    let suffix = 1;
+    while (await this.batches.findByNumber(itemId, warehouseId, name)) {
+      name = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return name;
   }
 }

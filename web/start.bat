@@ -24,18 +24,21 @@ if errorlevel 1 goto :no_node
 REM --- 1/3: dependencies -----------------------------------------------------
 echo [1/3] Checking npm packages...
 if not exist node_modules goto :install
-REM Spot-check a transitive dep: npm ls only inspects top-level packages, so a
-REM truncated node_modules (broken yargs breaks concurrently) would slip through.
-if not exist node_modules\yargs\index.mjs goto :install
-call npm ls --depth=0 >nul 2>&1
+REM Health-check the actual dev tools: npm ls only looks at top-level packages,
+REM so a truncated node_modules (bundle loads, then ERR_MODULE_NOT_FOUND) would
+REM slip through. Loading concurrently catches any broken dep it needs.
+call npx --no-install concurrently --version >nul 2>&1
 if errorlevel 1 goto :install
 echo       All packages are installed.
 goto :env
 
 :install
 echo       Broken or missing packages - reinstalling (this can take a few minutes)...
-if exist node_modules rmdir /s /q node_modules
-call npm install --no-audit --no-fund
+REM npm ci wipes node_modules and installs exactly what package-lock.json says,
+REM so a half-copied tree cannot survive. Fall back to install if the lockfile
+REM and package.json disagree.
+call npm ci --no-audit --no-fund
+if errorlevel 1 call npm install --no-audit --no-fund
 if errorlevel 1 goto :npm_failed
 
 :env

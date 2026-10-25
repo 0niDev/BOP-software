@@ -1,5 +1,16 @@
 import { test, expect } from "vitest";
+import { formatDate, setDateFormat } from "../src/lib/format";
 import { defaultPackUnit, packCount, packsToBulk } from "../src/lib/units";
+
+test("dates display day/month/year by default and follow the saved format", () => {
+  setDateFormat("dd/MM/yyyy");
+  expect(formatDate("2026-10-25")).toBe("25/10/2026");
+  expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");
+  expect(formatDate("")).toBe("");
+  setDateFormat("yyyy-MM-dd");
+  expect(formatDate("2026-10-25")).toBe("2026-10-25");
+  setDateFormat("dd/MM/yyyy");
+});
 
 test("trial balance rows group by COA type with closing subtotals", async () => {
   const { groupTbRows } = await import("../src/pages/TrialBalancePage");
@@ -141,4 +152,30 @@ test("picking a group narrows the account list to that branch", async () => {
   expect([...subtreeIds(accounts, 2)]).toEqual([3]);
   expect([...subtreeIds(accounts, 1)].sort()).toEqual([2, 3, 4, 5]);
   expect([...subtreeIds(accounts, 3)]).toEqual([]);
+});
+
+// --- list sorting and date filters (components/Sort) ---------------------
+
+test("sortRows orders numbers and text, and invoice numbers naturally", async () => {
+  const { sortRows } = await import("../src/components/Sort");
+  const items = [
+    { code: "INV-10", stock: 30 },
+    { code: "INV-2", stock: 5 },
+    { code: "INV-1", stock: 0 },
+  ];
+  const byCode = sortRows(items, { key: "code", dir: 1 }, (row, key) => row[key as "code"]);
+  expect(byCode.map((row) => row.code)).toEqual(["INV-1", "INV-2", "INV-10"]);
+  const byStock = sortRows(items, { key: "stock", dir: 1 }, (row, key) => row[key as "stock"]);
+  expect(byStock.map((row) => row.stock)).toEqual([0, 5, 30]);
+  expect(sortRows(items, null, () => "")).toBe(items);
+});
+
+test("inDateRange is inclusive and open-ended", async () => {
+  const { inDateRange } = await import("../src/components/Sort");
+  expect(inDateRange("2026-10-25", "", "")).toBe(true);
+  expect(inDateRange("2026-10-25", "2026-10-25", "2026-10-25")).toBe(true);
+  expect(inDateRange("2026-10-24", "2026-10-25", "")).toBe(false);
+  expect(inDateRange("2026-10-26", "", "2026-10-25")).toBe(false);
+  expect(inDateRange(null, "", "")).toBe(true);
+  expect(inDateRange(null, "2026-10-25", "")).toBe(false);
 });

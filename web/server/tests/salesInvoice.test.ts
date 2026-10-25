@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError, InsufficientStockError } from "../src/domain/errors.js";
 import { AccountingService } from "../src/services/accountingService.js";
+import { ReportService } from "../src/services/reportService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
 import { freshDb, type TestContext } from "./helpers/db.js";
 
@@ -46,12 +47,22 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
 
     const cash = lines.find((l) => l.account_code === "1000")!;
     expect(cash.debit).toBe(750);
+    expect(cash.party_id).toBe(ctx.ids.customerId);
     const revenue = lines.find((l) => l.account_code === "4000")!;
     expect(revenue.credit).toBe(750);
+    expect(revenue.party_id).toBeNull();
     const cogs = lines.find((l) => l.account_code === "5000")!;
     expect(cogs.debit).toBe(500); // 5 units x 100 cost
     const inventory = lines.find((l) => l.account_code === "1220")!;
     expect(inventory.credit).toBe(500);
+
+    // The cash sale shows in the party ledger as a settled row and does not
+    // move the balance (the party owes nothing).
+    const ledger = await new ReportService(ctx.db).partyLedger(ctx.ids.customerId);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]?.settled).toBe(true);
+    expect(ledger[0]?.debit).toBe(750);
+    expect(ledger[0]?.balance).toBe(0);
   });
 
   it("posts to accounts receivable (with the customer) for a credit sale", async () => {

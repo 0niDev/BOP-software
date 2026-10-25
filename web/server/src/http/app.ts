@@ -746,7 +746,7 @@ export function createApp(
   app.post("/api/boms", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        finishedItemId: z.coerce.number().int().positive(),
+        finishedItemId: z.coerce.number().int().positive().nullish(),
         outputQuantity: z.coerce.number().positive(),
         bomName: z.string().nullish(),
         notes: z.string().nullish(),
@@ -768,7 +768,7 @@ export function createApp(
   app.put("/api/boms/:id", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        finishedItemId: z.coerce.number().int().positive(),
+        finishedItemId: z.coerce.number().int().positive().nullish(),
         outputQuantity: z.coerce.number().positive(),
         bomName: z.string().nullish(),
         notes: z.string().nullish(),
@@ -811,9 +811,9 @@ export function createApp(
         expiryDate: optionalIsoDateSchema,
         notes: z.string().nullish(),
         warehouseId: z.coerce.number().int().positive().optional(),
-        // Temporary (one-use) production: a hidden BOM is created instead.
-        tempFinishedItemId: z.coerce.number().int().positive().nullish(),
-        tempComponents: z
+        // Manual run: saves a per-unit BOM from the run's component totals.
+        bomName: z.string().nullish(),
+        components: z
           .array(
             z.object({
               componentItemId: z.coerce.number().int().positive(),
@@ -869,12 +869,79 @@ export function createApp(
     res.json(await manufacturing.produceProduction(Number(req.params.id), body));
   });
 
-  app.post("/api/production-orders/:id/pack", requireAuth, async (req, res) => {
+  app.get("/api/packing-orders", requireAuth, async (_req, res) => {
+    res.json(await manufacturing.listPackingOrders());
+  });
+
+  app.get("/api/packing-orders/:id", requireAuth, async (req, res) => {
+    res.json(await manufacturing.getPackingOrder(Number(req.params.id)));
+  });
+
+  app.post("/api/packing-orders", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
+        bomId: z.coerce.number().int().positive().nullish(),
+        plannedQuantity: z.coerce.number().positive(),
+        manufacturingDate: isoDateSchema,
+        orderNumber: z.string().nullish(),
+        expiryDate: optionalIsoDateSchema,
+        notes: z.string().nullish(),
+        warehouseId: z.coerce.number().int().positive().optional(),
+        // Manual run: saves a per-unit packing BOM from the run's totals.
+        packingBomName: z.string().nullish(),
+        outputItemId: z.coerce.number().int().positive().nullish(),
+        unpackedItemId: z.coerce.number().int().positive().nullish(),
+        unpackedQuantity: z.coerce.number().positive().nullish(),
+        materials: z
+          .array(
+            z.object({
+              componentItemId: z.coerce.number().int().positive(),
+              quantityRequired: z.coerce.number().positive(),
+              wastagePercent: z.coerce.number().min(0).max(100).optional(),
+            }),
+          )
+          .nullish(),
+      }),
+      req.body,
+    );
+    const user = (req as Request & { user?: Session }).user;
+    res.status(201).json(
+      await manufacturing.createPackingOrder({ ...body, createdBy: user?.userId ?? null }),
+    );
+  });
+
+  app.put("/api/packing-orders/:id", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        bomId: z.coerce.number().int().positive(),
+        plannedQuantity: z.coerce.number().positive(),
+        manufacturingDate: isoDateSchema,
+        expiryDate: optionalIsoDateSchema,
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    await manufacturing.updatePackingOrder(Number(req.params.id), body);
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/packing-orders/:id", requireAuth, async (req, res) => {
+    await manufacturing.deletePackingOrder(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/packing-orders/:id/start", requireAuth, async (req, res) => {
+    await manufacturing.startPacking(Number(req.params.id));
+    res.json({ status: "IN_PROGRESS" });
+  });
+
+  app.post("/api/packing-orders/:id/pack", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        units: z.coerce.number().positive().nullish(),
+        unpackedQuantity: z.coerce.number().positive().nullish(),
         outputBatchNumber: z.string().nullish(),
         ignoreStock: z.boolean().optional(),
-        quantity: z.coerce.number().positive().optional(),
         materials: z
           .array(
             z.object({
@@ -882,24 +949,11 @@ export function createApp(
               quantity: z.coerce.number().positive(),
             }),
           )
-          .optional(),
+          .nullish(),
       }),
       req.body ?? {},
     );
-    res.json(await manufacturing.packProduction(Number(req.params.id), body));
-  });
-
-  app.post("/api/production-orders/:id/complete", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        actualQuantity: z.coerce.number().positive(),
-        wastageQuantity: z.coerce.number().min(0).optional(),
-        outputBatchNumber: z.string().nullish(),
-        ignoreStock: z.boolean().optional(),
-      }),
-      req.body,
-    );
-    res.json(await manufacturing.completeProduction(Number(req.params.id), body));
+    res.json(await manufacturing.packPackingOrder(Number(req.params.id), body));
   });
 
   app.get("/api/expense-categories", requireAuth, async (_req, res) => {

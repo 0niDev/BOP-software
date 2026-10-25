@@ -4,8 +4,8 @@ import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
-import type { Bom, BomComponent, Item, ProductionOrder } from "../types";
-import { defaultPackUnit, packCount, packsToBulk, PACK_UNITS } from "../lib/units";
+import type { Bom, BomComponent, Item, PackingOrder, ProductionOrder } from "../types";
+import { defaultPackUnit, packsToBulk, PACK_UNITS } from "../lib/units";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -15,7 +15,10 @@ function quantity(value: number): string {
   return value.toLocaleString("en-PK", { maximumFractionDigits: 3 });
 }
 
-type Tab = "boms" | "orders";
+const UNPACKED_PREFIX = "(Unpacked) ";
+
+type Tab = "formulations" | "production" | "packing";
+type BomKind = "FORMULATION" | "PACKING";
 
 interface ComponentDraft {
   key: number;
@@ -29,50 +32,63 @@ function newComponent(): ComponentDraft {
 }
 
 export default function ManufacturingPage() {
-  const [tab, setTab] = useState<Tab>("boms");
+  const [tab, setTab] = useState<Tab>("formulations");
   const [boms, setBoms] = useState<Bom[]>([]);
-  const [showHiddenBoms, setShowHiddenBoms] = useState(false);
-  const [bomPhase, setBomPhase] = useState("all");
   const [bomQuery, setBomQuery] = useState("");
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const [packingOrders, setPackingOrders] = useState<PackingOrder[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // BOM form
-  const [finishedItemId, setFinishedItemId] = useState(0);
+  const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
+  const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
+
+  // Formulations form
+  const [bomKind, setBomKind] = useState<BomKind>("FORMULATION");
+  const [bomName, setBomName] = useState("");
+  const [bomOutputItemId, setBomOutputItemId] = useState(0);
   const [outputQuantity, setOutputQuantity] = useState(1);
   const [componentLines, setComponentLines] = useState<ComponentDraft[]>([newComponent()]);
-  // Focus the first field of a row only when it was just added.
-  const addedComponent = useRef(false);
   const [editingBomId, setEditingBomId] = useState<number | null>(null);
+  const addedComponent = useRef(false);
 
-  // Order form
-  const [bomId, setBomId] = useState(0);
-  const [plannedQuantity, setPlannedQuantity] = useState(1);
-  const [manufacturingDate, setManufacturingDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  // Production form
+  const [productionBomId, setProductionBomId] = useState(0);
+  const [productionQuantity, setProductionQuantity] = useState(1);
+  const [productionDate, setProductionDate] = useState(today());
+  const [productionBomName, setProductionBomName] = useState("");
+  const [productionLines, setProductionLines] = useState<ComponentDraft[]>([newComponent()]);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [ignoreStockOrders, setIgnoreStockOrders] = useState<Record<number, boolean>>({});
-  const [packingOrderId, setPackingOrderId] = useState<number | null>(null);
-  const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
-  const [packBomId, setPackBomId] = useState<number | null>(null);
-  const [packFinishedItemId, setPackFinishedItemId] = useState(0);
-  const addedPacking = useRef(false);
-  const [packPacks, setPackPacks] = useState(0);
+  const addedProduction = useRef(false);
+
+  // Packing form
+  const [packingBomId, setPackingBomId] = useState(0);
+  const [packingQuantity, setPackingQuantity] = useState(1);
+  const [packingDate, setPackingDate] = useState(today());
+  const [packingBomName, setPackingBomName] = useState("");
+  const [packingOutputItemId, setPackingOutputItemId] = useState(0);
+  const [packingUnpackedItemId, setPackingUnpackedItemId] = useState(0);
   const [packSize, setPackSize] = useState(1);
-  const [packUnit, setPackUnit] = useState<string>("KG");
-  const [packItemUnit, setPackItemUnit] = useState<string>("KG");
-  const [packBom, setPackBom] = useState<{ components: BomComponent[]; output: number }>({
-    components: [],
-    output: 1,
-  });
+  const [packUnit, setPackUnit] = useState<string>("UNIT");
+  const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
+  const [editingPackingOrderId, setEditingPackingOrderId] = useState<number | null>(null);
+  const [ignoreStockPacking, setIgnoreStockPacking] = useState<Record<number, boolean>>({});
+  const addedPacking = useRef(false);
+
+  // Pack dialog
+  const [packOrderId, setPackOrderId] = useState<number | null>(null);
+  const [packUnits, setPackUnits] = useState(1);
+  const [packUnpackedQty, setPackUnpackedQty] = useState(0);
+  const [packUnpackedItemId, setPackUnpackedItemId] = useState(0);
+  const [packLines, setPackLines] = useState<ComponentDraft[]>([]);
 
   async function refresh() {
     try {
       setBoms(await api.boms(false));
       setOrders(await api.productionOrders());
+      setPackingOrders(await api.packingOrders());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load manufacturing data.");
     }
@@ -84,38 +100,38 @@ export default function ManufacturingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
-  const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
-
-  async function toggleBomComponents(id: number) {
-    if (expandedBomId === id) {
-      setExpandedBomId(null);
-      return;
-    }
-    setExpandedBomId(id);
-    if (!bomComponents[id]) {
-      try {
-        const detail = await api.bom(id);
-        setBomComponents((prev) => ({ ...prev, [id]: detail.components }));
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
-      }
-    }
-  }
-
   const itemName = (id: number) => items.find((i) => i.id === id)?.item_name ?? String(id);
   const itemUnit = (id: number) => items.find((i) => i.id === id)?.unit ?? "UNIT";
+  const activeItems = items.filter((i) => i.is_active === 1);
+  const rawMaterials = activeItems.filter((i) => i.item_type === "RAW_MATERIAL");
+  const packingMaterials = activeItems.filter((i) => i.item_type === "PACKING_MATERIAL");
+  const finishedGoods = activeItems.filter((i) => i.item_type === "FINISHED_GOOD");
 
-  const savedBoms = boms.filter((bom) => bom.is_temp !== 1);
-  // Production (raw) orders use formulation BOMs; keep a legacy/edited order's
-  // own packing BOM visible so the select still shows its current value.
-  const orderBoms = savedBoms.filter((bom) => bom.phase === "FORMULATION" || bom.id === bomId);
-  const visibleBoms = boms.filter(
-    (bom) =>
-      (showHiddenBoms || (bom.is_active === 1 && bom.is_temp !== 1)) &&
-      (bomPhase === "all" || bom.phase === bomPhase) &&
-      matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
+  const formulationBoms = boms.filter((bom) => bom.phase !== "PACKING");
+  const packingBoms = boms.filter((bom) => bom.phase === "PACKING");
+  const visibleBoms = boms.filter((bom) =>
+    matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
   );
+
+  const optionsFor = (list: Item[]) => [
+    { value: "0", label: "Select..." },
+    ...list.map((i) => ({ value: String(i.id), label: i.item_name })),
+  ];
+
+  async function loadComponents(id: number): Promise<BomComponent[]> {
+    if (bomComponents[id]) return bomComponents[id]!;
+    const detail = await api.bom(id);
+    setBomComponents((prev) => ({ ...prev, [id]: detail.components }));
+    return detail.components;
+  }
+
+  function forgetComponents(id: number) {
+    setBomComponents((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
 
   function bomComponentList(id: number) {
     const components = bomComponents[id];
@@ -133,76 +149,61 @@ export default function ManufacturingPage() {
     );
   }
 
-  const finishedGoods = items.filter(
-    (i) => i.is_active === 1 && i.item_type === "FINISHED_GOOD",
-  );
-  const components = items.filter(
-    (i) =>
-      i.is_active === 1 &&
-      (i.item_type === "RAW_MATERIAL" || i.item_type === "PACKING_MATERIAL"),
-  );
-  const componentOptions = [
-    { value: "0", label: "Select..." },
-    ...components.map((i) => ({ value: String(i.id), label: i.item_name })),
-  ];
-  const packingOptions = [
-    { value: "0", label: "Select..." },
-    ...items
-      .filter((i) => i.is_active === 1 && i.item_type === "PACKING_MATERIAL")
-      .map((i) => ({ value: String(i.id), label: i.item_name })),
-  ];
-
-  const packingOrder = orders.find((o) => o.id === packingOrderId);
-  const packAvailable = packingOrder?.unpacked_quantity ?? packingOrder?.actual_quantity ?? 0;
-  // The packer knows the pack size and how many packs the run makes; the bulk
-  // consumed from the unpacked batch is derived from those two.
-  const packBulk = packsToBulk(packPacks, packItemUnit, packSize, packUnit);
-  const packQuantity = packBulk.bulk;
-
-  function updateComponentLine(key: number, patch: Partial<ComponentDraft>) {
-    setComponentLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  async function toggleBomComponents(id: number) {
+    if (expandedBomId === id) {
+      setExpandedBomId(null);
+      return;
+    }
+    setExpandedBomId(id);
+    try {
+      await loadComponents(id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
+    }
   }
 
+  // --- Formulations ------------------------------------------------------
   function resetBomForm() {
     setEditingBomId(null);
-    setFinishedItemId(0);
+    setBomKind("FORMULATION");
+    setBomName("");
+    setBomOutputItemId(0);
     setOutputQuantity(1);
     setComponentLines([newComponent()]);
   }
 
-  async function createBom(event: FormEvent) {
+  function validLines(lines: ComponentDraft[]) {
+    return lines.filter((line) => line.itemId > 0 && line.quantityRequired > 0);
+  }
+
+  async function saveBom(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    if (!finishedItemId) {
-      setError("Select a finished item.");
-      return;
-    }
-    const payload = componentLines.filter((l) => l.itemId > 0 && l.quantityRequired > 0);
+    const payload = validLines(componentLines);
     if (payload.length === 0) {
       setError("Add at least one component.");
       return;
     }
+    if (bomKind === "PACKING" && !bomOutputItemId) {
+      setError("Select the finished output item.");
+      return;
+    }
     try {
       const body = {
-        finishedItemId,
+        bomName: bomName.trim() || null,
         outputQuantity,
-        components: payload.map((l) => ({
-          componentItemId: l.itemId,
-          quantityRequired: l.quantityRequired,
+        finishedItemId: bomKind === "PACKING" ? bomOutputItemId : undefined,
+        components: payload.map((line) => ({
+          componentItemId: line.itemId,
+          quantityRequired: line.quantityRequired,
         })),
       };
       const bom =
         editingBomId === null
           ? await api.createBom(body)
           : await api.updateBom(editingBomId, body);
-      if (editingBomId !== null) {
-        setBomComponents((prev) => {
-          const next = { ...prev };
-          delete next[editingBomId];
-          return next;
-        });
-      }
+      if (editingBomId !== null) forgetComponents(editingBomId);
       setNotice(`${editingBomId === null ? "Created" : "Updated"} BOM ${bom.bomName}`);
       resetBomForm();
       await refresh();
@@ -216,7 +217,9 @@ export default function ManufacturingPage() {
     setNotice(null);
     try {
       const detail = await api.bom(bom.id);
-      setFinishedItemId(detail.bom.finished_item_id);
+      setBomKind(bom.phase === "PACKING" ? "PACKING" : "FORMULATION");
+      setBomName(detail.bom.bom_name);
+      setBomOutputItemId(detail.bom.finished_item_id);
       setOutputQuantity(detail.bom.output_quantity);
       setComponentLines(
         detail.components.length > 0
@@ -239,11 +242,7 @@ export default function ManufacturingPage() {
     setNotice(null);
     try {
       await api.deleteBom(bom.id);
-      setBomComponents((prev) => {
-        const next = { ...prev };
-        delete next[bom.id];
-        return next;
-      });
+      forgetComponents(bom.id);
       if (editingBomId === bom.id) resetBomForm();
       setNotice(`Deleted BOM ${bom.bom_name}`);
       await refresh();
@@ -252,54 +251,76 @@ export default function ManufacturingPage() {
     }
   }
 
-  function resetOrderForm() {
+  // --- Production --------------------------------------------------------
+  function resetProductionForm() {
     setEditingOrderId(null);
-    setBomId(0);
-    setPlannedQuantity(1);
-    setManufacturingDate(new Date().toISOString().slice(0, 10));
+    setProductionBomId(0);
+    setProductionQuantity(1);
+    setProductionDate(today());
+    setProductionBomName("");
+    setProductionLines([newComponent()]);
   }
 
-  async function createOrder(event: FormEvent) {
+  function updateProductionLine(key: number, patch: Partial<ComponentDraft>) {
+    setProductionLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  async function saveProductionOrder(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    if (!bomId) {
-      setError("Select a BOM.");
-      return;
-    }
     try {
       if (editingOrderId !== null) {
         await api.updateProductionOrder(editingOrderId, {
-          bomId,
-          plannedQuantity,
-          manufacturingDate,
+          bomId: productionBomId,
+          plannedQuantity: productionQuantity,
+          manufacturingDate: productionDate,
         });
         setNotice("Updated production order");
-      } else {
+      } else if (productionBomId > 0) {
         const order = await api.createProductionOrder({
-          bomId,
-          plannedQuantity,
-          manufacturingDate,
+          bomId: productionBomId,
+          plannedQuantity: productionQuantity,
+          manufacturingDate: productionDate,
         });
         setNotice(`Created production order ${order.orderNumber}`);
+      } else {
+        const payload = validLines(productionLines);
+        if (!productionBomName.trim()) {
+          setError("Name the BOM this run saves.");
+          return;
+        }
+        if (payload.length === 0) {
+          setError("Add the raw materials this run consumes.");
+          return;
+        }
+        const order = await api.createProductionOrder({
+          bomName: productionBomName,
+          plannedQuantity: productionQuantity,
+          manufacturingDate: productionDate,
+          components: payload.map((line) => ({
+            componentItemId: line.itemId,
+            quantityRequired: line.quantityRequired,
+          })),
+        });
+        setNotice(`Created production order ${order.orderNumber} and saved its per-unit BOM`);
       }
-      resetOrderForm();
+      resetProductionForm();
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save order.");
     }
   }
 
-  function selectBom(next: string) {
+  async function selectProductionBom(next: string) {
     const id = Number(next);
-    setBomId(id);
-    if (id && !bomComponents[id]) {
-      void api
-        .bom(id)
-        .then((detail) => setBomComponents((prev) => ({ ...prev, [id]: detail.components })))
-        .catch((err: unknown) =>
-          setError(err instanceof ApiError ? err.message : "Failed to load BOM components."),
-        );
+    setProductionBomId(id);
+    if (id) {
+      try {
+        await loadComponents(id);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
+      }
     }
   }
 
@@ -307,9 +328,10 @@ export default function ManufacturingPage() {
     setError(null);
     setNotice(null);
     setEditingOrderId(order.id);
-    selectBom(String(order.bom_id));
-    setPlannedQuantity(order.planned_quantity);
-    setManufacturingDate(order.manufacturing_date);
+    setProductionBomId(order.bom_id);
+    setProductionQuantity(order.planned_quantity);
+    setProductionDate(order.manufacturing_date);
+    void loadComponents(order.bom_id).catch(() => undefined);
   }
 
   async function removeOrder(order: ProductionOrder) {
@@ -318,7 +340,7 @@ export default function ManufacturingPage() {
     setNotice(null);
     try {
       await api.deleteProductionOrder(order.id);
-      if (editingOrderId === order.id) resetOrderForm();
+      if (editingOrderId === order.id) resetProductionForm();
       setNotice(`Deleted order ${order.order_number}`);
       await refresh();
     } catch (err) {
@@ -326,7 +348,7 @@ export default function ManufacturingPage() {
     }
   }
 
-  async function start(id: number) {
+  async function startProduction(id: number) {
     try {
       await api.startProduction(id);
       await refresh();
@@ -335,8 +357,8 @@ export default function ManufacturingPage() {
     }
   }
 
-  async function produce(id: number, planned: number) {
-    const raw = window.prompt("Unpacked quantity produced:", String(planned));
+  async function produce(order: ProductionOrder) {
+    const raw = window.prompt("Unpacked quantity produced:", String(order.planned_quantity));
     if (raw === null) return;
     const actual = Number(raw);
     if (!(actual > 0)) {
@@ -345,249 +367,313 @@ export default function ManufacturingPage() {
     }
     const batch = window.prompt("Unpacked batch number (optional):", "") ?? "";
     try {
-      const result = await api.produceProduction(id, {
+      const result = await api.produceProduction(order.id, {
         actualQuantity: actual,
         outputBatchNumber: batch || undefined,
-        ignoreStock: ignoreStockOrders[id] || undefined,
+        ignoreStock: ignoreStockOrders[order.id] || undefined,
       });
-      setNotice(`Produced unpacked stock for order ${id} — raw cost ${money(result.productionCost)}`);
+      setNotice(
+        `Produced ${quantity(actual)} unpacked (${result.outputBatchNumber}) — raw cost ${money(result.productionCost)}`,
+      );
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to produce order.");
     }
   }
 
-  /** BOM packing materials scaled to the quantity being packed. */
-  function packingLinesFor(
-    qty: number,
-    components: BomComponent[],
-    output: number,
-  ): ComponentDraft[] {
-    const ratio = qty / (output || 1);
-    const lines = components
-      .filter((component) => isPackingComponent(component))
-      .map((component) => ({
-        key: componentKey++,
-        itemId: component.component_item_id,
-        quantityRequired:
-          component.quantity_required * ratio * (1 + (component.wastage_percent || 0) / 100),
-      }));
-    return lines.length > 0 ? lines : [newComponent()];
-  }
-
-  function isPackingComponent(component: BomComponent): boolean {
-    return (
-      items.find((i) => i.id === component.component_item_id)?.item_type === "PACKING_MATERIAL"
-    );
-  }
-
-  /** The active packing BOM for a finished item; latest wins (same as the server). */
-  function packingBomFor(finishedItemId: number): Bom | undefined {
-    return savedBoms
-      .filter(
-        (bom) =>
-          bom.is_active === 1 &&
-          bom.phase === "PACKING" &&
-          bom.finished_item_id === finishedItemId,
-      )
-      .reduce<Bom | undefined>((latest, bom) => (!latest || bom.id > latest.id ? bom : latest), undefined);
-  }
-
-  const packingBomChoices = savedBoms.filter(
-    (bom) =>
-      bom.is_active === 1 && bom.phase === "PACKING" && bom.finished_item_id === packFinishedItemId,
-  );
-
-  async function changePackBom(nextId: number): Promise<void> {
-    setPackBomId(nextId);
-    try {
-      const detail = await api.bom(nextId);
-      const output = detail.bom.output_quantity || 1;
-      setPackBom({ components: detail.components, output });
-      applyRecipe(packItemUnit, output, detail.components);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load packing BOM.");
-    }
-  }
-
-  /**
-   * Adopt a packing BOM's recipe: its output quantity is one pack, so the pack
-   * size is set from it and the material lines are the BOM's per-output
-   * quantities scaled to the whole packs the unpacked stock makes.
-   */
-  function applyRecipe(
-    itemUnit: string,
-    output: number,
-    components: BomComponent[],
-    available = packAvailable,
-  ): void {
-    const unit = defaultPackUnit(itemUnit);
-    const whole =
-      available > 0 && output > 0 ? packCount(available, itemUnit, output, unit) : null;
-    const size = whole?.error ? available : output;
-    const packs = whole ? (whole.error ? 1 : whole.packs) : 0;
-    setPackSize(size);
-    setPackUnit(unit);
-    setPackPacks(packs);
-    const bulk = packsToBulk(packs, itemUnit, size, unit);
-    if (!bulk.error) {
-      setPackingLines(packingLinesFor(bulk.bulk, components, output));
-    }
-  }
-
-  /** Set the number of packs; the bulk drawn from stock is derived from it. */
-  function applyPacks(packs: number, size = packSize, unit = packUnit): void {
-    setPackPacks(packs);
-    // A first pack has no recipe to scale yet — leave the lines the user typed.
-    if (packBomId === null) return;
-    const bulk = packsToBulk(packs, packItemUnit, size, unit);
-    if (!bulk.error) {
-      setPackingLines(packingLinesFor(bulk.bulk, packBom.components, packBom.output));
-    }
-  }
-
-  /** Fill as many whole packs of the chosen size as the unpacked stock allows. */
-  function refillWholePacks(size: number, unit: string): void {
-    const whole = packCount(packAvailable, packItemUnit, size, unit);
-    applyPacks(whole.error ? packPacks : whole.packs, size, unit);
-  }
-
-  function changePackSize(next: number): void {
-    setPackSize(next);
-    refillWholePacks(next, packUnit);
-  }
-
-  function changePackUnit(next: string): void {
-    setPackUnit(next);
-    refillWholePacks(packSize, next);
-  }
-
-  async function startPack(order: ProductionOrder) {
-    setError(null);
-    setNotice(null);
-    try {
-      // The BOM detail also carries the finished item for temporary BOMs,
-      // which are hidden from the BOM list.
-      const detail = await api.bom(order.bom_id);
-      setBomComponents((prev) => ({ ...prev, [order.bom_id]: detail.components }));
-      const finishedItemId = detail.bom.finished_item_id;
-      // Split model: the order's BOM is the raw recipe, so the packing
-      // materials come from the active packing BOM for the same finished item.
-      const ownPacking = detail.components.some(isPackingComponent);
-      const packingBom = ownPacking ? undefined : packingBomFor(finishedItemId);
-      const source = packingBom ? await api.bom(packingBom.id) : detail;
-      const output = source.bom.output_quantity || 1;
-      const available = order.unpacked_quantity ?? order.actual_quantity;
-      const unit = itemUnit(finishedItemId);
-      setPackFinishedItemId(finishedItemId);
-      setPackBomId(packingBom ? packingBom.id : ownPacking ? order.bom_id : null);
-      setPackBom({ components: source.components, output });
-      setPackItemUnit(unit);
-      if (packingBom || ownPacking) {
-        // A saved packing BOM defines one pack: adopt its size and ratio.
-        applyRecipe(unit, output, source.components, available);
-      } else {
-        // First pack: no recipe yet, so start from the whole unpacked batch.
-        setPackSize(1);
-        setPackUnit(defaultPackUnit(unit));
-        setPackPacks(available);
-        setPackingLines(packingLinesFor(available, source.components, output));
-      }
-      setPackingOrderId(order.id);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load packing materials.");
-    }
+  // --- Packing -----------------------------------------------------------
+  function resetPackingForm() {
+    setEditingPackingOrderId(null);
+    setPackingBomId(0);
+    setPackingQuantity(1);
+    setPackingDate(today());
+    setPackingBomName("");
+    setPackingOutputItemId(0);
+    setPackingUnpackedItemId(0);
+    setPackSize(1);
+    setPackUnit("UNIT");
+    setPackingLines([newComponent()]);
   }
 
   function updatePackingLine(key: number, patch: Partial<ComponentDraft>) {
     setPackingLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
+  function selectUnpackedItem(next: string) {
+    const id = Number(next);
+    setPackingUnpackedItemId(id);
+    setPackUnit(defaultPackUnit(itemUnit(id)));
+  }
+
+  const unpackedBulk = packsToBulk(
+    packingQuantity,
+    itemUnit(packingUnpackedItemId),
+    packSize,
+    packUnit,
+  );
+
+  async function savePackingOrder(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    try {
+      if (editingPackingOrderId !== null) {
+        await api.updatePackingOrder(editingPackingOrderId, {
+          bomId: packingBomId,
+          plannedQuantity: packingQuantity,
+          manufacturingDate: packingDate,
+        });
+        setNotice("Updated packing order");
+      } else if (packingBomId > 0) {
+        const order = await api.createPackingOrder({
+          bomId: packingBomId,
+          plannedQuantity: packingQuantity,
+          manufacturingDate: packingDate,
+        });
+        setNotice(`Created packing order ${order.orderNumber}`);
+      } else {
+        if (!packingOutputItemId || !packingUnpackedItemId) {
+          setError("Select the output item and the unpacked material.");
+          return;
+        }
+        if (unpackedBulk.error || unpackedBulk.bulk <= 0) {
+          setError(unpackedBulk.error ?? "Set the size per item and the items generated.");
+          return;
+        }
+        const materials = validLines(packingLines);
+        const order = await api.createPackingOrder({
+          packingBomName: packingBomName.trim() || null,
+          plannedQuantity: packingQuantity,
+          manufacturingDate: packingDate,
+          outputItemId: packingOutputItemId,
+          unpackedItemId: packingUnpackedItemId,
+          unpackedQuantity: unpackedBulk.bulk,
+          materials: materials.map((line) => ({
+            componentItemId: line.itemId,
+            quantityRequired: line.quantityRequired,
+          })),
+        });
+        setNotice(`Created packing order ${order.orderNumber} and saved its per-unit BOM`);
+      }
+      resetPackingForm();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save packing order.");
+    }
+  }
+
+  async function selectPackingBom(next: string) {
+    const id = Number(next);
+    setPackingBomId(id);
+    if (id) {
+      try {
+        await loadComponents(id);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
+      }
+    }
+  }
+
+  function startEditPackingOrder(order: PackingOrder) {
+    setError(null);
+    setNotice(null);
+    setEditingPackingOrderId(order.id);
+    setPackingBomId(order.bom_id);
+    setPackingQuantity(order.planned_quantity);
+    setPackingDate(order.manufacturing_date);
+    void loadComponents(order.bom_id).catch(() => undefined);
+  }
+
+  async function removePackingOrder(order: PackingOrder) {
+    if (!window.confirm(`Delete packing order ${order.order_number}?`)) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deletePackingOrder(order.id);
+      if (editingPackingOrderId === order.id) resetPackingForm();
+      setNotice(`Deleted packing order ${order.order_number}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete packing order.");
+    }
+  }
+
+  async function startPackingOrder(id: number) {
+    try {
+      await api.startPacking(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to start packing order.");
+    }
+  }
+
+  /** The BOM's per-output recipe scaled to `units`. */
+  function scaledLines(components: BomComponent[], units: number, output: number): ComponentDraft[] {
+    const ratio = units / (output || 1);
+    return components
+      .filter((component) => {
+        const type = items.find((i) => i.id === component.component_item_id)?.item_type;
+        return type === "PACKING_MATERIAL";
+      })
+      .map((component) => ({
+        key: componentKey++,
+        itemId: component.component_item_id,
+        quantityRequired:
+          component.quantity_required * ratio * (1 + (component.wastage_percent || 0) / 100),
+      }));
+  }
+
+  async function openPackDialog(order: PackingOrder) {
+    setError(null);
+    setNotice(null);
+    try {
+      const detail = await api.bom(order.bom_id);
+      setBomComponents((prev) => ({ ...prev, [order.bom_id]: detail.components }));
+      const unpacked = detail.components.find(
+        (component) => items.find((i) => i.id === component.component_item_id)?.item_type === "FINISHED_GOOD",
+      );
+      if (!unpacked) {
+        setError("This packing BOM has no unpacked material.");
+        return;
+      }
+      const ratio = order.planned_quantity / (detail.bom.output_quantity || 1);
+      const perUnit = unpacked.quantity_required * ratio * (1 + (unpacked.wastage_percent || 0) / 100);
+      setPackOrderId(order.id);
+      setPackUnits(order.planned_quantity);
+      setPackUnpackedItemId(unpacked.component_item_id);
+      setPackUnpackedQty(perUnit);
+      const lines = scaledLines(detail.components, order.planned_quantity, detail.bom.output_quantity);
+      setPackLines(lines.length > 0 ? lines : [newComponent()]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load the packing BOM.");
+    }
+  }
+
   async function confirmPack() {
-    if (packingOrderId === null) return;
-    if (packBulk.error || packQuantity <= 0) {
-      setError(packBulk.error ?? "Enter how many packs to make.");
+    if (packOrderId === null) return;
+    if (!(packUnits > 0) || !(packUnpackedQty > 0)) {
+      setError("Items generated and unpacked quantity must be greater than 0.");
       return;
     }
-    const batch = window.prompt("Final finished-goods batch number (optional):", "");
+    const batch = window.prompt("Finished-goods batch number (optional):", "");
     if (batch === null) return;
-    const materials = packingLines
-      .filter((l) => l.itemId > 0 && l.quantityRequired > 0)
-      .map((l) => ({ itemId: l.itemId, quantity: l.quantityRequired }));
-    const perPack = packsToBulk(1, packItemUnit, packSize, packUnit);
+    const materials = validLines(packLines).map((line) => ({
+      itemId: line.itemId,
+      quantity: line.quantityRequired,
+    }));
     try {
-      const result = await api.packProduction(packingOrderId, {
-        quantity: packQuantity,
-        packSize: perPack.error ? undefined : perPack.bulk,
+      const result = await api.packPackingOrder(packOrderId, {
+        units: packUnits,
+        unpackedQuantity: packUnpackedQty,
         materials,
         outputBatchNumber: batch || undefined,
-        ignoreStock: ignoreStockOrders[packingOrderId] || undefined,
+        ignoreStock: ignoreStockPacking[packOrderId] || undefined,
       });
       setNotice(
-        `Packed ${packQuantity} — production cost ${money(result.productionCost)}` +
-          (result.packingBomName ? ` — saved packing BOM ${result.packingBomName}` : ""),
+        `Packed ${quantity(packUnits)} (${result.outputBatchNumber}) — cost ${money(result.productionCost)}`,
       );
-      setPackingOrderId(null);
-      setPackingLines([newComponent()]);
-      setPackPacks(0);
+      setPackOrderId(null);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to pack order.");
     }
   }
 
+  const packOrder = packingOrders.find((order) => order.id === packOrderId);
+  const packUnpackedAvailable = items.find((i) => i.id === packUnpackedItemId)?.current_stock ?? 0;
+
   return (
     <>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Manufacturing</h2>
-          <div className="row">
-            <button className={tab === "boms" ? "primary" : ""} onClick={() => setTab("boms")}>
-              Bills of Materials
-            </button>
-            <button className={tab === "orders" ? "primary" : ""} onClick={() => setTab("orders")}>
-              Production Orders
-            </button>
+          <div className="coa-tabs" role="tablist">
+            {(
+              [
+                ["formulations", "Formulations"],
+                ["production", "Production"],
+                ["packing", "Packing"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={tab === value}
+                className={tab === value ? "active" : undefined}
+                onClick={() => setTab(value)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
         {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
         {notice && <div className="badge" style={{ display: "inline-block", marginTop: 12 }}>{notice}</div>}
       </div>
 
-      {tab === "boms" && (
+      {tab === "formulations" && (
         <>
-          <form className="card" onSubmit={createBom}>
+          <form className="card" onSubmit={saveBom}>
             <h2>{editingBomId === null ? "New bill of materials" : "Edit bill of materials"}</h2>
             <div className="row">
               <div>
-                <label>Finished item</label>
-                <SearchableSelect
-                  value={String(finishedItemId)}
-                  onChange={(next) => setFinishedItemId(Number(next))}
-                  placeholder="Select..."
-                  emptyText="No matching item"
-                  options={[
-                    { value: "0", label: "Select..." },
-                    ...finishedGoods.map((i) => ({ value: String(i.id), label: i.item_name })),
-                  ]}
+                <label>BOM type</label>
+                <select
+                  value={bomKind}
+                  onChange={(e) => setBomKind(e.target.value as BomKind)}
+                  aria-label="BOM type"
+                  disabled={editingBomId !== null}
+                >
+                  <option value="FORMULATION">Formulation (raw materials)</option>
+                  <option value="PACKING">Packing (unpacked + packaging)</option>
+                </select>
+              </div>
+              <div>
+                <label>BOM name</label>
+                <input
+                  value={bomName}
+                  onChange={(e) => setBomName(e.target.value)}
+                  placeholder="e.g. Syrup 500ml"
+                  style={{ width: 220 }}
                 />
               </div>
+              {bomKind === "PACKING" && (
+                <div>
+                  <label>Finished output item</label>
+                  <SearchableSelect
+                    value={String(bomOutputItemId)}
+                    onChange={(next) => setBomOutputItemId(Number(next))}
+                    ariaLabel="Finished output item"
+                    placeholder="Select..."
+                    emptyText="No matching item"
+                    options={optionsFor(finishedGoods)}
+                  />
+                </div>
+              )}
               <div>
                 <label>Output quantity</label>
                 <NumberInput
                   min="0"
                   step="0.001"
+                  aria-label="Output quantity"
                   value={outputQuantity}
                   onChange={(e) => setOutputQuantity(Number(e.target.value))}
                   style={{ width: 120 }}
                 />
               </div>
             </div>
+            {bomKind === "FORMULATION" && (
+              <p style={{ opacity: 0.7, fontSize: 12 }}>
+                Output item: {UNPACKED_PREFIX}
+                {bomName.trim() || "<BOM name>"} — created in inventory automatically.
+              </p>
+            )}
 
             <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
               <thead>
                 <tr>
-                  <th>Component</th>
+                  <th>{bomKind === "PACKING" ? "Unpacked / packing material" : "Raw material"}</th>
                   <th className="num">Qty required</th>
                   <th />
                 </tr>
@@ -599,20 +685,32 @@ export default function ManufacturingPage() {
                       <SearchableSelect
                         value={String(line.itemId)}
                         autoFocus={addedComponent.current && line.key === componentLines.at(-1)?.key}
-                        onChange={(next) => updateComponentLine(line.key, { itemId: Number(next) })}
+                        ariaLabel="Component item"
+                        onChange={(next) => setComponentLines((prev) =>
+                          prev.map((l) => (l.key === line.key ? { ...l, itemId: Number(next) } : l)),
+                        )}
                         placeholder="Select..."
                         emptyText="No matching item"
-                        options={componentOptions}
+                        options={optionsFor(
+                          bomKind === "PACKING"
+                            ? [...finishedGoods, ...packingMaterials]
+                            : rawMaterials,
+                        )}
                       />
                     </td>
                     <td className="num">
                       <NumberInput
                         min="0"
                         step="0.001"
+                        aria-label="Component quantity"
                         value={line.quantityRequired}
-                        onChange={(e) =>
-                          updateComponentLine(line.key, { quantityRequired: Number(e.target.value) })
-                        }
+                        onChange={(e) => setComponentLines((prev) =>
+                          prev.map((l) =>
+                            l.key === line.key
+                              ? { ...l, quantityRequired: Number(e.target.value) }
+                              : l,
+                          ),
+                        )}
                         style={{ width: 120 }}
                       />
                     </td>
@@ -642,47 +740,34 @@ export default function ManufacturingPage() {
               >
                 Add component
               </button>
-              <button className="primary" type="submit">
-                {editingBomId === null ? "Create BOM" : "Save changes"}
-              </button>
-              {editingBomId !== null && (
-                <button type="button" onClick={resetBomForm} style={{ marginLeft: 8 }}>
-                  Cancel
+              <div className="row">
+                {editingBomId !== null && (
+                  <button type="button" onClick={resetBomForm}>
+                    Cancel
+                  </button>
+                )}
+                <button className="primary" type="submit">
+                  {editingBomId === null ? "Create BOM" : "Save changes"}
                 </button>
-              )}
+              </div>
             </div>
           </form>
 
           <div className="card">
+            <h2>Bills of materials</h2>
             <div className="row" style={{ marginBottom: 12 }}>
               <FilterBox
                 value={bomQuery}
                 onChange={setBomQuery}
                 placeholder="Search BOMs or products…"
               />
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={showHiddenBoms}
-                  onChange={(e) => setShowHiddenBoms(e.target.checked)}
-                />
-                Show hidden
-              </label>
-              <select
-                value={bomPhase}
-                onChange={(e) => setBomPhase(e.target.value)}
-                aria-label="BOM phase"
-              >
-                <option value="all">All phases</option>
-                <option value="FORMULATION">Production (raw)</option>
-                <option value="PACKING">Packing</option>
-              </select>
             </div>
             <table>
               <thead>
                 <tr>
                   <th>BOM</th>
-                  <th>Finished item</th>
+                  <th>Stage</th>
+                  <th>Output item</th>
                   <th className="num">Output qty</th>
                   <th />
                 </tr>
@@ -692,6 +777,7 @@ export default function ManufacturingPage() {
                   <Fragment key={bom.id}>
                     <tr>
                       <td>{bom.bom_name}</td>
+                      <td>{bom.phase === "PACKING" ? "Packing" : "Formulation"}</td>
                       <td>{itemName(bom.finished_item_id)}</td>
                       <td className="num">{bom.output_quantity}</td>
                       <td>
@@ -708,7 +794,7 @@ export default function ManufacturingPage() {
                     </tr>
                     {expandedBomId === bom.id && (
                       <tr>
-                        <td colSpan={4} style={{ opacity: 0.85 }}>
+                        <td colSpan={5} style={{ opacity: 0.85 }}>
                           {bomComponentList(bom.id)}
                         </td>
                       </tr>
@@ -717,7 +803,7 @@ export default function ManufacturingPage() {
                 ))}
                 {visibleBoms.length === 0 && (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       {boms.length === 0 ? "No bills of materials yet." : "No matching BOMs."}
                     </td>
                   </tr>
@@ -728,31 +814,36 @@ export default function ManufacturingPage() {
         </>
       )}
 
-      {tab === "orders" && (
+      {tab === "production" && (
         <>
-          <form className="card" onSubmit={createOrder}>
+          <form className="card" onSubmit={saveProductionOrder}>
             <h2>{editingOrderId === null ? "New production order" : "Edit production order"}</h2>
             <div className="row">
               <div>
                 <label>BOM</label>
                 <SearchableSelect
-                  value={String(bomId)}
-                  onChange={selectBom}
+                  value={String(productionBomId)}
+                  onChange={(next) => void selectProductionBom(next)}
+                  ariaLabel="Production BOM"
                   placeholder="Search by product or BOM..."
                   emptyText="No matching BOM"
-                  options={orderBoms.map((b) => ({
-                    value: String(b.id),
-                    label: `${itemName(b.finished_item_id)} — ${b.bom_name}${b.is_active ? "" : " (inactive)"}`,
-                  }))}
+                  options={[
+                    { value: "0", label: "Manual run — save a new BOM" },
+                    ...formulationBoms.map((b) => ({
+                      value: String(b.id),
+                      label: `${b.bom_name} — ${itemName(b.finished_item_id)}`,
+                    })),
+                  ]}
                 />
               </div>
               <div>
-                <label>Planned quantity</label>
+                <label>Total output quantity</label>
                 <NumberInput
                   min="0"
                   step="0.001"
-                  value={plannedQuantity}
-                  onChange={(e) => setPlannedQuantity(Number(e.target.value))}
+                  aria-label="Total output quantity"
+                  value={productionQuantity}
+                  onChange={(e) => setProductionQuantity(Number(e.target.value))}
                   style={{ width: 140 }}
                 />
               </div>
@@ -760,209 +851,115 @@ export default function ManufacturingPage() {
                 <label>Manufacturing date</label>
                 <input
                   type="date"
-                  value={manufacturingDate}
-                  onChange={(e) => setManufacturingDate(e.target.value)}
+                  value={productionDate}
+                  onChange={(e) => setProductionDate(e.target.value)}
                 />
               </div>
             </div>
-            {orderBoms.length === 0 && (
-              <p style={{ opacity: 0.7, fontSize: 12 }}>
-                No production (raw) BOMs yet. Create one under Bills of Materials first.
-              </p>
-            )}
-            {bomId > 0 && (
+
+            {productionBomId > 0 ? (
               <div style={{ marginTop: 16 }}>
                 <strong>Components from this BOM</strong>
-                {bomComponentList(bomId)}
+                {bomComponentList(productionBomId)}
               </div>
+            ) : (
+              <>
+                <p style={{ opacity: 0.7, fontSize: 12 }}>
+                  No BOM selected: enter the run's totals. A per-unit BOM is saved automatically and
+                  the output item {UNPACKED_PREFIX}
+                  {productionBomName.trim() || "<BOM name>"} is created in inventory.
+                </p>
+                <div className="row">
+                  <div>
+                    <label>BOM name</label>
+                    <input
+                      value={productionBomName}
+                      onChange={(e) => setProductionBomName(e.target.value)}
+                      placeholder="e.g. Syrup 500ml"
+                      style={{ width: 220 }}
+                    />
+                  </div>
+                </div>
+                <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
+                  <thead>
+                    <tr>
+                      <th>Raw material</th>
+                      <th className="num">Total consumed</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productionLines.map((line) => (
+                      <tr key={line.key}>
+                        <td>
+                          <SearchableSelect
+                            value={String(line.itemId)}
+                            autoFocus={
+                              addedProduction.current && line.key === productionLines.at(-1)?.key
+                            }
+                            ariaLabel="Raw material"
+                            onChange={(next) => updateProductionLine(line.key, { itemId: Number(next) })}
+                            placeholder="Select..."
+                            emptyText="No matching item"
+                            options={optionsFor(rawMaterials)}
+                          />
+                        </td>
+                        <td className="num">
+                          <NumberInput
+                            min="0"
+                            step="0.001"
+                            aria-label="Total consumed"
+                            value={line.quantityRequired}
+                            onChange={(e) =>
+                              updateProductionLine(line.key, {
+                                quantityRequired: Number(e.target.value),
+                              })
+                            }
+                            style={{ width: 120 }}
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setProductionLines((prev) => prev.filter((l) => l.key !== line.key))
+                            }
+                            disabled={productionLines.length === 1}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  type="button"
+                  style={{ marginTop: 12 }}
+                  onClick={() => {
+                    addedProduction.current = true;
+                    setProductionLines((prev) => [...prev, newComponent()]);
+                  }}
+                >
+                  Add raw material
+                </button>
+              </>
             )}
+
             <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
-              <button className="primary" type="submit">
-                {editingOrderId === null ? "Create order" : "Save changes"}
-              </button>
               {editingOrderId !== null && (
-                <button type="button" onClick={resetOrderForm}>
+                <button type="button" onClick={resetProductionForm}>
                   Cancel
                 </button>
               )}
+              <button className="primary" type="submit">
+                {editingOrderId === null ? "Create order" : "Save changes"}
+              </button>
             </div>
           </form>
 
-          {packingOrderId !== null && (
-            <div className="card">
-              <h2>
-                Pack order {orders.find((o) => o.id === packingOrderId)?.order_number ?? ""}
-              </h2>
-              <p style={{ opacity: 0.7, fontSize: 12 }}>
-                Enter the pack size and how many packs the run makes — the quantity drawn from the
-                unpacked batch and the packing materials are worked out from those two. The rest
-                stays unpacked in stock. Materials are prefilled from the packing BOM, deducted from
-                stock scaled to the BOM, and can be changed. Tick Ignore stock to skip the stock
-                check and deduction.
-              </p>
-              <div className="row" style={{ marginBottom: 12 }}>
-                <div>
-                  <label>Packing BOM</label>
-                  {packingBomChoices.length > 0 ? (
-                    <SearchableSelect
-                      value={String(packBomId ?? 0)}
-                      onChange={(next) => void changePackBom(Number(next))}
-                      placeholder="Search packing BOM..."
-                      emptyText="No matching packing BOM"
-                      options={packingBomChoices.map((b) => ({
-                        value: String(b.id),
-                        label: `${b.bom_name} — ${quantity(b.output_quantity)} ${itemUnit(b.finished_item_id)} per pack`,
-                      }))}
-                    />
-                  ) : (
-                    <p style={{ margin: 0, opacity: 0.7, fontSize: 12 }}>
-                      No packing BOM yet — the materials you use now are saved as one.
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
-                <div>
-                  <label>Packs to make</label>
-                  <NumberInput
-                    min="1"
-                    step="1"
-                    value={packPacks}
-                    onChange={(e) => applyPacks(Number(e.target.value))}
-                    style={{ width: 100 }}
-                  />
-                </div>
-                <div>
-                  <label>Pack size</label>
-                  <div className="row">
-                    <NumberInput
-                      min="0.001"
-                      step="0.001"
-                      value={packSize}
-                      onChange={(e) => changePackSize(Number(e.target.value))}
-                      style={{ width: 100 }}
-                    />
-                    <select value={packUnit} onChange={(e) => changePackUnit(e.target.value)}>
-                      {PACK_UNITS.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div style={{ alignSelf: "flex-end", paddingBottom: 6 }}>
-                  {packBulk.error ? (
-                    <span style={{ color: "var(--danger)", fontSize: 12 }}>{packBulk.error}</span>
-                  ) : (
-                    <span className="badge">
-                      uses {quantity(packQuantity)} {packItemUnit} → {quantity(packPacks)} ×{" "}
-                      {quantity(packSize)} {packUnit}
-                      {packQuantity > packAvailable
-                        ? ` (only ${quantity(packAvailable)} unpacked)`
-                        : packAvailable - packQuantity > 0
-                          ? ` (${quantity(packAvailable - packQuantity)} ${packItemUnit} left unpacked)`
-                          : ""}
-                    </span>
-                  )}
-                </div>
-                <div style={{ opacity: 0.7, fontSize: 12, alignSelf: "flex-end", paddingBottom: 6 }}>
-                  {quantity(packAvailable)} {packItemUnit} unpacked available
-                </div>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Packing material</th>
-                    <th className="num">Quantity used</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {packingLines.map((line) => (
-                    <tr key={line.key}>
-                      <td>
-                        <SearchableSelect
-                          value={String(line.itemId)}
-                          autoFocus={addedPacking.current && line.key === packingLines.at(-1)?.key}
-                          onChange={(next) =>
-                            updatePackingLine(line.key, { itemId: Number(next) })
-                          }
-                          placeholder="Select packing material..."
-                          emptyText="No matching packing material"
-                          options={packingOptions}
-                        />
-                      </td>
-                      <td className="num">
-                        <NumberInput
-                          min="0"
-                          step="0.001"
-                          value={line.quantityRequired}
-                          onChange={(e) =>
-                            updatePackingLine(line.key, {
-                              quantityRequired: Number(e.target.value),
-                            })
-                          }
-                          style={{ width: 140 }}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPackingLines((prev) => prev.filter((l) => l.key !== line.key))
-                          }
-                          disabled={packingLines.length === 1}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    addedPacking.current = true;
-                    setPackingLines((prev) => [...prev, newComponent()]);
-                  }}
-                >
-                  Add packing material
-                </button>
-                <div className="row">
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={ignoreStockOrders[packingOrderId] ?? false}
-                      onChange={(e) =>
-                        setIgnoreStockOrders((prev) => ({
-                          ...prev,
-                          [packingOrderId]: e.target.checked,
-                        }))
-                      }
-                    />
-                    Ignore stock
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPackingOrderId(null);
-                      setPackingLines([newComponent()]);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button className="primary" type="button" onClick={() => void confirmPack()}>
-                    Confirm pack
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="card">
+            <h2>Production orders</h2>
             <table>
               <thead>
                 <tr>
@@ -970,7 +967,7 @@ export default function ManufacturingPage() {
                   <th>Status</th>
                   <th className="num">Planned</th>
                   <th className="num">Actual</th>
-                  <th className="num">Cost</th>
+                  <th className="num">Raw cost</th>
                   <th />
                 </tr>
               </thead>
@@ -978,35 +975,21 @@ export default function ManufacturingPage() {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td>{order.order_number}</td>
-                    <td>
-                      {order.status === "IN_PROGRESS" && order.actual_quantity > 0
-                        ? `UNPACKED (${order.unpacked_quantity ?? 0} left)`
-                        : order.status}
-                    </td>
+                    <td>{order.status}</td>
                     <td className="num">{order.planned_quantity}</td>
                     <td className="num">{order.actual_quantity}</td>
                     <td className="num">{money(order.production_cost)}</td>
                     <td>
                       {order.status === "DRAFT" && (
                         <>
-                          {boms.some((b) => b.id === order.bom_id && b.is_temp !== 1) && (
-                            <>
-                              <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
-                            </>
-                          )}
+                          <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
                           <button onClick={() => void removeOrder(order)}>Delete</button>{" "}
-                          <button onClick={() => void start(order.id)}>Start</button>
+                          <button onClick={() => void startProduction(order.id)}>Start</button>
                         </>
                       )}
-                      {order.status === "IN_PROGRESS" && (
+                      {order.status === "IN_PROGRESS" && order.actual_quantity <= 0 && (
                         <>
-                          {order.actual_quantity > 0 ? (
-                            <button onClick={() => void startPack(order)}>Pack</button>
-                          ) : (
-                            <button onClick={() => void produce(order.id, order.planned_quantity)}>
-                              Produce
-                            </button>
-                          )}
+                          <button onClick={() => void produce(order)}>Produce</button>
                           <label style={{ marginLeft: 8, whiteSpace: "nowrap" }}>
                             <input
                               type="checkbox"
@@ -1022,6 +1005,11 @@ export default function ManufacturingPage() {
                           </label>
                         </>
                       )}
+                      {order.status === "IN_PROGRESS" && order.actual_quantity > 0 && (
+                        <span style={{ opacity: 0.7, fontSize: 12 }}>
+                          produced ({order.output_batch_number})
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1035,6 +1023,381 @@ export default function ManufacturingPage() {
           </div>
         </>
       )}
+
+      {tab === "packing" && (
+        <>
+          <form className="card" onSubmit={savePackingOrder}>
+            <h2>{editingPackingOrderId === null ? "New packing order" : "Edit packing order"}</h2>
+            <div className="row">
+              <div>
+                <label>Packing BOM</label>
+                <SearchableSelect
+                  value={String(packingBomId)}
+                  onChange={(next) => void selectPackingBom(next)}
+                  ariaLabel="Packing BOM"
+                  placeholder="Search packing BOM..."
+                  emptyText="No matching packing BOM"
+                  options={[
+                    { value: "0", label: "Manual run — save a new BOM" },
+                    ...packingBoms.map((b) => ({
+                      value: String(b.id),
+                      label: `${b.bom_name} — ${itemName(b.finished_item_id)}`,
+                    })),
+                  ]}
+                />
+              </div>
+              <div>
+                <label>Items generated</label>
+                <NumberInput
+                  min="1"
+                  step="1"
+                  aria-label="Items generated"
+                  value={packingQuantity}
+                  onChange={(e) => setPackingQuantity(Number(e.target.value))}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div>
+                <label>Packing date</label>
+                <input
+                  type="date"
+                  value={packingDate}
+                  onChange={(e) => setPackingDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {packingBomId > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <strong>Components from this BOM</strong>
+                {bomComponentList(packingBomId)}
+              </div>
+            ) : (
+              <>
+                <p style={{ opacity: 0.7, fontSize: 12 }}>
+                  No BOM selected: pick the output item and the unpacked material, then set the size
+                  per item. Unpacked used = items generated × size per item.
+                </p>
+                <div className="row">
+                  <div>
+                    <label>Packing BOM name</label>
+                    <input
+                      value={packingBomName}
+                      onChange={(e) => setPackingBomName(e.target.value)}
+                      placeholder="e.g. Syrup 500ml bottle"
+                      style={{ width: 220 }}
+                    />
+                  </div>
+                  <div>
+                    <label>Output item</label>
+                    <SearchableSelect
+                      value={String(packingOutputItemId)}
+                      onChange={(next) => setPackingOutputItemId(Number(next))}
+                      ariaLabel="Output item"
+                      placeholder="Select..."
+                      emptyText="No matching item"
+                      options={optionsFor(finishedGoods)}
+                    />
+                  </div>
+                  <div>
+                    <label>Unpacked material</label>
+                    <SearchableSelect
+                      value={String(packingUnpackedItemId)}
+                      onChange={selectUnpackedItem}
+                      ariaLabel="Unpacked material"
+                      placeholder="Select..."
+                      emptyText="No matching item"
+                      options={optionsFor(finishedGoods)}
+                    />
+                  </div>
+                  <div>
+                    <label>Size per item</label>
+                    <div className="row">
+                      <NumberInput
+                        min="0.001"
+                        step="0.001"
+                        aria-label="Size per item"
+                        value={packSize}
+                        onChange={(e) => setPackSize(Number(e.target.value))}
+                        style={{ width: 100 }}
+                      />
+                      <select value={packUnit} onChange={(e) => setPackUnit(e.target.value)}>
+                        {PACK_UNITS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ alignSelf: "flex-end", paddingBottom: 6 }}>
+                    {unpackedBulk.error ? (
+                      <span style={{ color: "var(--danger)", fontSize: 12 }}>{unpackedBulk.error}</span>
+                    ) : (
+                      <span className="badge">
+                        Unpacked used: {quantity(unpackedBulk.bulk)}{" "}
+                        {itemUnit(packingUnpackedItemId)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
+                  <thead>
+                    <tr>
+                      <th>Packing material</th>
+                      <th className="num">Total used</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packingLines.map((line) => (
+                      <tr key={line.key}>
+                        <td>
+                          <SearchableSelect
+                            value={String(line.itemId)}
+                            autoFocus={addedPacking.current && line.key === packingLines.at(-1)?.key}
+                            ariaLabel="Packing material"
+                            onChange={(next) => updatePackingLine(line.key, { itemId: Number(next) })}
+                            placeholder="Select packing material..."
+                            emptyText="No matching packing material"
+                            options={optionsFor(packingMaterials)}
+                          />
+                        </td>
+                        <td className="num">
+                          <NumberInput
+                            min="0"
+                            step="0.001"
+                            aria-label="Total used"
+                            value={line.quantityRequired}
+                            onChange={(e) =>
+                              updatePackingLine(line.key, {
+                                quantityRequired: Number(e.target.value),
+                              })
+                            }
+                            style={{ width: 140 }}
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPackingLines((prev) => prev.filter((l) => l.key !== line.key))
+                            }
+                            disabled={packingLines.length === 1}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  type="button"
+                  style={{ marginTop: 12 }}
+                  onClick={() => {
+                    addedPacking.current = true;
+                    setPackingLines((prev) => [...prev, newComponent()]);
+                  }}
+                >
+                  Add packing material
+                </button>
+              </>
+            )}
+
+            <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+              {editingPackingOrderId !== null && (
+                <button type="button" onClick={resetPackingForm}>
+                  Cancel
+                </button>
+              )}
+              <button className="primary" type="submit">
+                {editingPackingOrderId === null ? "Create packing order" : "Save changes"}
+              </button>
+            </div>
+          </form>
+
+          {packOrder && (
+            <div className="card">
+              <h2>Pack order {packOrder.order_number}</h2>
+              <p style={{ opacity: 0.7, fontSize: 12 }}>
+                Consumes the unpacked bulk and the packing materials, then puts the finished goods
+                into stock. Tick Ignore stock to skip the stock check and deduction.
+              </p>
+              <div className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
+                <div>
+                  <label>Items generated</label>
+                  <NumberInput
+                    min="1"
+                    step="1"
+                    aria-label="Items generated"
+                    value={packUnits}
+                    onChange={(e) => setPackUnits(Number(e.target.value))}
+                    style={{ width: 100 }}
+                  />
+                </div>
+                <div>
+                  <label>Unpacked used ({itemUnit(packUnpackedItemId)})</label>
+                  <NumberInput
+                    min="0.001"
+                    step="0.001"
+                    aria-label="Unpacked used"
+                    value={packUnpackedQty}
+                    onChange={(e) => setPackUnpackedQty(Number(e.target.value))}
+                    style={{ width: 140 }}
+                  />
+                </div>
+                <div style={{ opacity: 0.7, fontSize: 12, alignSelf: "flex-end", paddingBottom: 6 }}>
+                  {quantity(packUnpackedAvailable)} {itemUnit(packUnpackedItemId)} unpacked available
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Packing material</th>
+                    <th className="num">Quantity used</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {packLines.map((line) => (
+                    <tr key={line.key}>
+                      <td>
+                        <SearchableSelect
+                          value={String(line.itemId)}
+                          ariaLabel="Packing material"
+                          onChange={(next) =>
+                            setPackLines((prev) =>
+                              prev.map((l) => (l.key === line.key ? { ...l, itemId: Number(next) } : l)),
+                            )
+                          }
+                          placeholder="Select packing material..."
+                          emptyText="No matching packing material"
+                          options={optionsFor(packingMaterials)}
+                        />
+                      </td>
+                      <td className="num">
+                        <NumberInput
+                          min="0"
+                          step="0.001"
+                          aria-label="Quantity used"
+                          value={line.quantityRequired}
+                          onChange={(e) =>
+                            setPackLines((prev) =>
+                              prev.map((l) =>
+                                l.key === line.key
+                                  ? { ...l, quantityRequired: Number(e.target.value) }
+                                  : l,
+                              ),
+                            )
+                          }
+                          style={{ width: 140 }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => setPackLines((prev) => prev.filter((l) => l.key !== line.key))}
+                          disabled={packLines.length === 1}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
+                <button
+                  type="button"
+                  onClick={() => setPackLines((prev) => [...prev, newComponent()])}
+                >
+                  Add packing material
+                </button>
+                <div className="row">
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={ignoreStockPacking[packOrder.id] ?? false}
+                      onChange={(e) =>
+                        setIgnoreStockPacking((prev) => ({
+                          ...prev,
+                          [packOrder.id]: e.target.checked,
+                        }))
+                      }
+                    />
+                    Ignore stock
+                  </label>
+                  <button type="button" onClick={() => setPackOrderId(null)}>
+                    Cancel
+                  </button>
+                  <button className="primary" type="button" onClick={() => void confirmPack()}>
+                    Confirm pack
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="card">
+            <h2>Packing orders</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Output item</th>
+                  <th>Status</th>
+                  <th className="num">Items</th>
+                  <th className="num">Cost</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {packingOrders.map((order) => {
+                  const bom = boms.find((b) => b.id === order.bom_id);
+                  return (
+                    <tr key={order.id}>
+                      <td>{order.order_number}</td>
+                      <td>{bom ? itemName(bom.finished_item_id) : order.bom_id}</td>
+                      <td>{order.status}</td>
+                      <td className="num">
+                        {order.actual_quantity} / {order.planned_quantity}
+                      </td>
+                      <td className="num">{money(order.production_cost)}</td>
+                      <td>
+                        {order.status === "DRAFT" && (
+                          <>
+                            <button onClick={() => startEditPackingOrder(order)}>Edit</button>{" "}
+                            <button onClick={() => void removePackingOrder(order)}>Delete</button>{" "}
+                            <button onClick={() => void startPackingOrder(order.id)}>Start</button>
+                          </>
+                        )}
+                        {order.status === "IN_PROGRESS" && (
+                          <button onClick={() => void openPackDialog(order)}>Pack</button>
+                        )}
+                        {order.status === "COMPLETED" && order.output_batch_number && (
+                          <span style={{ opacity: 0.7, fontSize: 12 }}>
+                            batch {order.output_batch_number}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {packingOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={6}>No packing orders yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </>
   );
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }

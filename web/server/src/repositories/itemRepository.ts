@@ -51,6 +51,14 @@ export class ItemRepository {
     );
   }
 
+  /** First item with this exact name (names are not unique, unlike codes). */
+  async findByName(name: string, companyId = 1): Promise<ItemRow | undefined> {
+    return this.db.get<ItemRow>(
+      "SELECT * FROM items WHERE item_name = ? AND company_id = ? ORDER BY id LIMIT 1",
+      [name, companyId],
+    );
+  }
+
   /**
    * Items with their on-hand quantity. The stock figure is the sum of the
    * active batches' remaining quantity — the same definition the dashboard's

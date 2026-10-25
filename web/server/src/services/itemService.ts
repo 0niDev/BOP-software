@@ -19,7 +19,7 @@ import { TaxRateRepository, type TaxRateRow } from "../repositories/taxRateRepos
 import { AccountingService } from "./accountingService.js";
 
 /** Inventory account per item type (mirrors accounting/system_accounts.py). */
-const INVENTORY_ACCOUNT_BY_TYPE: Record<string, string> = {
+export const INVENTORY_ACCOUNT_BY_TYPE: Record<string, string> = {
   RAW_MATERIAL: "1200",
   PACKING_MATERIAL: "1210",
   FINISHED_GOOD: "1220",

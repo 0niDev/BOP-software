@@ -59,6 +59,7 @@ const DEFAULT_NUMBERING: ReadonlyArray<readonly [string, string]> = [
   ["JOURNAL_VOUCHER", "JV-"],
   ["OPENING", "OB-"],
   ["PRODUCTION_ORDER", "PO-"],
+  ["PACKING_ORDER", "PCO-"],
   ["EXPENSE_VOUCHER", "EV-"],
   ["CUSTOMER", "CUST-"],
   ["SUPPLIER", "SUPP-"],
@@ -91,6 +92,7 @@ const RECONCILE: ReadonlyArray<{
   { docType: "RECEIPT", prefix: "RV-", table: "receipts", column: "voucher_number" },
   { docType: "EXPENSE_VOUCHER", prefix: "EV-", table: "expenses", column: "voucher_number" },
   { docType: "PRODUCTION_ORDER", prefix: "PO-", table: "production_orders", column: "order_number" },
+  { docType: "PACKING_ORDER", prefix: "PCO-", table: "packing_orders", column: "order_number" },
 ];
 
 /**
@@ -142,8 +144,47 @@ export async function reconcileNumberingSequences(
 export async function bootstrapDatabase(db: SqlDatabase): Promise<void> {
   await db.exec(SCHEMA_SQL);
   await ensureColumns(db);
+  await backfillInvoicePartyLinks(db);
   await seedDefaults(db);
   await reconcileNumberingSequences(db);
+}
+
+/**
+ * Older cash/bank/cheque invoices posted their payment line with a NULL
+ * `party_id`, so they never showed up in the party ledger. Tag them on the
+ * cash/bank line only (not revenue/tax/COGS lines). Idempotent.
+ */
+async function backfillInvoicePartyLinks(db: SqlDatabase): Promise<void> {
+  await db.run(
+    `UPDATE journal_entry_lines
+        SET party_id = (SELECT si.customer_id
+                          FROM journal_entries je
+                          JOIN sales_invoices si ON si.id = je.source_id
+                         WHERE je.id = journal_entry_lines.journal_entry_id)
+      WHERE party_id IS NULL
+        AND journal_entry_id IN (
+          SELECT je.id FROM journal_entries je
+          JOIN sales_invoices si ON si.id = je.source_id
+          WHERE je.source_table = 'sales_invoices' AND si.payment_type <> 'CREDIT')
+        AND account_id IN (
+          SELECT id FROM accounts WHERE account_code IN ('1000','1010')
+          UNION SELECT account_id FROM bank_accounts)`,
+  );
+  await db.run(
+    `UPDATE journal_entry_lines
+        SET party_id = (SELECT pi.supplier_id
+                          FROM journal_entries je
+                          JOIN purchase_invoices pi ON pi.id = je.source_id
+                         WHERE je.id = journal_entry_lines.journal_entry_id)
+      WHERE party_id IS NULL
+        AND journal_entry_id IN (
+          SELECT je.id FROM journal_entries je
+          JOIN purchase_invoices pi ON pi.id = je.source_id
+          WHERE je.source_table = 'purchase_invoices' AND pi.payment_type <> 'CREDIT')
+        AND account_id IN (
+          SELECT id FROM accounts WHERE account_code IN ('1000','1010')
+          UNION SELECT account_id FROM bank_accounts)`,
+  );
 }
 
 /**

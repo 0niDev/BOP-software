@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api";
 import Layout from "./components/Layout";
+import { setDateFormat } from "./lib/format";
 import AccountsPage from "./pages/AccountsPage";
 import AssetsPage from "./pages/AssetsPage";
 import BankingPage from "./pages/BankingPage";
@@ -69,15 +70,20 @@ function isReportPage(page: Page): page is ReportPage {
 export default function App() {
   const [user, setUser] = useState<User | null>(loadUser);
   const [page, setPage] = useState<Page>("dashboard");
+  // Bumped once the saved date format arrives so mounted tables re-render.
+  const [, setFormatVersion] = useState(0);
 
-  // Apply the stored appearance theme for the signed-in session.
+  // Apply the stored appearance theme and date format for the signed-in session.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     api
       .settings()
       .then((all) => {
-        if (!cancelled) applyTheme(all.APPEARANCE?.theme_name);
+        if (cancelled) return;
+        applyTheme(all.APPEARANCE?.theme_name);
+        setDateFormat(all.GENERAL?.date_format);
+        setFormatVersion((version) => version + 1);
       })
       .catch(() => applyTheme("dark"));
     return () => {

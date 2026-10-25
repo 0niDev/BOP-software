@@ -720,7 +720,7 @@ async function main(): Promise<void> {
     });
     check(unbalancedRes.status === 400, `unbalanced opening balances rejected (${unbalancedRes.status})`);
 
-    // --- temporary (one-use) production order -----------------------------
+    // --- manual production run, then an independent packing order ---------
     const rawMaterialRes = await post("/api/items", {
       itemName: "Smoke Raw Material",
       itemType: "RAW_MATERIAL",
@@ -734,40 +734,76 @@ async function main(): Promise<void> {
     );
     await post(`/api/items/${rawMaterial.id}/opening-stock`, { quantity: 500, unitCost: 4 });
 
-    const tempOrderRes = await post("/api/production-orders", {
+    const packingMaterialRes = await post("/api/items", {
+      itemName: "Smoke Packing Box",
+      itemType: "PACKING_MATERIAL",
+      unit: "UNIT",
+      purchasePrice: 3,
+    });
+    const packingMaterial = (await json(packingMaterialRes)) as { id: number };
+    await post(`/api/items/${packingMaterial.id}/opening-stock`, { quantity: 500, unitCost: 3 });
+
+    // The manual-run form sends the totals for the whole run; a per-unit BOM
+    // (output quantity 1) is saved and the order is drafted.
+    const runRes = await post("/api/production-orders", {
+      bomName: "Smoke Formulation",
       plannedQuantity: 10,
       manufacturingDate: "2026-10-09",
-      tempFinishedItemId: ids.itemId,
-      tempComponents: [{ componentItemId: rawMaterial.id, quantityRequired: 2 }],
+      components: [{ componentItemId: rawMaterial.id, quantityRequired: 20 }],
     });
-    const tempOrder = (await json(tempOrderRes)) as {
+    const run = (await json(runRes)) as {
       id: number;
       orderNumber: string;
       bomId: number;
+      finishedItemId: number;
     };
     check(
-      tempOrderRes.status === 201 && /^PO-\d+$/.test(tempOrder.orderNumber),
-      `POST /api/production-orders creates a temporary order (${tempOrder.orderNumber})`,
+      runRes.status === 201 && /^PO-\d+$/.test(run.orderNumber),
+      `POST /api/production-orders creates a manual run (${run.orderNumber})`,
     );
-
-    const bomList = (await json(await fetch(`${base}/api/boms`, { headers }))) as Array<{
-      id: number;
-    }>;
+    const savedBom = (await json(await fetch(`${base}/api/boms/${run.bomId}`, { headers }))) as {
+      bom: { bom_name: string; output_quantity: number };
+      components: Array<{ quantity_required: number }>;
+    };
     check(
-      !bomList.some((b) => b.id === tempOrder.bomId),
-      "the temporary one-use BOM is hidden from the BOM list",
+      savedBom.bom.output_quantity === 1 && savedBom.components[0]?.quantity_required === 2,
+      `the manual run saves a per-unit BOM (${savedBom.components[0]?.quantity_required}/unit)`,
     );
 
-    const startTempRes = await post(`/api/production-orders/${tempOrder.id}/start`, {});
-    check(startTempRes.status === 200, `temporary order starts (${startTempRes.status})`);
-    const completeTempRes = await post(`/api/production-orders/${tempOrder.id}/complete`, {
+    const startRunRes = await post(`/api/production-orders/${run.id}/start`, {});
+    check(startRunRes.status === 200, `manual run starts (${startRunRes.status})`);
+    const produceRes = await post(`/api/production-orders/${run.id}/produce`, {
       actualQuantity: 10,
-      outputBatchNumber: "SMOKE-TEMP-FG",
+      outputBatchNumber: "SMOKE-UNPACKED",
     });
-    const tempResult = (await json(completeTempRes)) as { productionCost: number };
+    const produced = (await json(produceRes)) as { productionCost: number };
     check(
-      completeTempRes.status === 200 && tempResult.productionCost === 80,
-      `temporary production consumes 2/unit x 10 at cost 4 = 80 (${tempResult.productionCost})`,
+      produceRes.status === 200 && produced.productionCost === 80,
+      `production consumes 2/unit x 10 at cost 4 = 80 (${produced.productionCost})`,
+    );
+
+    const packingRes = await post("/api/packing-orders", {
+      packingBomName: "Smoke Packing",
+      plannedQuantity: 10,
+      manufacturingDate: "2026-10-09",
+      outputItemId: ids.itemId,
+      unpackedItemId: run.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingMaterial.id, quantityRequired: 10 }],
+    });
+    const packing = (await json(packingRes)) as { id: number; orderNumber: string };
+    check(
+      packingRes.status === 201 && /^PCO-\d+$/.test(packing.orderNumber),
+      `POST /api/packing-orders creates a packing order (${packing.orderNumber})`,
+    );
+    await post(`/api/packing-orders/${packing.id}/start`, {});
+    const packRes = await post(`/api/packing-orders/${packing.id}/pack`, {
+      outputBatchNumber: "SMOKE-PACKED",
+    });
+    const packed = (await json(packRes)) as { productionCost: number };
+    check(
+      packRes.status === 200 && packed.productionCost === 110,
+      `packing consumes 10 unpacked @ 8 + 10 boxes @ 3 = 110 (${packed.productionCost})`,
     );
 
     const noBomRes = await post("/api/production-orders", {
@@ -776,7 +812,7 @@ async function main(): Promise<void> {
     });
     check(
       noBomRes.status === 400,
-      `an order with neither a BOM nor temp details is rejected (${noBomRes.status})`,
+      `an order with neither a BOM nor manual details is rejected (${noBomRes.status})`,
     );
 
     // --- recurring expense items ("Pay Items") ---------------------------

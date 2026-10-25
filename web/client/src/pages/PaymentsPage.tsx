@@ -4,6 +4,7 @@ import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { formatDate } from "../lib/format";
 import type {
   BankAccount,
   Party,
@@ -370,7 +371,7 @@ export default function PaymentsPage() {
                 <tr key={row.id}>
                   <td>{row.voucher_number}</td>
                   <td>{row.party_name}</td>
-                  <td>{rowDate}</td>
+                  <td>{formatDate(rowDate)}</td>
                   <td>{row.payment_method}</td>
                   <td>{bankName(row.bank_account_id)}</td>
                   <td className="num">{money(row.amount)}</td>

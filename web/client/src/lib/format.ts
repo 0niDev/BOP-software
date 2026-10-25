@@ -22,6 +22,45 @@ export function compact(value: number, digits = 1): string {
   return value.toLocaleString("en-PK", { maximumFractionDigits: 0 });
 }
 
+/**
+ * Dates are stored and sent as ISO (`YYYY-MM-DD`). Screens show them in the
+ * company's date format, defaulting to day/month/year.
+ */
+export const DATE_FORMATS = ["dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "dd.MM.yyyy"] as const;
+export type DateFormat = (typeof DATE_FORMATS)[number];
+
+let dateFormat: DateFormat = "dd/MM/yyyy";
+
+export function setDateFormat(value: unknown): void {
+  if (typeof value === "string" && (DATE_FORMATS as readonly string[]).includes(value)) {
+    dateFormat = value as DateFormat;
+  }
+}
+
+/** "2026-10-25" → "25/10/2026"; datetime strings keep their time when asked. */
+export function formatDate(value: string | null | undefined, withTime = false): string {
+  if (!value) return "";
+  const iso = value.slice(0, 10);
+  const [year, month, day] = iso.split("-");
+  if (iso.length !== 10 || !year || !month || !day) return value;
+  let date: string;
+  switch (dateFormat) {
+    case "MM/dd/yyyy":
+      date = `${month}/${day}/${year}`;
+      break;
+    case "yyyy-MM-dd":
+      date = iso;
+      break;
+    case "dd.MM.yyyy":
+      date = `${day}.${month}.${year}`;
+      break;
+    default:
+      date = `${day}/${month}/${year}`;
+  }
+  const time = withTime && value.length >= 16 ? ` ${value.slice(11, 16)}` : "";
+  return `${date}${time}`;
+}
+
 /** "2026-08-01" → "Aug 2026". Trend points are month starts. */
 export function monthLabel(iso: string): string {
   const date = new Date(`${iso}T00:00:00`);

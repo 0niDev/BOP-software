@@ -31,6 +31,7 @@ import type {
   PartyType,
   Payment,
   PaymentResult,
+  PackingOrder,
   ProductionOrder,
   ProfitAndLoss,
   PurchaseInvoice,
@@ -629,14 +630,15 @@ export const api = {
   bom: (id: number) =>
     request<{ bom: Bom; components: BomComponent[] }>(`/api/boms/${id}`),
   createBom: (body: {
-    finishedItemId: number;
+    finishedItemId?: number | null;
     outputQuantity: number;
+    bomName?: string | null;
     components: { componentItemId: number; quantityRequired: number; wastagePercent?: number }[];
-  }) => request<{ id: number; bomName: string }>("/api/boms", { method: "POST", body: JSON.stringify(body) }),
+  }) => request<{ id: number; bomName: string; finishedItemId: number }>("/api/boms", { method: "POST", body: JSON.stringify(body) }),
   updateBom: (
     id: number,
     body: {
-      finishedItemId: number;
+      finishedItemId?: number | null;
       outputQuantity: number;
       components: { componentItemId: number; quantityRequired: number; wastagePercent?: number }[];
       bomName?: string | null;
@@ -652,22 +654,25 @@ export const api = {
     request<{ ok: boolean }>(`/api/boms/${id}`, { method: "DELETE" }),
   productionOrders: () => request<ProductionOrder[]>("/api/production-orders"),
   createProductionOrder: (body: {
-    /** Omit for a temporary (one-use) production, which builds its own BOM. */
+    /** Omit for a manual run, which saves a per-unit BOM from `components`. */
     bomId?: number | null;
     plannedQuantity: number;
     manufacturingDate: string;
     orderNumber?: string;
-    tempFinishedItemId?: number | null;
-    tempComponents?: {
+    bomName?: string | null;
+    components?: {
       componentItemId: number;
       quantityRequired: number;
       wastagePercent?: number;
     }[] | null;
   }) =>
-    request<{ id: number; orderNumber: string; bomId: number }>("/api/production-orders", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    request<{ id: number; orderNumber: string; bomId: number; finishedItemId: number }>(
+      "/api/production-orders",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
   startProduction: (id: number) =>
     request<{ status: string }>(`/api/production-orders/${id}/start`, { method: "POST" }),
   updateProductionOrder: (
@@ -686,34 +691,70 @@ export const api = {
     }),
   deleteProductionOrder: (id: number) =>
     request<{ ok: boolean }>(`/api/production-orders/${id}`, { method: "DELETE" }),
-  completeProduction: (id: number, body: {
-    actualQuantity: number;
-    outputBatchNumber?: string;
-    ignoreStock?: boolean;
-  }) =>
-    request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/complete`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
   produceProduction: (id: number, body: {
     actualQuantity: number;
     wastageQuantity?: number;
     outputBatchNumber?: string;
     ignoreStock?: boolean;
   }) =>
-    request<{ id: number; productionCost: number }>(`/api/production-orders/${id}/produce`, {
-      method: "POST",
+    request<{ id: number; productionCost: number; outputBatchNumber: string }>(
+      `/api/production-orders/${id}/produce`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+  packingOrders: () => request<PackingOrder[]>("/api/packing-orders"),
+  createPackingOrder: (body: {
+    /** Omit for a manual run, which saves a per-unit BOM from the totals. */
+    bomId?: number | null;
+    plannedQuantity: number;
+    manufacturingDate: string;
+    orderNumber?: string;
+    packingBomName?: string | null;
+    outputItemId?: number | null;
+    unpackedItemId?: number | null;
+    unpackedQuantity?: number | null;
+    materials?: {
+      componentItemId: number;
+      quantityRequired: number;
+      wastagePercent?: number;
+    }[] | null;
+  }) =>
+    request<{ id: number; orderNumber: string; bomId: number; outputItemId: number }>(
+      "/api/packing-orders",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+  startPacking: (id: number) =>
+    request<{ status: string }>(`/api/packing-orders/${id}/start`, { method: "POST" }),
+  updatePackingOrder: (
+    id: number,
+    body: {
+      bomId: number;
+      plannedQuantity: number;
+      manufacturingDate: string;
+      expiryDate?: string | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/packing-orders/${id}`, {
+      method: "PUT",
       body: JSON.stringify(body),
     }),
-  packProduction: (id: number, body: {
+  deletePackingOrder: (id: number) =>
+    request<{ ok: boolean }>(`/api/packing-orders/${id}`, { method: "DELETE" }),
+  packPackingOrder: (id: number, body: {
+    units?: number;
+    unpackedQuantity?: number;
     outputBatchNumber?: string;
     ignoreStock?: boolean;
-    quantity?: number;
-    packSize?: number;
     materials?: { itemId: number; quantity: number }[];
   }) =>
-    request<{ id: number; productionCost: number; packingBomName?: string }>(
-      `/api/production-orders/${id}/pack`,
+    request<{ id: number; productionCost: number; outputBatchNumber: string }>(
+      `/api/packing-orders/${id}/pack`,
       {
         method: "POST",
         body: JSON.stringify(body),

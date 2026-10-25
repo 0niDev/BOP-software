@@ -304,7 +304,6 @@ export interface Bom {
   output_quantity: number;
   phase?: string | null;
   is_active: number;
-  is_temp?: number;
 }
 
 export interface BomComponent {
@@ -325,8 +324,19 @@ export interface ProductionOrder {
   manufacturing_date: string;
   production_cost: number;
   output_batch_number: string | null;
-  /** Units still unpacked, i.e. how much of this order is left to pack. */
-  unpacked_quantity?: number;
+}
+
+export interface PackingOrder {
+  id: number;
+  order_number: string;
+  bom_id: number;
+  /** Items/packages planned. */
+  planned_quantity: number;
+  actual_quantity: number;
+  status: string;
+  manufacturing_date: string;
+  production_cost: number;
+  output_batch_number: string | null;
 }
 
 export interface Payment {
@@ -404,6 +414,8 @@ export interface LedgerEntry {
   debit: number;
   credit: number;
   balance: number;
+  /** Invoice settled at creation (cash/bank/cheque): shown, not owed. */
+  settled?: boolean;
 }
 
 export interface UserRow {

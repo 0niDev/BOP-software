@@ -306,23 +306,13 @@ async function main(): Promise<void> {
   );
 
   // --- 2.2 manufacturing -------------------------------------------------
-  section("PHASE 2.2 — Manufacturing (BOM → consume → produce + wastage)");
+  section("PHASE 2.2 — Manufacturing (formulation -> unpacked -> packing -> FG)");
   const bom = await db.transaction(() =>
     manufacturing.createBom({
-      finishedItemId: fgA.id,
+      bomName: "Formulation A",
       outputQuantity: 1_000,
       components: [
         { componentItemId: rmA.id, quantityRequired: COMPONENT_RM_PER_1000.toNumber(), wastagePercent: RM_WASTAGE_PERCENT.toNumber() },
-      ],
-    }),
-  );
-  // Packing stage is a separate BOM for the same finished item.
-  await db.transaction(() =>
-    manufacturing.createBom({
-      finishedItemId: fgA.id,
-      outputQuantity: 1_000,
-      components: [
-        { componentItemId: pmA.id, quantityRequired: COMPONENT_PM_PER_1000.toNumber(), wastagePercent: 0 },
       ],
     }),
   );
@@ -331,12 +321,31 @@ async function main(): Promise<void> {
   );
   await db.transaction(() => manufacturing.startProduction(order.id));
   const produced = await db.transaction(() =>
-    manufacturing.completeProduction(order.id, { actualQuantity: 2_000, wastageQuantity: 50, outputBatchNumber: "PRD-FG-A-001" }),
+    manufacturing.produceProduction(order.id, { actualQuantity: 2_000, wastageQuantity: 50, outputBatchNumber: "PRD-UNPACKED-A-001" }),
+  );
+
+  // The packing stage is its own order: unpacked bulk + packing materials.
+  const packingOrder = await db.transaction(() =>
+    manufacturing.createPackingOrder({
+      packingBomName: "Packing A",
+      plannedQuantity: 2_000,
+      manufacturingDate: TODAY,
+      expiryDate: "2027-01-31",
+      outputItemId: fgA.id,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 2_000,
+      materials: [{ componentItemId: pmA.id, quantityRequired: COMPONENT_PM_PER_1000.times(2).toNumber() }],
+    }),
+  );
+  await db.transaction(() => manufacturing.startPacking(packingOrder.id));
+  const packed = await db.transaction(() =>
+    manufacturing.packPackingOrder(packingOrder.id, { outputBatchNumber: "PRD-FG-A-001" }),
   );
 
   const expectedRm = COMPONENT_RM_PER_1000.times(2).times(RM_WASTAGE_PERCENT.dividedBy(100).plus(1));
   const expectedPm = COMPONENT_PM_PER_1000.times(2);
-  eq("P2.2", "production cost = raw + packing consumed", produced.productionCost, 27_540 + 25_000);
+  eq("P2.2", "production cost = raw consumed", produced.productionCost, 27_540);
+  eq("P2.2", "packing cost = unpacked bulk + packing consumed", packed.productionCost, 27_540 + 25_000);
   info(
     "P2.2",
     `raw consumed ${expectedRm.toFixed(2)} KG @900 = 27,540.00; packing consumed ${expectedPm.toFixed(2)} UNIT @50 = 25,000.00; total 52,540.00`,
@@ -368,7 +377,12 @@ async function main(): Promise<void> {
     "SELECT quantity_consumed, unit_cost FROM production_consumption WHERE production_order_id = ?",
     [order.id],
   );
-  eq("P2.2", "material consumption rows recorded", consumption.length, 2);
+  eq("P2.2", "raw material consumption rows recorded", consumption.length, 1);
+  const packingConsumption = await db.all<{ quantity_consumed: number; unit_cost: number }>(
+    "SELECT quantity_consumed, unit_cost FROM packing_consumption WHERE packing_order_id = ?",
+    [packingOrder.id],
+  );
+  eq("P2.2", "packing consumption rows (unpacked bulk + packing material)", packingConsumption.length, 2);
   const wastageRow = await db.get<{ wastage_quantity: number }>(
     "SELECT wastage_quantity FROM production_orders WHERE id = ?",
     [order.id],
@@ -578,6 +592,7 @@ async function main(): Promise<void> {
     { prefix: "JV-", docType: "JOURNAL_VOUCHER", sources: [["journal_entries", "voucher_number"]] },
     { prefix: "OB-", docType: "OPENING", sources: [["journal_entries", "voucher_number"]] },
     { prefix: "PO-", docType: "PRODUCTION_ORDER", sources: [["production_orders", "order_number"]] },
+    { prefix: "PCO-", docType: "PACKING_ORDER", sources: [["packing_orders", "order_number"]] },
     { prefix: "BOM-", docType: "BOM", sources: [["bill_of_materials", "bom_name"]] },
   ];
   section("PHASE 3.2 — Voucher continuity");
@@ -761,7 +776,7 @@ async function main(): Promise<void> {
   );
   await db.transaction(() => manufacturing.startProduction(shortOrder.id));
   const shortError = await expectError(() =>
-    manufacturing.completeProduction(shortOrder.id, { actualQuantity: 10_000, outputBatchNumber: "PRD-FG-A-002" }),
+    manufacturing.produceProduction(shortOrder.id, { actualQuantity: 10_000, outputBatchNumber: "PRD-UNPACKED-A-002" }),
   );
   const rmAvailable = await db.get<{ total: number }>(
     "SELECT SUM(quantity_in_stock) AS total FROM stock_batches WHERE item_id = ? AND is_active = 1",
