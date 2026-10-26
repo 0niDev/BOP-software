@@ -50,6 +50,7 @@ export default function ItemsPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState<"" | "in" | "zero">("");
   const [showInactive, setShowInactive] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
 
@@ -220,7 +221,11 @@ export default function ItemsPage() {
     }
   }
 
-  const sortedItems = sortRows(items, sort, (item, key) => {
+  const stockMatches = (item: Item): boolean =>
+    stockFilter === "" || (stockFilter === "zero" ? item.current_stock === 0 : item.current_stock !== 0);
+  const visibleItems = items.filter(stockMatches);
+
+  const sortedItems = sortRows(visibleItems, sort, (item, key) => {
     switch (key) {
       case "code":
         return item.item_code;
@@ -263,6 +268,19 @@ export default function ItemsPage() {
               options={[
                 { value: "", label: "All types" },
                 ...ITEM_TYPES.map((t) => ({ value: t, label: t })),
+              ]}
+            />
+          </div>
+          <div>
+            <label>Stock</label>
+            <SearchableSelect
+              value={stockFilter}
+              onChange={(next) => setStockFilter(next as "" | "in" | "zero")}
+              placeholder="All stock"
+              options={[
+                { value: "", label: "All stock" },
+                { value: "in", label: "In stock (non-zero)" },
+                { value: "zero", label: "Zero stock" },
               ]}
             />
           </div>
@@ -326,7 +344,7 @@ export default function ItemsPage() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && !error && (
+            {visibleItems.length === 0 && !error && (
               <tr>
                 <td colSpan={10}>No items match the current filters.</td>
               </tr>

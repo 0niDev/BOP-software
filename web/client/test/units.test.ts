@@ -140,6 +140,50 @@ test("picking a group narrows the account list to that branch", async () => {
   expect([...subtreeIds(accounts, 3)]).toEqual([]);
 });
 
+test("journal vouchers only offer COA accounts at level 3 or deeper", async () => {
+  const { postableAccounts } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_name: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const a = (id: number, parent: number | null) => ({ ...base, id, account_code: String(id), parent_account_id: parent });
+  const accounts = [
+    a(1, null), // L1 header
+    a(2, 1), //    L2 header
+    a(3, 2), //    L3 ledger — kept
+    a(4, 2), //    L3 header
+    a(5, 4), //    L4 header
+    a(6, 5), //    L5 ledger — kept (level 3 and deeper)
+    a(7, null), // L1 ledger — too shallow
+    a(8, 9),
+    a(9, 8), //    parent cycle: both are headers, and depth must not hang
+  ];
+  expect(postableAccounts(accounts).map((account) => account.id)).toEqual([3, 6]);
+});
+
+test("a blank account falls back to the group only at level 3 or deeper", async () => {
+  const { journalLineAccountId, accountDepths } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_name: "x", account_code: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const a = (id: number, parent: number | null) => ({ ...base, id, parent_account_id: parent });
+  const depths = accountDepths([a(1, null), a(2, 1), a(3, 2), a(4, 3)]);
+
+  expect(journalLineAccountId({ accountId: 4, parentId: 3 }, depths)).toBe(4);
+  expect(journalLineAccountId({ accountId: 0, parentId: 3 }, depths)).toBe(3); // level 3 group
+  expect(journalLineAccountId({ accountId: 0, parentId: 2 }, depths)).toBe(0); // too shallow to post
+  expect(journalLineAccountId({ accountId: 0, parentId: 0 }, depths)).toBe(0);
+});
+
+test("a new journal line inherits the narration above it, still editable", async () => {
+  const { withNewLine } = await import("../src/pages/JournalVouchersPage");
+  const line = (description: string) => ({ accountId: 0, parentId: 0, description, debit: "", credit: "" });
+
+  let lines = [line("hello")];
+  for (let i = 0; i < 4; i++) lines = withNewLine(lines);
+  expect(lines.map((l) => l.description)).toEqual(["hello", "hello", "hello", "hello", "hello"]);
+
+  // Editing the copy leaves the row above untouched.
+  lines[lines.length - 1] = { ...lines[lines.length - 1], description: "world" };
+  expect(withNewLine(lines).at(-1)?.description).toBe("world");
+  expect(lines[0].description).toBe("hello");
+});
+
 // --- list sorting and date filters (components/Sort) ---------------------
 
 test("sortRows orders numbers and text, and invoice numbers naturally", async () => {

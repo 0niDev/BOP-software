@@ -38,9 +38,8 @@ export interface NavEntry {
 
 /**
  * Sidebar sections. They are contiguous slices of one flat order — the module
- * jump shortcuts (Ctrl+1…0, Ctrl+Tab) index that flat order, and the browser
- * audit asserts Ctrl+2 selects Sales Invoices and Ctrl+5 Manufacturing, so the
- * grouping must never reorder the modules themselves.
+ * jump shortcuts (Ctrl+1…0, Ctrl+Tab) index that flat order, so the browser
+ * audit pins Ctrl+2 = Sales Invoices and Ctrl+6 = Manufacturing.
  */
 export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEntry[] }> = [
   {
@@ -48,30 +47,40 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
     items: [{ id: "dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    title: "Operations",
+    title: "Sales & Purchasing",
     items: [
       { id: "sales", label: "Sales Invoices", icon: Receipt },
       { id: "purchases", label: "Purchase Invoices", icon: ShoppingCart },
-      { id: "payments", label: "Payments & Receipts", icon: Banknote },
-      { id: "manufacturing", label: "Manufacturing", icon: Factory },
-      { id: "expenses", label: "Expenses", icon: Wallet },
-      { id: "banking", label: "Banking", icon: Landmark },
       { id: "returns", label: "Returns", icon: RotateCcw },
+    ],
+  },
+  {
+    title: "Inventory & Production",
+    items: [
+      { id: "items", label: "Items", icon: Package },
+      { id: "manufacturing", label: "Manufacturing", icon: Factory },
+    ],
+  },
+  {
+    title: "Accounting",
+    items: [
+      { id: "payments", label: "Payments & Receipts", icon: Banknote },
+      { id: "expenses", label: "Expense Vouchers", icon: Wallet },
+      { id: "banking", label: "Bank & Cash", icon: Landmark },
+      { id: "journal", label: "Journal Vouchers", icon: ScrollText },
     ],
   },
   {
     title: "Master data",
     items: [
       { id: "parties", label: "Customers & Suppliers", icon: Users },
-      { id: "items", label: "Items", icon: Package },
-      { id: "assets", label: "Fixed Assets", icon: Building2 },
       { id: "accounts", label: "Chart of Accounts", icon: BookOpen },
+      { id: "assets", label: "Fixed Assets", icon: Building2 },
     ],
   },
   {
     title: "Insights",
     items: [
-      { id: "journal", label: "Journal Vouchers", icon: ScrollText },
       {
         id: "reports",
         label: "Reports",

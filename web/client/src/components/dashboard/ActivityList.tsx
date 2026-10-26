@@ -28,7 +28,7 @@ const META: Record<
   Purchases: { label: "Received", tone: "teal", target: "purchases", module: "Purchase Invoices" },
   Payment: { label: "Paid", tone: "amber", target: "payments", module: "Payments & Receipts" },
   Receipt: { label: "Collected", tone: "ok", target: "payments", module: "Payments & Receipts" },
-  Expense: { label: "Processed", tone: "slate", target: "expenses", module: "Expenses" },
+  Expense: { label: "Processed", tone: "slate", target: "expenses", module: "Expense Vouchers" },
 };
 
 function metaFor(type: string) {

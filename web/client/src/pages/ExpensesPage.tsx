@@ -355,7 +355,7 @@ export default function ExpensesPage() {
     <>
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>
-          <h2 style={{ flex: 1, margin: 0 }}>Expenses</h2>
+          <h2 style={{ flex: 1, margin: 0 }}>Expense Vouchers</h2>
           <button className="primary" type="button" onClick={() => setDialogOpen(true)}>
             Add expense
           </button>

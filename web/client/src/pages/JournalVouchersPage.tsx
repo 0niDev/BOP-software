@@ -26,6 +26,14 @@ function newLine(): DraftLine {
   return { accountId: 0, parentId: 0, description: "", debit: "", credit: "" };
 }
 
+/** Append an empty line that inherits the narration of the row above, so a
+ * run of lines with the same description does not have to be retyped. The
+ * copy is a plain value — editing it never rewrites the row above. */
+export function withNewLine(lines: readonly DraftLine[]): DraftLine[] {
+  const previous = lines[lines.length - 1];
+  return [...lines, { ...newLine(), description: previous?.description ?? "" }];
+}
+
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -42,6 +50,52 @@ function message(err: unknown, fallback: string): string {
  * branch a line belongs to. */
 export function accountLabel(account: Account): string {
   return `${account.account_code} — ${account.account_name}`;
+}
+
+/** Tree depth of every account: 1 for a root, one more per parent link. */
+export function accountDepths(accounts: readonly Account[]): Map<number, number> {
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  const depths = new Map<number, number>();
+  for (const account of accounts) {
+    let depth = 1;
+    const seen = new Set<number>([account.id]);
+    let current =
+      account.parent_account_id == null ? undefined : byId.get(account.parent_account_id);
+    // `seen` keeps malformed parent cycles from looping forever.
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      depth += 1;
+      current = current.parent_account_id == null ? undefined : byId.get(current.parent_account_id);
+    }
+    depths.set(account.id, depth);
+  }
+  return depths;
+}
+
+/** Accounts a journal line may hit: ledger (leaf) accounts at level 3 or
+ * deeper. Headers are not listed, but a level-3 header can still be used by
+ * leaving the account blank and picking it as the group. */
+export function postableAccounts(
+  accounts: readonly Account[],
+  depths: ReadonlyMap<number, number> = accountDepths(accounts),
+): Account[] {
+  const parentIds = new Set(
+    accounts.map((account) => account.parent_account_id).filter((id): id is number => id != null),
+  );
+  return accounts.filter(
+    (account) => !parentIds.has(account.id) && (depths.get(account.id) ?? 0) >= 3,
+  );
+}
+
+/** The account a draft line posts to: the picked account, or — when the
+ * account is left blank — the group itself, as long as that group is a
+ * level-3-or-deeper account. Narrowing by "Assets" alone posts nowhere. */
+export function journalLineAccountId(
+  line: { accountId: number; parentId: number },
+  depths: ReadonlyMap<number, number>,
+): number {
+  if (line.accountId) return line.accountId;
+  return (depths.get(line.parentId) ?? 0) >= 3 ? line.parentId : 0;
 }
 
 /** Every account id below `rootId`, at any depth (not `rootId` itself). */
@@ -99,11 +153,13 @@ export default function JournalVouchersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Only leaf accounts can take journal lines (the server rejects groups too).
+  // Only ledger accounts at level 3 or deeper can take journal lines (the
+  // server rejects groups too). Headers stay listable as the Group column.
+  const depths = accountDepths(accounts);
+  const postable = postableAccounts(accounts, depths);
   const parentIds = new Set(
     accounts.map((account) => account.parent_account_id).filter((id): id is number => id != null),
   );
-  const postable = accounts.filter((account) => !parentIds.has(account.id));
   const accountOptions = postable.map((account) => ({
     value: String(account.id),
     label: accountLabel(account),
@@ -149,8 +205,8 @@ export default function JournalVouchersPage() {
       setError("A journal voucher needs at least two lines with amounts.");
       return;
     }
-    if (active.some((line) => !line.accountId)) {
-      setError("Every line with an amount needs an account.");
+    if (active.some((line) => !journalLineAccountId(line, depths))) {
+      setError("Every line with an amount needs an account, or a level-3 group.");
       return;
     }
     if (active.some((line) => Number(line.debit) > 0 && Number(line.credit) > 0)) {
@@ -167,7 +223,7 @@ export default function JournalVouchersPage() {
         entryDate: date,
         narration: narration.trim() || null,
         lines: active.map((line) => ({
-          accountId: line.accountId,
+          accountId: journalLineAccountId(line, depths),
           description: line.description.trim() || null,
           debit: Number(line.debit) || 0,
           credit: Number(line.credit) || 0,
@@ -286,8 +342,9 @@ export default function JournalVouchersPage() {
               </button>
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
-              Debit at least one ledger account and credit at least one for the same total.
-              Pick a group first to narrow the account list to that branch.
+              Debit at least one account and credit at least one for the same total.
+              Pick a group first to narrow the account list to that branch — or leave the
+              account blank to post to the group itself when it is a level-3 entry.
               Posted vouchers cannot be edited — reverse one to correct it.
             </p>
             {error && <div className="error">{error}</div>}
@@ -339,7 +396,7 @@ export default function JournalVouchersPage() {
                           value={String(line.accountId)}
                           autoFocus={justAdded.current && index === lines.length - 1}
                           onChange={(next) => updateLine(index, { accountId: Number(next) })}
-                          placeholder="Select account..."
+                          placeholder="Select account or leave blank"
                           emptyText="No matching account"
                           options={optionsUnder.get(line.parentId) ?? accountOptions}
                         />
@@ -396,7 +453,7 @@ export default function JournalVouchersPage() {
                         type="button"
                         onClick={() => {
                           justAdded.current = true;
-                          setLines((current) => [...current, newLine()]);
+                          setLines(withNewLine);
                         }}
                       >
                         Add line

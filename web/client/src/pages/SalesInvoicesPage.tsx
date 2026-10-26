@@ -267,7 +267,6 @@ export default function SalesInvoicesPage() {
           inv.customer_name,
           inv.payment_type,
           inv.total_amount,
-          inv.paid_amount,
           inv.status,
         ]) && inDateRange(inv.invoice_date, from, to),
     ),
@@ -471,7 +470,6 @@ export default function SalesInvoicesPage() {
               <SortTh label="Customer" sortKey="customer" sort={sort} setSort={setSort} />
               <th>Payment</th>
               <SortTh label="Total" sortKey="total" sort={sort} setSort={setSort} className="num" />
-              <th className="num">Paid</th>
               <th>Status</th>
               <th />
             </tr>
@@ -484,7 +482,6 @@ export default function SalesInvoicesPage() {
                 <td>{inv.customer_name}</td>
                 <td>{inv.payment_type}</td>
                 <td className="num">{money(inv.total_amount)}</td>
-                <td className="num">{money(inv.paid_amount)}</td>
                 <td>{inv.status}</td>
                 <td>
                   {inv.status !== "CANCELLED" && (
@@ -502,7 +499,7 @@ export default function SalesInvoicesPage() {
             ))}
             {visibleInvoices.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={7}>
                   {invoices.length === 0 ? "No invoices yet." : "No invoices match this filter."}
                 </td>
               </tr>

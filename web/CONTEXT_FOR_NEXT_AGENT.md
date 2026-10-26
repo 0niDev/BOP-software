@@ -322,7 +322,7 @@ with a `npm run dev` you already have open; `data/e2e.sqlite` is git-ignored.
 - a nonsense term in every page's filter box produces the page's empty-state
   message and no error banner;
 - no horizontal overflow at 1280 or 1024px;
-- keyboard shortcuts in a real browser: `Ctrl+5`/`Ctrl+2` switch modules,
+- keyboard shortcuts in a real browser: `Ctrl+6`/`Ctrl+2` switch modules,
   `Ctrl+F` focuses the page filter when there is one and otherwise the module
   finder, and the Shortcuts editor rebinds + resets a key through the UI.
 
@@ -727,7 +727,8 @@ Quality gates: `npm run typecheck`, `npm test`, `npm run smoke`,
   manufacturing|expenses|banking|returns|accounts|reports|users|settings;
   default page = **dashboard**; passes `user` + `onNavigate` to DashboardPage),
   `components/Layout.tsx` (shell: `components/layout/Sidebar.tsx` with
-  Overview/Operations/Master data/Insights/Administration sections + icons +
+  Overview/Sales & Purchasing/Inventory & Production/Accounting/Master data/
+  Insights/Administration sections + icons +
   active pill + mobile drawer, and `components/layout/TopBar.tsx` with the module
   search + ⌘K pill + notification feed + user chip + sign-out; NAV keeps the flat
   order the Ctrl+1…0 / Ctrl+Tab shortcuts index).

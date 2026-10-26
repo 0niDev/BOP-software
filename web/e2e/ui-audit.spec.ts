@@ -32,8 +32,8 @@ const PAGES: PageUnderAudit[] = [
   { nav: "Purchase Invoices", expectData: true },
   { nav: "Payments & Receipts", expectData: true },
   { nav: "Manufacturing", expectData: true },
-  { nav: "Expenses", expectData: true },
-  { nav: "Banking", expectData: true },
+  { nav: "Expense Vouchers", expectData: true },
+  { nav: "Bank & Cash", expectData: true },
   { nav: "Returns", expectData: true },
   { nav: "Customers & Suppliers", expectData: true },
   { nav: "Items", expectData: true },
@@ -205,8 +205,8 @@ for (const entry of PAGES) {
 test("keyboard shortcuts switch modules and focus search", async ({ page }) => {
   await signIn(page);
 
-  // Ctrl+5 is module 5 (Manufacturing) and Ctrl+2 module 2 (Sales Invoices).
-  await page.keyboard.press("Control+5");
+  // Ctrl+6 is module 6 (Manufacturing) and Ctrl+2 module 2 (Sales Invoices).
+  await page.keyboard.press("Control+6");
   await expect(
     page.locator("nav").getByRole("button", { name: "Manufacturing", exact: true }),
   ).toHaveClass(/active/);
@@ -492,7 +492,7 @@ const FILTERED_PAGES = [
   "Items",
   "Customers & Suppliers",
   "Payments & Receipts",
-  "Expenses",
+  "Expense Vouchers",
   "Fixed Assets",
   "Users",
 ];

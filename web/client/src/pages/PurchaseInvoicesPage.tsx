@@ -83,6 +83,7 @@ export default function PurchaseInvoicesPage() {
     setLines([newLine()]);
     setNotes("");
     setBankId(0);
+    addedLine.current = false;
     setShowForm(false);
   }
 
@@ -256,7 +257,6 @@ export default function PurchaseInvoicesPage() {
           inv.supplier_name,
           inv.payment_type,
           inv.total_amount,
-          inv.paid_amount,
           inv.status,
         ]) && inDateRange(inv.invoice_date, from, to),
     ),
@@ -298,6 +298,8 @@ export default function PurchaseInvoicesPage() {
               <label>Supplier</label>
               <SearchableSelect
                 value={String(supplierId)}
+                // A new invoice starts at the party, not at the first item line.
+                autoFocus={editingId === null}
                 onChange={(next) => setSupplierId(Number(next))}
                 placeholder="Select supplier..."
                 options={[
@@ -371,6 +373,9 @@ export default function PurchaseInvoicesPage() {
                     <input
                       value={line.batchNumber}
                       placeholder="auto"
+                      // Server generates the batch number; skip this cell in the
+                      // keyboard flow so filling a line doesn't cost a Tab.
+                      tabIndex={-1}
                       onChange={(e) => updateLine(line.key, { batchNumber: e.target.value })}
                       style={{ width: 120 }}
                     />
@@ -460,7 +465,6 @@ export default function PurchaseInvoicesPage() {
               <SortTh label="Supplier" sortKey="supplier" sort={sort} setSort={setSort} />
               <th>Payment</th>
               <SortTh label="Total" sortKey="total" sort={sort} setSort={setSort} className="num" />
-              <th className="num">Paid</th>
               <th>Status</th>
               <th />
             </tr>
@@ -473,7 +477,6 @@ export default function PurchaseInvoicesPage() {
                 <td>{inv.supplier_name}</td>
                 <td>{inv.payment_type}</td>
                 <td className="num">{money(inv.total_amount)}</td>
-                <td className="num">{money(inv.paid_amount)}</td>
                 <td>{inv.status}</td>
                 <td>
                   {inv.status !== "CANCELLED" && (
@@ -491,7 +494,7 @@ export default function PurchaseInvoicesPage() {
             ))}
             {visibleInvoices.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={7}>
                   {invoices.length === 0
                     ? "No purchase invoices yet."
                     : "No purchase invoices match this filter."}

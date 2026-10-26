@@ -109,6 +109,28 @@ describe("manual journal vouchers", () => {
     expect(await accounting.getAccountBalance(cashId)).toBe(0);
   });
 
+  it("posts to a level-3 header account, and reverses it", async () => {
+    const bankId = await accountId(ctx.db, "1010");
+    // Turn 1000 into a header (the level-3 "group" a voucher may post to).
+    await ctx.db.run("UPDATE accounts SET parent_account_id = ? WHERE id = ?", [cashId, bankId]);
+
+    const created = await accounting.createManualJournal({
+      entryDate: "2026-10-20",
+      narration: "Transfer to the cash group",
+      lines: [
+        { accountId: cashId, debit: 90 },
+        { accountId: revenueId, credit: 90 },
+      ],
+    });
+    expect(await accounting.getAccountBalance(cashId)).toBe(90);
+
+    const reversal = await accounting.reverseManualJournal(created.id, {
+      reversalDate: "2026-10-21",
+    });
+    expect(reversal.voucherNumber).toMatch(/^JV-\d+$/);
+    expect(await accounting.getAccountBalance(cashId)).toBe(0);
+  });
+
   it("refuses to reverse an entry owned by another document", async () => {
     const expenses = new ExpenseService(ctx.db);
     const category = await expenses.createCategory("Office");

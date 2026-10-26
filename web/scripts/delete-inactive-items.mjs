@@ -5,7 +5,7 @@
 //   node scripts/delete-inactive-items.mjs --url data/e2e.sqlite --dry-run
 //
 // Target: SQLITE_CLOUD_TESTDB_URL (process env or web/.env). SQLITE_CLOUD_URL
-// (main) is refused outright.
+// (main) is refused unless --allow-main is passed explicitly.
 //
 // Only unreferenced items are deleted: if an inactive item still has stock,
 // stock movements, invoice lines, BOM links, production consumption or stock
@@ -110,19 +110,20 @@ async function verify(db) {
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+const allowMain = args.includes("--allow-main");
 const urlFlag = args.indexOf("--url");
 const explicit = urlFlag >= 0 ? args[urlFlag + 1] : null;
 
 const main = process.env.SQLITE_CLOUD_URL || envValue("SQLITE_CLOUD_URL");
 const testdb = process.env.SQLITE_CLOUD_TESTDB_URL || envValue("SQLITE_CLOUD_TESTDB_URL");
-const target = explicit || testdb;
+const target = explicit || (args.includes("--main") ? main : testdb);
 
 if (!target) {
   console.error("SQLITE_CLOUD_TESTDB_URL is not set (add it to web/.env) and no --url was passed.");
   process.exit(1);
 }
-if (main && target === main) {
-  console.error("Refusing to run against SQLITE_CLOUD_URL (main). This script is testdb-only.");
+if (main && target === main && !allowMain) {
+  console.error("Refusing to run against SQLITE_CLOUD_URL (main). Pass --allow-main to override.");
   process.exit(1);
 }
 

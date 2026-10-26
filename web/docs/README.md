@@ -30,12 +30,15 @@ module you are about to touch in MODULES.md. DATA_MODEL and API are references.
 
 One company's pharmaceutical/nutraceutical books, end to end:
 
-- **Master data** — chart of accounts, customers & suppliers, items (raw,
-  packing, finished goods), tax rates, fixed assets, users and roles.
-- **Operations** — sales invoices, purchase invoices, supplier payments,
-  customer receipts, sales/purchase returns, manufacturing (BOMs and production
-  orders), expenses (including recurring "pay items") and banking (accounts,
-  deposits/withdrawals, cheque lifecycle).
+- **Sales & purchasing** — sales invoices, purchase invoices and sales/purchase
+  returns.
+- **Inventory & production** — items (raw, packing, finished goods) with stock
+  levels and batches, BOMs and production/packing orders.
+- **Accounting** — payments & receipts, expense vouchers (including recurring
+  "pay items"), bank & cash (accounts, deposits/withdrawals, cheque lifecycle)
+  and manual journal vouchers.
+- **Master data** — chart of accounts, customers & suppliers, tax rates, fixed
+  assets, users and roles.
 - **Insight** — a dashboard of KPIs and alerts, trial balance, profit & loss,
   balance sheet, party ledger and cash book, each exportable as CSV or Excel.
 - **Administration** — users, password changes, appearance, company profile,

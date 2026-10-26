@@ -197,7 +197,7 @@ export default function BankingPage() {
     <>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0 }}>Banking</h2>
+          <h2 style={{ margin: 0 }}>Bank &amp; Cash</h2>
           <div className="row">
             {(["accounts", "transactions", "cheques"] as const).map((t) => (
               <button key={t} className={tab === t ? "primary" : ""} onClick={() => setTab(t)}>

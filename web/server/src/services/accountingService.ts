@@ -35,6 +35,9 @@ export interface PostJournalEntryInput {
   createdBy?: number | null;
   companyId?: number;
   voucherNumber?: string | null;
+  /** Manual vouchers may post straight to a header (a level-3 account that
+   * still has sub-accounts); every document path stays leaf-only. */
+  allowGroupAccounts?: boolean;
 }
 
 export interface ManualJournalLineInput {
@@ -141,7 +144,9 @@ export class AccountingService {
     }
 
     const companyId = input.companyId ?? this.companyId;
-    await this.assertPostable(companyId, prepared.map(({ line }) => line.accountId));
+    if (!input.allowGroupAccounts) {
+      await this.assertPostable(companyId, prepared.map(({ line }) => line.accountId));
+    }
 
     const voucherNumber =
       input.voucherNumber ??
@@ -219,6 +224,7 @@ export class AccountingService {
         sourceTable: "journal_entries",
         companyId,
         createdBy: input.createdBy ?? null,
+        allowGroupAccounts: true,
       });
       await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [id, id]);
       const row = await this.journal.findById(id);
@@ -269,6 +275,7 @@ export class AccountingService {
         sourceTable: "journal_entries",
         companyId,
         createdBy: input.createdBy ?? null,
+        allowGroupAccounts: true,
       });
       await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [
         reversalId,

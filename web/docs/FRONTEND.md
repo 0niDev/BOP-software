@@ -19,10 +19,10 @@ and every action is one API call.
   `items`, `payments`, `manufacturing`, `expenses`, `banking`, `returns`,
   `assets`, `accounts`, `reports`, `users`, `settings`.
 - Sidebar order is defined by `NAV_SECTIONS` in
-  `components/layout/Sidebar.tsx`, grouped as Overview, Operations, Master data,
-  Insights, Administration. **The flat order matters**: module-jump shortcuts
-  index it, and the browser audit asserts `Ctrl+2` = Sales Invoices and `Ctrl+5`
-  = Manufacturing.
+  `components/layout/Sidebar.tsx`, grouped as Overview, Sales & Purchasing,
+  Inventory & Production, Accounting, Master data, Insights, Administration.
+  **The flat order matters**: module-jump shortcuts index it, and the browser
+  audit asserts `Ctrl+2` = Sales Invoices and `Ctrl+6` = Manufacturing.
 
 ## API layer
 

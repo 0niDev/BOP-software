@@ -116,7 +116,7 @@ npm run test:e2e
 | Test | Checks |
 | --- | --- |
 | `renders <page>` × 15 | Every page loads with no console/page errors, no failed or 4xx API calls, no horizontal overflow, no text clipped by a fixed-size container, no control smaller than 18 px or overlapping another, visible headings, and data present where the demo set guarantees it |
-| Keyboard shortcuts | `Ctrl+2` → Sales Invoices, `Ctrl+5` → Manufacturing, `Ctrl+F` focuses the page filter |
+| Keyboard shortcuts | `Ctrl+2` → Sales Invoices, `Ctrl+6` → Manufacturing, `Ctrl+F` focuses the page filter |
 | Dashboard | Best sellers are revenue-sorted, the sort toggles, avatar/meter render, and a row menu navigates to the owning module |
 | Settings | 26 shortcut rows, rebind/capture/save/reset, Database card contents |
 | Manufacturing | Creates a formulation BOM (with its auto-created unpacked item) and produces it; a manual production run saves a per-unit BOM, then a manual packing order consumes the unpacked bulk with Ignore stock and completes |
