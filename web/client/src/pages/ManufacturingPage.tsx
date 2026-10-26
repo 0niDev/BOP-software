@@ -5,14 +5,14 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
 import type { Bom, BomComponent, Item, PackingOrder, ProductionOrder } from "../types";
-import { defaultPackUnit, packsToBulk, PACK_UNITS } from "../lib/units";
+import { defaultPackUnit, packsToBulk, PACK_UNITS, PACK_UNIT_LABELS } from "../lib/units";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function quantity(value: number): string {
-  return value.toLocaleString("en-PK", { maximumFractionDigits: 3 });
+  return value.toLocaleString("en-PK", { maximumFractionDigits: 6 });
 }
 
 const UNPACKED_PREFIX = "(Unpacked) ";
@@ -1126,7 +1126,7 @@ export default function ManufacturingPage() {
                       <select value={packUnit} onChange={(e) => setPackUnit(e.target.value)}>
                         {PACK_UNITS.map((unit) => (
                           <option key={unit} value={unit}>
-                            {unit}
+                            {PACK_UNIT_LABELS[unit]}
                           </option>
                         ))}
                       </select>

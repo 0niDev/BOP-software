@@ -185,12 +185,13 @@ web/
 | Term | Meaning here |
 | --- | --- |
 | **Party** | A customer, supplier, or both; carries an optional AR/AP account link |
-| **Voucher** | The accounting document number (`SI-`, `PI-`, `PV-`, `RV-`, `JV-`, `OB-`, `PO-`, `EV-`, `SR-`, `PR-`) |
+| **Voucher** | The accounting document number (`SI-`, `PI-`, `PV-`, `RV-`, `JV-`, `OB-`, `PO-`, `PCO-`, `EV-`, `SR-`, `PR-`) |
 | **OPENING** | Journal entry that gives an account, item or bank account its starting balance |
 | **COGS** | Cost of goods sold, recognised from the FIFO cost of the batches a sale consumed |
 | **FIFO** | Stock consumption order: earliest `received_date` first |
 | **Batch** | A stock lot for one item in one warehouse, with cost, expiry and quantity |
 | **BOM** | Bill of materials: finished item + output quantity + component quantities and wastage |
-| **Temporary BOM** | A hidden, one-use BOM created by a production order (`is_temp = 1`), never listed |
+| **Unpacked item** | The `(Unpacked) <BOM name>` finished good a formulation BOM creates for the bulk its production run makes |
+| **Packing order** | An independent order that turns unpacked bulk plus packing materials into a finished good (`PCO-`) |
 | **Pay items** | Recurring expense items under a category; paying them creates one expense voucher each |
 | **Session** | Opaque bearer token kept in an in-memory `Map` (12 h TTL), lost on restart |

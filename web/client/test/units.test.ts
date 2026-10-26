@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
 import { formatDate, setDateFormat } from "../src/lib/format";
-import { defaultPackUnit, packCount, packsToBulk } from "../src/lib/units";
+import { defaultPackUnit, packsToBulk } from "../src/lib/units";
 
 test("dates display day/month/year by default and follow the saved format", () => {
   setDateFormat("dd/MM/yyyy");
@@ -27,55 +27,41 @@ test("trial balance rows group by COA type with closing subtotals", async () => 
   expect(groups[1].closingCredit).toBe(5);
 });
 
-test("50 kg into 5 kg packs is 10 packs", () => {
-  const result = packCount(50, "KG", 5, "KG");
-  expect(result.packs).toBe(10);
-  expect(result.packedBulk).toBe(50);
-  expect(result.remainder).toBe(0);
-});
-
-test("50 kg into 500 g packs is 100 packs", () => {
-  expect(packCount(50, "KG", 500, "G").packs).toBe(100);
-});
-
-test("5 L into 500 ml packs is 10 packs", () => {
-  expect(packCount(5, "L", 500, "ML").packs).toBe(10);
-});
-
-test("51 kg into 5 kg packs leaves 1 kg", () => {
-  const result = packCount(51, "KG", 5, "KG");
-  expect(result.packs).toBe(10);
-  expect(result.packedBulk).toBe(50);
-  expect(result.remainder).toBe(1);
-});
-
-test("mismatched dimensions are rejected", () => {
-  expect(packCount(50, "KG", 500, "ML").error).toBeTruthy();
-});
-
-test("a pack larger than the bulk is rejected", () => {
-  expect(packCount(2, "KG", 5, "KG").error).toBeTruthy();
-});
-
-test("pack units default from the item unit", () => {
-  expect(defaultPackUnit("GRAM")).toBe("G");
-  expect(defaultPackUnit("KG")).toBe("KG");
-  expect(defaultPackUnit("ML")).toBe("ML");
+test("pack units default from the item unit's scale", () => {
+  expect(defaultPackUnit("G")).toBe("G_ML");
+  expect(defaultPackUnit("GRAM")).toBe("G_ML");
+  expect(defaultPackUnit("ML")).toBe("G_ML");
+  expect(defaultPackUnit("KG")).toBe("KG_LIT");
+  expect(defaultPackUnit("LIT")).toBe("KG_LIT");
   expect(defaultPackUnit("TABLET")).toBe("UNIT");
 });
 
-test("20 packs of 500 g consume 10 kg", () => {
-  expect(packsToBulk(20, "KG", 500, "G").bulk).toBe(10);
+test("20 items of 500 g/ml consume 10 kg", () => {
+  expect(packsToBulk(20, "KG", 500, "G_ML").bulk).toBe(10);
 });
 
-test("10 packs of 5 kg consume the same 50 kg packCount derives", () => {
-  expect(packsToBulk(10, "KG", 5, "KG").bulk).toBe(packCount(50, "KG", 5, "KG").packedBulk);
+test("g/ml works for a volume item too — 20 x 500 ml of a 5 lit batch uses 10 lit", () => {
+  expect(packsToBulk(20, "LIT", 500, "G_ML").bulk).toBe(10);
 });
 
-test("packsToBulk rejects mismatched dimensions and non-positive inputs", () => {
-  expect(packsToBulk(10, "KG", 500, "ML").error).toBeTruthy();
-  expect(packsToBulk(0, "KG", 5, "KG").error).toBeTruthy();
-  expect(packsToBulk(10, "KG", 0, "KG").error).toBeTruthy();
+test("10 items of 5 kg/lit consume 50 kg", () => {
+  expect(packsToBulk(10, "KG", 5, "KG_LIT").bulk).toBe(50);
+});
+
+test("a kg/lit size converts down to a gram item (2 x 0.5 kg = 1000 g)", () => {
+  expect(packsToBulk(2, "G", 0.5, "KG_LIT").bulk).toBe(1000);
+});
+
+test("counted items pack in unit, measured items in a pair", () => {
+  expect(packsToBulk(10, "TABLET", 1, "UNIT").bulk).toBe(10);
+  expect(packsToBulk(10, "KG", 5, "UNIT").error).toBeTruthy();
+  expect(packsToBulk(10, "TABLET", 1, "G_ML").error).toBeTruthy();
+});
+
+test("packsToBulk rejects unknown units and non-positive inputs", () => {
+  expect(packsToBulk(10, "KG", 500, "L").error).toBeTruthy();
+  expect(packsToBulk(0, "KG", 5, "KG_LIT").error).toBeTruthy();
+  expect(packsToBulk(10, "KG", 0, "KG_LIT").error).toBeTruthy();
 });
 
 // --- table arrow navigation (lib/gridKeys) -------------------------------

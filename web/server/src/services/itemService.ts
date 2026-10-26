@@ -45,12 +45,14 @@ export interface OpeningStockResult {
 }
 
 export const ITEM_UNITS = [
+  "G",
+  "ML",
+  "KG",
+  "LIT",
+  "GRAM",
+  "UNIT",
   "TABLET",
   "CAPSULE",
-  "ML",
-  "GRAM",
-  "KG",
-  "UNIT",
   "VIAL",
   "AMPOULE",
 ] as const;
@@ -110,7 +112,7 @@ function validateCommon(fields: ItemFields): void {
   }
   if (!(ITEM_UNITS as readonly string[]).includes(fields.unit)) {
     throw new ValidationError(
-      `Invalid unit: ${fields.unit}. Use TABLET, CAPSULE, ML, GRAM, KG, UNIT, VIAL or AMPOULE.`,
+      `Invalid unit: ${fields.unit}. Use G, ML, KG, LIT, GRAM, UNIT, TABLET, CAPSULE, VIAL or AMPOULE.`,
     );
   }
   if (!(ITEM_TYPES as readonly string[]).includes(fields.itemType)) {

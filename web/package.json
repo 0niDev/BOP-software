@@ -21,6 +21,7 @@
     "seed": "npm -w @bop-erp/server run seed",
     "seed:rich": "npm -w @bop-erp/server run seed:rich",
     "backfill:bom-phase": "node scripts/backfill-bom-phase.mjs",
+  "backfill:invoice-party-links": "node scripts/backfill-invoice-party-links.mjs",
     "purge:manufacturing": "node scripts/purge-manufacturing.mjs",
     "delete:inactive-items": "node scripts/delete-inactive-items.mjs",
     "fix:activate-formulation-boms": "node scripts/activate-formulation-boms.mjs",

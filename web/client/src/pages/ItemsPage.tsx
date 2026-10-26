@@ -449,7 +449,7 @@ export default function ItemsPage() {
               value={draft.unit}
               onChange={(next) => set("unit", next)}
               placeholder="Unit"
-              options={ITEM_UNITS.map((u) => ({ value: u, label: u }))}
+              options={ITEM_UNITS.map((u) => ({ value: u, label: u.toLowerCase() }))}
             />
           </div>
           <div>

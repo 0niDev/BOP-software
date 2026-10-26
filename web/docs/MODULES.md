@@ -237,50 +237,62 @@ invoice before returning twice.
 
 ## Manufacturing
 
-`ManufacturingPage` has two tabs:
+`ManufacturingPage` has three tabs, one per stage of the pipeline.
 
-**Bills of materials**
+**Formulations** — the recipe library.
 
-- Finished item must be `FINISHED_GOOD`; output quantity > 0.
-- BOM name is unique per company; defaults to `BOM-#####`.
-- At least one component; each needs an item and quantity > 0; wastage 0–100 %.
-- Temporary BOMs (`is_temp = 1`, named `TEMP-<order>`) are hidden from the list.
+- A **formulation** BOM lists raw materials only. Its output item is created in
+  inventory automatically as `(Unpacked) <BOM name>` (`FINISHED_GOOD`, unit of
+  the first raw component); renaming the BOM leaves that item and its batches
+  alone.
+- A **packing** BOM lists the unpacked bulk item plus the packing materials and
+  picks an existing finished good as its output. At most one finished-good
+  component; raw materials cannot be mixed in.
+- The phase is derived from the components, not chosen by hand. At least one
+  component; each needs an item and quantity > 0; wastage 0–100 %.
+- BOM name is unique per company; defaults to `BOM-#####`. A BOM still used by
+  an order cannot be deleted.
 
-**Production orders**
+**Production** — raw materials into unpacked bulk.
 
-- Created from a saved BOM, or as a **temporary one-use production** by passing
-  a finished item and components; the service creates the hidden BOM for you.
-- Planned quantity > 0; manufacturing date valid; order number `PO-#####` or
-  explicit and unique.
-- `DRAFT` → `startProduction` → `IN_PROGRESS` → `completeProduction` →
-  `COMPLETED`. Any other transition is rejected.
-- Completion takes `actualQuantity` (> 0) and `wastageQuantity` (≥ 0). It
-  consumes component stock FIFO, scaling each component by
-  `actualQuantity ÷ BOM outputQuantity` and adding that component's wastage
-  percentage. Insufficient stock aborts the whole completion.
-- **Finished-goods stock is only recorded when `outputBatchNumber` is given.**
-  With a number, completion either creates that batch or adds the quantity and
-  computed unit costs to the item's existing batch in that warehouse (the
-  supplied number is ignored when a batch already exists for the item). Without
-  a number the order still completes and posts its journal entry, but no
-  finished-goods batch or `PRODUCTION_IN` movement is written. The order records
-  raw/packing/total cost, and the journal entry is dated the day it completes
-  (not the manufacturing date).
-- The pack dialog has a **pack-size calculator**: pick a size and unit
-  (`G`, `KG`, `ML`, `L`, `UNIT`) and it divides the quantity being packed by
-  that size, snaps the quantity to whole packs, and shows e.g.
-  `→ 10 packs of 5 KG` (plus any leftover). The count is display-only — stock
-  stays in the finished item's unit — and dividing across dimensions
-  (e.g. `KG ÷ ML`) is rejected.
+- Create from a saved formulation BOM, or run it manually: give the run a name
+  and the totals it consumed, and the service saves a per-unit BOM
+  (`output_quantity = 1`) for reuse.
+- New orders are `DRAFT`; stock and the ledger only move when the order is
+  produced. `DRAFT` → `startProduction` → `IN_PROGRESS` → `produceProduction` →
+  `COMPLETED`; any other transition is rejected.
+- Producing takes `actualQuantity` (> 0) and `wastageQuantity` (≥ 0), consumes
+  raw stock FIFO scaled by `actualQuantity ÷ BOM outputQuantity`, and creates
+  the unpacked output batch (the requested number, or the order number when
+  blank). Insufficient stock aborts the whole run unless **Ignore stock** is
+  ticked, which skips the check and the deduction.
+- Wastage is capitalised into the output cost; account `5200` is seeded but not
+  posted.
 
 ```
 Dr 1220 Inventory — Finished Goods      total production cost
 Cr 1200 Inventory — Raw Materials       raw component cost
-Cr 1210 Inventory — Packing Materials   packing component cost
 ```
 
-Wastage is recorded as part of the consumed cost; account `5200`
-(Manufacturing Wastage Expense) is seeded but not posted by the current code.
+**Packing** — unpacked bulk plus packaging into finished goods.
+
+- Independent orders (`PCO-#####`) from a saved packing BOM, or manually: output
+  item (must already exist), unpacked material, size per item and items
+  generated (`Unpacked used = items generated × size per item`), plus packing
+  materials.
+- `DRAFT` → `startPackingOrder` → `IN_PROGRESS` → `packPackingOrder`. Packing can
+  be partial: each call records what it used, and the order completes once
+  `actualQuantity ≥ plannedQuantity`.
+- Consumes the unpacked batch and the packing materials FIFO, then creates the
+  finished-goods batch. **Ignore stock** skips the check and deduction.
+
+```
+Dr 1220 Inventory — Finished Goods      packed finished-goods cost
+Cr 1220 Inventory — Finished Goods      unpacked bulk consumed
+Cr 1210 Inventory — Packing Materials   packing material cost
+```
+
+Both stages post `MANUFACTURING` journal entries dated the day they run.
 
 ## Expenses and pay items
 

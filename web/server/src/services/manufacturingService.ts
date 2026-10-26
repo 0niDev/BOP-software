@@ -219,7 +219,7 @@ export class ManufacturingService {
         company_id: companyId,
         finished_item_id: finished.id,
         bom_name: bomName,
-        output_quantity: toStorage(outputQuantity),
+        output_quantity: toQuantity(outputQuantity),
         notes: input.notes ?? null,
         phase: components.phase,
         is_active: 1,
@@ -228,7 +228,7 @@ export class ManufacturingService {
         await this.manufacturing.insertBomComponent({
           bom_id: bomId,
           component_item_id: component.componentItemId,
-          quantity_required: toStorage(component.quantityRequired),
+          quantity_required: toQuantity(component.quantityRequired),
           wastage_percent: toStorage(component.wastagePercent),
         });
       }
@@ -262,7 +262,7 @@ export class ManufacturingService {
       await this.manufacturing.updateBom(id, {
         finished_item_id: finishedItemId,
         bom_name: bomName,
-        output_quantity: toStorage(outputQuantity),
+        output_quantity: toQuantity(outputQuantity),
         notes: input.notes ?? existing.notes,
         phase: components.phase,
         is_active: input.isActive === false ? 0 : existing.is_active,
@@ -272,7 +272,7 @@ export class ManufacturingService {
         await this.manufacturing.insertBomComponent({
           bom_id: id,
           component_item_id: component.componentItemId,
-          quantity_required: toStorage(component.quantityRequired),
+          quantity_required: toQuantity(component.quantityRequired),
           wastage_percent: toStorage(component.wastagePercent),
         });
       }
@@ -409,7 +409,7 @@ export class ManufacturingService {
           outputQuantity: 1,
           components: input.components!.map((component) => ({
             componentItemId: component.componentItemId,
-            quantityRequired: toStorage(dec(component.quantityRequired).dividedBy(plannedQuantity)),
+            quantityRequired: toQuantity(dec(component.quantityRequired).dividedBy(plannedQuantity)),
           })),
           notes: "Saved from a production run",
           companyId,
@@ -420,7 +420,7 @@ export class ManufacturingService {
           warehouse_id: warehouseId,
           order_number: orderNumber,
           bom_id: bom.id,
-          planned_quantity: toStorage(plannedQuantity),
+          planned_quantity: toQuantity(plannedQuantity),
           manufacturing_date: input.manufacturingDate,
           expiry_date: input.expiryDate ?? null,
           notes: input.notes ?? null,
@@ -443,7 +443,7 @@ export class ManufacturingService {
       warehouse_id: warehouseId,
       order_number: orderNumber,
       bom_id: bom.id,
-      planned_quantity: toStorage(plannedQuantity),
+      planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
       notes: input.notes ?? null,
@@ -468,7 +468,7 @@ export class ManufacturingService {
 
     await this.manufacturing.updateOrder(id, {
       bom_id: bom.id,
-      planned_quantity: toStorage(plannedQuantity),
+      planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
       notes: input.notes ?? null,
@@ -730,11 +730,11 @@ export class ManufacturingService {
           components: [
             {
               componentItemId: input.unpackedItemId!,
-              quantityRequired: toStorage(unpackedQuantity.dividedBy(plannedQuantity)),
+              quantityRequired: toQuantity(unpackedQuantity.dividedBy(plannedQuantity)),
             },
             ...materials.map((material) => ({
               componentItemId: material.componentItemId,
-              quantityRequired: toStorage(
+              quantityRequired: toQuantity(
                 dec(material.quantityRequired).dividedBy(plannedQuantity),
               ),
             })),
@@ -748,7 +748,7 @@ export class ManufacturingService {
           warehouse_id: warehouseId,
           order_number: orderNumber,
           bom_id: bom.id,
-          planned_quantity: toStorage(plannedQuantity),
+          planned_quantity: toQuantity(plannedQuantity),
           manufacturing_date: input.manufacturingDate,
           expiry_date: input.expiryDate ?? null,
           notes: input.notes ?? null,
@@ -770,7 +770,7 @@ export class ManufacturingService {
       warehouse_id: warehouseId,
       order_number: orderNumber,
       bom_id: bom.id,
-      planned_quantity: toStorage(plannedQuantity),
+      planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
       notes: input.notes ?? null,
@@ -796,7 +796,7 @@ export class ManufacturingService {
 
     await this.manufacturing.updatePackingOrder(id, {
       bom_id: bom.id,
-      planned_quantity: toStorage(plannedQuantity),
+      planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
       notes: input.notes ?? null,

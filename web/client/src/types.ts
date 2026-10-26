@@ -81,12 +81,14 @@ export interface TaxRate {
 }
 
 export const ITEM_UNITS = [
+  "G",
+  "ML",
+  "KG",
+  "LIT",
+  "GRAM",
+  "UNIT",
   "TABLET",
   "CAPSULE",
-  "ML",
-  "GRAM",
-  "KG",
-  "UNIT",
   "VIAL",
   "AMPOULE",
 ] as const;

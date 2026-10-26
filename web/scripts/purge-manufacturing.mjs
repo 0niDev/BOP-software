@@ -95,13 +95,19 @@ async function plan(db) {
   const orders = await db.all(
     "SELECT id, order_number, status FROM production_orders ORDER BY id",
   );
-  const boms = await db.all("SELECT id, bom_name, is_temp FROM bill_of_materials ORDER BY id");
+  const packingOrders = await db.all(
+    "SELECT id, order_number, status FROM packing_orders ORDER BY id",
+  );
+  const boms = await db.all("SELECT id, bom_name, phase FROM bill_of_materials ORDER BY id");
   const componentCount = num(
     (await db.all("SELECT COUNT(*) AS n FROM bom_components"))[0]?.n,
   );
   const consumption = await db.all(
-    `SELECT batch_id, SUM(quantity_consumed) AS quantity
-       FROM production_consumption
+    `SELECT batch_id, SUM(quantity) AS quantity FROM (
+       SELECT batch_id, quantity_consumed AS quantity FROM production_consumption
+       UNION ALL
+       SELECT batch_id, quantity_consumed FROM packing_consumption
+     )
       GROUP BY batch_id
       ORDER BY batch_id`,
   );
@@ -110,7 +116,8 @@ async function plan(db) {
   );
   const produced = await db.all(
     `SELECT DISTINCT batch_id AS id FROM stock_movements
-      WHERE movement_type = 'PRODUCTION_IN' AND reference_table = 'production_orders'`,
+      WHERE movement_type = 'PRODUCTION_IN'
+        AND reference_table IN ('production_orders', 'packing_orders')`,
   );
   const unpacked = await db.all(
     "SELECT id FROM stock_batches WHERE batch_number LIKE 'UNPACKED-%'",
@@ -120,13 +127,23 @@ async function plan(db) {
   // Consumption on a batch that is itself production output is not restored —
   // the batch is going away with the output it belongs to.
   const restore = consumption.filter((row) => !producedIds.includes(num(row.batch_id)));
-  const restoreItems = await db.all(
-    `SELECT i.id AS item_id, i.item_name, SUM(pc.quantity_consumed) AS quantity
-       FROM production_consumption pc
-       JOIN items i ON i.id = pc.component_item_id
-      GROUP BY i.id
-      ORDER BY i.item_name`,
-  );
+  const restoreIds = restore.map((row) => num(row.batch_id));
+  const restoreItems = restoreIds.length
+    ? await db.all(
+        `SELECT i.id AS item_id, i.item_name, SUM(c.quantity) AS quantity
+           FROM (
+             SELECT batch_id, quantity_consumed AS quantity FROM production_consumption
+             UNION ALL
+             SELECT batch_id, quantity_consumed FROM packing_consumption
+           ) c
+           JOIN stock_batches b ON b.id = c.batch_id
+           JOIN items i ON i.id = b.item_id
+          WHERE c.batch_id IN (${placeholders(restoreIds)})
+          GROUP BY i.id
+          ORDER BY i.item_name`,
+        restoreIds,
+      )
+    : [];
 
   // Anything that still points at a batch we would delete blocks the purge.
   const blockers = [];
@@ -167,6 +184,7 @@ async function plan(db) {
 
   return {
     orders,
+    packingOrders,
     boms,
     componentCount,
     consumption,
@@ -181,7 +199,8 @@ async function plan(db) {
 
 function printPlan(p, dryRun) {
   console.log(`  production orders      ${p.orders.length}`);
-  console.log(`  BOMs                   ${p.boms.length} (${p.boms.filter((b) => b.is_temp).length} temporary)`);
+  console.log(`  packing orders         ${p.packingOrders.length}`);
+  console.log(`  BOMs                   ${p.boms.length}`);
   console.log(`  BOM components         ${p.componentCount}`);
   console.log(`  consumption rows       ${p.consumption.length}`);
   console.log(`  production batches     ${p.producedIds.length}`);
@@ -199,9 +218,15 @@ function printPlan(p, dryRun) {
     console.log(`  note: ${p.unpackedItems} item(s) still carry the "(unpacked)" name — items are left untouched.`);
   }
   if (p.orders.length) {
-    console.log("  orders:");
+    console.log("  production orders:");
     console.log(
       `    ${summarize(p.orders, (o) => `${o.order_number} [${o.status}]`)}`,
+    );
+  }
+  if (p.packingOrders.length) {
+    console.log("  packing orders:");
+    console.log(
+      `    ${summarize(p.packingOrders, (o) => `${o.order_number} [${o.status}]`)}`,
     );
   }
   console.log(dryRun ? "\n  DRY RUN — nothing changed." : "\n  deleting …");
@@ -228,9 +253,11 @@ async function verify(db) {
 
   const left = {
     orders: await count("SELECT COUNT(*) AS n FROM production_orders"),
+    packingOrders: await count("SELECT COUNT(*) AS n FROM packing_orders"),
     boms: await count("SELECT COUNT(*) AS n FROM bill_of_materials"),
     components: await count("SELECT COUNT(*) AS n FROM bom_components"),
     consumption: await count("SELECT COUNT(*) AS n FROM production_consumption"),
+    packingConsumption: await count("SELECT COUNT(*) AS n FROM packing_consumption"),
     vouchers: await count("SELECT COUNT(*) AS n FROM journal_entries WHERE voucher_type = 'MANUFACTURING'"),
   };
   for (const [label, n] of Object.entries(left)) {
@@ -302,7 +329,12 @@ try {
     const p = await purge(db);
     if (!p.aborted) {
       printPlan(p, false);
-      const settings = { orders: p.orders.length, boms: p.boms.length, consumed: p.restore.length };
+      const settings = {
+        orders: p.orders.length,
+        packingOrders: p.packingOrders.length,
+        boms: p.boms.length,
+        consumed: p.restore.length,
+      };
 
       await transaction(db, async () => {
         // 1. Give consumed raw/packing stock back to its batches.
@@ -312,24 +344,28 @@ try {
             [num(row.quantity), num(row.batch_id)],
           );
         }
-        // 2. Production consumption trail.
+        // 2. Production and packing consumption trails.
         await db.run("DELETE FROM production_consumption");
+        await db.run("DELETE FROM packing_consumption");
         // 3. Manufacturing ledger (headers then lines).
         await db.run(
           `DELETE FROM journal_entry_lines
             WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE voucher_type = 'MANUFACTURING')`,
         );
         await db.run("DELETE FROM journal_entries WHERE voucher_type = 'MANUFACTURING'");
-        // 4. Stock movements of the production batches and every production
-        //    movement (covers component batches whose consumption is undone).
+        // 4. Stock movements of the production/packing batches and every
+        //    manufacturing movement (covers component batches whose consumption
+        //    is undone).
         if (p.producedIds.length) {
           await db.run(
             `DELETE FROM stock_movements WHERE batch_id IN (${placeholders(p.producedIds)})`,
             p.producedIds,
           );
         }
-        await db.run("DELETE FROM stock_movements WHERE reference_table = 'production_orders'");
-        // 5. The output batches themselves (UNPACKED + renamed/packed/split).
+        await db.run(
+          "DELETE FROM stock_movements WHERE reference_table IN ('production_orders', 'packing_orders')",
+        );
+        // 5. The output batches themselves (unpacked + packed).
         if (p.producedIds.length) {
           await db.run(
             `DELETE FROM stock_batches WHERE id IN (${placeholders(p.producedIds)})`,
@@ -337,6 +373,7 @@ try {
           );
         }
         // 6. Orders, then the recipes.
+        await db.run("DELETE FROM packing_orders");
         await db.run("DELETE FROM production_orders");
         await db.run("DELETE FROM bom_components");
         await db.run("DELETE FROM bill_of_materials");
@@ -344,14 +381,14 @@ try {
         //    so the next issued number is 1).
         await db.run(
           `UPDATE numbering_sequences SET next_number = 2
-            WHERE document_type IN ('PRODUCTION_ORDER', 'BOM', 'MANUFACTURING')`,
+            WHERE document_type IN ('PRODUCTION_ORDER', 'PACKING_ORDER', 'BOM', 'MANUFACTURING')`,
         );
       });
 
       const { problems, debit, credit } = await verify(db);
       console.log(
-        `\n  removed: ${settings.orders} order(s), ${settings.boms} BOM(s), ` +
-          `${settings.consumed} stock batch(es) restored`,
+        `\n  removed: ${settings.orders} production order(s), ${settings.packingOrders} packing order(s), ` +
+          `${settings.boms} BOM(s), ${settings.consumed} stock batch(es) restored`,
       );
       console.log(`  trial balance: ${debit.toFixed(2)} = ${credit.toFixed(2)}`);
       if (problems.length) {

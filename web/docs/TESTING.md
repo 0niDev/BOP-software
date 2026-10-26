@@ -50,7 +50,7 @@ Vitest.
 | `purchaseInvoice.test.ts` | Batches, cost split by item type, tax, duplicate numbers |
 | `payment.test.ts` | Payments/receipts, allocations, overpayment guards, duplicate protection, bank funds |
 | `returns.test.ts` | Sales/purchase returns, stock restoration, over-return guard |
-| `manufacturing.test.ts` | BOM validation, temporary BOMs, production lifecycle, consumption |
+| `manufacturing.test.ts` | BOM phases, the auto-created unpacked item, production lifecycle and consumption, packing orders and partial packs |
 | `expense.test.ts`, `expenseItem.test.ts` | Categories, vouchers, pay-items bulk payment |
 | `banking.test.ts` | Accounts, deposits/withdrawals, cheque lifecycle, negative-balance guard |
 | `asset.test.ts` | Asset creation, account reuse, payment types, validation |
@@ -111,7 +111,7 @@ npm run test:e2e
 - client: Vite on port 5273 with `API_URL` pointed at 4100;
 - viewport 1440×900, one worker, traces kept on failure.
 
-`e2e/ui-audit.spec.ts` runs 23 tests:
+`e2e/ui-audit.spec.ts` runs 25 tests:
 
 | Test | Checks |
 | --- | --- |
@@ -119,7 +119,7 @@ npm run test:e2e
 | Keyboard shortcuts | `Ctrl+2` → Sales Invoices, `Ctrl+5` → Manufacturing, `Ctrl+F` focuses the page filter |
 | Dashboard | Best sellers are revenue-sorted, the sort toggles, avatar/meter render, and a row menu navigates to the owning module |
 | Settings | 26 shortcut rows, rebind/capture/save/reset, Database card contents |
-| Manufacturing | The combobox filters and selects; temporary production swaps pickers; errors stay empty |
+| Manufacturing | Creates a formulation BOM (with its auto-created unpacked item) and produces it; a manual production run saves a per-unit BOM, then a manual packing order consumes the unpacked bulk with Ignore stock and completes |
 | Typography/hit targets | Font sizes, `.num` alignment and control sizes across every page |
 | Empty states | A nonsense filter on every filterable page shows an empty state, not an error or a crash |
 | Responsive | No page overflows horizontally at 1280 or 1024 px |

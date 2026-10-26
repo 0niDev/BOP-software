@@ -435,6 +435,10 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
     packingForm.getByRole("combobox", { name: "Unpacked material" }),
     `(Unpacked) ${runName}`,
   );
+  // The unit picker is the two metric pairs: g/ml first, kg/lit second.
+  await expect(packingForm.locator("select")).toContainText("g/ml");
+  await expect(packingForm.locator("select")).toContainText("kg/lit");
+  await expect(packingForm.locator("select")).toHaveValue("KG_LIT");
   await packingForm.locator('input[aria-label="Items generated"]').fill("10");
   await packingForm.locator('input[aria-label="Size per item"]').fill("1");
   await expect(packingForm.locator(".badge", { hasText: "Unpacked used: 10 KG" })).toBeVisible();

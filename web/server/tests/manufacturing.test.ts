@@ -111,6 +111,18 @@ describe("ManufacturingService — BOMs", () => {
     expect(item?.unit).toBe("KG");
   });
 
+  it("stores component quantities below a cent instead of rounding them to zero", async () => {
+    const bom = await mfg.createBom({
+      bomName: "Trace Mix",
+      outputQuantity: 1_000_000,
+      components: [{ componentItemId: rawItemId, quantityRequired: 0.0004 }],
+      companyId: 1,
+    });
+    const detail = await mfg.getBom(bom.id);
+    expect(detail.bom.output_quantity).toBe(1_000_000);
+    expect(detail.components[0]?.quantity_required).toBe(0.0004);
+  });
+
   it("reuses the (Unpacked) item when the same BOM name is created again", async () => {
     const first = await formulationBom();
     const second = await formulationBom().catch(() => null);

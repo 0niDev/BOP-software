@@ -254,21 +254,36 @@ transaction. Posts `Dr AP / Cr cash-bank` and `Dr cash-bank / Cr AR`.
 
 | Method | Path | Body | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/boms` | — | `Bom[]` (excludes temporary BOMs) |
+| `GET` | `/api/boms` | — | `Bom[]` (`?activeOnly=1` for active only) |
 | `GET` | `/api/boms/:id` | — | BOM with components |
-| `POST` | `/api/boms` | `{ finishedItemId, outputQuantity, bomName?, notes?, components: [{ componentItemId, quantityRequired, wastagePercent? }] }` | `201` BOM |
+| `POST` | `/api/boms` | `{ finishedItemId?, outputQuantity, bomName?, notes?, components: [{ componentItemId, quantityRequired, wastagePercent? }] }` | `201` BOM |
+| `PUT` | `/api/boms/:id` | same as `POST` plus `isActive?` | updated BOM |
+| `DELETE` | `/api/boms/:id` | — | `{ ok: true }` |
 | `GET` | `/api/production-orders` | — | `ProductionOrder[]` |
 | `GET` | `/api/production-orders/:id` | — | order with BOM/components |
-| `POST` | `/api/production-orders` | `{ bomId?, plannedQuantity, manufacturingDate, orderNumber?, expiryDate?, notes?, warehouseId?, tempFinishedItemId?, tempComponents? }` | `201` order |
+| `POST` | `/api/production-orders` | `{ bomId?, plannedQuantity, manufacturingDate, orderNumber?, expiryDate?, notes?, warehouseId?, bomName?, components? }` | `201` order |
 | `POST` | `/api/production-orders/:id/start` | — | `{ status: "IN_PROGRESS" }` |
-| `POST` | `/api/production-orders/:id/complete` | `{ actualQuantity, wastageQuantity?, outputBatchNumber? }` | completed order |
+| `POST` | `/api/production-orders/:id/produce` | `{ actualQuantity, wastageQuantity?, outputBatchNumber?, ignoreStock? }` | `{ productionCost, journalEntryId, outputBatchNumber }` |
+| `GET` | `/api/packing-orders` | — | `PackingOrder[]` |
+| `GET` | `/api/packing-orders/:id` | — | order with consumptions |
+| `POST` | `/api/packing-orders` | `{ bomId?, plannedQuantity, manufacturingDate, orderNumber?, expiryDate?, notes?, warehouseId?, packingBomName?, outputItemId?, unpackedItemId?, unpackedQuantity?, materials? }` | `201` order |
+| `POST` | `/api/packing-orders/:id/start` | — | `{ status: "IN_PROGRESS" }` |
+| `POST` | `/api/packing-orders/:id/pack` | `{ units?, unpackedQuantity?, outputBatchNumber?, ignoreStock?, materials?: [{ itemId, quantity }] }` | pack result |
 
-Rules: the finished item must be `FINISHED_GOOD`; BOM names are unique; wastage
-0–100 %; start only from `DRAFT`, complete only from `IN_PROGRESS`. Completion
-consumes component batches (insufficient stock → `409`), creates the output
-batch and posts `Dr Inventory — Finished Goods / Cr Inventory — Raw + Packing`
-for the consumed cost. Omit `bomId` and supply `tempFinishedItemId` +
-`tempComponents` for a one-use production with a hidden BOM.
+Rules: a BOM's phase comes from its components — raw materials only =
+`FORMULATION` (its `(Unpacked) <name>` output item is created when
+`finishedItemId` is omitted), otherwise `PACKING` with exactly one finished-good
+component and an existing finished good as output. BOM names are unique; wastage
+0–100 %; start only from `DRAFT`; production `produce` only from `IN_PROGRESS`
+and packing `pack` only from `IN_PROGRESS`. Omitting `bomId` and passing
+`bomName` + `components` (production) or `packingBomName` + the packing fields
+saves a per-unit BOM (`output_quantity = 1`) from the run's totals.
+
+Producing consumes raw stock FIFO, creates the unpacked batch and posts
+`Dr Finished Goods / Cr Raw Materials`; packing consumes the unpacked batch plus
+packing materials, creates the finished-goods batch and posts
+`Dr Finished Goods / Cr Finished Goods (unpacked) / Cr Packing Materials`.
+Insufficient stock → `409`; `ignoreStock: true` skips the check and deduction.
 
 ## Expenses
 

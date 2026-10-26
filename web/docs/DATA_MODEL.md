@@ -121,10 +121,12 @@ also returns `current_stock` aggregated across active batches.
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `bill_of_materials` | `company_id`, `finished_item_id`, `bom_name`, `output_quantity`, `notes`, `phase`, `is_active`, `is_temp`, `is_ghost` | `is_temp = 1` marks a one-use BOM created by a production order; such BOMs are filtered out of the list. `phase`: `FORMULATION` (raw materials) or `PACKING` (packing materials + finished good) — set automatically from the components |
-| `bom_components` | `bom_id` (cascade), `component_item_id`, `quantity_required`, `wastage_percent` | Percent 0–100 |
-| `production_orders` | `company_id`, `warehouse_id`, `order_number` UNIQUE(company), `bom_id`, `planned_quantity`, `actual_quantity`, `wastage_quantity`, `output_batch_number`, `manufacturing_date`, `expiry_date`, `production_cost`, `raw_material_cost`, `packing_material_cost`, `status`, `completed_at`, `is_ghost` | `status`: `DRAFT` → `IN_PROGRESS` → `COMPLETED`, or `CANCELLED` |
+| `bill_of_materials` | `company_id`, `finished_item_id`, `bom_name`, `output_quantity`, `notes`, `phase`, `is_active` | `phase`: `FORMULATION` (raw materials, output item auto-created as `(Unpacked) <name>`) or `PACKING` (unpacked bulk + packing materials → existing finished good) — derived from the components. `is_temp` / `is_ghost` are legacy columns the code no longer writes |
+| `bom_components` | `bom_id` (cascade), `component_item_id`, `quantity_required`, `wastage_percent` | Percent 0–100. A packing BOM carries its unpacked bulk as one `FINISHED_GOOD` component alongside the `PACKING_MATERIAL` rows |
+| `production_orders` | `company_id`, `warehouse_id`, `order_number` UNIQUE(company), `bom_id`, `planned_quantity`, `actual_quantity`, `wastage_quantity`, `output_batch_number`, `manufacturing_date`, `expiry_date`, `production_cost`, `raw_material_cost`, `packing_material_cost`, `status`, `completed_at` | `status`: `DRAFT` → `IN_PROGRESS` → `COMPLETED`, or `CANCELLED`. Producing is one-shot and completes the order |
 | `production_consumption` | `production_order_id` (cascade), `component_item_id`, `batch_id`, `quantity_consumed`, `unit_cost` | One row per batch actually consumed |
+| `packing_orders` | `company_id`, `warehouse_id`, `order_number` UNIQUE(company), `bom_id`, `planned_quantity`, `actual_quantity`, `output_batch_number`, `manufacturing_date`, `expiry_date`, `production_cost`, `status`, `completed_at` | `PCO-#####`; packing may be partial and completes once `actual_quantity ≥ planned_quantity` |
+| `packing_consumption` | `packing_order_id` (cascade), `component_item_id`, `batch_id`, `quantity_consumed`, `unit_cost` | Unpacked bulk and packing materials used by each pack call |
 
 ### Expenses and assets
 
@@ -188,6 +190,7 @@ Seeded document types and prefixes (padding 5):
 | `JOURNAL_VOUCHER` | `JV-` | Manual/general journal entries |
 | `OPENING` | `OB-` | Opening balance entries |
 | `PRODUCTION_ORDER` | `PO-` | Production orders |
+| `PACKING_ORDER` | `PCO-` | Packing orders |
 | `EXPENSE_VOUCHER` | `EV-` | Expenses |
 | `CUSTOMER` | `CUST-` | Party codes (customers) |
 | `SUPPLIER` | `SUPP-` | Party codes (suppliers) |
