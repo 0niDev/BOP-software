@@ -111,6 +111,7 @@ restart.
 | `ERP_TLS_CERT`, `ERP_TLS_KEY` | — | Set **both** to terminate HTTPS in-process; setting one is a startup error |
 | `ERP_BACKUP_DIR` | `./backups` | Snapshot directory; the live copy lives in `live/` under it |
 | `ERP_BACKUP_KEEP` | `7` | Named snapshots to keep; `0` keeps everything |
+| `ERP_DESKTOP_DIR` | `<home>/Desktop/desktop` | Extra copy of every snapshot on this machine's desktop |
 | `ERP_AUTO_BACKUP_HOURS` | `0` (off) | Extra named-snapshot interval; both engines |
 | `ERP_LIVE_MIRROR` | on | Continuously refreshed portable copy (`backups/live/erp_mirror.db`); `0` disables |
 | `ERP_MIRROR_DEBOUNCE_SECONDS` | `15` | Idle gap before the live copy is rewritten |

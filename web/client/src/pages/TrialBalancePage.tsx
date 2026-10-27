@@ -17,24 +17,76 @@ const TYPE_LABELS: Record<AccountType, string> = {
   EXPENSE: "Expenses",
 };
 
-interface TbGroup {
+/** A trial balance account placed in the CoA tree. */
+export interface TbTreeRow extends TrialBalanceRow {
+  /** 0 for a top-level account, 1+ for a CoA sub-account. */
+  depth: number;
+  /** Has sub-accounts printed beneath it (a CoA "header"). */
+  hasChildren: boolean;
+}
+
+export interface TbGroup {
   type: AccountType;
-  rows: TrialBalanceRow[];
+  rows: TbTreeRow[];
   closingDebit: number;
   closingCredit: number;
 }
 
+function byCode(a: TrialBalanceRow, b: TrialBalanceRow): number {
+  return a.accountCode.localeCompare(b.accountCode, undefined, { numeric: true });
+}
+
+/**
+ * The CoA page's organization applied to the trial balance: type sections in
+ * CoA order, each a tree of accounts by parent (siblings in code order), plus a
+ * closing subtotal per section. A sub-account whose parent is not in the rows
+ * (hidden as zero, or filtered out) prints as a root instead of disappearing.
+ */
 export function groupTbRows(rows: TrialBalanceRow[]): TbGroup[] {
-  const groups = COA_ORDER.map((type) => ({ type, rows: [] as TrialBalanceRow[] }));
-  const byType = new Map(groups.map((g) => [g.type, g]));
-  for (const row of rows) byType.get(row.accountType)?.rows.push(row);
-  return groups
-    .filter((g) => g.rows.length > 0)
-    .map((g) => ({
-      ...g,
-      closingDebit: g.rows.reduce((sum, r) => sum + r.closingDebit, 0),
-      closingCredit: g.rows.reduce((sum, r) => sum + r.closingCredit, 0),
-    }));
+  return COA_ORDER.flatMap((type) => {
+    const typeRows = rows.filter((row) => row.accountType === type);
+    if (typeRows.length === 0) return [];
+
+    const byId = new Map(typeRows.map((row) => [row.accountId, row]));
+    const childrenByParent = new Map<number, TrialBalanceRow[]>();
+    for (const row of typeRows) {
+      const parentId = row.parentAccountId;
+      if (parentId == null || parentId === row.accountId || !byId.has(parentId)) continue;
+      const siblings = childrenByParent.get(parentId) ?? [];
+      siblings.push(row);
+      childrenByParent.set(parentId, siblings);
+    }
+    for (const siblings of childrenByParent.values()) siblings.sort(byCode);
+
+    const isRoot = (row: TrialBalanceRow): boolean => {
+      const parentId = row.parentAccountId;
+      return parentId == null || parentId === row.accountId || !byId.has(parentId);
+    };
+
+    const laidOut: TbTreeRow[] = [];
+    const placed = new Set<number>();
+    const walk = (row: TrialBalanceRow, depth: number): void => {
+      if (placed.has(row.accountId)) return;
+      placed.add(row.accountId);
+      const children = childrenByParent.get(row.accountId) ?? [];
+      laidOut.push({ ...row, depth, hasChildren: children.length > 0 });
+      for (const child of children) walk(child, depth + 1);
+    };
+    for (const root of typeRows.filter(isRoot).sort(byCode)) walk(root, 0);
+    // Defensive: a parent cycle leaves rows unreachable from any root.
+    for (const row of [...typeRows].sort(byCode)) {
+      if (!placed.has(row.accountId)) walk(row, 0);
+    }
+
+    return [
+      {
+        type,
+        rows: laidOut,
+        closingDebit: laidOut.reduce((sum, row) => sum + row.closingDebit, 0),
+        closingCredit: laidOut.reduce((sum, row) => sum + row.closingCredit, 0),
+      },
+    ];
+  });
 }
 
 function money(value: number): string {
@@ -179,19 +231,37 @@ interface GroupedTbRowsProps {
   group: TbGroup;
 }
 
-/** COA section: type header, the account rows in code order, then a subtotal. */
+/** COA section: type band, the account tree (sub-accounts indented), subtotal. */
 function GroupedTbRows({ group }: GroupedTbRowsProps) {
   return (
     <>
       <tr>
-        <td colSpan={8} style={{ background: "var(--panel-2)", fontWeight: 600 }}>
+        <td
+          colSpan={8}
+          style={{
+            background: "var(--accent-soft)",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontSize: 12,
+            opacity: 0.8,
+          }}
+        >
           {TYPE_LABELS[group.type]} ({group.rows.length})
         </td>
       </tr>
       {group.rows.map((row) => (
         <tr key={row.accountId}>
-          <td>{row.accountCode}</td>
-          <td>{row.accountName}</td>
+          <td style={{ whiteSpace: "nowrap" }}>
+            <span className="coa-code">
+              {Array.from({ length: row.depth }, (_, index) => (
+                <span key={index} className="coa-rail" />
+              ))}
+              {row.depth > 0 && <span className="coa-elbow">└</span>}
+              {row.accountCode}
+            </span>
+          </td>
+          <td style={row.hasChildren ? { fontWeight: 600 } : undefined}>{row.accountName}</td>
           <td className="num">{amount(row.openingDebit)}</td>
           <td className="num">{amount(row.openingCredit)}</td>
           <td className="num">{amount(row.debit)}</td>

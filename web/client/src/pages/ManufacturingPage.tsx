@@ -5,7 +5,16 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
 import type { Bom, BomComponent, Item, PackingOrder, ProductionOrder } from "../types";
-import { defaultPackUnit, packsToBulk, PACK_UNITS, PACK_UNIT_LABELS } from "../lib/units";
+import {
+  amountToStockUnit,
+  defaultPackUnit,
+  hasKnownUnit,
+  packsToBulk,
+  PACK_UNITS,
+  PACK_UNIT_LABELS,
+  type PackUnit,
+  type PacksBulkResult,
+} from "../lib/units";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,6 +33,9 @@ interface ComponentDraft {
   key: number;
   itemId: number;
   quantityRequired: number;
+  /** Scale the quantity was typed in (g/ml, kg/lit, unit), for the rows that
+   * convert it — the production run's raw materials. */
+  quantityUnit?: PackUnit;
 }
 
 let componentKey = 1;
@@ -267,6 +279,27 @@ export default function ManufacturingPage() {
     setProductionLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   }
 
+  /** Picking a raw material follows its stock unit (g/ml, kg/lit or unit). */
+  function selectProductionItem(key: number, next: string) {
+    const id = Number(next);
+    updateProductionLine(key, { itemId: id, quantityUnit: defaultPackUnit(itemUnit(id)) });
+  }
+
+  /**
+   * A production line's typed amount in the item's stock unit. A legacy item
+   * with a free-typed unit is taken at face value; otherwise the g/ml or
+   * kg/lit pair converts 500 g/ml to 0.5 on a KG item, exactly like packing.
+   */
+  function productionStock(line: ComponentDraft): PacksBulkResult {
+    const unit = itemUnit(line.itemId);
+    if (!hasKnownUnit(unit)) return { bulk: line.quantityRequired };
+    return amountToStockUnit(
+      line.quantityRequired,
+      unit,
+      line.quantityUnit ?? defaultPackUnit(unit),
+    );
+  }
+
   async function saveProductionOrder(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -287,23 +320,35 @@ export default function ManufacturingPage() {
         });
         setNotice(`Created production order ${order.orderNumber}`);
       } else {
-        const payload = validLines(productionLines);
         if (!productionBomName.trim()) {
           setError("Name the BOM this run saves.");
           return;
         }
-        if (payload.length === 0) {
+        const chosen = productionLines.filter((line) => line.itemId > 0);
+        if (chosen.length === 0) {
           setError("Add the raw materials this run consumes.");
           return;
+        }
+        // The typed amount may be in g/ml or kg/lit; the order always records
+        // stock quantities in the item's own unit.
+        const components: Array<{ componentItemId: number; quantityRequired: number }> = [];
+        for (const line of chosen) {
+          const stock = productionStock(line);
+          if (stock.error) {
+            setError(`${itemName(line.itemId)}: ${stock.error}`);
+            return;
+          }
+          if (!(stock.bulk > 0)) {
+            setError(`${itemName(line.itemId)}: total consumed must be greater than 0.`);
+            return;
+          }
+          components.push({ componentItemId: line.itemId, quantityRequired: stock.bulk });
         }
         const order = await api.createProductionOrder({
           bomName: productionBomName,
           plannedQuantity: productionQuantity,
           manufacturingDate: productionDate,
-          components: payload.map((line) => ({
-            componentItemId: line.itemId,
-            quantityRequired: line.quantityRequired,
-          })),
+          components,
         });
         setNotice(`Created production order ${order.orderNumber} and saved its per-unit BOM`);
       }
@@ -869,7 +914,8 @@ export default function ManufacturingPage() {
                 <p style={{ opacity: 0.7, fontSize: 12 }}>
                   No BOM selected: enter the run's totals. A per-unit BOM is saved automatically and
                   the output item {UNPACKED_PREFIX}
-                  {productionBomName.trim() || "<BOM name>"} is created in inventory.
+                  {productionBomName.trim() || "<BOM name>"} is created in inventory. Type each raw
+                  material in g/ml or kg/lit — stock is deducted in the item's own unit.
                 </p>
                 <div className="row">
                   <div>
@@ -887,52 +933,90 @@ export default function ManufacturingPage() {
                     <tr>
                       <th>Raw material</th>
                       <th className="num">Total consumed</th>
+                      <th className="num">Stock quantity</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {productionLines.map((line) => (
-                      <tr key={line.key}>
-                        <td>
-                          <SearchableSelect
-                            value={String(line.itemId)}
-                            autoFocus={
-                              addedProduction.current && line.key === productionLines.at(-1)?.key
-                            }
-                            ariaLabel="Raw material"
-                            onChange={(next) => updateProductionLine(line.key, { itemId: Number(next) })}
-                            placeholder="Select..."
-                            emptyText="No matching item"
-                            options={optionsFor(rawMaterials)}
-                          />
-                        </td>
-                        <td className="num">
-                          <NumberInput
-                            min="0"
-                            step="0.001"
-                            aria-label="Total consumed"
-                            value={line.quantityRequired}
-                            onChange={(e) =>
-                              updateProductionLine(line.key, {
-                                quantityRequired: Number(e.target.value),
-                              })
-                            }
-                            style={{ width: 120 }}
-                          />
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setProductionLines((prev) => prev.filter((l) => l.key !== line.key))
-                            }
-                            disabled={productionLines.length === 1}
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {productionLines.map((line) => {
+                      const stock = productionStock(line);
+                      const unit = itemUnit(line.itemId);
+                      return (
+                        <tr key={line.key}>
+                          <td>
+                            <SearchableSelect
+                              value={String(line.itemId)}
+                              autoFocus={
+                                addedProduction.current && line.key === productionLines.at(-1)?.key
+                              }
+                              ariaLabel="Raw material"
+                              onChange={(next) => selectProductionItem(line.key, next)}
+                              placeholder="Select..."
+                              emptyText="No matching item"
+                              options={optionsFor(rawMaterials)}
+                            />
+                          </td>
+                          <td className="num">
+                            <div className="row" style={{ justifyContent: "flex-end" }}>
+                              <NumberInput
+                                min="0"
+                                step="0.001"
+                                aria-label="Total consumed"
+                                value={line.quantityRequired}
+                                onChange={(e) =>
+                                  updateProductionLine(line.key, {
+                                    quantityRequired: Number(e.target.value),
+                                  })
+                                }
+                                style={{ width: 110 }}
+                              />
+                              {hasKnownUnit(unit) ? (
+                                <select
+                                  value={line.quantityUnit ?? defaultPackUnit(unit)}
+                                  onChange={(e) =>
+                                    updateProductionLine(line.key, {
+                                      quantityUnit: e.target.value as PackUnit,
+                                    })
+                                  }
+                                  aria-label="Consumed unit"
+                                >
+                                  {PACK_UNITS.map((packUnit) => (
+                                    <option key={packUnit} value={packUnit}>
+                                      {PACK_UNIT_LABELS[packUnit]}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="badge">{unit}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="num">
+                            {line.itemId > 0 &&
+                              (stock.error ? (
+                                <span style={{ color: "var(--danger)", fontSize: 12 }}>
+                                  {stock.error}
+                                </span>
+                              ) : (
+                                <span className="badge">
+                                  {quantity(stock.bulk)} {unit}
+                                </span>
+                              ))}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setProductionLines((prev) => prev.filter((l) => l.key !== line.key))
+                              }
+                              disabled={productionLines.length === 1}
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 <button

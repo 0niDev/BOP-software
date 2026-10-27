@@ -7,6 +7,7 @@
  * process.env directly.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,6 +84,15 @@ function readBackupKeep(): number {
   return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 7;
 }
 
+/**
+ * Second copy of every backup, saved to a folder on this machine's desktop
+ * (`<home>/Desktop/desktop`). `ERP_DESKTOP_DIR` overrides it.
+ */
+function readDesktopDir(): string {
+  const value = (process.env.ERP_DESKTOP_DIR ?? "").trim();
+  return value ? path.resolve(webRoot, value) : path.join(os.homedir(), "Desktop", "desktop");
+}
+
 /** Idle gap before the live copy is rewritten; 0 means immediately. */
 function readMirrorDebounceSeconds(): number {
   const raw = Number(process.env.ERP_MIRROR_DEBOUNCE_SECONDS ?? 15);
@@ -104,6 +114,8 @@ export const env = {
   autoBackupHours: readAutoBackupHours(),
   /** Named snapshots to keep (`ERP_BACKUP_KEEP`); 0 disables pruning. */
   backupKeep: readBackupKeep(),
+  /** Extra copy of every backup on the local desktop (`<home>/Desktop/desktop`). */
+  desktopDir: readDesktopDir(),
   /** Live local copy: on by default, refreshed after an idle gap. */
   liveMirror: readFlag(process.env.ERP_LIVE_MIRROR, true),
   mirrorDir: optionalDir(process.env.ERP_MIRROR_DIR) ?? path.join(backupDir, "live"),

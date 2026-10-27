@@ -5,7 +5,10 @@ title BOP ERP (Web) - Start
 REM ===========================================================================
 REM  Daily start file for Windows.
 REM
-REM  - checks that the npm dependencies are installed (installs them if not)
+REM  - pulls the latest code from git (skipped when offline or not a repo;
+REM    never stashes or discards local changes - it asks instead)
+REM  - checks that the npm dependencies are installed (installs them if not,
+REM    or if the update changed package-lock.json)
 REM  - creates web\.env from .env.example when it is missing
 REM  - starts the API + client (npm run dev)
 REM  - opens the app in the default browser once the client answers
@@ -21,8 +24,64 @@ if errorlevel 1 goto :no_node
 where npm >nul 2>&1
 if errorlevel 1 goto :no_node
 
-REM --- 1/3: dependencies -----------------------------------------------------
-echo [1/3] Checking npm packages...
+REM --- 1/4: update from git ---------------------------------------------------
+REM The repository root is one level above this web directory.
+set "REPO_ROOT=%~dp0.."
+for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
+
+echo [1/4] Checking for updates...
+where git >nul 2>&1
+if errorlevel 1 goto :no_git
+if not exist "%REPO_ROOT%\.git" goto :no_git
+
+set "OLD_HEAD="
+for /f %%H in ('git -C "%REPO_ROOT%" rev-parse HEAD 2^>nul') do set "OLD_HEAD=%%H"
+if not defined OLD_HEAD goto :no_git
+
+REM fetch alone tests connectivity: if it fails (offline) we still start.
+git -C "%REPO_ROOT%" fetch
+if errorlevel 1 (
+    echo       [!] Update check failed - starting with the current code.
+    goto :deps
+)
+git -C "%REPO_ROOT%" pull --ff-only
+if errorlevel 1 goto :pull_failed
+
+set "NEW_HEAD="
+for /f %%H in ('git -C "%REPO_ROOT%" rev-parse HEAD 2^>nul') do set "NEW_HEAD=%%H"
+if not defined NEW_HEAD goto :deps
+if "%OLD_HEAD%"=="%NEW_HEAD%" goto :deps
+echo       Updated to the latest code.
+REM Reinstall packages when the update touched the lockfile.
+git -C "%REPO_ROOT%" diff --name-only %OLD_HEAD% %NEW_HEAD% | findstr /c:"package-lock.json" >nul
+if not errorlevel 1 set "FORCE_INSTALL=1"
+goto :deps
+
+:no_git
+echo       No git or not a git checkout - skipping the update.
+goto :deps
+
+:pull_failed
+echo.
+echo [X] git pull failed - local changes conflict with the latest code.
+echo     Current local changes:
+git -C "%REPO_ROOT%" status --short
+echo.
+echo     Continue with the current (older) code, or cancel and fix it first,
+echo     e.g. "git stash" and then run start.bat again.
+choice /c CA /m "      Continue anyway"
+if errorlevel 2 goto :pull_abort
+goto :deps
+
+:pull_abort
+echo.
+pause
+exit /b 1
+
+REM --- 2/4: dependencies ------------------------------------------------------
+:deps
+echo [2/4] Checking npm packages...
+if defined FORCE_INSTALL goto :install
 if not exist node_modules goto :install
 REM Health-check the actual dev tools: npm ls only looks at top-level packages,
 REM so a truncated node_modules (bundle loads, then ERR_MODULE_NOT_FOUND) would
@@ -33,7 +92,7 @@ echo       All packages are installed.
 goto :env
 
 :install
-echo       Broken or missing packages - reinstalling (this can take a few minutes)...
+echo       Installing packages (missing, broken, or changed by the update - this can take a few minutes)...
 REM npm ci wipes node_modules and installs exactly what package-lock.json says,
 REM so a half-copied tree cannot survive. Fall back to install if the lockfile
 REM and package.json disagree.
@@ -42,7 +101,7 @@ if errorlevel 1 call npm install --no-audit --no-fund
 if errorlevel 1 goto :npm_failed
 
 :env
-REM --- 2/3: configuration ----------------------------------------------------
+REM --- 3/4: configuration ----------------------------------------------------
 if exist .env goto :run
 if not exist .env.example goto :run
 copy /y .env.example .env >nul
@@ -54,11 +113,11 @@ goto :run
 echo [X] Could not create web\.env. Copy .env.example to .env manually and retry.
 goto :fail
 
-REM --- 3/3: start ------------------------------------------------------------
+REM --- 4/4: start ------------------------------------------------------------
 :run
 echo.
-echo [2/3] Starting API (http://localhost:4000) and client (http://localhost:5173)...
-echo [3/3] The browser opens automatically when the client is ready.
+echo [3/4] Starting API (http://localhost:4000) and client (http://localhost:5173)...
+echo [4/4] The browser opens automatically when the client is ready.
 echo.
 echo       Press Ctrl+C in this window to stop the app.
 echo.

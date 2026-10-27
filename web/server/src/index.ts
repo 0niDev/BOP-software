@@ -135,7 +135,13 @@ async function main(): Promise<void> {
   // Opt-in here: set ERP_AUTO_BACKUP_HOURS to enable.
   let backupTimer: NodeJS.Timeout | null = null;
   if (env.autoBackupHours > 0) {
-    const backups = new BackupService(rawDb, env.dbEngine, env.backupDir, env.backupKeep);
+    const backups = new BackupService(
+      rawDb,
+      env.dbEngine,
+      env.backupDir,
+      env.backupKeep,
+      env.desktopDir,
+    );
     const intervalMs = env.autoBackupHours * 60 * 60 * 1000;
     backupTimer = setInterval(() => {
       void backups

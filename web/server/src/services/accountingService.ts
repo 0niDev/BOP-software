@@ -68,6 +68,8 @@ export interface TrialBalanceRow {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
+  /** CoA parent, so the report can nest sub-accounts like the CoA page. */
+  parentAccountId: number | null;
   /** Balance carried into the period (`from` exclusive). */
   openingDebit: number;
   openingCredit: number;
@@ -338,6 +340,7 @@ export class AccountingService {
       account_code: string;
       account_name: string;
       account_type: AccountType;
+      parent_account_id: number | null;
       period_debit: number;
       period_credit: number;
       opening_debit: number;
@@ -345,7 +348,7 @@ export class AccountingService {
     }>(
       // Plain `?` placeholders only (the hosted SQLite Cloud driver is not
       // exercised by the local tests, and `?NNN` support there is unverified).
-      `SELECT a.id, a.account_code, a.account_name, a.account_type,
+      `SELECT a.id, a.account_code, a.account_name, a.account_type, a.parent_account_id,
               COALESCE(SUM(CASE WHEN je.is_posted = 1
                   AND (? IS NULL OR je.entry_date >= ?)
                   AND (? IS NULL OR je.entry_date <= ?)
@@ -364,7 +367,8 @@ export class AccountingService {
        LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
        LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE a.company_id = ?
-       GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.is_active
+       GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.parent_account_id,
+                a.is_active
        HAVING a.is_active = 1
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.debit ELSE 0 END) <> 0
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.credit ELSE 0 END) <> 0
@@ -402,6 +406,7 @@ export class AccountingService {
         accountCode: row.account_code,
         accountName: row.account_name,
         accountType: row.account_type,
+        parentAccountId: row.parent_account_id ?? null,
         openingDebit: toStorage(opening.debit),
         openingCredit: toStorage(opening.credit),
         debit: toStorage(period.debit),

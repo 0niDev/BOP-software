@@ -5,6 +5,7 @@ import {
   type DateRangeOptions,
   type TrialBalanceRow,
 } from "./accountingService.js";
+import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
 export interface TrialBalanceResult {
   rows: TrialBalanceRow[];
@@ -258,23 +259,39 @@ export class ReportService {
     ];
 
     // --- Trial balance -------------------------------------------------
+    // Laid out like the CoA page: type sections in CoA order, sub-accounts
+    // indented under their parent, and a closing subtotal per section.
     const { rows, totalDebit, totalCredit } = await this.trialBalance(opts);
     lines.push(`Trial Balance (${csvEscape(periodLabel)})`);
     lines.push(
       "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
     );
-    for (const row of rows) {
+    for (const section of layoutTrialBalance(rows)) {
+      lines.push(
+        [`${section.label.toUpperCase()} (${section.rows.length})`, ...Array(8).fill("")].join(","),
+      );
+      for (const row of section.rows) {
+        lines.push(
+          [
+            csvEscape(row.accountCode),
+            csvEscape(`${"  ".repeat(row.depth)}${row.accountName}`),
+            row.accountType,
+            row.openingDebit.toFixed(2),
+            row.openingCredit.toFixed(2),
+            row.debit.toFixed(2),
+            row.credit.toFixed(2),
+            row.closingDebit.toFixed(2),
+            row.closingCredit.toFixed(2),
+          ].join(","),
+        );
+      }
       lines.push(
         [
-          csvEscape(row.accountCode),
-          csvEscape(row.accountName),
-          row.accountType,
-          row.openingDebit.toFixed(2),
-          row.openingCredit.toFixed(2),
-          row.debit.toFixed(2),
-          row.credit.toFixed(2),
-          row.closingDebit.toFixed(2),
-          row.closingCredit.toFixed(2),
+          "",
+          csvEscape(`Total ${section.label}`),
+          ...Array(5).fill(""),
+          section.closingDebit.toFixed(2),
+          section.closingCredit.toFixed(2),
         ].join(","),
       );
     }

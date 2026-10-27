@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync, type Unzipped } from "fflate";
 import { AccountingService } from "../src/services/accountingService.js";
+import { AccountService } from "../src/services/accountService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -143,6 +144,29 @@ describe("xlsx report exports", () => {
     expect(strings(tbFiles)).toContain("Closing totals");
     expect(trialBalance.balanced).toBe(true);
     expect(strings(tbFiles)).toContain("YES");
+  });
+
+  it("lays the trial balance out in CoA sections with nested sub-accounts", async () => {
+    const accounts = new AccountService(ctx.db);
+    const child = await accounts.create({
+      accountCode: "1001",
+      accountName: "Cash — Petty Cash",
+      accountType: "ASSET",
+      parentAccountId: await accountId(ctx.db, "1000"),
+    });
+
+    const files = open((await xlsx.trialBalance({})).buffer);
+    const text = strings(files);
+    // Type bands in CoA order, each closed by its subtotal.
+    for (const label of ["ASSETS (", "LIABILITIES (", "EQUITY (", "REVENUE (", "EXPENSES ("]) {
+      expect(text).toContain(label);
+    }
+    expect(text).toContain("Total Assets");
+    expect(text).toContain("Total Expenses");
+    expect(text).toContain(child.account_code);
+    expect(text).toContain("Cash — Petty Cash");
+    // The sub-account sits one level down, so its name cell is indented.
+    expect(part(files, "xl/styles.xml")).toContain('indent="2"');
   });
 
   it("renders a party ledger with its running balances and the party on the file name", async () => {

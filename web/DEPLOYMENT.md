@@ -155,8 +155,10 @@ app**, so a reverse proxy in front is worth having for those alone.
   shared folder or mapped drive (e.g. `\\your-pc\bop-backup`) to keep a copy on
   the operator's computer as well.
 * **Named snapshots:** set `ERP_AUTO_BACKUP_HOURS=24` to also write
-  `erp_backup_<timestamp>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
-  7) prunes older ones. Both engines now produce a portable SQLite file.
+  `<YYYYMMDD_HHMMSS>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
+  7) prunes older ones. Both engines now produce a portable SQLite file. Every
+  snapshot is also copied to `<home>\Desktop\desktop` on the machine running
+  the server; `ERP_DESKTOP_DIR` moves or disables that second copy.
 * **Restore:** provider point-in-time restore first (hosted) or, with the service
   stopped, copying the snapshot over `ERP_LOCAL_DB` (local). Restore through the
   API is refused while the server is running, by design.

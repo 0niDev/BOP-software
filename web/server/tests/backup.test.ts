@@ -1,4 +1,4 @@
-import { mkdtempSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -33,7 +33,7 @@ describe("BackupService", () => {
 
   it("writes a snapshot that is a real, readable SQLite file", async () => {
     const result = await backups.run();
-    expect(result.file).toMatch(/^erp_backup_\d{8}_\d{6}\.db$/);
+    expect(result.file).toMatch(/^\d{8}_\d{6}\.db$/);
     expect(existsSync(result.path)).toBe(true);
     expect(result.bytes).toBeGreaterThan(0);
     // A SQLite database starts with the 16-byte header magic.
@@ -68,7 +68,7 @@ describe("BackupService", () => {
     expect(backups.resolve(second.file)).toBe(second.path);
     expect(() => backups.resolve("../../etc/passwd")).toThrow(ValidationError);
     expect(() => backups.resolve("not-a-backup.txt")).toThrow(ValidationError);
-    expect(() => backups.resolve("erp_backup_20260101_000000.db")).toThrow(NotFoundError);
+    expect(() => backups.resolve("90010100_000000.db")).toThrow(NotFoundError);
   });
 
   it("refuses to restore while the server is using the database", async () => {
@@ -112,5 +112,24 @@ describe("BackupService", () => {
     const status = await pruned.status();
     expect(status.count).toBe(2);
     expect(status.latest).not.toBeNull();
+  });
+
+  it("saves a copy of every snapshot into the desktop folder", async () => {
+    const desktop = mkdtempSync(path.join(tmpdir(), "bop-desktop-"));
+    try {
+      const withDesktop = new BackupService(ctx.db, "local", dir, 2, desktop);
+      await withDesktop.run();
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await withDesktop.run();
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await withDesktop.run();
+
+      const local = readdirSync(dir);
+      const copied = readdirSync(desktop);
+      expect(copied).toEqual(expect.arrayContaining(local));
+      expect(copied.length).toBe(local.length); // prunes alongside the local set
+    } finally {
+      rmSync(desktop, { recursive: true, force: true });
+    }
   });
 });

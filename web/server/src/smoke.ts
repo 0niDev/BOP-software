@@ -45,9 +45,9 @@ async function main(): Promise<void> {
   const db = getDb();
   const ids = await seedDemoData(db);
   // Snapshots go to a throwaway directory so the smoke run never litters
-  // web/backups.
+  // web/backups (or the real desktop copy).
   const backupDir = path.resolve(process.cwd(), "data", `smoke-backups-${process.pid}`);
-  const app = createApp(db, env.companyId, { engine: "local", backupDir });
+  const app = createApp(db, env.companyId, { engine: "local", backupDir, desktopDir: null });
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
   const port = (server.address() as AddressInfo).port;

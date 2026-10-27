@@ -1,5 +1,5 @@
 /**
- * Named database backups: `erp_backup_<timestamp>.db` snapshots with pruning.
+ * Timestamp-named database backups: `<YYYYMMDD_HHMMSS>.db` snapshots with pruning.
  *
  * Both engines are supported now. Local snapshots use `VACUUM INTO`; hosted
  * SQLite Cloud snapshots are rebuilt into a portable local file (see
@@ -15,8 +15,8 @@ import type { SqlDatabase } from "../db/types.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { verifySnapshot, writeSnapshot } from "./snapshot.js";
 
-const FILE_PREFIX = "erp_backup_";
-const FILE_SUFFIX = ".db";
+/** Snapshot file name: a pure UTC timestamp, `<YYYYMMDD_HHMMSS>.db`. */
+const FILE_RE = /^\d{8}_\d{6}\.db$/;
 
 export interface BackupFile {
   file: string;
@@ -49,18 +49,19 @@ export class BackupService {
     private readonly backupDir: string,
     /** Keep at most this many snapshots; 0 disables pruning. */
     private readonly keep = 0,
+    /** Optional second copy of every snapshot (the operator's Desktop folder). */
+    private readonly desktopDir: string | null = null,
   ) {}
 
   private stamp(): string {
     return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "_");
   }
-
   /** All snapshot files, newest first. */
   private readDir(): BackupFile[] {
     if (!fs.existsSync(this.backupDir)) return [];
     return fs
       .readdirSync(this.backupDir)
-      .filter((name) => name.startsWith(FILE_PREFIX) && name.endsWith(FILE_SUFFIX))
+      .filter((name) => FILE_RE.test(name))
       .map((name) => {
         const stat = fs.statSync(path.join(this.backupDir, name));
         return { file: name, bytes: stat.size, modifiedAt: stat.mtime.toISOString() };
@@ -86,7 +87,7 @@ export class BackupService {
   /** Create a snapshot now. */
   async run(): Promise<BackupResult> {
     fs.mkdirSync(this.backupDir, { recursive: true });
-    const file = `${FILE_PREFIX}${this.stamp()}${FILE_SUFFIX}`;
+    const file = `${this.stamp()}.db`;
     const target = path.join(this.backupDir, file);
     try {
       const counts = await writeSnapshot(this.db, this.engine, target);
@@ -96,6 +97,8 @@ export class BackupService {
       throw err;
     }
     this.prune();
+    this.copyToDesktop(target, file);
+    this.pruneDesktop();
     const stat = fs.statSync(target);
     return {
       file,
@@ -117,10 +120,41 @@ export class BackupService {
     }
   }
 
+  /** Best-effort copy into the desktop folder; never fails the real backup. */
+  private copyToDesktop(target: string, file: string): void {
+    if (!this.desktopDir) return;
+    try {
+      fs.mkdirSync(this.desktopDir, { recursive: true });
+      fs.copyFileSync(target, path.join(this.desktopDir, file));
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] [backup] could not copy to ${this.desktopDir}:`, err);
+    }
+  }
+
+  /** The desktop folder mirrors the local set: pruned local snapshots go too. */
+  private pruneDesktop(): void {
+    if (!this.desktopDir) return;
+    const keep = new Set(this.readDir().map((entry) => entry.file));
+    let names: string[];
+    try {
+      names = fs.readdirSync(this.desktopDir);
+    } catch {
+      return;
+    }
+    for (const name of names.filter((n) => FILE_RE.test(n))) {
+      if (keep.has(name)) continue;
+      try {
+        fs.rmSync(path.join(this.desktopDir, name), { force: true });
+      } catch {
+        // a locked file is retried on the next successful backup
+      }
+    }
+  }
+
   /** Resolve a snapshot name to an absolute path, refusing traversal. */
   resolve(file: string): string {
     const name = path.basename(file);
-    if (name !== file || !name.startsWith(FILE_PREFIX) || !name.endsWith(FILE_SUFFIX)) {
+    if (name !== file || !FILE_RE.test(name)) {
       throw new ValidationError("Invalid backup file name.");
     }
     const target = path.join(this.backupDir, name);

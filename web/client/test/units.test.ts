@@ -27,6 +27,25 @@ test("trial balance rows group by COA type with closing subtotals", async () => 
   expect(groups[1].closingCredit).toBe(5);
 });
 
+test("trial balance rows nest under their CoA parent, siblings in code order", async () => {
+  const { groupTbRows } = await import("../src/pages/TrialBalancePage");
+  const rows = [
+    { accountId: 12, accountCode: "1503", accountName: "Vehicles", accountType: "ASSET" as const, parentAccountId: 11, openingDebit: 0, openingCredit: 0, debit: 0, credit: 0, closingDebit: 30, closingCredit: 0 },
+    { accountId: 11, accountCode: "1500", accountName: "Fixed Assets", accountType: "ASSET" as const, parentAccountId: null, openingDebit: 0, openingCredit: 0, debit: 0, credit: 0, closingDebit: 0, closingCredit: 0 },
+    { accountId: 13, accountCode: "1501", accountName: "Machinery", accountType: "ASSET" as const, parentAccountId: 11, openingDebit: 0, openingCredit: 0, debit: 0, credit: 0, closingDebit: 20, closingCredit: 0 },
+    // Its parent is hidden, so it surfaces as a root rather than disappearing.
+    { accountId: 14, accountCode: "1100", accountName: "Receivable", accountType: "ASSET" as const, parentAccountId: 99, openingDebit: 0, openingCredit: 0, debit: 0, credit: 0, closingDebit: 5, closingCredit: 0 },
+  ];
+  const [assets] = groupTbRows(rows);
+  expect(assets!.rows.map((r) => [r.accountCode, r.depth, r.hasChildren])).toEqual([
+    ["1100", 0, false],
+    ["1500", 0, true],
+    ["1501", 1, false],
+    ["1503", 1, false],
+  ]);
+  expect(assets!.closingDebit).toBe(55);
+});
+
 test("pack units default from the item unit's scale", () => {
   expect(defaultPackUnit("G")).toBe("G_ML");
   expect(defaultPackUnit("GRAM")).toBe("G_ML");
@@ -62,6 +81,30 @@ test("packsToBulk rejects unknown units and non-positive inputs", () => {
   expect(packsToBulk(10, "KG", 500, "L").error).toBeTruthy();
   expect(packsToBulk(0, "KG", 5, "KG_LIT").error).toBeTruthy();
   expect(packsToBulk(10, "KG", 0, "KG_LIT").error).toBeTruthy();
+});
+
+// --- production raw materials (same pairs, no pack arithmetic) --------------
+
+test("an amount typed in g/ml or kg/lit converts into the item's stock unit", async () => {
+  const { amountToStockUnit } = await import("../src/lib/units");
+  expect(amountToStockUnit(500, "KG", "G_ML").bulk).toBe(0.5);
+  expect(amountToStockUnit(500, "LIT", "G_ML").bulk).toBe(0.5);
+  expect(amountToStockUnit(2, "G", "KG_LIT").bulk).toBe(2000);
+  expect(amountToStockUnit(2, "ML", "KG_LIT").bulk).toBe(2000);
+  // Already in the item's unit: face value.
+  expect(amountToStockUnit(7.5, "KG", "KG_LIT").bulk).toBe(7.5);
+  expect(amountToStockUnit(10, "TABLET", "UNIT").bulk).toBe(10);
+});
+
+test("a production amount must be positive and match the item's dimension", async () => {
+  const { amountToStockUnit, hasKnownUnit } = await import("../src/lib/units");
+  expect(amountToStockUnit(0, "KG", "KG_LIT").error).toBeTruthy();
+  expect(amountToStockUnit(5, "TABLET", "G_ML").error).toBeTruthy();
+  expect(amountToStockUnit(5, "KG", "UNIT").error).toBeTruthy();
+  // A free-typed legacy unit is not a measure, so the page keeps the number as-is.
+  expect(amountToStockUnit(5, "BOX", "G_ML").error).toBeTruthy();
+  expect(hasKnownUnit("BOX")).toBe(false);
+  expect(hasKnownUnit("KG")).toBe(true);
 });
 
 // --- table arrow navigation (lib/gridKeys) -------------------------------

@@ -1,13 +1,13 @@
 /**
- * Pack-size arithmetic for the packing form.
+ * Pack-size and quantity arithmetic for manufacturing.
  *
- * Stock is held in the unpacked item's unit (KG, LIT, UNIT, …). The packer
- * enters the size of one item and how many items the run makes, and the bulk
- * drawn from stock is derived. The unit picker offers two metric pairs — g/ml
- * and kg/lit — so an item added to inventory at the wrong scale (a 500 g item
- * typed in as kg) still converts: the pair only sets the scale, the item's own
- * dimension decides whether it is grams or millilitres. Counted items use
- * `unit`.
+ * Stock is held in the item's own unit (KG, LIT, UNIT, …). The packer enters
+ * the size of one item and how many items the run makes, and the bulk drawn
+ * from stock is derived; a production order enters each raw material's total
+ * the same way. The unit picker offers two metric pairs — g/ml and kg/lit — so
+ * an item added to inventory at the wrong scale (a 500 g item typed in as kg)
+ * still converts: the pair only sets the scale, the item's own dimension
+ * decides whether it is grams or millilitres. Counted items use `unit`.
  */
 
 export const PACK_UNITS = ["G_ML", "KG_LIT", "UNIT"] as const;
@@ -46,6 +46,15 @@ export function defaultPackUnit(itemUnit: string): PackUnit {
   return measure.toBase >= 1000 ? "KG_LIT" : "G_ML";
 }
 
+/**
+ * Whether an item's stock unit is a known mass/volume/count measure, i.e.
+ * whether the g/ml · kg/lit pairs mean anything for it. Legacy items can carry
+ * a free-typed unit, in which case a quantity is just a quantity.
+ */
+export function hasKnownUnit(itemUnit: string): boolean {
+  return MEASURES[itemUnit] !== undefined;
+}
+
 export type PacksBulkResult =
   | { bulk: number; error?: undefined }
   | { bulk: 0; error: string };
@@ -61,6 +70,21 @@ export function packsToBulk(
   packSize: number,
   packUnit: string,
 ): PacksBulkResult {
+  if (!(packs > 0) || !(packSize > 0)) {
+    return { bulk: 0, error: "Size per item and items generated must be greater than 0." };
+  }
+  return amountToStockUnit(packs * packSize, itemUnit, packUnit);
+}
+
+/**
+ * An amount typed in a g/ml or kg/lit pair, converted into the item's stock
+ * unit: 500 g/ml on a KG item is 0.5 kg and on a LIT item 0.5 lit.
+ */
+export function amountToStockUnit(
+  amount: number,
+  itemUnit: string,
+  packUnit: string,
+): PacksBulkResult {
   const item = MEASURES[itemUnit];
   if (!item) return { bulk: 0, error: `Unknown item unit '${itemUnit}'.` };
   const factor = PACK_FACTORS[packUnit as PackUnit];
@@ -71,8 +95,6 @@ export function packsToBulk(
   if (packUnit !== "UNIT" && item.dimension === "count") {
     return { bulk: 0, error: "Pick unit for a counted item." };
   }
-  if (!(packs > 0) || !(packSize > 0)) {
-    return { bulk: 0, error: "Size per item and items generated must be greater than 0." };
-  }
-  return { bulk: (packs * packSize * factor) / item.toBase };
+  if (!(amount > 0)) return { bulk: 0, error: "Quantity must be greater than 0." };
+  return { bulk: (amount * factor) / item.toBase };
 }

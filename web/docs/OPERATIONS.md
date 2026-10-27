@@ -88,7 +88,7 @@ Two layers, on purpose:
 
 ### Named snapshots
 
-- `erp_backup_<UTC timestamp>.db` in `ERP_BACKUP_DIR` (default `web/backups`).
+- `<YYYYMMDD_HHMMSS>.db` (bare UTC timestamp) in `ERP_BACKUP_DIR` (default `web/backups`).
   `ERP_BACKUP_KEEP` (default 7) prunes the oldest after a successful new one.
 - Create one now: `POST /api/backup` or Settings → Backups. Schedule with
   `ERP_AUTO_BACKUP_HOURS=24` if you want a separate history.

@@ -378,6 +378,8 @@ export interface TrialBalanceRow {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
+  /** CoA parent; older payloads omit it, which simply reads as a root account. */
+  parentAccountId?: number | null;
   openingDebit: number;
   openingCredit: number;
   debit: number;

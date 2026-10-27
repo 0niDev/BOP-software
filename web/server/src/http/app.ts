@@ -70,6 +70,8 @@ export interface AppOptions {
   engine?: string;
   /** Where snapshots are written. */
   backupDir?: string;
+  /** Extra desktop copy of every snapshot; null keeps it off (tests). */
+  desktopDir?: string | null;
   /** Live local copy; when absent the mirror routes report it as unavailable. */
   mirror?: MirrorService;
   /**
@@ -112,6 +114,8 @@ export function createApp(
     db,
     options.engine ?? env.dbEngine,
     options.backupDir ?? env.backupDir,
+    0,
+    options.desktopDir ?? env.desktopDir,
   );
 
   app.use(cors());

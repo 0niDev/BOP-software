@@ -18,6 +18,7 @@ import { NotFoundError, ValidationError } from "../domain/errors.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
+import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
 /** Reports that can be printed as a workbook. */
 export type ReportKind =
@@ -55,6 +56,8 @@ const REPORT_TITLE: Style = { fontWeight: "bold", fontSize: 12 };
 const SUBTITLE: Style = { textColor: "#6B7280" };
 const HEADER: Style = { fontWeight: "bold", backgroundColor: "#EEF2F7", borderStyle: "thin" };
 const TOTAL: Style = { fontWeight: "bold", borderStyle: "thin" };
+/** Type band that opens each CoA section of the trial balance. */
+const SECTION: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED", columnSpan: 9 };
 const MUTED: Style = { textColor: "#6B7280", fontStyle: "italic" };
 
 type Columns = Array<{ width: number }>;
@@ -336,6 +339,9 @@ export class ReportXlsx {
 
   private async trialBalanceSheet(options: DateRangeOptions): Promise<SheetSpec> {
     const report = await this.reports.trialBalance(options);
+    // Same organization as the CoA page: type sections in CoA order, accounts
+    // nested under their parent, and a closing subtotal per section.
+    const sections = layoutTrialBalance(report.rows);
     const data: SheetData = [
       ...heading("Trial Balance", periodLabel(options.from, options.to)),
       [
@@ -349,19 +355,37 @@ export class ReportXlsx {
         text("Closing Debit", HEADER),
         text("Closing Credit", HEADER),
       ],
-      ...report.rows.map(
-        (row): Cell[] => [
-          text(row.accountCode),
-          text(row.accountName),
-          text(row.accountType),
-          moneyOrBlank(row.openingDebit),
-          moneyOrBlank(row.openingCredit),
-          moneyOrBlank(row.debit),
-          moneyOrBlank(row.credit),
-          moneyOrBlank(row.closingDebit),
-          moneyOrBlank(row.closingCredit),
+      ...sections.flatMap((section): SheetData => [
+        [text(`${section.label.toUpperCase()} (${section.rows.length})`, SECTION)],
+        ...section.rows.map(
+          (row): Cell[] => [
+            text(row.accountCode),
+            text(row.accountName, {
+              indent: row.depth * 2,
+              ...(row.hasChildren ? { fontWeight: "bold" } : {}),
+            }),
+            text(row.accountType),
+            moneyOrBlank(row.openingDebit),
+            moneyOrBlank(row.openingCredit),
+            moneyOrBlank(row.debit),
+            moneyOrBlank(row.credit),
+            moneyOrBlank(row.closingDebit),
+            moneyOrBlank(row.closingCredit),
+          ],
+        ),
+        [
+          null,
+          text(`Total ${section.label}`, TOTAL),
+          null,
+          null,
+          null,
+          null,
+          null,
+          money(section.closingDebit, TOTAL),
+          money(section.closingCredit, TOTAL),
         ],
-      ),
+        [],
+      ]),
       [
         null,
         null,

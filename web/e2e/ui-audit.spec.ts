@@ -399,7 +399,15 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
     "Demo Raw Material",
   );
   await orderForm.locator('input[aria-label="Total output quantity"]').fill("10");
+  // The consumed total is typed in a g/ml or kg/lit pair and converted to the
+  // item's stock unit (Demo Raw Material is a KG item).
+  const consumedUnit = orderForm.locator('select[aria-label="Consumed unit"]').first();
+  await expect(consumedUnit).toHaveValue("KG_LIT");
   await orderForm.locator('input[aria-label="Total consumed"]').fill("20");
+  await consumedUnit.selectOption("G_ML");
+  await expect(orderForm.locator("tbody tr").first()).toContainText("0.02 KG");
+  await consumedUnit.selectOption("KG_LIT");
+  await expect(orderForm.locator("tbody tr").first()).toContainText("20 KG");
   await orderForm.getByRole("button", { name: "Create order" }).click();
   await expect(page.locator(".badge", { hasText: "Created production order" })).toBeVisible();
 

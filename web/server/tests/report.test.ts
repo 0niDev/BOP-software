@@ -103,6 +103,21 @@ describe("ReportService", () => {
     expect(lines).toHaveLength(rows.length + 2);
   });
 
+  it("organizes the all-reports bundle's trial balance like the CoA", async () => {
+    await seedActivity();
+    const lines = (await reports.exportAllCsv()).split("\n");
+
+    // One band per type, in CoA order, each closed by a subtotal row.
+    const bands = lines
+      .map((line) => /^([A-Z]+) \(\d+\)/.exec(line)?.[1])
+      .filter((label): label is string => label !== undefined);
+    expect(bands).toEqual(["ASSETS", "LIABILITIES", "EQUITY", "REVENUE", "EXPENSES"]);
+    expect(lines.some((line) => line.startsWith(",Total Assets,"))).toBe(true);
+    expect(lines.some((line) => line.startsWith(",Total Expenses,"))).toBe(true);
+    // The grand total line is still the one the acceptance test reads.
+    expect(lines.some((line) => line.startsWith(",,TOTAL,"))).toBe(true);
+  });
+
   it("scopes the trial balance to a period and carries earlier entries as opening", async () => {
     await seedActivity(); // cash sale 750 on 2026-10-08, credit sale 300 on 2026-10-09
 
