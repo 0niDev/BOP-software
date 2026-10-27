@@ -970,6 +970,8 @@ export default function ManufacturingPage() {
                                 }
                                 style={{ width: 110 }}
                               />
+                              {/* A native select keeps ↑/↓ for its options instead of
+                                  the table's row navigation. */}
                               {hasKnownUnit(unit) ? (
                                 <select
                                   value={line.quantityUnit ?? defaultPackUnit(unit)}
@@ -979,6 +981,7 @@ export default function ManufacturingPage() {
                                     })
                                   }
                                   aria-label="Consumed unit"
+                                  onKeyDown={(event) => event.stopPropagation()}
                                 >
                                   {PACK_UNITS.map((packUnit) => (
                                     <option key={packUnit} value={packUnit}>
