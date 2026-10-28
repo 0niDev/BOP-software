@@ -396,7 +396,8 @@ export class ManufacturingService {
       throw new ValidationError("Planned quantity must be greater than 0.");
     }
 
-    // Manual run: no saved BOM, so save a per-unit one from the run's totals.
+    // Manual run: no saved BOM, so save the typed per-item amounts as the
+    // per-unit recipe. Producing multiplies them by the output quantity.
     if (input.bomId == null) {
       if (!input.bomName?.trim() || !input.components || input.components.length === 0) {
         throw new ValidationError(
@@ -409,7 +410,7 @@ export class ManufacturingService {
           outputQuantity: 1,
           components: input.components!.map((component) => ({
             componentItemId: component.componentItemId,
-            quantityRequired: toQuantity(dec(component.quantityRequired).dividedBy(plannedQuantity)),
+            quantityRequired: toQuantity(dec(component.quantityRequired)),
           })),
           notes: "Saved from a production run",
           companyId,

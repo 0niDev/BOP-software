@@ -256,8 +256,9 @@ invoice before returning twice.
 **Production** — raw materials into unpacked bulk.
 
 - Create from a saved formulation BOM, or run it manually: give the run a name
-  and the totals it consumed, and the service saves a per-unit BOM
-  (`output_quantity = 1`) for reuse.
+  and each raw material's per-item amount; the service saves those numbers as a
+  per-unit BOM (`output_quantity = 1`) for reuse. Stock consumed is per item ×
+  items produced.
 - New orders are `DRAFT`; stock and the ledger only move when the order is
   produced. `DRAFT` → `startProduction` → `IN_PROGRESS` → `produceProduction` →
   `COMPLETED`; any other transition is rejected.

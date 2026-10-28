@@ -349,7 +349,7 @@ test("the Manufacturing page creates a formulation BOM and produces an unpacked 
     bomName,
   );
   await expect(orderForm).toContainText("Components from this BOM");
-  await orderForm.locator('input[aria-label="Total output quantity"]').fill("5");
+  await orderForm.locator('input[aria-label="Items generated"]').fill("5");
   await orderForm.getByRole("button", { name: "Create order" }).click();
   await expect(page.locator(".badge", { hasText: "Created production order" })).toBeVisible();
 
@@ -386,8 +386,8 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
   const runName = `E2E Manual Run ${stamp}`;
   const packingName = `E2E Packing ${stamp}`;
 
-  // No saved BOM selected: enter the run's totals and a name to save them as a
-  // per-unit BOM.
+  // No saved BOM selected: enter each raw material's per-item amount and a name
+  // to save them as a per-unit BOM.
   const orderForm = page.locator("form", { hasText: "New production order" });
   await expect(orderForm.getByRole("combobox", { name: "Production BOM" })).toHaveValue(
     /Manual run/,
@@ -398,12 +398,12 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
     orderForm.getByRole("combobox", { name: "Raw material" }),
     "Demo Raw Material",
   );
-  await orderForm.locator('input[aria-label="Total output quantity"]').fill("10");
-  // The consumed total is typed in a g/ml or kg/lit pair and converted to the
+  await orderForm.locator('input[aria-label="Items generated"]').fill("10");
+  // The per-item amount is typed in a g/ml or kg/lit pair and converted to the
   // item's stock unit (Demo Raw Material is a KG item).
   const consumedUnit = orderForm.locator('select[aria-label="Consumed unit"]').first();
   await expect(consumedUnit).toHaveValue("KG_LIT");
-  await orderForm.locator('input[aria-label="Total consumed"]').fill("20");
+  await orderForm.locator('input[aria-label="Per item"]').fill("20");
   await consumedUnit.selectOption("G_ML");
   await expect(orderForm.locator("tbody tr").first()).toContainText("0.02 KG");
   await consumedUnit.selectOption("KG_LIT");

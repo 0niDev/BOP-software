@@ -339,7 +339,7 @@ export default function ManufacturingPage() {
             return;
           }
           if (!(stock.bulk > 0)) {
-            setError(`${itemName(line.itemId)}: total consumed must be greater than 0.`);
+            setError(`${itemName(line.itemId)}: per item must be greater than 0.`);
             return;
           }
           components.push({ componentItemId: line.itemId, quantityRequired: stock.bulk });
@@ -884,11 +884,11 @@ export default function ManufacturingPage() {
                 />
               </div>
               <div>
-                <label>Total output quantity</label>
+                <label>Items generated</label>
                 <NumberInput
                   min="0"
                   step="0.001"
-                  aria-label="Total output quantity"
+                  aria-label="Items generated"
                   value={productionQuantity}
                   onChange={(e) => setProductionQuantity(Number(e.target.value))}
                   style={{ width: 140 }}
@@ -912,8 +912,9 @@ export default function ManufacturingPage() {
             ) : (
               <>
                 <p style={{ opacity: 0.7, fontSize: 12 }}>
-                  No BOM selected: enter the run's totals. A per-unit BOM is saved automatically and
-                  the output item {UNPACKED_PREFIX}
+                  No BOM selected: enter each raw material's amount per item. The numbers are saved
+                  as typed and stock is deducted as per item × items generated on production. The
+                  output item {UNPACKED_PREFIX}
                   {productionBomName.trim() || "<BOM name>"} is created in inventory. Type each raw
                   material in g/ml or kg/lit — stock is deducted in the item's own unit.
                 </p>
@@ -932,7 +933,7 @@ export default function ManufacturingPage() {
                   <thead>
                     <tr>
                       <th>Raw material</th>
-                      <th className="num">Total consumed</th>
+                      <th className="num">Per item</th>
                       <th className="num">Stock quantity</th>
                       <th />
                     </tr>
@@ -961,7 +962,7 @@ export default function ManufacturingPage() {
                               <NumberInput
                                 min="0"
                                 step="0.001"
-                                aria-label="Total consumed"
+                                aria-label="Per item"
                                 value={line.quantityRequired}
                                 onChange={(e) =>
                                   updateProductionLine(line.key, {

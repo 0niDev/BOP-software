@@ -278,7 +278,8 @@ component and an existing finished good as output. BOM names are unique; wastage
 0–100 %; start only from `DRAFT`; production `produce` only from `IN_PROGRESS`
 and packing `pack` only from `IN_PROGRESS`. Omitting `bomId` and passing
 `bomName` + `components` (production) or `packingBomName` + the packing fields
-saves a per-unit BOM (`output_quantity = 1`) from the run's totals.
+saves a per-unit BOM (`output_quantity = 1`) from the typed numbers. Production
+components are per-item amounts — stock consumed is per item × items produced.
 
 Producing consumes raw stock FIFO, creates the unpacked batch and posts
 `Dr Finished Goods / Cr Raw Materials`; packing consumes the unpacked batch plus

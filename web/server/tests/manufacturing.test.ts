@@ -268,12 +268,12 @@ describe("ManufacturingService — production", () => {
     await expect(mfg.getProductionOrder(order.id)).rejects.toBeTruthy();
   });
 
-  it("saves a per-unit BOM from a manual run's totals", async () => {
+  it("saves a manual run's per-item amounts as the per-unit BOM", async () => {
     const order = await mfg.createProductionOrder({
       bomName: "Ad hoc batch",
       plannedQuantity: 10,
       manufacturingDate: DATE,
-      components: [{ componentItemId: rawItemId, quantityRequired: 20 }],
+      components: [{ componentItemId: rawItemId, quantityRequired: 2 }],
     });
     expect(order.orderNumber).toMatch(/^PO-\d+$/);
 
@@ -290,7 +290,7 @@ describe("ManufacturingService — production", () => {
     expect(item?.item_name).toBe("(Unpacked) Ad hoc batch");
 
     await mfg.startProduction(order.id);
-    // 20 KG of totals over 10 units = 2 KG/unit; producing 10 consumes 20 KG @20.
+    // 2 KG per item over 10 items = 20 KG consumed @20.
     const result = await mfg.produceProduction(order.id, { actualQuantity: 10 });
     expect(result.productionCost).toBe(400);
     expect(await batchQty("RM-1-BATCH")).toBe(80);
