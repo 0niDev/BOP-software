@@ -29,6 +29,71 @@ browser ──HTTPS/HTTP──▶  BOP-ERP service (node dist/index.js, port 400
 * **Client** — `web/client/dist`, served by the same process. Nothing else needs
   to be installed; IIS is not required unless you want TLS terminated elsewhere.
 
+## Local-primary mode (recommended)
+
+The hosted database answers every statement over the WAN (~245 ms round trip;
+one screen can fire dozens), so production runs on a **local** SQLite file and
+keeps SQLite Cloud only as a **read-only replica**:
+
+```
+browser ──▶ BOP-ERP service ──▶ data\erp.sqlite   (source of truth, fast)
+                    │
+                    └─ every 15 min, at startup/shutdown/on demand ──▶
+                        SQLite Cloud  (wholesale replace, read-only)
+```
+
+The push takes one consistent snapshot of the local file (`VACUUM INTO`) and
+replaces the whole cloud database inside a single transaction: a push that
+fails or is interrupted leaves the previous good copy untouched. Watch its
+state in **Settings → Cloud copy** (`GET/POST /api/backup/replica`).
+
+**Single-writer rule:** the local file is the only writer. Never edit the
+cloud database in the SQLite Cloud dashboard — the next push overwrites it.
+
+### Cutover (one-time, on the server)
+
+1. **Stop the service** (`nssm stop BOP-ERP`) so nothing writes while you copy.
+2. **Pull the cloud database into a local file** (read-only against the cloud):
+
+   ```bat
+   cd C:\BOP-ERP\web
+   node scripts\pull-cloud.mjs --out data\erp.sqlite
+   ```
+
+   It prints per-table row counts, runs `integrity_check` and refuses to
+   overwrite a file unless you name it with `--out`.
+3. **Point `.env` at the local file** and keep the cloud URL as the replica:
+
+   ```ini
+   ERP_DB_ENGINE=local
+   ERP_LOCAL_DB=./data/erp.sqlite
+   SQLITE_CLOUD_URL=sqlitecloud://…          # replica target, never read
+   ERP_REPLICA_MINUTES=15
+   ERP_AUTO_BACKUP_HOURS=1
+   ERP_BACKUP_KEEP=168
+   ERP_LIVE_MIRROR=0
+   ```
+
+   To rehearse without touching the cloud, set `ERP_REPLICA_DRY_RUN=1` first;
+   the Settings page then builds and reports the push script without sending.
+4. **Start the service** (`nssm start BOP-ERP`). The startup push replaces the
+   cloud copy with the local file; Settings → Cloud copy shows the result.
+5. **Verify:** sign in, check the Dashboard, and confirm the cloud database's
+   row counts moved with the push.
+
+From then on, schema migrations apply to the local file automatically at
+startup (no more pre-deploy SQL against the hosted database), and every
+snapshot/live-copy concern collapses to ordinary files on this machine — see
+**Backups** below.
+
+### Rollback to the hosted engine
+
+1. Settings → Cloud copy → **Push now**, so the replica holds every write.
+2. Set `ERP_DB_ENGINE=sqlitecloud` in `web\.env` and restart.
+
+Writes made in local mode after the last successful push are lost in this
+direction — that is why the push is step 1.
+
 ## Prerequisites
 
 | Requirement | Notes |
@@ -149,11 +214,12 @@ app**, so a reverse proxy in front is worth having for those alone.
 * **Provider history:** SQLite Cloud keeps a daily full snapshot plus per-second
   changes and can restore to any second in the retention window. Confirm backup
   is enabled for the production database and keep the window at 30 days.
-* **Live local copy:** on by default. `backups\live\erp_mirror.db` is rewritten
-  after about 15 seconds without writes, at startup and on shutdown, and is
-  verified before replacing the previous file. Set `ERP_PC_MIRROR_DIR` to a
-  shared folder or mapped drive (e.g. `\\your-pc\bop-backup`) to keep a copy on
-  the operator's computer as well.
+* **Live local copy:** on by default in hosted-engine mode.
+  `backups\live\erp_mirror.db` is rewritten after about 15 seconds without
+  writes, at startup and on shutdown, and is verified before replacing the
+  previous file. Redundant in local-primary mode (the database itself is
+  already a local file) — set `ERP_LIVE_MIRROR=0` there. `ERP_PC_MIRROR_DIR`
+  can point it at a shared folder or mapped drive as well.
 * **Named snapshots:** set `ERP_AUTO_BACKUP_HOURS=24` to also write
   `<YYYYMMDD_HHMMSS>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
   7) prunes older ones. Both engines now produce a portable SQLite file. Every

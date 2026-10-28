@@ -8,6 +8,7 @@ import { env } from "./env.js";
 import { createApp } from "./http/app.js";
 import { BackupService } from "./services/backupService.js";
 import { MirrorService } from "./services/mirrorService.js";
+import { ReplicaService } from "./services/replicaService.js";
 
 /**
  * TLS is optional and self-contained: when both ERP_TLS_CERT and ERP_TLS_KEY are
@@ -82,7 +83,19 @@ async function main(): Promise<void> {
     env.mirrorDebounceMs,
     env.liveMirror,
   );
-  const db = env.liveMirror ? new ObservedDatabase(rawDb, () => mirror.notify()) : rawDb;
+  // The cloud replica only exists in local-primary mode: the local database is
+  // the source of truth and SQLite Cloud becomes a read-only copy of it.
+  const replica = new ReplicaService(
+    rawDb,
+    env.dbEngine === "local" ? env.sqliteCloudUrl : "",
+    env.replicaDir,
+    env.replicaMinutes,
+    env.replicaDryRun,
+  );
+  const db = new ObservedDatabase(rawDb, () => {
+    mirror.notify();
+    replica.markDirty();
+  });
 
   // The hosted SQLite Cloud database is the live production schema and must
   // never be re-created or re-seeded from the new app; only the local
@@ -112,6 +125,7 @@ async function main(): Promise<void> {
     // One process, one port: the API and the built client when asked for.
     clientDir: env.serveClient ? env.clientDist : null,
     mirror,
+    replica,
   });
 
   const tls = readTls();
@@ -170,9 +184,22 @@ async function main(): Promise<void> {
     console.log("[mirror] disabled (ERP_LIVE_MIRROR=0)");
   }
 
+  // Cloud replica: push once at startup (catches writes a hard kill left
+  // behind), then on the interval. Disabled when no cloud URL is configured.
+  void replica.start();
+
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[${timestamp()}] [server] ${signal} received, shutting down...`);
     if (backupTimer) clearInterval(backupTimer);
+    replica.stop();
+
+    // Stop accepting requests, then flush whatever the replica has not sent.
+    server.close();
+    try {
+      await replica.flush(env.replicaFlushTimeoutMs);
+    } catch (err) {
+      console.error(`[${timestamp()}] [replica] shutdown flush failed:`, err);
+    }
 
     // Save the last few seconds of writes before the connection goes away.
     try {

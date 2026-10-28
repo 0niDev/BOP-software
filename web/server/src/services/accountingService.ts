@@ -13,6 +13,7 @@ import { UnbalancedJournalEntryError, ConflictError, NotFoundError, ValidationEr
 import { Decimal, round2, toStorage, type MoneyLike } from "../domain/money.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository, type JournalLineRow } from "../repositories/journalRepository.js";
+import { assignDisplayCodes } from "./displayCodes.js";
 
 const ROUNDING_TOLERANCE = "0.01";
 
@@ -66,6 +67,8 @@ export interface ManualJournalResult {
 export interface TrialBalanceRow {
   accountId: number;
   accountCode: string;
+  /** Hierarchical display code (1 / 11 / 111); accountCode stays the real one. */
+  displayCode: string;
   accountName: string;
   accountType: AccountType;
   /** CoA parent, so the report can nest sub-accounts like the CoA page. */
@@ -341,6 +344,7 @@ export class AccountingService {
       account_name: string;
       account_type: AccountType;
       parent_account_id: number | null;
+      is_active: number;
       period_debit: number;
       period_credit: number;
       opening_debit: number;
@@ -349,6 +353,7 @@ export class AccountingService {
       // Plain `?` placeholders only (the hosted SQLite Cloud driver is not
       // exercised by the local tests, and `?NNN` support there is unverified).
       `SELECT a.id, a.account_code, a.account_name, a.account_type, a.parent_account_id,
+              a.is_active,
               COALESCE(SUM(CASE WHEN je.is_posted = 1
                   AND (? IS NULL OR je.entry_date >= ?)
                   AND (? IS NULL OR je.entry_date <= ?)
@@ -374,6 +379,15 @@ export class AccountingService {
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.credit ELSE 0 END) <> 0
        ORDER BY a.account_code`,
       [from, from, to, to, from, from, to, to, from, from, from, from, companyId],
+    );
+
+    const displayCodes = assignDisplayCodes(
+      rows.map((row) => ({
+        id: row.id,
+        parentAccountId: row.parent_account_id,
+        accountCode: row.account_code,
+        isActive: row.is_active === 1,
+      })),
     );
 
     return rows.map((row) => {
@@ -404,6 +418,7 @@ export class AccountingService {
       return {
         accountId: row.id,
         accountCode: row.account_code,
+        displayCode: displayCodes.get(row.id) ?? row.account_code,
         accountName: row.account_name,
         accountType: row.account_type,
         parentAccountId: row.parent_account_id ?? null,

@@ -166,9 +166,14 @@ export default function JournalVouchersPage() {
   }));
 
   // Group accounts are the ones allowed in the first column; picking one
-  // narrows the account list to its branch.
+  // narrows the account list to its branch. Levels 1–2 (Assets, Current
+  // Assets, …) are too coarse to post into, so only depth-3 groups and
+  // deeper show up — level 4 only when it still has children.
   const groupOptions = accounts
-    .filter((account) => parentIds.has(account.id))
+    .filter(
+      (account) =>
+        parentIds.has(account.id) && (depths.get(account.id) ?? 0) >= 3,
+    )
     .map((account) => ({ value: String(account.id), label: accountLabel(account) }));
   const optionsUnder = new Map<number, typeof accountOptions>();
   for (const group of groupOptions) {

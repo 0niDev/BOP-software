@@ -30,13 +30,13 @@ const PAGES: PageUnderAudit[] = [
   { nav: "Dashboard", expectData: true },
   { nav: "Sales Invoices", expectData: true },
   { nav: "Purchase Invoices", expectData: true },
-  { nav: "Payments & Receipts", expectData: true },
+  { nav: "Invoice Payments", expectData: true },
   { nav: "Manufacturing", expectData: true },
   { nav: "Expense Vouchers", expectData: true },
-  { nav: "Bank & Cash", expectData: true },
+  { nav: "Banking Payments", expectData: true },
   { nav: "Returns", expectData: true },
   { nav: "Customers & Suppliers", expectData: true },
-  { nav: "Items", expectData: true },
+  { nav: "Inventory", expectData: true },
   { nav: "Fixed Assets", expectData: true },
   { nav: "Chart of Accounts", expectData: true },
   { nav: "Reports", expectData: true },
@@ -222,7 +222,7 @@ test("keyboard shortcuts switch modules and focus search", async ({ page }) => {
   expect(await focusedPlaceholder(page)).toMatch(/find module/i);
 
   // ...and on a page that does have one (Items), it focuses that instead.
-  await openPage(page, "Items");
+  await openPage(page, "Inventory");
   await page.keyboard.press("Control+f");
   expect(await focusedPlaceholder(page)).toMatch(/search/i);
 });
@@ -497,9 +497,9 @@ function getByLabelText(scope: ReturnType<Page["locator"]>, text: string) {
 
 /** Pages that own a filter box (FilterBox.tsx sets `data-search`). */
 const FILTERED_PAGES = [
-  "Items",
+  "Inventory",
   "Customers & Suppliers",
-  "Payments & Receipts",
+  "Invoice Payments",
   "Expense Vouchers",
   "Fixed Assets",
   "Users",

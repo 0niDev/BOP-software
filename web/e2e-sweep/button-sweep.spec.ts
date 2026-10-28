@@ -22,11 +22,11 @@ const NAV = [
   "Sales Invoices",
   "Purchase Invoices",
   "Returns",
-  "Items",
+  "Inventory",
   "Manufacturing",
-  "Payments & Receipts",
+  "Invoice Payments",
   "Expense Vouchers",
-  "Bank & Cash",
+  "Banking Payments",
   "Journal Vouchers",
   "Customers & Suppliers",
   "Chart of Accounts",
@@ -489,7 +489,7 @@ async function sweepPage(page: Page, nav: string, recorder: Recorder): Promise<v
 }
 
 // ---------------------------------------------------------------------------
-// PRIORITY: the two bugs reported on the Inventory ("Items") page.
+// PRIORITY: the two bugs reported on the Inventory page.
 // ---------------------------------------------------------------------------
 test("PRIORITY - Items: Stock column renders and Edit actually takes you to the form", async ({
   page,
@@ -497,7 +497,7 @@ test("PRIORITY - Items: Stock column renders and Edit actually takes you to the 
   const recorder = new Recorder(page);
   await blockWrites(page, recorder);
   await signInSafely(page);
-  await openPage(page, "Items", recorder);
+  await openPage(page, "Inventory", recorder);
   // The table is long; make sure it has actually rendered before measuring.
   await page
     .waitForFunction(() => document.querySelectorAll("main tbody tr").length > 5, undefined, {

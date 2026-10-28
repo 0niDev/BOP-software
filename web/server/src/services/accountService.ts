@@ -13,6 +13,7 @@ import { AccountRepository, type AccountRow } from "../repositories/accountRepos
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { assignDisplayCodes } from "./displayCodes.js";
 
 export const ACCOUNT_TYPES: readonly AccountType[] = [
   "ASSET",
@@ -52,6 +53,32 @@ export interface OpeningBalanceResult {
   accountsUpdated: number;
 }
 
+export type AccountWithDeleteFlags = AccountRow & {
+  can_delete: boolean;
+  delete_blockers: string[];
+  /** Hierarchical display code (1 / 11 / 111); account_code stays the real one. */
+  display_code: string;
+};
+
+/**
+ * Codes that must never be hard-deleted:
+ *  - the engine posts to these by name (enums.ts SystemAccountCodes plus the
+ *    opening-equity/expense-fallback/disposal/COGS-map codes in the services);
+ *  - the remaining bootstrap seeds are "UI-locked" system accounts.
+ * The import's own is_system_account=1 rows deliberately aren't in this set —
+ * they are cleanup targets — so deletion eligibility always comes from
+ * PROTECTED_CODES + reference checks, never from the DB flag.
+ */
+const PROTECTED_CODES: ReadonlySet<string> = new Set([
+  ...Object.values(SystemAccountCodes),
+  "3000", // opening-balance equity posting (accountService)
+  "6000", // default expense posting (expenseService)
+  "6900", // gain/loss on asset disposal (assetService)
+  "5001", // COGS map: PACKING_MATERIAL
+  "5002", // COGS map: RAW_MATERIAL
+  "1300", "2200", "5100", "5300", "1500", "1501", "1502", "1503", "1504", "1505", // bootstrap seeds (server/src/db/bootstrap.ts)
+]);
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -72,6 +99,33 @@ export class AccountService {
 
   async list(activeOnly = true): Promise<AccountRow[]> {
     return this.accounts.listForCompany(this.companyId, activeOnly);
+  }
+
+  /** Same rows as list(), plus hard-delete eligibility for the CoA UI. */
+  async listWithDeleteFlags(activeOnly = true): Promise<AccountWithDeleteFlags[]> {
+    const [rows, blockers] = await Promise.all([
+      this.accounts.listForCompany(this.companyId, activeOnly),
+      this.accounts.deleteBlockers(this.companyId),
+    ]);
+    const displayCodes = assignDisplayCodes(
+      rows.map((row) => ({
+        id: row.id,
+        parentAccountId: row.parent_account_id,
+        accountCode: row.account_code,
+        isActive: row.is_active === 1,
+      })),
+    );
+    return rows.map((row) => {
+      const reasons: string[] = [];
+      if (PROTECTED_CODES.has(row.account_code)) reasons.push("system account");
+      reasons.push(...(blockers.get(row.id) ?? []));
+      return {
+        ...row,
+        can_delete: reasons.length === 0,
+        delete_blockers: reasons,
+        display_code: displayCodes.get(row.id) ?? row.account_code,
+      };
+    });
   }
 
   async get(id: number): Promise<AccountRow> {
@@ -174,6 +228,30 @@ export class AccountService {
       );
     }
     await this.accounts.deactivate(id);
+  }
+
+  /**
+   * Hard delete for chart cleanup: removes the row entirely. Only valid for
+   * accounts with zero postings, zero family links and no active children —
+   * eligibility is recomputed here so the UI badge can never drift from the
+   * server's answer.
+   */
+  async delete(id: number): Promise<void> {
+    const account = await this.accounts.findById(id);
+    if (!account || account.company_id !== this.companyId) {
+      throw new NotFoundError("Account not found.");
+    }
+    if (PROTECTED_CODES.has(account.account_code)) {
+      throw new ValidationError("System accounts cannot be deleted.");
+    }
+    const blockers = await this.accounts.deleteBlockers(this.companyId);
+    const reasons = blockers.get(id) ?? [];
+    if (reasons.length > 0) {
+      throw new ValidationError(
+        `Cannot delete ${account.account_code}: ${reasons.join(", ")}.`,
+      );
+    }
+    await this.accounts.remove(id);
   }
 
   /**

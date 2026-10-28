@@ -11,6 +11,7 @@ import type {
   Cheque,
   LedgerEntry,
   MirrorStatus,
+  ReplicaStatus,
   CreatedPurchaseInvoice,
   CreatedSalesInvoice,
   CreatePurchaseInvoiceRequest,
@@ -171,6 +172,9 @@ export const api = {
   ) => request<Account>(`/api/accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateAccount: (id: number) =>
     request<{ ok: boolean }>(`/api/accounts/${id}/deactivate`, { method: "POST" }),
+  /** Hard delete; server refuses any account with postings/links/children. */
+  deleteAccount: (id: number) =>
+    request<{ ok: boolean }>(`/api/accounts/${id}`, { method: "DELETE" }),
   postOpeningBalances: (entries: Array<{ accountId: number; debit?: number; credit?: number }>) =>
     request<{
       journalEntryId: number;
@@ -905,6 +909,8 @@ export const api = {
   mirrorStatus: () => request<MirrorStatus>("/api/backup/mirror"),
   syncMirror: () => request<MirrorStatus>("/api/backup/mirror", { method: "POST" }),
   downloadMirror: () => requestBlob("/api/backup/mirror/download"),
+  replicaStatus: () => request<ReplicaStatus>("/api/backup/replica"),
+  pushReplica: () => request<ReplicaStatus>("/api/backup/replica/push", { method: "POST" }),
   saveSettings: (group: string, settings: Record<string, unknown>) =>
     request<Record<string, unknown>>("/api/settings", {
       method: "PUT",

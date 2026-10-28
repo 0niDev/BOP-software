@@ -26,8 +26,8 @@ const META: Record<
 > = {
   Sales: { label: "Invoiced", tone: "brand", target: "sales", module: "Sales Invoices" },
   Purchases: { label: "Received", tone: "teal", target: "purchases", module: "Purchase Invoices" },
-  Payment: { label: "Paid", tone: "amber", target: "payments", module: "Payments & Receipts" },
-  Receipt: { label: "Collected", tone: "ok", target: "payments", module: "Payments & Receipts" },
+  Payment: { label: "Paid", tone: "amber", target: "payments", module: "Invoice Payments" },
+  Receipt: { label: "Collected", tone: "ok", target: "payments", module: "Invoice Payments" },
   Expense: { label: "Processed", tone: "slate", target: "expenses", module: "Expense Vouchers" },
 };
 

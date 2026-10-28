@@ -83,7 +83,7 @@ export default function LiquidityCard({
         </button>
         <button type="button" onClick={() => onNavigate("banking")}>
           <Landmark size={15} strokeWidth={2.3} aria-hidden />
-          Bank &amp; Cash
+          Banking Payments
         </button>
       </div>
     </Card>

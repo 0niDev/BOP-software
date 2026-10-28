@@ -273,7 +273,7 @@ export class ReportService {
       for (const row of section.rows) {
         lines.push(
           [
-            csvEscape(row.accountCode),
+            csvEscape(row.displayCode),
             csvEscape(`${"  ".repeat(row.depth)}${row.accountName}`),
             row.accountType,
             row.openingDebit.toFixed(2),

@@ -57,16 +57,16 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
   {
     title: "Inventory & Production",
     items: [
-      { id: "items", label: "Items", icon: Package },
+      { id: "items", label: "Inventory", icon: Package },
       { id: "manufacturing", label: "Manufacturing", icon: Factory },
     ],
   },
   {
     title: "Accounting",
     items: [
-      { id: "payments", label: "Payments & Receipts", icon: Banknote },
+      { id: "payments", label: "Invoice Payments", icon: Banknote },
       { id: "expenses", label: "Expense Vouchers", icon: Wallet },
-      { id: "banking", label: "Bank & Cash", icon: Landmark },
+      { id: "banking", label: "Banking Payments", icon: Landmark },
       { id: "journal", label: "Journal Vouchers", icon: ScrollText },
     ],
   },

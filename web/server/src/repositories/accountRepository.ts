@@ -107,6 +107,50 @@ export class AccountRepository {
     await this.db.run("UPDATE accounts SET is_active = 0 WHERE id = ?", [id]);
   }
 
+  /** Only ever called after the service proved there are no references. */
+  async remove(id: number): Promise<void> {
+    await this.db.run("DELETE FROM accounts WHERE id = ?", [id]);
+  }
+
+  /**
+   * Per-account hard-delete blockers, empty map entry = deletable. Grouped
+   * queries (one per referencing table) keep this cheap enough for the list
+   * endpoint. Family references checked elsewhere: party/bank/category/
+   * asset stacks. Deleting the CoA row genuinely removes it, so anything that
+   * could carry FK references to the account blocks deletion.
+   */
+  async deleteBlockers(companyId = 1): Promise<Map<number, string[]>> {
+    const blockers = new Map<number, string[]>();
+    const add = (id: number | null, reason: string): void => {
+      if (id == null) return;
+      const list = blockers.get(Number(id)) ?? [];
+      list.push(reason);
+      blockers.set(Number(id), list);
+    };
+    for (const [sql, reason] of [
+      [`SELECT DISTINCT l.account_id AS id
+          FROM journal_entry_lines l
+          JOIN journal_entries e ON e.id = l.journal_entry_id
+         WHERE e.company_id = ?`, "has journal entries"] as const,
+      ["SELECT account_id AS id FROM parties WHERE account_id IS NOT NULL AND company_id = ?", "linked to parties"] as const,
+      ["SELECT account_id AS id FROM bank_accounts WHERE account_id IS NOT NULL AND company_id = ?", "linked to a bank account"] as const,
+      ["SELECT account_id AS id FROM expense_categories WHERE account_id IS NOT NULL AND company_id = ?", "linked to expense categories"] as const,
+      [`SELECT d.account_id AS id
+          FROM asset_details d
+          JOIN accounts p ON p.id = d.account_id
+         WHERE d.account_id IS NOT NULL AND p.company_id = ?`, "linked to asset details"] as const,
+      [`SELECT DISTINCT c.parent_account_id AS id
+          FROM accounts c
+          JOIN accounts p ON p.id = c.parent_account_id
+         WHERE c.is_active = 1 AND p.company_id = ?`, "has active sub-accounts"] as const,
+    ]) {
+      for (const row of await this.db.all<{ id: number }>(sql, [companyId])) {
+        add(row.id, reason);
+      }
+    }
+    return blockers;
+  }
+
   async codeExists(code: string, companyId = 1): Promise<boolean> {
     const row = await this.db.get<{ id: number }>(
       "SELECT id FROM accounts WHERE account_code = ? AND company_id = ?",

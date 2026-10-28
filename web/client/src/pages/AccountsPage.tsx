@@ -268,6 +268,25 @@ export default function AccountsPage() {
     }
   }
 
+  async function remove(account: Account): Promise<void> {
+    if (
+      !window.confirm(
+        `Permanently delete ${account.account_code} ${account.account_name}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    try {
+      await api.deleteAccount(account.id);
+      setNotice(`Deleted ${account.account_code}.`);
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to delete the account."));
+    }
+  }
+
   // Parents must be same-type, active, not the account itself nor one of its
   // descendants.
   const editingSubtree = editing ? subtreeIds(editing.id) : new Set<number>();
@@ -284,13 +303,13 @@ export default function AccountsPage() {
     const children = childrenByParent.get(account.id) ?? [];
     const rows: ReactNode[] = [
       <tr key={account.id} className={`coa-row coa-l${Math.min(depth + 1, 3)}`}>
-        <td style={{ whiteSpace: "nowrap" }}>
+        <td style={{ whiteSpace: "nowrap" }} title={`Internal code: ${account.account_code}`}>
           <span className="coa-code">
             {Array.from({ length: depth }, (_, index) => (
               <span key={index} className="coa-rail" />
             ))}
             {depth > 0 && <span className="coa-elbow">└</span>}
-            {account.account_code}
+            {account.display_code ?? account.account_code}
           </span>
         </td>
         <td style={children.length > 0 ? { fontWeight: 600 } : undefined}>
@@ -314,6 +333,14 @@ export default function AccountsPage() {
           <button onClick={() => startEdit(account)}>Edit</button>{" "}
           {account.is_active === 1 && account.is_system_account === 0 && (
             <button onClick={() => void deactivate(account)}>Deactivate</button>
+          )}{" "}
+          {account.can_delete === true && (
+            <button
+              onClick={() => void remove(account)}
+              title="Delete permanently — safe: no journal entries, links or sub-accounts."
+            >
+              Delete
+            </button>
           )}
         </td>
       </tr>,
@@ -447,7 +474,9 @@ export default function AccountsPage() {
           <tbody>
             {openingRows.map((account) => (
               <tr key={account.id}>
-                <td>{account.account_code}</td>
+                <td title={`Internal code: ${account.account_code}`}>
+                  {account.display_code ?? account.account_code}
+                </td>
                 <td>{account.account_name}</td>
                 <td>{account.account_type}</td>
                 <td className="num">

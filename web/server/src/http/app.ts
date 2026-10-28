@@ -29,6 +29,7 @@ import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
 import { SalesInvoiceService } from "../services/salesInvoiceService.js";
 import { SettingsService } from "../services/settingsService.js";
 import type { MirrorService } from "../services/mirrorService.js";
+import type { ReplicaService } from "../services/replicaService.js";
 import { UserService } from "../services/userService.js";
 
 /** Minimal in-memory session store. Replace with JWT/DB sessions later. */
@@ -74,6 +75,8 @@ export interface AppOptions {
   desktopDir?: string | null;
   /** Live local copy; when absent the mirror routes report it as unavailable. */
   mirror?: MirrorService;
+  /** Cloud replica push; when absent the replica routes report it as unavailable. */
+  replica?: ReplicaService;
   /**
    * Directory of a built client (`index.html` + `assets/`). When given *and* the
    * build is actually present, this process also serves the SPA — the
@@ -169,7 +172,7 @@ export function createApp(
 
   // --- chart of accounts -------------------------------------------------
   app.get("/api/accounts", requireAuth, async (req, res) => {
-    res.json(await accounts.list(activeOnlyFlag(req)));
+    res.json(await accounts.listWithDeleteFlags(activeOnlyFlag(req)));
   });
 
   app.post("/api/accounts", requireAuth, async (req, res) => {
@@ -202,6 +205,12 @@ export function createApp(
 
   app.post("/api/accounts/:id/deactivate", requireAuth, async (req, res) => {
     await accounts.deactivate(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  /** Hard delete — only accounts the service proved reference-free get here. */
+  app.delete("/api/accounts/:id", requireAuth, async (req, res) => {
+    await accounts.delete(Number(req.params.id));
     res.json({ ok: true });
   });
 
@@ -262,6 +271,18 @@ export function createApp(
   app.post("/api/backups/:file/restore", requireAuth, (req, res) => {
     backups.restore(String(req.params.file));
     res.json({ ok: true });
+  });
+
+  // --- cloud replica (local-primary mode) ---------------------------------
+  app.get("/api/backup/replica", requireAuth, async (_req, res) => {
+    if (!options.replica) throw new ConfigurationError("The cloud replica is not configured.");
+    res.json(await options.replica.status());
+  });
+
+  app.post("/api/backup/replica/push", requireAuth, async (_req, res) => {
+    if (!options.replica) throw new ConfigurationError("The cloud replica is not configured.");
+    await options.replica.runNow();
+    res.json(await options.replica.status());
   });
 
   // --- fixed assets ------------------------------------------------------

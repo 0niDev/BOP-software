@@ -9,6 +9,7 @@
  * provide the same health / interrupt surface so the rest of the app is
  * engine-agnostic.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -17,6 +18,13 @@ import type { Row, RunResult, SqlDatabase, SqlValue } from "./types.js";
 
 type BindValue = string | number | bigint | Uint8Array | null;
 
+/**
+ * Re-entrancy marker for `transaction()`: statements issued *inside* a
+ * transaction body bypass the serialization queue (they already hold it), and
+ * a nested `transaction()` joins the outer one.
+ */
+const txContext = new AsyncLocalStorage<boolean>();
+
 function bindAll(params?: readonly SqlValue[]): BindValue[] {
   if (!params) return [];
   return params.map((p) => (p === undefined ? null : p));
@@ -24,7 +32,8 @@ function bindAll(params?: readonly SqlValue[]): BindValue[] {
 
 export class LocalSqliteDatabase implements SqlDatabase {
   private readonly db: DatabaseSync;
-  private depth = 0;
+  /** Serializes every operation on this connection; a transaction body holds it. */
+  private chain: Promise<unknown> = Promise.resolve();
 
   constructor(file: string) {
     if (file !== ":memory:") {
@@ -33,43 +42,67 @@ export class LocalSqliteDatabase implements SqlDatabase {
     this.db = new DatabaseSync(file);
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec("PRAGMA busy_timeout = 5000");
+    // WAL: external readers (DB Browser, scripts) see a consistent snapshot
+    // while the app writes, and never block it. File copies still need the
+    // -wal sidecar, so backups go through VACUUM INTO instead of `cp`.
+    this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec("PRAGMA synchronous = NORMAL");
+  }
+
+  /** Serialize operations unless we are already inside the held transaction. */
+  private schedule<T>(fn: () => Promise<T>): Promise<T> {
+    if (txContext.getStore()) return fn();
+    const run = this.chain.then(fn, fn);
+    this.chain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   async all<T = Row>(sql: string, params?: readonly SqlValue[]): Promise<T[]> {
-    try {
-      return this.db.prepare(sql).all(...bindAll(params)) as T[];
-    } catch (err) {
-      throw new DatabaseError(messageOf(err), { sql });
-    }
+    return this.schedule(async () => {
+      try {
+        return this.db.prepare(sql).all(...bindAll(params)) as T[];
+      } catch (err) {
+        throw new DatabaseError(messageOf(err), { sql });
+      }
+    });
   }
 
   async get<T = Row>(sql: string, params?: readonly SqlValue[]): Promise<T | undefined> {
-    try {
-      const rows = this.db.prepare(sql).all(...bindAll(params)) as T[];
-      return rows[0];
-    } catch (err) {
-      throw new DatabaseError(messageOf(err), { sql });
-    }
+    return this.schedule(async () => {
+      try {
+        const rows = this.db.prepare(sql).all(...bindAll(params)) as T[];
+        return rows[0];
+      } catch (err) {
+        throw new DatabaseError(messageOf(err), { sql });
+      }
+    });
   }
 
   async run(sql: string, params?: readonly SqlValue[]): Promise<RunResult> {
-    try {
-      const result = this.db.prepare(sql).run(...bindAll(params));
-      return {
-        changes: Number(result.changes),
-        lastInsertRowid: Number(result.lastInsertRowid),
-      };
-    } catch (err) {
-      throw new DatabaseError(messageOf(err), { sql });
-    }
+    return this.schedule(async () => {
+      try {
+        const result = this.db.prepare(sql).run(...bindAll(params));
+        return {
+          changes: Number(result.changes),
+          lastInsertRowid: Number(result.lastInsertRowid),
+        };
+      } catch (err) {
+        throw new DatabaseError(messageOf(err), { sql });
+      }
+    });
   }
 
   async exec(sql: string): Promise<void> {
-    try {
-      this.db.exec(sql);
-    } catch (err) {
-      throw new DatabaseError(messageOf(err), { sql });
-    }
+    return this.schedule(async () => {
+      try {
+        this.db.exec(sql);
+      } catch (err) {
+        throw new DatabaseError(messageOf(err), { sql });
+      }
+    });
   }
 
   async interrupt(): Promise<void> {
@@ -92,33 +125,23 @@ export class LocalSqliteDatabase implements SqlDatabase {
   }
 
   async transaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T> {
-    // Nested calls join the outer transaction; an error thrown anywhere in
-    // the body propagates to the root, which issues the single ROLLBACK.
-    if (this.depth > 0) {
-      this.depth += 1;
+    // Join an in-progress transaction rather than opening a nested one.
+    if (txContext.getStore()) return fn(this);
+    return this.schedule(async () => {
+      this.db.exec("BEGIN");
       try {
-        return await fn(this);
-      } finally {
-        this.depth -= 1;
+        const result = await txContext.run(true, () => fn(this));
+        this.db.exec("COMMIT");
+        return result;
+      } catch (err) {
+        try {
+          this.db.exec("ROLLBACK");
+        } catch {
+          // ignore rollback failures; the original error is more useful
+        }
+        throw err;
       }
-    }
-
-    this.db.exec("BEGIN");
-    this.depth = 1;
-    try {
-      const result = await fn(this);
-      this.db.exec("COMMIT");
-      return result;
-    } catch (err) {
-      try {
-        this.db.exec("ROLLBACK");
-      } catch {
-        // ignore rollback failures; the original error is more useful
-      }
-      throw err;
-    } finally {
-      this.depth = 0;
-    }
+    });
   }
 
   async close(): Promise<void> {

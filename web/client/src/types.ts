@@ -21,6 +21,11 @@ export interface Account {
   opening_balance: number;
   is_system_account: number;
   is_active: number;
+  /** Present on GET /api/accounts: may be hard-deleted (zero references). */
+  can_delete?: boolean;
+  delete_blockers?: string[];
+  /** Hierarchical display code; account_code stays the real one. */
+  display_code?: string;
 }
 
 export interface Party {
@@ -376,6 +381,8 @@ export interface PaymentResult {
 export interface TrialBalanceRow {
   accountId: number;
   accountCode: string;
+  /** Hierarchical display code; older payloads omit it, fall back to accountCode. */
+  displayCode?: string;
   accountName: string;
   accountType: AccountType;
   /** CoA parent; older payloads omit it, which simply reads as a root account. */
@@ -494,6 +501,21 @@ export interface MirrorStatus {
   pcDirectory: string | null;
   pcUpdatedAt: string | null;
   pcError: string | null;
+}
+
+/** GET /api/backup/replica: how fresh the SQLite Cloud copy is. */
+export interface ReplicaStatus {
+  enabled: boolean;
+  dryRun: boolean;
+  intervalMinutes: number;
+  lastPushAt: string | null;
+  secondsAgo: number | null;
+  pending: boolean;
+  dirty: boolean;
+  lastError: string | null;
+  lastRows: number;
+  lastBytes: number;
+  lastDurationMs: number;
 }
 
 export interface DashboardData {

@@ -252,13 +252,13 @@ function GroupedTbRows({ group }: GroupedTbRowsProps) {
       </tr>
       {group.rows.map((row) => (
         <tr key={row.accountId}>
-          <td style={{ whiteSpace: "nowrap" }}>
+          <td style={{ whiteSpace: "nowrap" }} title={`Internal code: ${row.accountCode}`}>
             <span className="coa-code">
               {Array.from({ length: row.depth }, (_, index) => (
                 <span key={index} className="coa-rail" />
               ))}
               {row.depth > 0 && <span className="coa-elbow">└</span>}
-              {row.accountCode}
+              {row.displayCode ?? row.accountCode}
             </span>
           </td>
           <td style={row.hasChildren ? { fontWeight: 600 } : undefined}>{row.accountName}</td>

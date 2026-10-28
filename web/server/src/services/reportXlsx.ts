@@ -359,7 +359,7 @@ export class ReportXlsx {
         [text(`${section.label.toUpperCase()} (${section.rows.length})`, SECTION)],
         ...section.rows.map(
           (row): Cell[] => [
-            text(row.accountCode),
+            text(row.displayCode),
             text(row.accountName, {
               indent: row.depth * 2,
               ...(row.hasChildren ? { fontWeight: "bold" } : {}),

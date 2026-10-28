@@ -248,7 +248,7 @@ export default function ItemsPage() {
     <>
       <div className="card">
         <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
-          <h2 style={{ flex: 1, margin: 0 }}>Items</h2>
+          <h2 style={{ flex: 1, margin: 0 }}>Inventory</h2>
           <div>
             <label>Search</label>
             <input

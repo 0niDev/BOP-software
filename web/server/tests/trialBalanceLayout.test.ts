@@ -19,6 +19,7 @@ function row(
   return {
     accountId,
     accountCode,
+    displayCode: accountCode,
     accountName: `Account ${accountCode}`,
     accountType,
     parentAccountId,

@@ -99,6 +99,16 @@ function readMirrorDebounceSeconds(): number {
   return Number.isFinite(raw) && raw >= 0 ? raw : 15;
 }
 
+/**
+ * How often the local database is pushed to SQLite Cloud (`ERP_REPLICA_MINUTES`,
+ * default 15). Also pushed at startup, on shutdown and on demand, so this only
+ * sets the worst-case recovery window.
+ */
+function readReplicaMinutes(): number {
+  const raw = Number(process.env.ERP_REPLICA_MINUTES ?? 15);
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 1440) : 15;
+}
+
 export const env = {
   dbEngine: readEngine(),
   localDbPath: path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite"),
@@ -120,6 +130,13 @@ export const env = {
   liveMirror: readFlag(process.env.ERP_LIVE_MIRROR, true),
   mirrorDir: optionalDir(process.env.ERP_MIRROR_DIR) ?? path.join(backupDir, "live"),
   mirrorDebounceMs: readMirrorDebounceSeconds() * 1000,
+  /** Folder the replica push stages its snapshot in. */
+  replicaDir: optionalDir(process.env.ERP_REPLICA_DIR) ?? path.join(backupDir, "replica"),
+  replicaMinutes: readReplicaMinutes(),
+  /** `ERP_REPLICA_DRY_RUN=1` builds the push script but sends nothing. */
+  replicaDryRun: readFlag(process.env.ERP_REPLICA_DRY_RUN),
+  /** Bounded shutdown flush: never block exit longer than this. */
+  replicaFlushTimeoutMs: 20_000,
   /** Folder on the operator's computer; pushed to on every refresh. */
   pcMirrorDir: optionalDir(process.env.ERP_PC_MIRROR_DIR),
   apiKey: process.env.ERP_API_KEY ?? "",

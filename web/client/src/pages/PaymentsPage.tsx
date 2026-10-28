@@ -224,7 +224,7 @@ export default function PaymentsPage() {
     <>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0 }}>Payments &amp; Receipts</h2>
+          <h2 style={{ margin: 0 }}>Invoice Payments</h2>
           <div className="row">
             <button
               className={tab === "payments" ? "primary" : ""}

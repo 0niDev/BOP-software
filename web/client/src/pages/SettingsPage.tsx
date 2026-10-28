@@ -4,7 +4,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { DATE_FORMATS, formatDate, setDateFormat } from "../lib/format";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
-import type { BackupStatus, DatabaseInfo, MirrorStatus, ShortcutEntry } from "../types";
+import type { BackupStatus, DatabaseInfo, MirrorStatus, ReplicaStatus, ShortcutEntry } from "../types";
 
 /** Picker lists ported from settings_view.py. */
 const CURRENCIES = ["PKR", "USD", "EUR", "GBP", "SAR", "AED"];
@@ -37,6 +37,8 @@ export default function SettingsPage() {
   const [backupBusy, setBackupBusy] = useState(false);
   const [mirror, setMirror] = useState<MirrorStatus | null>(null);
   const [mirrorBusy, setMirrorBusy] = useState(false);
+  const [replica, setReplica] = useState<ReplicaStatus | null>(null);
+  const [replicaBusy, setReplicaBusy] = useState(false);
 
   const [shortcuts, setShortcuts] = useState<ShortcutEntry[]>([]);
   const [shortcutFilter, setShortcutFilter] = useState("");
@@ -127,6 +129,31 @@ export default function SettingsPage() {
       setMirror(await api.mirrorStatus());
     } catch (err) {
       setError(message(err, "Failed to load backup status."));
+    }
+    try {
+      setReplica(await api.replicaStatus());
+    } catch {
+      // The replica only exists in local-primary mode; hide the panel instead.
+    }
+  }
+
+  async function pushReplica(): Promise<void> {
+    setError(null);
+    setNotice(null);
+    setReplicaBusy(true);
+    try {
+      const result = await api.pushReplica();
+      setReplica(result);
+      setNotice(
+        result.dryRun
+          ? `Dry run built a ${formatBytes(result.lastBytes)} push script (${result.lastRows} rows); nothing was sent.`
+          : `Cloud copy updated (${result.lastRows} rows in ${(result.lastDurationMs / 1000).toFixed(1)}s).`,
+      );
+    } catch (err) {
+      setError(message(err, "Could not push to the cloud copy."));
+      await loadBackups();
+    } finally {
+      setReplicaBusy(false);
     }
   }
 
@@ -543,6 +570,43 @@ export default function SettingsPage() {
           <p style={{ opacity: 0.7 }}>Loading the local copy…</p>
         )}
       </div>
+
+      {replica && (
+        <div className="card">
+          <div className="row" style={{ alignItems: "center" }}>
+            <h2 style={{ flex: 1, margin: 0 }}>
+              Cloud copy{" "}
+              {replica.pending && <span className="badge">pushing…</span>}{" "}
+              {replica.dirty && <span className="badge">unsaved changes</span>}
+            </h2>
+            <button onClick={() => void pushReplica()} disabled={replicaBusy || !replica.enabled}>
+              {replicaBusy ? "Pushing…" : replica.dryRun ? "Dry run" : "Push now"}
+            </button>
+          </div>
+          {replica.enabled ? (
+            <>
+              <p style={{ opacity: 0.7, fontSize: 12 }}>
+                {replica.dryRun
+                  ? "Dry-run mode (ERP_REPLICA_DRY_RUN=1): builds the push script, sends nothing. "
+                  : `The SQLite Cloud database is rebuilt from this machine every ${replica.intervalMinutes} min, at startup and on shutdown. Do not edit it from the cloud dashboard — the next push overwrites it. `}
+                {replica.lastPushAt
+                  ? `Last pushed ${replica.secondsAgo ?? 0}s ago (${formatDate(replica.lastPushAt, true)}), ${replica.lastRows} rows in ${(replica.lastDurationMs / 1000).toFixed(1)}s.`
+                  : "Not pushed yet."}
+              </p>
+              {replica.lastError && (
+                <p style={{ color: "var(--warning, #f39c12)", fontSize: 12, marginBottom: 0 }}>
+                  Last error: {replica.lastError}
+                </p>
+              )}
+            </>
+          ) : (
+            <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+              Disabled: set <code>SQLITE_CLOUD_URL</code> to keep a copy of this database in the
+              cloud.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>
