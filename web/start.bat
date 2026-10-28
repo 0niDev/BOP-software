@@ -10,6 +10,7 @@ REM    never stashes or discards local changes - it asks instead)
 REM  - checks that the npm dependencies are installed (installs them if not,
 REM    or if the update changed package-lock.json)
 REM  - creates web\.env from .env.example when it is missing
+REM  - pulls the latest data from the cloud maindb.db into data\erp.sqlite
 REM  - starts the API + client (npm run dev)
 REM  - opens the app in the default browser once the client answers
 REM
@@ -24,12 +25,12 @@ if errorlevel 1 goto :no_node
 where npm >nul 2>&1
 if errorlevel 1 goto :no_node
 
-REM --- 1/4: update from git ---------------------------------------------------
+REM --- 1/5: update from git ---------------------------------------------------
 REM The repository root is one level above this web directory.
 set "REPO_ROOT=%~dp0.."
 for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
 
-echo [1/4] Checking for updates...
+echo [1/5] Checking for updates...
 where git >nul 2>&1
 if errorlevel 1 goto :no_git
 if not exist "%REPO_ROOT%\.git" goto :no_git
@@ -78,9 +79,9 @@ echo.
 pause
 exit /b 1
 
-REM --- 2/4: dependencies ------------------------------------------------------
+REM --- 2/5: dependencies ------------------------------------------------------
 :deps
-echo [2/4] Checking npm packages...
+echo [2/5] Checking npm packages...
 if defined FORCE_INSTALL goto :install
 if not exist node_modules goto :install
 REM Health-check the actual dev tools: npm ls only looks at top-level packages,
@@ -101,23 +102,47 @@ if errorlevel 1 call npm install --no-audit --no-fund
 if errorlevel 1 goto :npm_failed
 
 :env
-REM --- 3/4: configuration ----------------------------------------------------
-if exist .env goto :run
-if not exist .env.example goto :run
+REM --- 3/5: configuration ----------------------------------------------------
+if exist .env goto :sync
+if not exist .env.example goto :sync
 copy /y .env.example .env >nul
 if errorlevel 1 goto :env_failed
 echo       Created web\.env from .env.example (local SQLite database).
-goto :run
+goto :sync
 
 :env_failed
 echo [X] Could not create web\.env. Copy .env.example to .env manually and retry.
 goto :fail
 
-REM --- 4/4: start ------------------------------------------------------------
+REM --- 4/5: pull the latest data from the cloud maindb.db --------------------
+REM  Remote wins at startup: the pull goes to a temp file and only replaces
+REM  data\erp.sqlite after it passes its integrity check, so an offline start
+REM  keeps the local data. Local writes made since the last replica push are
+REM  discarded here (they were already pushed if the previous run had time).
+:sync
+echo [4/5] Pulling the latest data from maindb.db...
+if not exist data mkdir data
+del /q "data\erp.startup.sqlite*" 2>nul
+node scripts\pull-cloud.mjs --out data\erp.startup.sqlite
+if errorlevel 1 goto :sync_failed
+move /y data\erp.startup.sqlite data\erp.sqlite >nul
+if errorlevel 1 goto :sync_failed
+REM  A leftover -wal/-shm from the replaced file corrupts the new one on open.
+del /q data\erp.sqlite-wal 2>nul
+del /q data\erp.sqlite-shm 2>nul
+echo       Local data refreshed from the cloud.
+goto :run
+
+:sync_failed
+echo       [!] Pull failed - starting with the existing local data.
+del /q "data\erp.startup.sqlite*" 2>nul
+goto :run
+
+REM --- 5/5: start ------------------------------------------------------------
 :run
 echo.
-echo [3/4] Starting API (http://localhost:4000) and client (http://localhost:5173)...
-echo [4/4] The browser opens automatically when the client is ready.
+echo [5/5] Starting API (http://localhost:4000) and client (http://localhost:5173)...
+echo       The browser opens automatically when the client is ready.
 echo.
 echo       Press Ctrl+C in this window to stop the app.
 echo.
