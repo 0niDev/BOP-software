@@ -87,6 +87,16 @@ export default function PurchaseInvoicesPage() {
     setShowForm(false);
   }
 
+  // Escape closes the edit dialog.
+  useEffect(() => {
+    if (editingId === null) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") resetForm();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingId]);
+
   async function startEdit(invoice: PurchaseInvoice) {
     setError(null);
     setNotice(null);
@@ -277,6 +287,168 @@ export default function PurchaseInvoicesPage() {
     },
   );
 
+  const formFields = (
+    <>
+      <h2>{editingId === null ? "New purchase invoice" : "Edit purchase invoice"}</h2>
+      <div className="row">
+        <div>
+          <label>Supplier</label>
+          <SearchableSelect
+            value={String(supplierId)}
+            // A new invoice starts at the party, not at the first item line.
+            autoFocus={editingId === null}
+            onChange={(next) => setSupplierId(Number(next))}
+            placeholder="Select supplier..."
+            options={[
+              { value: "0", label: "Select supplier..." },
+              ...suppliers.map((s) => ({
+                value: String(s.id),
+                label: `${s.name} (${s.code})`,
+              })),
+            ]}
+          />
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+        </div>
+        <div>
+          <label>Payment</label>
+          <SearchableSelect
+            value={paymentType}
+            onChange={(next) => setPaymentType(next as PaymentType)}
+            placeholder="Payment"
+            options={(["CASH", "BANK", "CHEQUE", "CREDIT"] as const).map((p) => ({
+              value: p,
+              label: p,
+            }))}
+          />
+        </div>
+        {(paymentType === "BANK" || paymentType === "CHEQUE") && (
+          <BankSelect value={bankId} onChange={setBankId} />
+        )}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <label>Note (shown in party ledger)</label>
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="e.g. Supplier bill 456, received at store"
+          style={{ width: "100%" }}
+        />
+      </div>
+
+      <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Batch no.</th>
+            <th className="num">Qty</th>
+            <th className="num">Unit cost</th>
+            <th className="num">Tax</th>
+            <th className="num">Line total</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line) => (
+            <tr key={line.key}>
+              <td>
+                <SearchableSelect
+                  value={String(line.itemId)}
+                  autoFocus={addedLine.current && line.key === lines.at(-1)?.key}
+                  onChange={(next) => updateLine(line.key, { itemId: Number(next) })}
+                  placeholder="Select item..."
+                  options={[
+                    { value: "0", label: "Select item..." },
+                    ...items.map((it) => ({ value: String(it.id), label: it.item_name })),
+                  ]}
+                />
+              </td>
+              <td>
+                <input
+                  value={line.batchNumber}
+                  placeholder="auto"
+                  // Server generates the batch number; skip this cell in the
+                  // keyboard flow so filling a line doesn't cost a Tab.
+                  tabIndex={-1}
+                  onChange={(e) => updateLine(line.key, { batchNumber: e.target.value })}
+                  style={{ width: 120 }}
+                />
+              </td>
+              <td className="num">
+                <NumberInput
+                  min="0"
+                  step="0.001"
+                  value={line.quantity}
+                  onChange={(e) => updateLine(line.key, { quantity: Number(e.target.value) })}
+                  style={{ width: 90 }}
+                />
+              </td>
+              <td className="num">
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={line.unitCost}
+                  onChange={(e) => updateLine(line.key, { unitCost: Number(e.target.value) })}
+                  style={{ width: 110 }}
+                />
+              </td>
+              <td className="num">
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={line.taxAmount}
+                  onChange={(e) => updateLine(line.key, { taxAmount: Number(e.target.value) })}
+                  style={{ width: 100 }}
+                />
+              </td>
+              <td className="num">{money(line.quantity * line.unitCost + line.taxAmount)}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                  disabled={lines.length === 1}
+                >
+                  ✕
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="total">
+            <td colSpan={4}>Subtotal / Tax / Total</td>
+            <td className="num">{money(subtotal)}</td>
+            <td className="num">{money(tax)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
+        <button type="button" onClick={() => {
+            addedLine.current = true;
+            setLines((prev) => [...prev, newLine()]);
+          }}
+        >
+          Add line
+        </button>
+        <div>
+          <strong style={{ marginRight: 16 }}>Total: {money(total)}</strong>
+          {editingId !== null && (
+            <button type="button" style={{ marginRight: 8 }} onClick={resetForm}>
+              Cancel
+            </button>
+          )}
+          <button className="primary" type="submit" disabled={busy}>
+            {busy ? "Saving..." : editingId === null ? "Create invoice" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <>
       <div className="card">
@@ -290,167 +462,24 @@ export default function PurchaseInvoicesPage() {
         {notice && <div className="badge" style={{ display: "inline-block", marginTop: 12 }}>{notice}</div>}
       </div>
 
-      {showForm && (
-        <form className="card" onSubmit={submit}>
-          <h2>{editingId === null ? "New purchase invoice" : "Edit purchase invoice"}</h2>
-          <div className="row">
-            <div>
-              <label>Supplier</label>
-              <SearchableSelect
-                value={String(supplierId)}
-                // A new invoice starts at the party, not at the first item line.
-                autoFocus={editingId === null}
-                onChange={(next) => setSupplierId(Number(next))}
-                placeholder="Select supplier..."
-                options={[
-                  { value: "0", label: "Select supplier..." },
-                  ...suppliers.map((s) => ({
-                    value: String(s.id),
-                    label: `${s.name} (${s.code})`,
-                  })),
-                ]}
-              />
-            </div>
-            <div>
-              <label>Date</label>
-              <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
-            </div>
-            <div>
-              <label>Payment</label>
-              <SearchableSelect
-                value={paymentType}
-                onChange={(next) => setPaymentType(next as PaymentType)}
-                placeholder="Payment"
-                options={(["CASH", "BANK", "CHEQUE", "CREDIT"] as const).map((p) => ({
-                  value: p,
-                  label: p,
-                }))}
-              />
-            </div>
-            {(paymentType === "BANK" || paymentType === "CHEQUE") && (
-              <BankSelect value={bankId} onChange={setBankId} />
-            )}
+      {showForm &&
+        (editingId === null ? (
+          <form className="card" onSubmit={submit}>
+            {formFields}
+          </form>
+        ) : (
+          <div
+            className="modal-overlay"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) resetForm();
+            }}
+          >
+            <form className="modal modal-wide" role="dialog" aria-modal="true" onSubmit={submit}>
+              {formFields}
+            </form>
           </div>
-
-          <div style={{ marginTop: 12 }}>
-            <label>Note (shown in party ledger)</label>
-            <input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Supplier bill 456, received at store"
-              style={{ width: "100%" }}
-            />
-          </div>
-
-          <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Batch no.</th>
-                <th className="num">Qty</th>
-                <th className="num">Unit cost</th>
-                <th className="num">Tax</th>
-                <th className="num">Line total</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((line) => (
-                <tr key={line.key}>
-                  <td>
-                    <SearchableSelect
-                      value={String(line.itemId)}
-                      autoFocus={addedLine.current && line.key === lines.at(-1)?.key}
-                      onChange={(next) => updateLine(line.key, { itemId: Number(next) })}
-                      placeholder="Select item..."
-                      options={[
-                        { value: "0", label: "Select item..." },
-                        ...items.map((it) => ({ value: String(it.id), label: it.item_name })),
-                      ]}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={line.batchNumber}
-                      placeholder="auto"
-                      // Server generates the batch number; skip this cell in the
-                      // keyboard flow so filling a line doesn't cost a Tab.
-                      tabIndex={-1}
-                      onChange={(e) => updateLine(line.key, { batchNumber: e.target.value })}
-                      style={{ width: 120 }}
-                    />
-                  </td>
-                  <td className="num">
-                    <NumberInput
-                      min="0"
-                      step="0.001"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(line.key, { quantity: Number(e.target.value) })}
-                      style={{ width: 90 }}
-                    />
-                  </td>
-                  <td className="num">
-                    <NumberInput
-                      min="0"
-                      step="0.01"
-                      value={line.unitCost}
-                      onChange={(e) => updateLine(line.key, { unitCost: Number(e.target.value) })}
-                      style={{ width: 110 }}
-                    />
-                  </td>
-                  <td className="num">
-                    <NumberInput
-                      min="0"
-                      step="0.01"
-                      value={line.taxAmount}
-                      onChange={(e) => updateLine(line.key, { taxAmount: Number(e.target.value) })}
-                      style={{ width: 100 }}
-                    />
-                  </td>
-                  <td className="num">{money(line.quantity * line.unitCost + line.taxAmount)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
-                      disabled={lines.length === 1}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="total">
-                <td colSpan={4}>Subtotal / Tax / Total</td>
-                <td className="num">{money(subtotal)}</td>
-                <td className="num">{money(tax)}</td>
-              </tr>
-            </tfoot>
-          </table>
-
-          <div className="row" style={{ marginTop: 14, justifyContent: "space-between" }}>
-            <button type="button" onClick={() => {
-                addedLine.current = true;
-                setLines((prev) => [...prev, newLine()]);
-              }}
-            >
-              Add line
-            </button>
-            <div>
-              <strong style={{ marginRight: 16 }}>Total: {money(total)}</strong>
-              {editingId !== null && (
-                <button type="button" style={{ marginRight: 8 }} onClick={resetForm}>
-                  Cancel
-                </button>
-              )}
-              <button className="primary" type="submit" disabled={busy}>
-                {busy ? "Saving..." : editingId === null ? "Create invoice" : "Save changes"}
-              </button>
-            </div>
-          </div>
-        </form>
-      )}
+        ))}
 
       <div className="card">
         <div className="row" style={{ marginBottom: 12, alignItems: "flex-end", flexWrap: "wrap" }}>

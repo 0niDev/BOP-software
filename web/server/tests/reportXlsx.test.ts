@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { strFromU8, unzipSync, type Unzipped } from "fflate";
 import { AccountingService } from "../src/services/accountingService.js";
 import { AccountService } from "../src/services/accountService.js";
+import { assignDisplayCodes } from "../src/services/displayCodes.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -163,7 +164,17 @@ describe("xlsx report exports", () => {
     }
     expect(text).toContain("Total Assets");
     expect(text).toContain("Total Expenses");
-    expect(text).toContain(child.account_code);
+    expect(text).not.toContain(`<t>${child.account_code}</t>`);
+    // ...and prints the hierarchical display code instead (child of the first root).
+    const codes = assignDisplayCodes(
+      (await accounts.list(false)).map((account) => ({
+        id: account.id,
+        parentAccountId: account.parent_account_id,
+        accountCode: account.account_code,
+        isActive: account.is_active === 1,
+      })),
+    );
+    expect(text).toContain(`<t>${codes.get(child.id)}</t>`);
     expect(text).toContain("Cash — Petty Cash");
     // The sub-account sits one level down, so its name cell is indented.
     expect(part(files, "xl/styles.xml")).toContain('indent="2"');

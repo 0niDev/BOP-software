@@ -85,6 +85,16 @@ export default function AccountsPage() {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  // Escape closes the edit dialog.
+  useEffect(() => {
+    if (!editing) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") cancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing]);
+
   function startEdit(account: Account): void {
     setEditing(account);
     setError(null);
@@ -349,6 +359,102 @@ export default function AccountsPage() {
     return rows;
   }
 
+  const formFields = (
+    <>
+      <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div>
+          <label>Code (blank = auto)</label>
+          <input
+            value={draft.accountCode}
+            onChange={(e) => set("accountCode", e.target.value)}
+            disabled={Boolean(editing)}
+            placeholder="auto"
+          />
+        </div>
+        <div>
+          <label>Name</label>
+          <input value={draft.accountName} onChange={(e) => set("accountName", e.target.value)} />
+        </div>
+        <div>
+          <label>Type</label>
+          <SearchableSelect
+            value={draft.accountType}
+            onChange={(next) => {
+              set("accountType", next as AccountType);
+              set("parentAccountId", null);
+            }}
+            disabled={Boolean(editing)}
+            placeholder="Type"
+            options={ACCOUNT_TYPES.map((type) => ({ value: type, label: type }))}
+          />
+        </div>
+        <div>
+          <label>Parent account</label>
+          <SearchableSelect
+            value={draft.parentAccountId == null ? "" : String(draft.parentAccountId)}
+            onChange={(next) => set("parentAccountId", next ? Number(next) : null)}
+            placeholder="None"
+            emptyText="No matching account"
+            options={[
+              { value: "", label: "None" },
+              ...parentOptions.map((account) => ({
+                value: String(account.id),
+                label: `${account.account_code} — ${account.account_name}`,
+              })),
+            ]}
+          />
+        </div>
+        <div>
+          <label>Opening balance</label>
+          <NumberInput
+            
+            step="0.01"
+            value={draft.openingBalance}
+            onChange={(e) => set("openingBalance", Number(e.target.value))}
+            style={{ width: 130 }}
+          />
+        </div>
+        {!editing && (
+          <div>
+            <label>Subtype</label>
+            <input
+              value={draft.accountSubtype}
+              onChange={(e) => set("accountSubtype", e.target.value)}
+              placeholder="CURRENT_ASSET"
+            />
+          </div>
+        )}
+        {editing && (
+          <div>
+            <label>Status</label>
+            <SearchableSelect
+              value={draft.isActive ? "1" : "0"}
+              onChange={(next) => set("isActive", next === "1")}
+              disabled={editing.is_system_account === 1}
+              placeholder="Status"
+              options={[
+                { value: "1", label: "Active" },
+                { value: "0", label: "Inactive" },
+              ]}
+            />
+          </div>
+        )}
+        <button className="primary" type="submit" disabled={busy}>
+          {editing ? "Save changes" : "Add account"}
+        </button>
+        {editing && (
+          <button type="button" onClick={cancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+      <p style={{ opacity: 0.7, fontSize: 12 }}>
+        A non-zero opening balance is posted immediately as an OPENING journal entry against
+        Retained Earnings (3100), so the ledger stays balanced.
+      </p>
+    </>
+  );
+
   return (
     <>
       <div className="card">
@@ -499,100 +605,25 @@ export default function AccountsPage() {
         </table>
       </form>
 
-      <form className="card" onSubmit={submit}>
-        <h2>{editing ? `Edit account — ${editing.account_code}` : "Add account"}</h2>
-        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div>
-            <label>Code (blank = auto)</label>
-            <input
-              value={draft.accountCode}
-              onChange={(e) => set("accountCode", e.target.value)}
-              disabled={Boolean(editing)}
-              placeholder="auto"
-            />
-          </div>
-          <div>
-            <label>Name</label>
-            <input value={draft.accountName} onChange={(e) => set("accountName", e.target.value)} />
-          </div>
-          <div>
-            <label>Type</label>
-            <SearchableSelect
-              value={draft.accountType}
-              onChange={(next) => {
-                set("accountType", next as AccountType);
-                set("parentAccountId", null);
-              }}
-              disabled={Boolean(editing)}
-              placeholder="Type"
-              options={ACCOUNT_TYPES.map((type) => ({ value: type, label: type }))}
-            />
-          </div>
-          <div>
-            <label>Parent account</label>
-            <SearchableSelect
-              value={draft.parentAccountId == null ? "" : String(draft.parentAccountId)}
-              onChange={(next) => set("parentAccountId", next ? Number(next) : null)}
-              placeholder="None"
-              emptyText="No matching account"
-              options={[
-                { value: "", label: "None" },
-                ...parentOptions.map((account) => ({
-                  value: String(account.id),
-                  label: `${account.account_code} — ${account.account_name}`,
-                })),
-              ]}
-            />
-          </div>
-          <div>
-            <label>Opening balance</label>
-            <NumberInput
-              
-              step="0.01"
-              value={draft.openingBalance}
-              onChange={(e) => set("openingBalance", Number(e.target.value))}
-              style={{ width: 130 }}
-            />
-          </div>
-          {!editing && (
-            <div>
-              <label>Subtype</label>
-              <input
-                value={draft.accountSubtype}
-                onChange={(e) => set("accountSubtype", e.target.value)}
-                placeholder="CURRENT_ASSET"
-              />
-            </div>
-          )}
-          {editing && (
-            <div>
-              <label>Status</label>
-              <SearchableSelect
-                value={draft.isActive ? "1" : "0"}
-                onChange={(next) => set("isActive", next === "1")}
-                disabled={editing.is_system_account === 1}
-                placeholder="Status"
-                options={[
-                  { value: "1", label: "Active" },
-                  { value: "0", label: "Inactive" },
-                ]}
-              />
-            </div>
-          )}
-          <button className="primary" type="submit" disabled={busy}>
-            {editing ? "Save changes" : "Add account"}
-          </button>
-          {editing && (
-            <button type="button" onClick={cancel}>
-              Cancel
-            </button>
-          )}
+      {editing ? (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) cancel();
+          }}
+        >
+          <form className="modal" role="dialog" aria-modal="true" onSubmit={submit}>
+            <h2>Edit account — {editing.account_code}</h2>
+            {formFields}
+          </form>
         </div>
-        <p style={{ opacity: 0.7, fontSize: 12 }}>
-          A non-zero opening balance is posted immediately as an OPENING journal entry against
-          Retained Earnings (3100), so the ledger stays balanced.
-        </p>
-      </form>
+      ) : (
+        <form className="card" onSubmit={submit}>
+          <h2>Add account</h2>
+          {formFields}
+        </form>
+      )}
     </>
   );
 }
