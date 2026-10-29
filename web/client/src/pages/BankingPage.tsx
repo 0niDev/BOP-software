@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { BankAccount, BankTransaction, Cheque } from "../types";
 
 function money(value: number): string {
@@ -49,9 +50,11 @@ export default function BankingPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [pageVisible]);
 
   async function createAccount() {
     setError(null);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { DeletedRecord } from "../types";
 
 const TABLE_LABELS: Record<string, string> = {
@@ -59,9 +60,11 @@ export default function DeletedRecordsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [pageVisible]);
 
   async function restore(row: DeletedRecord): Promise<void> {
     if (

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api, ApiError, getToken } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { DATE_FORMATS, formatDate, setDateFormat } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
 import type { BackupStatus, DatabaseInfo, MirrorStatus, ReplicaStatus, ShortcutEntry } from "../types";
@@ -219,6 +220,8 @@ export default function SettingsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void loadBackups();
     void loadShortcuts();
@@ -235,7 +238,7 @@ export default function SettingsPage() {
         setLoaded(true);
       })
       .catch((err) => setError(message(err, "Failed to load settings.")));
-  }, []);
+  }, [pageVisible]);
 
   async function saveTheme(event: FormEvent): Promise<void> {
     event.preventDefault();

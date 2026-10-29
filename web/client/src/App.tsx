@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api";
 import Layout from "./components/Layout";
 import { setDateFormat } from "./lib/format";
+import { PageVisibleProvider } from "./lib/pageVisibility";
 import AccountsPage from "./pages/AccountsPage";
 import AssetsPage from "./pages/AssetsPage";
 import BankingPage from "./pages/BankingPage";
@@ -70,8 +71,16 @@ function isReportPage(page: Page): page is ReportPage {
 export default function App() {
   const [user, setUser] = useState<User | null>(loadUser);
   const [page, setPage] = useState<Page>("dashboard");
+  // Visited pages stay mounted (hidden) so in-progress forms survive tab switches.
+  const [visited, setVisited] = useState<Page[]>(["dashboard"]);
+  const mountedPages = visited.includes(page) ? visited : [...visited, page];
   // Bumped once the saved date format arrives so mounted tables re-render.
   const [, setFormatVersion] = useState(0);
+
+  // Remember every page that has been opened so it can keep its state while hidden.
+  useEffect(() => {
+    setVisited((current) => (current.includes(page) ? current : [...current, page]));
+  }, [page]);
 
   // Apply the stored appearance theme and date format for the signed-in session.
   useEffect(() => {
@@ -127,26 +136,47 @@ export default function App() {
       onLogout={() => {
         setToken(null);
         localStorage.removeItem(USER_KEY);
+        setVisited([]);
+        setPage("dashboard");
         setUser(null);
       }}
     >
-      {page === "dashboard" && <DashboardPage onNavigate={setPage} />}
-      {page === "sales" && <SalesInvoicesPage />}
-      {page === "purchases" && <PurchaseInvoicesPage />}
-      {page === "parties" && <PartiesPage />}
-      {page === "items" && <ItemsPage />}
-      {page === "payments" && <PaymentsPage />}
-      {page === "manufacturing" && <ManufacturingPage />}
-      {page === "expenses" && <ExpensesPage />}
-      {page === "banking" && <BankingPage />}
-      {page === "returns" && <ReturnsPage />}
-      {page === "assets" && <AssetsPage />}
-      {page === "accounts" && <AccountsPage />}
-      {page === "journal" && <JournalVouchersPage />}
+      {mountedPages
+        .filter((mounted) => !isReportPage(mounted))
+        .map((mounted) => (
+          <div
+            key={mounted}
+            data-page-active={mounted === page ? "" : undefined}
+            hidden={mounted !== page}
+          >
+            <PageVisibleProvider visible={mounted === page}>
+              {renderPage(mounted, setPage)}
+            </PageVisibleProvider>
+          </div>
+        ))}
       {isReportPage(page) && <TrialBalancePage section={page} />}
-      {page === "users" && <UsersPage />}
-      {page === "settings" && <SettingsPage />}
-      {page === "deleted" && <DeletedRecordsPage />}
     </Layout>
   );
+}
+
+function renderPage(target: Page, onNavigate: (page: Page) => void) {
+  switch (target) {
+    case "dashboard": return <DashboardPage onNavigate={onNavigate} />;
+    case "sales": return <SalesInvoicesPage />;
+    case "purchases": return <PurchaseInvoicesPage />;
+    case "parties": return <PartiesPage />;
+    case "items": return <ItemsPage />;
+    case "payments": return <PaymentsPage />;
+    case "manufacturing": return <ManufacturingPage />;
+    case "expenses": return <ExpensesPage />;
+    case "banking": return <BankingPage />;
+    case "returns": return <ReturnsPage />;
+    case "assets": return <AssetsPage />;
+    case "accounts": return <AccountsPage />;
+    case "journal": return <JournalVouchersPage />;
+    case "users": return <UsersPage />;
+    case "settings": return <SettingsPage />;
+    case "deleted": return <DeletedRecordsPage />;
+    default: return null;
+  }
 }

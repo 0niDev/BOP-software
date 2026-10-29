@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, Party, PartyType } from "../types";
 
 interface Draft {
@@ -71,10 +72,12 @@ export default function PartiesPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter, search, showInactive]);
+  }, [typeFilter, search, showInactive, pageVisible]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));

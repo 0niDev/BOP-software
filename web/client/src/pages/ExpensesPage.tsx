@@ -7,6 +7,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
 import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
+import { usePageVisible } from "../lib/pageVisibility";
 import type {
   Account,
   Expense,
@@ -169,9 +170,11 @@ export default function ExpensesPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [pageVisible]);
 
   async function addCategory(event: FormEvent) {
     event.preventDefault();

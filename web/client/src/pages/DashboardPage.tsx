@@ -13,6 +13,7 @@ import LiquidityCard from "../components/dashboard/LiquidityCard";
 import LowStockTable from "../components/dashboard/LowStockTable";
 import RevenueTrendChart from "../components/dashboard/RevenueTrendChart";
 import { compact, money, percent, percentChange, share } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { DashboardData } from "../types";
 import type { Page } from "../App";
 
@@ -49,9 +50,11 @@ export default function DashboardPage({
       .finally(() => setLoading(false));
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     load();
-  }, []);
+  }, [pageVisible]);
 
   if (error && !data) {
     return (

@@ -7,6 +7,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
 import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Item, Party, PaymentType, PurchaseInvoice } from "../types";
 
 interface LineDraft {
@@ -64,11 +65,13 @@ export default function PurchaseInvoicesPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     void api.parties({ type: "SUPPLIER" }).then(setSuppliers).catch(() => undefined);
     void api.items().then(setItems).catch(() => undefined);
-  }, []);
+  }, [pageVisible]);
 
   const subtotal = useMemo(() => lines.reduce((a, l) => a + l.quantity * l.unitCost, 0), [lines]);
   const tax = useMemo(() => lines.reduce((a, l) => a + l.taxAmount, 0), [lines]);
@@ -89,13 +92,13 @@ export default function PurchaseInvoicesPage() {
 
   // Escape closes the edit dialog.
   useEffect(() => {
-    if (editingId === null) return;
+    if (!pageVisible || editingId === null) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") resetForm();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingId]);
+  }, [editingId, pageVisible]);
 
   async function startEdit(invoice: PurchaseInvoice) {
     setError(null);

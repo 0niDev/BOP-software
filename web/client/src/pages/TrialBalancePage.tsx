@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { AccountType, BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
@@ -353,6 +354,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void loadReports({ from: "", to: "", asAt: "" });
     api
@@ -364,7 +367,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       })
       .catch((err) => setError(errorMessage(err, "Failed to load parties.")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pageVisible]);
 
   async function loadLedger(): Promise<void> {
     if (partyId == null) return;

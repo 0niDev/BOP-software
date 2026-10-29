@@ -5,6 +5,7 @@ import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type {
   BankAccount,
   Party,
@@ -106,12 +107,14 @@ export default function PaymentsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     void api.parties({ type: "SUPPLIER" }).then(setSuppliers).catch(() => undefined);
     void api.parties({ type: "CUSTOMER" }).then(setCustomers).catch(() => undefined);
     void api.bankAccounts().then(setBanks).catch(() => undefined);
-  }, []);
+  }, [pageVisible]);
 
   const bankName = (id: number | null): string =>
     banks.find((bank) => bank.id === id)?.bank_name ?? "—";

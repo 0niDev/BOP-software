@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
@@ -92,10 +93,12 @@ export default function ItemsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, typeFilter, showInactive]);
+  }, [search, typeFilter, showInactive, pageVisible]);
 
   // Bring the form into view (and focus the name) when a row is edited.
   useEffect(() => {

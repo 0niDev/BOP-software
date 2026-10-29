@@ -56,7 +56,10 @@ export default function Layout({ user, page, onNavigate, onLogout, children }: P
   // module_jump_* / module_next / module_prev actions walk the sidebar.
   useEffect(() => {
     function focusSearch(): void {
-      const local = mainRef.current?.querySelector<HTMLInputElement>("[data-search]");
+      // Only the shown page, since every visited page stays mounted (hidden).
+      const local = mainRef.current?.querySelector<HTMLInputElement>(
+        "[data-page-active] [data-search]",
+      );
       const target = local ?? finderRef.current;
       target?.focus();
       target?.select();

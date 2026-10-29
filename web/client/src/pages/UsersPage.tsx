@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import SearchableSelect from "../components/SearchableSelect";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Role, UserRow } from "../types";
 
 interface Draft {
@@ -59,9 +60,11 @@ export default function UsersPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [pageVisible]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));

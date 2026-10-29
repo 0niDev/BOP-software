@@ -4,6 +4,7 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import { moveRowFocus } from "../lib/gridKeys";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, AccountType } from "../types";
 
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -76,10 +77,12 @@ export default function AccountsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showInactive]);
+  }, [showInactive, pageVisible]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -87,13 +90,13 @@ export default function AccountsPage() {
 
   // Escape closes the edit dialog.
   useEffect(() => {
-    if (!editing) return;
+    if (!pageVisible || !editing) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") cancel();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing]);
+  }, [editing, pageVisible]);
 
   function startEdit(account: Account): void {
     setEditing(account);

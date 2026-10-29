@@ -2,11 +2,14 @@
 // database, so changes made here never touch the real local database
 // (data/erp.sqlite) or the production cloud database (main). The local file is
 // the source of truth for this run; the push replica sends it to cloud testdb.
+// Backups land in backups/testdb and the desktop testdb folder, never the main
+// backup set.
 //
 // The URL lives in web/.env as SQLITE_CLOUD_TESTDB_URL (git-ignored); an
 // exported process env var wins over the file.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const webRoot = path.resolve(import.meta.dirname, "..");
@@ -24,6 +27,11 @@ function fromDotEnv(key) {
 const url = process.env.SQLITE_CLOUD_TESTDB_URL || fromDotEnv("SQLITE_CLOUD_TESTDB_URL");
 if (!url) {
   console.error("SQLITE_CLOUD_TESTDB_URL is not set (add it to web/.env).");
+  process.exit(1);
+}
+// Never let the testdb run push to the production database.
+if (/maindb/i.test(url)) {
+  console.error("SQLITE_CLOUD_TESTDB_URL points at maindb; refusing to run against main.");
   process.exit(1);
 }
 
@@ -49,6 +57,10 @@ const child = spawn(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "d
     // Replica target: cloud testdb. Never main — that only happens in production.
     SQLITE_CLOUD_URL: url,
     ERP_LIVE_MIRROR: "0",
+    // Keep test snapshots (and the live/replica folders derived from the backup
+    // dir) out of the main backup set and desktop folder.
+    ERP_BACKUP_DIR: path.join(webRoot, "backups", "testdb"),
+    ERP_DESKTOP_DIR: path.join(os.homedir(), "Desktop", "desktop-testdb"),
   },
 });
 child.on("exit", (code) => process.exit(code ?? 0));

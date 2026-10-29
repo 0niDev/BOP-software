@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 
 function money(value: number): string {
   return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -31,9 +32,11 @@ export default function ReturnsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [pageVisible]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

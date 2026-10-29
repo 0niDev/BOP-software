@@ -4,6 +4,7 @@ import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Bom, BomComponent, Item, PackingOrder, ProductionOrder } from "../types";
 import {
   amountToStockUnit,
@@ -109,10 +110,12 @@ export default function ManufacturingPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pageVisible]);
 
   const itemName = (id: number) => items.find((i) => i.id === id)?.item_name ?? String(id);
   const itemUnit = (id: number) => items.find((i) => i.id === id)?.unit ?? "UNIT";

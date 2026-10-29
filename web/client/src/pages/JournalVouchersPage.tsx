@@ -5,6 +5,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import { saveBlob } from "../lib/download";
+import { usePageVisible } from "../lib/pageVisibility";
 import type {
   Account,
   JournalEntryDetail,
@@ -148,10 +149,12 @@ export default function JournalVouchersPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pageVisible]);
 
   // Only ledger accounts at level 3 or deeper can take journal lines (the
   // server rejects groups too). Headers stay listable as the Group column.

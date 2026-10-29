@@ -5,6 +5,7 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
 import { formatDate } from "../lib/format";
+import { usePageVisible } from "../lib/pageVisibility";
 import type { Asset, Party } from "../types";
 
 const PAYMENT_TYPES = ["CREDIT", "CASH", "BANK", "CHEQUE"] as const;
@@ -68,10 +69,12 @@ export default function AssetsPage() {
     }
   }
 
+  const pageVisible = usePageVisible();
+
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pageVisible]);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
