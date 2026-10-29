@@ -154,7 +154,11 @@ export default function App() {
             </PageVisibleProvider>
           </div>
         ))}
-      {isReportPage(page) && <TrialBalancePage section={page} />}
+      {isReportPage(page) && (
+        <div data-page-active="">
+          <TrialBalancePage section={page} />
+        </div>
+      )}
     </Layout>
   );
 }

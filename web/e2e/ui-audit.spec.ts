@@ -119,7 +119,8 @@ async function auditLayout(
       return false;
     };
 
-    const main = document.querySelector("main");
+    // Every visited page stays mounted (hidden), so audit only the shown one.
+    const main = document.querySelector("main [data-page-active]");
     if (!main) return { problems: ["the page has no <main>"], amounts: 0, rows: 0 };
 
     const doc = document.documentElement;
@@ -187,8 +188,9 @@ for (const entry of PAGES) {
     await signIn(page);
     await openPage(page, entry.nav);
 
-    await expect(page.locator("main").locator("h1, h2").first()).toBeVisible();
-    expect(await page.locator("main .error").count(), "page shows an error banner").toBe(0);
+    const active = page.locator("main [data-page-active]");
+    await expect(active.locator("h1, h2").first()).toBeVisible();
+    expect(await active.locator(".error").count(), "page shows an error banner").toBe(0);
 
     const { problems, amounts, rows } = await auditLayout(page);
     await page.screenshot({ path: path.join(ARTIFACTS, screenshotName(entry.nav)), fullPage: true });
@@ -511,7 +513,7 @@ test("typography, number alignment and hit targets hold on every page", async ({
     await openPage(page, entry.nav);
     const findings = await page.evaluate(() => {
       const problems: string[] = [];
-      const main = document.querySelector("main");
+      const main = document.querySelector("main [data-page-active]");
       if (!main) return ["the page has no <main>"];
       const isVisible = (el: Element): boolean => {
         const style = getComputedStyle(el);
@@ -556,15 +558,16 @@ test("filtering a page down to nothing shows an empty state, not an error", asyn
   await signIn(page);
   for (const nav of FILTERED_PAGES) {
     await openPage(page, nav);
-    const filter = page.locator("main [data-search]").first();
+    const active = page.locator("main [data-page-active]");
+    const filter = active.locator("[data-search]").first();
     await expect(filter, `${nav} should have a filter box`).toBeVisible();
     await filter.fill("zzzzz-no-match");
     await page.waitForTimeout(250);
-    const text = await page.locator("main").innerText();
+    const text = await active.innerText();
     expect(text, `${nav} shows no empty-state message while filtered`).toMatch(
       /no .*(match|yet)|nothing/i,
     );
-    expect(await page.locator("main .error").count(), `${nav} shows an error while filtered`).toBe(0);
+    expect(await active.locator(".error").count(), `${nav} shows an error while filtered`).toBe(0);
     await filter.fill("");
   }
   expect(watched.errors).toEqual([]);
