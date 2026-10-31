@@ -1,23 +1,28 @@
 # Agent rules — databases
 
-**Never touch the production database.** `SQLITE_CLOUD_URL` in `web/.env` points at
-`maindb.db` (production). It must never be opened, read, written, pulled from, or
-pushed to by an agent.
+## Production (`maindb`)
 
-- Do not run `npm run dev`, `npm run dev:server`, `npm run seed`, or
-  `npm run seed:rich` in `web/`. `npm run dev` uses the local engine and
-  replicates `web/data/erp.sqlite` to main at startup, every
-  `ERP_REPLICA_MINUTES`, and on shutdown.
-- Do not run `scripts/pull-cloud.mjs`, `scripts/dev-testdb.mjs` variants that
-  change the URL, or any command containing `maindb` / `SQLITE_CLOUD_URL`.
-- Do not create, edit, or export `SQLITE_CLOUD_URL`, and do not edit `web/.env`.
+`SQLITE_CLOUD_URL` in `web/.env` points at `maindb.db` (production).
 
-Allowed database work:
+**Allowed when the user explicitly asks** to read, write, pull, push, or run
+cleanup/scripts against main / MDB / production / `SQLITE_CLOUD_URL`.
 
-- `npm run dev:testdb` in `web/` — local `web/data/testdb.sqlite`, pushes only
-  to cloud `testdb`, separate backups in `backups/testdb` and
-  `~/Desktop/desktop-testdb`.
-- `npm test`, `npm run typecheck`, `npm run build`, `npm run test:e2e` — these
-  use local or test files only.
+Before any write to main:
 
-If a task seems to need main, stop and ask the user.
+1. Confirm the target is main (not testdb).
+2. Take a backup first (script backup, cloud snapshot, or copy).
+3. Prefer dry-run, then apply.
+4. Do not edit `web/.env` unless the user asks.
+
+## Default (no explicit main request)
+
+Use local or test DBs only:
+
+- Local: `web/data/erp.sqlite` (COA cleanup scripts default here).
+- Test: `npm run dev:testdb` — `web/data/testdb.sqlite`, cloud `testdb`,
+  backups in `backups/testdb` and `~/Desktop/desktop-testdb`.
+- `npm test`, `npm run typecheck`, `npm run build`, `npm run test:e2e` — local
+  or test files only.
+
+Do **not** point scripts at main, run `pull-cloud` / replica-to-main flows, or
+open `SQLITE_CLOUD_URL` unless the user asked for production/main/MDB.

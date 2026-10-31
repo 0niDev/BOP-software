@@ -42,3 +42,25 @@ dist/
 htmlcov/
 .mypy_cache/
 .pytest_cache/
+
+# --- Added: env files (but keep examples) ---
+.env
+.env.*
+!.env.example
+!*.env.example
+
+# --- Added: stray files from broken shell redirections in start.sh ---
+# These are output files, not source. Delete them, then these rules
+# prevent them from ever being committed again.
+/Building...
+/Deploy
+/Pulling
+/Restarting
+/Sending
+/Waiting
+/bop-erp-web@0.1.0
+/concurrently
+/npm
+/tsc
+/tsx
+/vite
