@@ -13,7 +13,6 @@ fi
 REPO_DIR="~/accounting-app/BOP-software/web"
 SERVICE="bop-erp"
 
-cd "$REPO_DIR"
 
 echo "==> Pulling latest code..."
 git pull
