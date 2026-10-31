@@ -171,6 +171,7 @@ for the party type. Deactivation is refused while transactions are open.
 | `PUT` | `/api/items/:id` | same fields, all required except `notes`/`taxRateId`/`categoryId`/`isActive` | item |
 | `POST` | `/api/items/:id/deactivate` | — | `{ ok: true }` |
 | `POST` | `/api/items/:id/opening-stock` | `{ quantity, unitCost?, batchNumber?, expiryDate?, partyId?, warehouseId? }` | `201` batch |
+| `GET` | `/api/items/export.xlsx` | `?type=&search=&activeOnly=&stock=in\|zero` | Inventory workbook: one row per item with `ID`, `Code`, `Name`, `Type`, `Unit`, prices, min/max and `Stock` |
 
 Rules: maximum stock ≥ minimum stock; the tax rate must exist and be
 `SALES_TAX`; opening stock creates a batch, an `OPENING` stock movement, and —

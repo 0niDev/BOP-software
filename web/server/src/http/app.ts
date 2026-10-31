@@ -1525,6 +1525,24 @@ export function createApp(
     sendXlsx(res, file.fileName, file.buffer);
   });
 
+  // Inventory workbook: the item list (id, code, name, stock, prices) as Excel.
+  // Takes the same filters as GET /api/items, plus `stock=in|zero` so the
+  // exported rows match what the Items page is showing.
+  app.get("/api/items/export.xlsx", requireAuth, async (req, res) => {
+    const type = req.query.type;
+    const stock = req.query.stock;
+    const file = await reportXlsx.inventory({
+      activeOnly: activeOnlyFlag(req),
+      search: searchFlag(req),
+      itemType:
+        type === "RAW_MATERIAL" || type === "PACKING_MATERIAL" || type === "FINISHED_GOOD"
+          ? type
+          : undefined,
+      stock: stock === "in" || stock === "zero" ? stock : "all",
+    });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
   // --- administration: users, roles, settings ---------------------------
   app.get("/api/users", requireAuth, async (_req, res) => {
     res.json(await users.list());

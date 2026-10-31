@@ -16,8 +16,11 @@ import writeXlsxFile, { type Cell, type CellObject, type SheetData } from "write
 import { AccountingService, type DateRangeOptions } from "./accountingService.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
+import type { ItemType } from "../domain/enums.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
+import type { ItemListRow } from "../repositories/itemRepository.js";
+import { ItemService } from "./itemService.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
@@ -43,11 +46,24 @@ export interface XlsxFile {
   buffer: Buffer;
 }
 
+/** Stock filter of the inventory workbook, mirroring the Items page. */
+export type InventoryStockFilter = "all" | "in" | "zero";
+
+export interface InventoryXlsxRequest {
+  /** Defaults to true, like `GET /api/items`. */
+  activeOnly?: boolean;
+  search?: string;
+  itemType?: ItemType;
+  stock?: InventoryStockFilter;
+}
+
 /** The Excel mime type, for the HTTP Content-Type header. */
 export const SHEET_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const COMPANY_NAME = "BOP Nutraceuticals ERP";
 const MONEY_FORMAT = "#,##0.00";
+/** Quantities (stock, min/max) — real numbers so Excel can total a column. */
+const QUANTITY_FORMAT = "#,##0.###";
 
 /** A style bag, passed straight through to a cell. */
 type Style = Omit<CellObject, "value" | "type">;
@@ -79,6 +95,11 @@ function money(value: number, style: Style = {}): CellObject {
   return { value, type: Number, format: MONEY_FORMAT, ...style };
 }
 
+/** A plain number cell (ids, quantities) with thousands separators. */
+function quantity(value: number, style: Style = {}): CellObject {
+  return { value, type: Number, format: QUANTITY_FORMAT, ...style };
+}
+
 /** Money cell that stays blank when the amount is zero, like the report table. */
 function moneyOrBlank(value: number, style: Style = {}): CellObject | null {
   return value === 0 ? null : money(value, style);
@@ -94,6 +115,17 @@ function periodLabel(from?: string | null, to?: string | null): string {
 function periodSlug(from?: string | null, to?: string | null): string {
   if (!from && !to) return "all-posted";
   return `${from ?? "start"}_to_${to ?? "today"}`;
+}
+
+/** What the inventory sheet covers, printed under its title. */
+function inventoryScope(request: InventoryXlsxRequest, count: number): string {
+  const parts: string[] = [];
+  parts.push(request.activeOnly === false ? "active and inactive items" : "active items");
+  if (request.itemType) parts.push(request.itemType);
+  if (request.search) parts.push(`matching "${request.search}"`);
+  if (request.stock === "in") parts.push("in stock only");
+  if (request.stock === "zero") parts.push("zero stock only");
+  return `${parts.join(" · ")} — ${count} item(s)`;
 }
 
 function generatedAt(): string {
@@ -184,15 +216,31 @@ const TRIAL_BALANCE_COLUMNS: Columns = [
 
 const TWO_COLUMN: Columns = [{ width: 32 }, { width: 18 }];
 
+const INVENTORY_COLUMNS: Columns = [
+  { width: 8 },
+  { width: 16 },
+  { width: 40 },
+  { width: 18 },
+  { width: 8 },
+  { width: 15 },
+  { width: 14 },
+  { width: 10 },
+  { width: 10 },
+  { width: 12 },
+  { width: 10 },
+];
+
 export class ReportXlsx {
   private readonly reports: ReportService;
   private readonly parties: PartyRepository;
   private readonly accounting: AccountingService;
+  private readonly items: ItemService;
 
   constructor(db: SqlDatabase, companyId = 1) {
     this.reports = new ReportService(db, companyId);
     this.parties = new PartyRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.items = new ItemService(db, companyId);
   }
 
   /** Render one report (or all of them) to an .xlsx buffer. */
@@ -273,6 +321,77 @@ export class ReportXlsx {
       fileName: `all-reports_${periodSlug(options.from, options.to)}.xlsx`,
       buffer: await this.write(sheets),
     };
+  }
+
+  /**
+   * The inventory report: one row per item with its identity, pricing, min/max
+   * and on-hand stock — the same rows and the same `current_stock` figure the
+   * Items page renders, so the workbook always matches the screen.
+   */
+  async inventory(request: InventoryXlsxRequest = {}): Promise<XlsxFile> {
+    const rows = await this.inventoryRows(request);
+    const data: SheetData = [
+      ...heading("Inventory Stock Report", inventoryScope(request, rows.length)),
+      [
+        text("ID", HEADER),
+        text("Code", HEADER),
+        text("Name", HEADER),
+        text("Type", HEADER),
+        text("Unit", HEADER),
+        text("Purchase Price", HEADER),
+        text("Selling Price", HEADER),
+        text("Min Stock", HEADER),
+        text("Max Stock", HEADER),
+        text("Stock", HEADER),
+        text("Status", HEADER),
+      ],
+      ...(rows.length === 0
+        ? [[text("No items match the current filters.", MUTED)] as Cell[]]
+        : rows.map(
+            (row): Cell[] => [
+              quantity(row.id),
+              text(row.item_code),
+              text(row.item_name),
+              text(row.item_type),
+              text(row.unit),
+              money(row.purchase_price),
+              money(row.selling_price),
+              quantity(row.minimum_stock),
+              quantity(row.maximum_stock),
+              quantity(row.current_stock),
+              text(row.is_active === 1 ? "Active" : "Inactive"),
+            ],
+          )),
+      [],
+      [text("Total items", TOTAL), quantity(rows.length, TOTAL)],
+    ];
+
+    return {
+      fileName: `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "Inventory",
+          columns: INVENTORY_COLUMNS,
+          stickyRowsCount: 6,
+          orientation: "landscape",
+        },
+      ]),
+    };
+  }
+
+  /** Item rows for the workbook, with the page's stock filter applied. */
+  private async inventoryRows(request: InventoryXlsxRequest): Promise<ItemListRow[]> {
+    const rows = await this.items.list({
+      activeOnly: request.activeOnly !== false,
+      search: request.search,
+      itemType: request.itemType,
+    });
+    const stock = request.stock ?? "all";
+    if (stock === "all") return rows;
+    return stock === "zero"
+      ? rows.filter((row) => Number(row.current_stock) === 0)
+      : rows.filter((row) => Number(row.current_stock) !== 0);
   }
 
   /**

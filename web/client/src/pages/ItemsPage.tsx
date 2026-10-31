@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
+import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Item, Party, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
@@ -58,6 +59,7 @@ export default function ItemsPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Item | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // The add/edit form sits below the (unpaginated) table, so editing a row
   // near the top would otherwise leave the form off-screen and look inert.
@@ -212,6 +214,29 @@ export default function ItemsPage() {
     }
   }
 
+  /**
+   * Download the inventory report as .xlsx. The workbook is built from the same
+   * filters the table is showing, so the file and the screen agree.
+   */
+  async function exportInventory(): Promise<void> {
+    setExporting(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const blob = await api.inventoryXlsx({
+        search: search || undefined,
+        type: (typeFilter || undefined) as Item["item_type"] | undefined,
+        activeOnly: !showInactive,
+        stock: stockFilter || undefined,
+      });
+      saveBlob(blob, `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      setError(message(err, "Excel export failed."));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function deactivate(item: Item): Promise<void> {
     setError(null);
     setNotice(null);
@@ -299,6 +324,14 @@ export default function ItemsPage() {
               ]}
             />
           </div>
+          <button
+            type="button"
+            onClick={() => void exportInventory()}
+            disabled={exporting}
+            title="Download the items shown above as an Excel workbook (id, code, name, stock…)"
+          >
+            {exporting ? "Preparing…" : "Export Excel"}
+          </button>
         </div>
         {error && <div className="error">{error}</div>}
         {notice && (

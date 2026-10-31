@@ -10,7 +10,6 @@ if [[ "$#" -gt 0 ]]; then
     fi
 fi
 
-REPO_DIR="~/accounting-app/BOP-software/web"
 SERVICE="bop-erp"
 
 

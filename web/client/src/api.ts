@@ -229,6 +229,23 @@ export const api = {
     return request<Item[]>(`/api/items${suffix ? `?${suffix}` : ""}`);
   },
   taxRates: () => request<TaxRate[]>("/api/tax-rates"),
+  /** Inventory report as an Excel workbook; same filters as `items()`. */
+  inventoryXlsx: (
+    opts: {
+      search?: string;
+      type?: Item["item_type"];
+      activeOnly?: boolean;
+      stock?: "in" | "zero";
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.search) params.set("search", opts.search);
+    if (opts.type) params.set("type", opts.type);
+    if (opts.activeOnly === false) params.set("activeOnly", "false");
+    if (opts.stock) params.set("stock", opts.stock);
+    const suffix = params.toString();
+    return requestBlob(`/api/items/export.xlsx${suffix ? `?${suffix}` : ""}`);
+  },
   createItem: (body: {
     itemName: string;
     unit?: string;

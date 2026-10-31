@@ -11,6 +11,7 @@ import { strFromU8, unzipSync, type Unzipped } from "fflate";
 import { AccountingService } from "../src/services/accountingService.js";
 import { AccountService } from "../src/services/accountService.js";
 import { assignDisplayCodes } from "../src/services/displayCodes.js";
+import { ItemService } from "../src/services/itemService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -201,6 +202,45 @@ describe("xlsx report exports", () => {
     if (!last) throw new Error("the customer ledger should contain the credit sale");
     expect(worksheet(files)).toContain(`<v>${last.balance}</v>`);
     expect(strings(files)).toContain("Balance");
+  });
+
+  it("exports the inventory report with every item's id, name and stock", async () => {
+    const items = await new ItemService(ctx.db).list();
+    const file = await xlsx.inventory({});
+    const files = open(file.buffer);
+
+    expect(sheetNames(files)).toEqual(["Inventory"]);
+    expect(file.fileName).toMatch(/^inventory_\d{4}-\d{2}-\d{2}\.xlsx$/);
+
+    const text = strings(files);
+    for (const header of ["ID", "Code", "Name", "Stock", "Status"]) {
+      expect(text).toContain(header);
+    }
+
+    const item = items.find((row) => row.id === ctx.ids.itemId);
+    if (!item) throw new Error("the demo item should be in the inventory list");
+    expect(text).toContain(item.item_name);
+    // Id and stock are real numbers, so a workbook column can be summed/filtered.
+    const sheet = worksheet(files);
+    expect(sheet).toContain(`<v>${item.id}</v>`);
+    expect(sheet).toContain(`<v>${item.current_stock}</v>`);
+    expect(item.current_stock).toBe(995); // 1000 opening less the 5 units sold above
+    // Every listed item is printed, and the footer counts them.
+    expect(text).toContain(`Total items`);
+    expect(sheet).toContain(`<v>${items.length}</v>`);
+  });
+
+  it("applies the Items page stock filter to the inventory workbook", async () => {
+    const zero = await xlsx.inventory({ stock: "zero" });
+    const inStock = await xlsx.inventory({ stock: "in" });
+    const zeroText = strings(open(zero.buffer));
+    const inStockText = strings(open(inStock.buffer));
+
+    expect(zeroText).toContain("zero stock only");
+    expect(inStockText).toContain("in stock only");
+    // The demo item has stock, so the two exports are disjoint.
+    const item = await new ItemService(ctx.db).get(ctx.ids.itemId);
+    expect(inStockText).toContain(item.item_name);
   });
 
   it("rejects a party ledger request without a party", async () => {
