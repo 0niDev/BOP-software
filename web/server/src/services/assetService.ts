@@ -18,11 +18,11 @@ import { deleteJournalBySource } from "./journalEffects.js";
 
 /** The asset account codes offered by the dialog, in its order. */
 export const ASSET_CODES: ReadonlyArray<{ code: string; label: string }> = [
-  { code: "1501", label: "Furniture & Fixtures" },
+  { code: "1501", label: "Furniture & Fixture" },
   { code: "1502", label: "Office Equipment" },
   { code: "1503", label: "Plant & Machinery" },
-  { code: "1504", label: "Motor Vehicles" },
-  { code: "1505", label: "Buildings" },
+  { code: "1504", label: "Vehicles" },
+  { code: "1505", label: "Building" },
   { code: "1506", label: "Other Fixed Assets" },
 ];
 

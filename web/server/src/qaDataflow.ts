@@ -94,8 +94,8 @@ const REQUIRED_ACCOUNTS: ReadonlyArray<[string, string]> = [
   ["2000", "Accounts Payable"],
   ["4000", "Sales Revenue"],
   ["5000", "Cost of Goods Sold"],
-  ["5001", "Cost of Packing Materials"],
-  ["5002", "Cost of Raw Materials"],
+  ["5001", "Packing Material"],
+  ["5002", "Raw Material Consumed"],
   ["5200", "Manufacturing Wastage Expense"],
   ["2100", "Sales Tax Payable"],
 ];

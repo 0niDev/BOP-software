@@ -1,4 +1,5 @@
 import type { Row, SqlDatabase } from "../db/types.js";
+import { formatDayMonthYear } from "../domain/dateValidation.js";
 import { Decimal, toStorage } from "../domain/money.js";
 import {
   AccountingService,
@@ -252,7 +253,7 @@ export class ReportService {
   async exportAllCsv(opts: DateRangeOptions = {}): Promise<string> {
     const from = opts.from ?? null;
     const to = opts.to ?? null;
-    const periodLabel = `${from ?? "start"} to ${to ?? "today"}`;
+    const periodLabel = `${formatDayMonthYear(from) || "start"} to ${formatDayMonthYear(to) || "today"}`;
     const lines: string[] = [
       `BOP Nutraceuticals ERP — all reports,${csvEscape(periodLabel)}`,
       "",
@@ -309,7 +310,7 @@ export class ReportService {
 
     // --- Balance sheet (position as at the period end) ------------------
     const bs = await this.balanceSheet(to);
-    lines.push(`Balance Sheet (as at ${csvEscape(to ?? "today")})`);
+    lines.push(`Balance Sheet (as at ${csvEscape(formatDayMonthYear(to) || "today")})`);
     lines.push("Assets,Liabilities,Equity (incl. net profit),Net Profit,Balanced");
     lines.push(
       [
@@ -329,7 +330,7 @@ export class ReportService {
     for (const entry of cash) {
       lines.push(
         [
-          entry.date,
+          formatDayMonthYear(entry.date),
           csvEscape(entry.voucherNumber),
           csvEscape(entry.voucherType),
           csvEscape(entry.description ?? ""),

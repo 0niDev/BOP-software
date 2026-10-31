@@ -41,7 +41,7 @@ describe("AssetService", () => {
 
     expect(created.account_code).toBe("1503");
     // The account was reused as-is (it exists in the seeded chart).
-    expect(created.account_name).toBe("Auto Vehicles");
+    expect(created.account_name).toBe("Plant & Machinery");
     expect(created.purchase_amount).toBe(250_000);
     expect(created.current_balance).toBe(250_000);
     expect(created.supplier_id).toBe(ctx.ids.supplierId);

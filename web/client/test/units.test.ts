@@ -1,15 +1,11 @@
 import { test, expect } from "vitest";
-import { formatDate, setDateFormat } from "../src/lib/format";
+import { formatDate } from "../src/lib/format";
 import { defaultPackUnit, packsToBulk } from "../src/lib/units";
 
-test("dates display day/month/year by default and follow the saved format", () => {
-  setDateFormat("dd/MM/yyyy");
+test("dates always display day/month/year", () => {
   expect(formatDate("2026-10-25")).toBe("25/10/2026");
   expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");
   expect(formatDate("")).toBe("");
-  setDateFormat("yyyy-MM-dd");
-  expect(formatDate("2026-10-25")).toBe("2026-10-25");
-  setDateFormat("dd/MM/yyyy");
 });
 
 test("trial balance rows group by COA type with closing subtotals", async () => {

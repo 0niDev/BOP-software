@@ -1,0 +1,9 @@
+{
+  "id": "remote:github:anthropics/skills/frontend-design",
+  "installed_name": "frontend-design",
+  "tool": "claude",
+  "type": "remote",
+  "handle": "anthropics/skills/frontend-design",
+  "source": "github",
+  "content_hash": "sha256:7e9c2af00fd5b3144f49ce6fb1b16037b392ab9c2f049423b0b6114d99381ba2"
+}

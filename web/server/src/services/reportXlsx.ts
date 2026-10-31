@@ -15,6 +15,7 @@
 import writeXlsxFile, { type Cell, type CellObject, type SheetData } from "write-excel-file/node";
 import { AccountingService, type DateRangeOptions } from "./accountingService.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
+import { formatDayMonthYear } from "../domain/dateValidation.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
@@ -86,7 +87,7 @@ function moneyOrBlank(value: number, style: Style = {}): CellObject | null {
 /** Human label for the reporting period, e.g. "2026-01-01 to 2026-03-31". */
 function periodLabel(from?: string | null, to?: string | null): string {
   if (!from && !to) return "all posted entries";
-  return `${from ?? "start"} to ${to ?? "today"}`;
+  return `${formatDayMonthYear(from) || "start"} to ${formatDayMonthYear(to) || "today"}`;
 }
 
 /** File-name-safe period, e.g. "2026-01-01_to_2026-03-31". */
@@ -96,7 +97,8 @@ function periodSlug(from?: string | null, to?: string | null): string {
 }
 
 function generatedAt(): string {
-  return `Generated ${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  const now = new Date().toISOString();
+  return `Generated ${formatDayMonthYear(now)} ${now.slice(11, 16)} UTC`;
 }
 
 /** Title block shared by every sheet: company, report name, period, timestamp. */
@@ -138,7 +140,7 @@ function ledgerHeaderRow(): Cell[] {
 
 function ledgerRows(entries: readonly LedgerEntry[]): SheetData {
   return entries.map((entry) => [
-    text(entry.date),
+    text(formatDayMonthYear(entry.date)),
     text(entry.voucherNumber),
     text(entry.voucherType),
     entry.description ?? null,
@@ -293,7 +295,7 @@ export class ReportXlsx {
     const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit), 0);
 
     const data: SheetData = [
-      ...heading(`Journal Voucher — ${voucherNumber}`, `Dated ${String(entry.entry_date)}`),
+      ...heading(`Journal Voucher — ${voucherNumber}`, `Dated ${formatDayMonthYear(String(entry.entry_date))}`),
       [text("Narration", HEADER), text(String(entry.narration ?? "—"))],
       [text("Reference", HEADER), text(String(entry.reference_no ?? "—"))],
       [],
@@ -435,7 +437,7 @@ export class ReportXlsx {
     const difference = report.assets - (report.liabilities + report.equity);
     return {
       data: [
-        ...heading("Balance Sheet", asAt ? `as at ${asAt}` : "as at today (all posted entries)"),
+        ...heading("Balance Sheet", asAt ? `as at ${formatDayMonthYear(asAt)}` : "as at today (all posted entries)"),
         [text("Metric", HEADER), text("Amount", HEADER)],
         [text("Assets"), money(report.assets)],
         [text("Liabilities"), money(report.liabilities)],

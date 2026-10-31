@@ -104,6 +104,18 @@ export function formatIsoDate(date: Date): string {
 }
 
 /**
+ * Formats an ISO date or datetime as day/month/year: "2026-10-25" → "25/10/2026".
+ * Values that are not ISO dates are returned unchanged.
+ */
+export function formatDayMonthYear(value: string | null | undefined): string {
+  if (!value) return "";
+  const iso = value.slice(0, 10);
+  const [year, month, day] = iso.split("-");
+  if (iso.length !== 10 || !year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
+}
+
+/**
  * Returns today's date as YYYY-MM-DD (UTC).
  */
 export function todayIso(): string {

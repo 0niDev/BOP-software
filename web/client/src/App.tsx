@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, getToken, setToken } from "./api";
 import Layout from "./components/Layout";
-import { setDateFormat } from "./lib/format";
 import { PageVisibleProvider } from "./lib/pageVisibility";
 import AccountsPage from "./pages/AccountsPage";
 import AssetsPage from "./pages/AssetsPage";
@@ -74,15 +73,13 @@ export default function App() {
   // Visited pages stay mounted (hidden) so in-progress forms survive tab switches.
   const [visited, setVisited] = useState<Page[]>(["dashboard"]);
   const mountedPages = visited.includes(page) ? visited : [...visited, page];
-  // Bumped once the saved date format arrives so mounted tables re-render.
-  const [, setFormatVersion] = useState(0);
 
   // Remember every page that has been opened so it can keep its state while hidden.
   useEffect(() => {
     setVisited((current) => (current.includes(page) ? current : [...current, page]));
   }, [page]);
 
-  // Apply the stored appearance theme and date format for the signed-in session.
+  // Apply the stored appearance theme for the signed-in session.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -91,8 +88,6 @@ export default function App() {
       .then((all) => {
         if (cancelled) return;
         applyTheme(all.APPEARANCE?.theme_name);
-        setDateFormat(all.GENERAL?.date_format);
-        setFormatVersion((version) => version + 1);
       })
       .catch(() => applyTheme("dark"));
     return () => {

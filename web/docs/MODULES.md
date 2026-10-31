@@ -445,7 +445,7 @@ role and active state, and resets passwords.
 | Card | Backing | Notes |
 | --- | --- | --- |
 | Appearance | `APPEARANCE.theme_name` | `dark`, `light`, `system` (follows OS live), `custom` (falls back to the dark palette). Applied by setting `data-theme` on `<html>`; the login screen is always dark |
-| Company profile | `GENERAL.company_name`, `currency`, `date_format` | Name required; stored exactly like the desktop app |
+| Company profile | `GENERAL.company_name`, `currency` | Name required; stored exactly like the desktop app. Dates display day/month/year everywhere |
 | Shortcuts | `SHORTCUTS.shortcut:<action>` | Full catalogue (26 actions) with edit/capture/reset/reset-all. Module jumps, next/previous module and search focus are live in the browser; browser-native actions (copy, undo, Ctrl+S/W) remain listed so both apps share one catalogue |
 | Database | read-only | Engine, masked connection, configuration source, SQLite version, company/currency, and a warning that a connection change needs a restart |
 | Backups | local engine only | Status (count, latest, size), “Back up now”, download; hosted engine shows “provider-managed” and no create button |

@@ -365,7 +365,7 @@ async function main(): Promise<void> {
       headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify({
         group: "GENERAL",
-        settings: { company_name: "Smoke Labs", currency: "USD", date_format: "dd/MM/yyyy" },
+        settings: { company_name: "Smoke Labs", currency: "USD" },
       }),
     });
     const general = (await json(putGeneral)) as Record<string, unknown>;

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api, ApiError, getToken } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
-import { DATE_FORMATS, formatDate, setDateFormat } from "../lib/format";
+import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
 import { shortcutsChanged } from "../shortcuts";
 import { applyTheme, THEMES } from "../theme";
@@ -24,7 +24,6 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<string>("dark");
   const [companyName, setCompanyName] = useState("");
   const [currency, setCurrency] = useState("PKR");
-  const [dateFormat, setDateFormatValue] = useState("dd/MM/yyyy");
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -234,7 +233,6 @@ export default function SettingsPage() {
         const general = all.GENERAL ?? {};
         if (typeof general.company_name === "string") setCompanyName(general.company_name);
         if (typeof general.currency === "string") setCurrency(general.currency);
-        if (typeof general.date_format === "string") setDateFormatValue(general.date_format);
         setLoaded(true);
       })
       .catch((err) => setError(message(err, "Failed to load settings.")));
@@ -269,9 +267,7 @@ export default function SettingsPage() {
       await api.saveSettings("GENERAL", {
         company_name: companyName.trim(),
         currency,
-        date_format: dateFormat,
       });
-      setDateFormat(dateFormat);
       setNotice("Company profile saved.");
     } catch (err) {
       setError(message(err, "Failed to save the company profile."));
@@ -363,15 +359,6 @@ export default function SettingsPage() {
               onChange={setCurrency}
               placeholder="Currency"
               options={CURRENCIES.map((code) => ({ value: code, label: code }))}
-            />
-          </div>
-          <div>
-            <label>Date format</label>
-            <SearchableSelect
-              value={dateFormat}
-              onChange={setDateFormatValue}
-              placeholder="Date format"
-              options={DATE_FORMATS.map((format) => ({ value: format, label: format }))}
             />
           </div>
           <button className="primary" type="submit" disabled={busy || !loaded}>

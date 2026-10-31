@@ -11,6 +11,19 @@
   "instructions": [
     "node_modules/@morphllm/opencode-morph-plugin/instructions/morph-tools.md"
   ],
+  "permissions": [
+    { "action": "shell", "resource": "*maindb*", "effect": "deny" },
+    { "action": "shell", "resource": "*SQLITE_CLOUD_URL*", "effect": "deny" },
+    { "action": "shell", "resource": "*pull-cloud*", "effect": "deny" },
+    { "action": "shell", "resource": "npm run dev *", "effect": "deny" },
+    { "action": "shell", "resource": "npm run dev:server *", "effect": "deny" },
+    { "action": "shell", "resource": "npm -w @bop-erp/server run dev *", "effect": "deny" },
+    { "action": "shell", "resource": "npm --workspace @bop-erp/server run dev *", "effect": "deny" },
+    { "action": "shell", "resource": "npm run seed *", "effect": "deny" },
+    { "action": "shell", "resource": "npm run seed:rich *", "effect": "deny" },
+    { "action": "shell", "resource": "node dist/index.js *", "effect": "deny" },
+    { "action": "shell", "resource": "npm run dev:testdb *", "effect": "allow" }
+  ],
   "provider": {
     "openrouter": {
       "models": {

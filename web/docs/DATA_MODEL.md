@@ -210,7 +210,6 @@ Values are text; the web app currently reads and writes:
 | `APPEARANCE` | `theme_name` | `dark`, `light`, `system`, `custom` | Settings → Appearance |
 | `GENERAL` | `company_name` | text | Settings → Company profile |
 | `GENERAL` | `currency` | `PKR`, `USD`, `EUR`, `GBP`, `SAR`, `AED` | Settings → Company profile |
-| `GENERAL` | `date_format` | `yyyy-MM-dd`, `dd/MM/yyyy`, `MM/dd/yyyy`, `dd.MM.yyyy` | Settings → Company profile |
 | `SHORTCUTS` | `shortcut:<action_id>` | JSON `{"action_id": …, "current_sequence": …}` | Settings → Shortcuts |
 
 The `SHORTCUTS` encoding is the desktop app's, so a key rebound in either app
