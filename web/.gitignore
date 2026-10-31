@@ -9,6 +9,8 @@ backups/
 data/cloud-audit/
 data/audit-local.sqlite
 
+.env
+
 # browser UI audit (npm run test:e2e) — screenshots are review artifacts
 e2e/.artifacts/
 playwright-report/
