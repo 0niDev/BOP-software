@@ -41,6 +41,12 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  constructor(message: string) {
+    super(message, "TOO_MANY_REQUESTS", 429);
+  }
+}
+
 export class ConfigurationError extends AppError {
   constructor(message: string) {
     super(message, "CONFIGURATION_ERROR", 500);

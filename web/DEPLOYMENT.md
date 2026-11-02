@@ -94,6 +94,81 @@ snapshot/live-copy concern collapses to ordinary files on this machine — see
 Writes made in local mode after the last successful push are lost in this
 direction — that is why the push is step 1.
 
+## Linux / mini PC (systemd)
+
+The same single process, run as a systemd service. Everything below assumes the
+checkout is at `~/accounting-app/BOP-software` and the service runs as `oni`;
+adjust the unit if not.
+
+1. **One-time setup**
+
+   ```bash
+   npm ci && npm run build           # in web/
+   cp .env.example .env && nano .env
+   sudo cp deploy/linux/bop-erp.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now bop-erp
+   ```
+
+   Production `.env` for this layout:
+
+   ```ini
+   ERP_DB_ENGINE=local
+   ERP_LOCAL_DB=./data/erp.sqlite
+   SQLITE_CLOUD_URL=sqlitecloud://…     # replica target, never read
+   ERP_REPLICA_MINUTES=5
+   ERP_HOST=127.0.0.1                   # only the tunnel reaches it
+   PORT=4000
+   ERP_SERVE_CLIENT=1
+   ERP_AUTO_BACKUP_HOURS=1
+   ERP_BACKUP_KEEP=168
+   ERP_LIVE_MIRROR=0
+   ERP_DESKTOP_DIR=./backups/app-copy   # otherwise it writes to ~/Desktop
+   ```
+
+2. **Every deploy** — pull, install if the lockfile moved, test, build, stop,
+   refresh the database from SQLite Cloud, start, health check:
+
+   ```bash
+   ./deploy/linux/update.sh                # full
+   ./deploy/linux/update.sh --skip-tests   # hotfix
+   ```
+
+   It needs passwordless `systemctl stop|start|restart bop-erp`:
+
+   ```bash
+   echo "oni ALL=(root) NOPASSWD: /usr/bin/systemctl start bop-erp, /usr/bin/systemctl stop bop-erp, /usr/bin/systemctl restart bop-erp, /usr/bin/systemctl status bop-erp" \
+     | sudo tee /etc/sudoers.d/bop-erp && sudo chmod 440 /etc/sudoers.d/bop-erp
+   ```
+
+   A failed pull, install or build never stops the service; only a successful
+   build is deployed.
+
+3. **At boot** the unit runs `update.sh --boot` before starting: it pulls code,
+   rebuilds if anything changed, and replaces the local database with the cloud
+   copy. If any of that fails it logs and serves the last good build.
+
+4. **Public access** with no purchased domain, no open port and no cert to
+   manage — [Tailscale Funnel](https://tailscale.com/kb/1223/funnel):
+
+   ```bash
+   sudo tailscale funnel --bg 4000     # https://<machine>.<tailnet>.ts.net
+   ```
+
+   Enable Funnel + HTTPS certificates once in the Tailscale admin console, and
+   disable key expiry for that machine or the link dies in 180 days. Funnel is
+   genuinely public: there is no rate limiting or WAF in front, which is why the
+   app throttles `/api/auth/login` itself (5 failures per username → 15 min).
+
+5. **Single-writer warning.** The local file is the only writer; the cloud copy
+   is a replica and is replaced wholesale by every push. Never edit the cloud
+   database in the SQLite Cloud dashboard, and never run two instances.
+
+6. **Backups.** `data/erp.pre-sync-<timestamp>.sqlite` (3 newest) keeps the
+   local file from before each cloud pull; `backups/` holds the hourly named
+   snapshots. The off-box copy is the SQLite Cloud replica — no alerting exists
+   if pushes start failing, so check Settings → Cloud copy occasionally.
+
 ## Prerequisites
 
 | Requirement | Notes |

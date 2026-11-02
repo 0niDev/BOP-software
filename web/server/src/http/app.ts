@@ -6,7 +6,13 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { z } from "zod";
 import type { SqlDatabase } from "../db/types.js";
 import { env } from "../env.js";
-import { AppError, ConfigurationError, UnauthorizedError, ValidationError } from "../domain/errors.js";
+import {
+  AppError,
+  ConfigurationError,
+  TooManyRequestsError,
+  UnauthorizedError,
+  ValidationError,
+} from "../domain/errors.js";
 import { isoDateSchema, optionalIsoDateSchema, validateIsoDate } from "../domain/dateValidation.js";
 import { AccountingService } from "../services/accountingService.js";
 import { AccountService } from "../services/accountService.js";
@@ -116,19 +122,62 @@ export function createApp(
     options.desktopDir ?? env.desktopDir,
   );
 
-  app.use(cors());
+  // Same-origin requests (the built client) send no cross-origin header and are
+  // unaffected; these only decide whether a *foreign* origin may read responses.
+  app.use(
+    cors({
+      origin: [
+        ...env.corsOrigins,
+        /^http:\/\/localhost:\d+$/,
+        /^http:\/\/127\.0\.0\.1:\d+$/,
+      ],
+    }),
+  );
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
+  /**
+   * Sign-in throttle. This app is publicly reachable and single-process by
+   * design, so an in-memory counter is the right shape: no dependency, no
+   * shared store. Keyed by the submitted username (not the IP — behind a
+   * tunnel every request looks like 127.0.0.1) and counted whether or not the
+   * account exists, so responses do not reveal which usernames are real.
+   */
+  const LOGIN_MAX_FAILURES = 5;
+  const LOGIN_LOCK_MS = 15 * 60 * 1000;
+  const loginFailures = new Map<string, { failures: number; lockedUntil: number }>();
+
   app.post("/api/auth/login", async (req, res) => {
     const body = parseBody(
       z.object({ username: z.string().min(1), password: z.string().min(1) }),
       req.body,
     );
-    const user = await auth.login(body.username, body.password);
+    const key = body.username.trim().toLowerCase();
+    const entry = loginFailures.get(key);
+    const now = Date.now();
+    if (entry && entry.lockedUntil > now) {
+      const minutes = Math.ceil((entry.lockedUntil - now) / 60000);
+      throw new TooManyRequestsError(
+        `Too many failed sign-in attempts. Try again in ${minutes} minute(s).`,
+      );
+    }
+    // A lock that has expired starts the count over; otherwise keep counting.
+    const priorFailures = entry && entry.lockedUntil !== 0 ? 0 : (entry?.failures ?? 0);
+    let user;
+    try {
+      user = await auth.login(body.username, body.password);
+    } catch (err) {
+      const failures = priorFailures + 1;
+      loginFailures.set(key, {
+        failures,
+        lockedUntil: failures >= LOGIN_MAX_FAILURES ? now + LOGIN_LOCK_MS : 0,
+      });
+      throw err;
+    }
+    loginFailures.delete(key);
     const token = randomUUID();
     sessions.set(token, {
       userId: user.id,

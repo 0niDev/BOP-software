@@ -1,0 +1,32 @@
+# BOP ERP — one Node process serving the API and the built React client.
+#
+# Install:
+#   sudo cp deploy/linux/bop-erp.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bop-erp
+#
+# Adjust User/WorkingDirectory if the checkout lives elsewhere.
+[Unit]
+Description=BOP ERP (API + built client on one port)
+Wants=network-online.target tailscaled.service
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=oni
+WorkingDirectory=/home/oni/accounting-app/BOP-software/web
+
+# Pull, rebuild and refresh the local database before serving. The leading '-'
+# matters: if the network is down or the build fails, systemd carries on and
+# serves the last good build instead of leaving the site down.
+ExecStartPre=-/home/oni/accounting-app/BOP-software/web/deploy/linux/update.sh --boot
+ExecStart=/usr/bin/node server/dist/index.js
+
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+# The boot update may build and pull the database; x86 laptop, cold cache.
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

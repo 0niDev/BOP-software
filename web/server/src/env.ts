@@ -118,6 +118,12 @@ export const env = {
   host: process.env.ERP_HOST ?? "0.0.0.0",
   port: Number(process.env.PORT ?? 4000),
   companyId: Number(process.env.ERP_COMPANY_ID ?? 1),
+  /** Extra origins allowed to read API responses (`ERP_CORS_ORIGINS`, comma
+   *  separated). Localhost is always allowed for development. */
+  corsOrigins: (process.env.ERP_CORS_ORIGINS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
   warehouseId: Number(process.env.ERP_WAREHOUSE_ID ?? 1),
   currency: process.env.ERP_CURRENCY ?? "PKR",
   backupDir,
