@@ -1,5 +1,7 @@
 /**
- * Timestamp-named database backups: `<YYYYMMDD_HHMMSS>.db` snapshots with pruning.
+ * Timestamp-named database backups: `<dbname>_<YYYYMMDD_HHMMSS>.db` snapshots
+ * with pruning. Snapshots written before the name prefix existed
+ * (`<YYYYMMDD_HHMMSS>.db`) are still listed, served and pruned as-is.
  *
  * Both engines are supported now. Local snapshots use `VACUUM INTO`; hosted
  * SQLite Cloud snapshots are rebuilt into a portable local file (see
@@ -15,8 +17,8 @@ import type { SqlDatabase } from "../db/types.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { verifySnapshot, writeSnapshot } from "./snapshot.js";
 
-/** Snapshot file name: a pure UTC timestamp, `<YYYYMMDD_HHMMSS>.db`. */
-const FILE_RE = /^\d{8}_\d{6}\.db$/;
+/** Snapshot file name: `<dbname>_<YYYYMMDD_HHMMSS>.db`, prefix optional (older files). */
+const FILE_RE = /^(?:[A-Za-z0-9._-]+_)?\d{8}_\d{6}\.db$/;
 
 export interface BackupFile {
   file: string;
@@ -51,6 +53,8 @@ export class BackupService {
     private readonly keep = 0,
     /** Optional second copy of every snapshot (the operator's Desktop folder). */
     private readonly desktopDir: string | null = null,
+    /** Database name prefixed to new snapshot files; blank keeps the bare stamp. */
+    private readonly dbName = "",
   ) {}
 
   private stamp(): string {
@@ -87,7 +91,7 @@ export class BackupService {
   /** Create a snapshot now. */
   async run(): Promise<BackupResult> {
     fs.mkdirSync(this.backupDir, { recursive: true });
-    const file = `${this.stamp()}.db`;
+    const file = `${this.dbName ? `${this.dbName}_` : ""}${this.stamp()}.db`;
     const target = path.join(this.backupDir, file);
     try {
       const counts = await writeSnapshot(this.db, this.engine, target);

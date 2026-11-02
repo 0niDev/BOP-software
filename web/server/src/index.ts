@@ -155,6 +155,7 @@ async function main(): Promise<void> {
       env.backupDir,
       env.backupKeep,
       env.desktopDir,
+      env.dbName,
     );
     const intervalMs = env.autoBackupHours * 60 * 60 * 1000;
     backupTimer = setInterval(() => {

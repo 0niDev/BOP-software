@@ -14,7 +14,7 @@ let backups: BackupService;
 beforeEach(async () => {
   ctx = await freshDb();
   dir = mkdtempSync(path.join(tmpdir(), "bop-backup-"));
-  backups = new BackupService(ctx.db, "local", dir);
+  backups = new BackupService(ctx.db, "local", dir, 0, null, "testdb");
 });
 afterEach(async () => {
   await closeDb(ctx.db);
@@ -33,7 +33,7 @@ describe("BackupService", () => {
 
   it("writes a snapshot that is a real, readable SQLite file", async () => {
     const result = await backups.run();
-    expect(result.file).toMatch(/^\d{8}_\d{6}\.db$/);
+    expect(result.file).toMatch(/^testdb_\d{8}_\d{6}\.db$/);
     expect(existsSync(result.path)).toBe(true);
     expect(result.bytes).toBeGreaterThan(0);
     // A SQLite database starts with the 16-byte header magic.
@@ -69,6 +69,16 @@ describe("BackupService", () => {
     expect(() => backups.resolve("../../etc/passwd")).toThrow(ValidationError);
     expect(() => backups.resolve("not-a-backup.txt")).toThrow(ValidationError);
     expect(() => backups.resolve("90010100_000000.db")).toThrow(NotFoundError);
+  });
+
+  it("still lists bare-timestamp snapshots written before the db-name prefix", async () => {
+    const { copyFileSync } = await import("node:fs");
+    const legacy = path.join(dir, "20260101_010101.db");
+    copyFileSync((await backups.run()).path, legacy);
+
+    const status = await backups.status();
+    expect(status.backups.map((entry) => entry.file)).toContain("20260101_010101.db");
+    expect(backups.resolve("20260101_010101.db")).toBe(legacy);
   });
 
   it("refuses to restore while the server is using the database", async () => {

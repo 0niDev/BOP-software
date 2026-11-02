@@ -88,8 +88,10 @@ Two layers, on purpose:
 
 ### Named snapshots
 
-- `<YYYYMMDD_HHMMSS>.db` (bare UTC timestamp) in `ERP_BACKUP_DIR` (default `web/backups`).
-  `ERP_BACKUP_KEEP` (default 7) prunes the oldest after a successful new one.
+- `<dbname>_<YYYYMMDD_HHMMSS>.db` (database name, then UTC timestamp) in
+  `ERP_BACKUP_DIR` (default `web/backups`); older bare-timestamp snapshots are
+  still listed. `ERP_BACKUP_KEEP` (default 7) prunes the oldest after a
+  successful new one.
 - Create one now: `POST /api/backup` or Settings → Backups. Schedule with
   `ERP_AUTO_BACKUP_HOURS=24` if you want a separate history.
 - Restore (local engine): stop the service, copy the snapshot over `ERP_LOCAL_DB`,

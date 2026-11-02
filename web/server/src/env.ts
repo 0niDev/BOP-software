@@ -78,6 +78,26 @@ function optionalDir(raw: string | undefined): string | null {
   return /^[\\/]{2}/.test(value) ? value : path.resolve(webRoot, value);
 }
 
+const localDbPath = path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite");
+
+/**
+ * Database name used in snapshot file names (`maindb_20261103_120412.db`):
+ * the hosted database from `SQLITE_CLOUD_URL`, otherwise the local file name.
+ */
+function readDbName(): string {
+  const raw = (() => {
+    if (readEngine() === "sqlitecloud") {
+      try {
+        return path.basename(new URL(process.env.SQLITE_CLOUD_URL ?? "").pathname);
+      } catch {
+        return "";
+      }
+    }
+    return path.basename(localDbPath);
+  })();
+  return raw.replace(/\.(db|sqlite)$/i, "").replace(/[^A-Za-z0-9._-]/g, "-") || "db";
+}
+
 /** Named snapshots to keep; 0 disables pruning. */
 function readBackupKeep(): number {
   const raw = Number(process.env.ERP_BACKUP_KEEP ?? 7);
@@ -111,7 +131,9 @@ function readReplicaMinutes(): number {
 
 export const env = {
   dbEngine: readEngine(),
-  localDbPath: path.resolve(webRoot, process.env.ERP_LOCAL_DB ?? "data/dev.sqlite"),
+  localDbPath,
+  /** Snapshot file name prefix: `maindb_20261103_120412.db`. */
+  dbName: readDbName(),
   sqliteCloudUrl: process.env.SQLITE_CLOUD_URL ?? "",
   /** Bind address. 0.0.0.0 exposes the API on the LAN; 127.0.0.1 is for a
    *  reverse proxy in front of it. */

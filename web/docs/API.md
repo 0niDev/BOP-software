@@ -133,8 +133,8 @@ entry against Retained Earnings (`3100`). System accounts (`is_system_account =
 Both engines produce a portable SQLite file: `VACUUM INTO` locally, and a
 schema+row rebuild for `sqlitecloud` (the gateway cannot write to this machine).
 Restore is refused while this process holds the database open. `:file` must be a
-bare timestamp-named snapshot (`<YYYYMMDD_HHMMSS>.db`); anything else is `400` or
-`404`.
+bare timestamp-named snapshot (`<dbname>_<YYYYMMDD_HHMMSS>.db`, or the older
+`<YYYYMMDD_HHMMSS>.db`); anything else is `400` or `404`.
 
 ## Fixed assets
 

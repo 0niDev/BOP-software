@@ -120,6 +120,7 @@ export function createApp(
     options.backupDir ?? env.backupDir,
     0,
     options.desktopDir ?? env.desktopDir,
+    env.dbName,
   );
 
   // Same-origin requests (the built client) send no cross-origin header and are

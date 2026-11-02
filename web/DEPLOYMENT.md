@@ -296,7 +296,7 @@ app**, so a reverse proxy in front is worth having for those alone.
   already a local file) — set `ERP_LIVE_MIRROR=0` there. `ERP_PC_MIRROR_DIR`
   can point it at a shared folder or mapped drive as well.
 * **Named snapshots:** set `ERP_AUTO_BACKUP_HOURS=24` to also write
-  `<YYYYMMDD_HHMMSS>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
+  `<dbname>_<YYYYMMDD_HHMMSS>.db` into `ERP_BACKUP_DIR`; `ERP_BACKUP_KEEP` (default
   7) prunes older ones. Both engines now produce a portable SQLite file. Every
   snapshot is also copied to `<home>\Desktop\desktop` on the machine running
   the server; `ERP_DESKTOP_DIR` moves or disables that second copy.
