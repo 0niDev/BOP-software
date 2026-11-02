@@ -31,9 +31,7 @@ export interface DemoIds {
   extraSupplier?: number;
   rawItem?: number;
   packingItem?: number;
-  expenseCategoryId?: number;
   bankAccountId?: number;
-  expenseItemId?: number;
 }
 
 /**
