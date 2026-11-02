@@ -1,18 +1,20 @@
 /**
  * Expense service. Port of services/expense_service.py.
  *
- * createExpense posts:  Dr expense account (category account, or 6000)
+ * createExpense posts:  Dr the chosen expense account (level-4 leaf, or a
+ *                         level-3 header with no children — else 6000)
  *                       Cr cash (1000) / bank (1010)
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes } from "../domain/enums.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
-import { dec, round2, toStorage } from "../domain/money.js";
+import { round2, toStorage } from "../domain/money.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
+import type { AccountRow } from "../repositories/accountRepository.js";
 import {
   ExpenseRepository,
-  type ExpenseCategoryRow,
   type ExpenseListRow,
+  type ExpenseRow,
 } from "../repositories/expenseRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
@@ -23,7 +25,8 @@ import { deleteJournalBySource } from "./journalEffects.js";
 export type ExpensePaymentMethod = "CASH" | "BANK" | "CHEQUE";
 
 export interface CreateExpenseInput {
-  categoryId: number;
+  /** Target expense account. `null`/`0` posts to General & Administrative (6000). */
+  accountId?: number | null;
   expenseDate: string;
   amount: number | string;
   paymentMethod: ExpensePaymentMethod;
@@ -36,17 +39,13 @@ export interface CreateExpenseInput {
   description?: string | null;
   companyId?: number;
   createdBy?: number | null;
-}
-
-export interface UpdateExpenseCategoryInput {
-  name?: string;
-  /** Ledger account for the category; `null` restores the 6000 fallback. */
-  accountId?: number | null;
-  isActive?: boolean;
+  /** Legacy audit payloads (pre-account restores) may bring categoryId instead. */
+  categoryId?: number | null;
 }
 
 export interface UpdateExpenseInput {
-  categoryId: number;
+  /** Target expense account. `null`/`0` posts to General & Administrative (6000). */
+  accountId?: number | null;
   expenseDate: string;
   amount: number | string;
   paymentMethod: ExpensePaymentMethod;
@@ -91,121 +90,36 @@ export class ExpenseService {
     this.audit = new AuditService(db);
   }
 
-  async listCategories(): Promise<ExpenseCategoryRow[]> {
-    return this.expenses.listCategories(this.companyId);
-  }
-
-  async createCategory(
-    name: string,
-    accountId?: number | null,
-  ): Promise<{ id: number; name: string }> {
-    const clean = name.trim();
-    if (!clean) throw new ValidationError("Category name is required.");
-    if (await this.expenses.categoryNameExists(clean, this.companyId)) {
-      throw new ConflictError(`Category '${clean}' already exists.`);
-    }
-    if (accountId) {
-      const account = await this.accounts.findById(accountId);
-      if (!account) throw new NotFoundError(`Account ${accountId} not found.`);
-      if (account.account_type !== "EXPENSE") {
-        throw new ValidationError("Account must be of type EXPENSE.");
-      }
-    }
-    const id = await this.expenses.insertCategory({
-      company_id: this.companyId,
-      name: clean,
-      account_id: accountId ?? null,
-      is_active: 1,
-    });
-    return { id, name: clean };
+  async listExpenses(): Promise<ExpenseListRow[]> {
+    return this.expenses.listExpenses(this.companyId);
   }
 
   /**
-   * Edit a category. Relinking it to another ledger account also re-posts the
-   * journal entry of every expense already recorded in it, so the trial balance
-   * reflects the new account immediately instead of only for future expenses.
+   * Resolve the expense target. A null/0 accountId (or a legacy categoryId from
+   * a pre-account audit payload) falls back to General & Administrative (6000),
+   * mirroring the old category account fallback.
    */
-  async updateCategory(
-    id: number,
-    input: UpdateExpenseCategoryInput,
-  ): Promise<{ category: ExpenseCategoryRow; reposted: number }> {
-    const category = await this.expenses.findCategoryById(id);
-    if (!category) throw new NotFoundError(`Expense category ${id} not found.`);
-
-    const name = (input.name ?? category.name).trim();
-    if (!name) throw new ValidationError("Category name is required.");
-    if (name !== category.name && (await this.expenses.categoryNameExists(name, this.companyId))) {
-      throw new ConflictError(`Category '${name}' already exists.`);
+  private async resolveExpenseAccount(
+    accountId: number | null | undefined,
+    legacyCategoryId: number | null | undefined,
+  ): Promise<AccountRow> {
+    let target = accountId ?? 0;
+    if (!target && legacyCategoryId) {
+      const legacy = await this.expenses.findCategoryById(Number(legacyCategoryId));
+      target = legacy?.account_id ?? 0;
     }
-
-    const accountId = input.accountId === undefined ? category.account_id : input.accountId;
-    if (accountId != null) {
-      const account = await this.accounts.findById(accountId);
-      if (!account) throw new NotFoundError(`Account ${accountId} not found.`);
-      if (account.account_type !== "EXPENSE") {
-        throw new ValidationError("Account must be of type EXPENSE.");
-      }
+    let resolved = target;
+    if (!resolved) {
+      const fallback = new SystemAccountResolver(this.db, this.companyId);
+      resolved = await fallback.idFor("6000");
     }
-    const isActive =
-      input.isActive === undefined ? Boolean(category.is_active) : input.isActive;
-    const accountChanged = accountId !== category.account_id;
-
-    return this.db.transaction(async () => {
-      await this.expenses.updateCategory(id, {
-        name,
-        account_id: accountId,
-        is_active: isActive ? 1 : 0,
-      });
-      const reposted = accountChanged ? await this.repostCategoryExpenses(id, accountId, name) : 0;
-      return { category: (await this.expenses.findCategoryById(id))!, reposted };
-    });
-  }
-
-  private async repostCategoryExpenses(
-    categoryId: number,
-    accountId: number | null,
-    categoryName: string,
-  ): Promise<number> {
-    const resolver = new SystemAccountResolver(this.db, this.companyId);
-    const expenseAccountId = accountId ?? (await resolver.idFor("6000"));
-    const rows = await this.expenses.listExpensesForCategory(this.companyId, categoryId);
-
-    for (const expense of rows) {
-      const paymentAccountId =
-        expense.status === "UNPAID"
-          ? await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE)
-          : expense.payment_method === "CASH"
-            ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
-            : await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS);
-
-      await deleteJournalBySource(this.db, "expenses", expense.id);
-      await this.accounting.postJournalEntry({
-        voucherType: "JOURNAL",
-        entryDate: expense.expense_date,
-        lines: [
-          {
-            accountId: expenseAccountId,
-            debit: expense.amount,
-            description: expense.description ?? `Expense: ${categoryName}`,
-          },
-          {
-            accountId: paymentAccountId,
-            credit: expense.amount,
-            description: `Payment for: ${categoryName}`,
-          },
-        ],
-        sourceTable: "expenses",
-        sourceId: expense.id,
-        narration: `Expense voucher ${expense.voucher_number}: ${categoryName}`,
-        companyId: this.companyId,
-        createdBy: expense.created_by,
-      });
+    const account = await this.accounts.findById(resolved);
+    if (!account) throw new NotFoundError(`Account ${resolved} not found.`);
+    if (account.account_type !== "EXPENSE") {
+      throw new ValidationError("Account must be of type EXPENSE.");
     }
-    return rows.length;
-  }
-
-  async listExpenses(): Promise<ExpenseListRow[]> {
-    return this.expenses.listExpenses(this.companyId);
+    if (!account.is_active) throw new ValidationError("Account is not active.");
+    return account;
   }
 
   async createExpense(input: CreateExpenseInput): Promise<ExpenseResult> {
@@ -219,14 +133,9 @@ export class ExpenseService {
     }
     if (!input.expenseDate) throw new ValidationError("Expense date is required.");
 
-    const category = await this.expenses.findCategoryById(input.categoryId);
-    if (!category) throw new NotFoundError(`Expense category ${input.categoryId} not found.`);
-    if (!category.is_active) throw new ValidationError("Category is not active.");
+    const account = await this.resolveExpenseAccount(input.accountId, input.categoryId);
 
     const resolver = new SystemAccountResolver(this.db, companyId);
-    // Fall back to General & Administrative Expenses (6000) when the category
-    // has no account linked, mirroring the Python service.
-    const expenseAccountId = category.account_id ?? (await resolver.idFor("6000"));
     // Pay-later bills sit on Accounts Payable until payExpense() settles them.
     const payLater = input.payLater === true;
     const paymentAccountId = payLater
@@ -248,7 +157,8 @@ export class ExpenseService {
       const id = await this.expenses.insertExpense({
         company_id: companyId,
         voucher_number: voucherNumber,
-        category_id: category.id,
+        category_id: null,
+        account_id: account.id,
         expense_date: input.expenseDate,
         amount: toStorage(amount),
         payment_method: input.paymentMethod,
@@ -265,19 +175,19 @@ export class ExpenseService {
         entryDate: input.expenseDate,
         lines: [
           {
-            accountId: expenseAccountId,
+            accountId: account.id,
             debit: amount,
-            description: input.description ?? `Expense: ${category.name}`,
+            description: input.description ?? `Expense: ${account.account_name}`,
           },
           {
             accountId: paymentAccountId,
             credit: amount,
-            description: `Payment for: ${category.name}`,
+            description: `Payment for: ${account.account_name}`,
           },
         ],
         sourceTable: "expenses",
         sourceId: id,
-        narration: `Expense voucher ${voucherNumber}: ${category.name}`,
+        narration: `Expense voucher ${voucherNumber}: ${account.account_name}`,
         companyId,
         createdBy: input.createdBy ?? null,
       });
@@ -369,13 +279,10 @@ export class ExpenseService {
       throw new ValidationError("Invalid payment method.");
     }
     if (!input.expenseDate) throw new ValidationError("Expense date is required.");
-    const category = await this.expenses.findCategoryById(input.categoryId);
-    if (!category) throw new NotFoundError(`Expense category ${input.categoryId} not found.`);
-    if (!category.is_active) throw new ValidationError("Category is not active.");
+    const account = await this.resolveExpenseAccount(input.accountId, existing.category_id);
 
     const companyId = input.companyId ?? this.companyId;
     const resolver = new SystemAccountResolver(this.db, companyId);
-    const expenseAccountId = category.account_id ?? (await resolver.idFor("6000"));
     const payLater = existing.status === "UNPAID";
     const paymentAccountId = payLater
       ? await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE)
@@ -386,7 +293,9 @@ export class ExpenseService {
     return this.db.transaction(async () => {
       await deleteJournalBySource(this.db, "expenses", id);
       await this.expenses.updateExpense(id, {
-        category_id: category.id,
+        // Editing pins the row to a real account; the legacy category link only
+        // survives while untouched.
+        account_id: account.id,
         expense_date: input.expenseDate,
         amount: toStorage(amount),
         payment_method: input.paymentMethod,
@@ -402,19 +311,19 @@ export class ExpenseService {
         entryDate: input.expenseDate,
         lines: [
           {
-            accountId: expenseAccountId,
+            accountId: account.id,
             debit: amount,
-            description: input.description ?? `Expense: ${category.name}`,
+            description: input.description ?? `Expense: ${account.account_name}`,
           },
           {
             accountId: paymentAccountId,
             credit: amount,
-            description: `Payment for: ${category.name}`,
+            description: `Payment for: ${account.account_name}`,
           },
         ],
         sourceTable: "expenses",
         sourceId: id,
-        narration: `Expense voucher ${existing.voucher_number}: ${category.name}`,
+        narration: `Expense voucher ${existing.voucher_number}: ${account.account_name}`,
         companyId,
         createdBy: input.userId ?? null,
       });
@@ -455,6 +364,7 @@ export class ExpenseService {
         details: {
           voucherNumber: existing.voucher_number,
           input: {
+            accountId: existing.account_id,
             categoryId: existing.category_id,
             expenseDate: existing.expense_date,
             amount: existing.amount,

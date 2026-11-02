@@ -144,6 +144,7 @@ export async function reconcileNumberingSequences(
 export async function bootstrapDatabase(db: SqlDatabase): Promise<void> {
   await db.exec(SCHEMA_SQL);
   await ensureColumns(db);
+  await ensureExpenseAccountSchema(db);
   await seedDefaults(db);
   await reconcileNumberingSequences(db);
 }
@@ -158,6 +159,7 @@ const ADDED_COLUMNS: ReadonlyArray<readonly [table: string, column: string, defi
   ["expenses", "status", "TEXT NOT NULL DEFAULT 'PAID'"],
   ["expenses", "due_date", "TEXT"],
   ["expenses", "settlement_journal_entry_id", "INTEGER"],
+  ["expenses", "account_id", "INTEGER REFERENCES accounts(id)"],
   ["expense_items", "frequency", "TEXT"],
   ["expense_items", "next_run_date", "TEXT"],
   // BOM stage: 'FORMULATION' (raw materials) or 'PACKING' (packaging + finished good).
@@ -169,6 +171,61 @@ async function ensureColumns(db: SqlDatabase): Promise<void> {
     const columns = await db.all<{ name: string }>(`PRAGMA table_info(${table})`);
     if (columns.some((existing) => existing.name === column)) continue;
     await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+/**
+ * Older `expenses` tables declare `category_id NOT NULL` from the removed
+ * category system. SQLite cannot drop a NOT NULL in place, so such databases
+ * are rebuilt once (copy all rows into a new nullable table, then swap).
+ */
+async function ensureExpenseAccountSchema(db: SqlDatabase): Promise<void> {
+  const columns = await db.all<{ name: string; notnull: number }>("PRAGMA table_info(expenses)");
+  if (!columns.length) return; // fresh database: SCHEMA_SQL already made the new shape
+  const categoryId = columns.find((column) => column.name === "category_id");
+  if (!categoryId || !categoryId.notnull) return;
+
+  await db.exec("PRAGMA foreign_keys = OFF");
+  try {
+    await db.exec(`
+      CREATE TABLE expenses_rebuild (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id          INTEGER NOT NULL REFERENCES companies(id),
+        voucher_number      TEXT NOT NULL,
+        -- New expenses post straight to a COA account (level-4 leaf, or a
+        -- level-3 header with no children). Legacy rows keep their category_id.
+        category_id         INTEGER REFERENCES expense_categories(id),
+        account_id          INTEGER REFERENCES accounts(id),
+        expense_date        TEXT NOT NULL,
+        amount              REAL NOT NULL,
+        payment_method      TEXT NOT NULL CHECK (payment_method IN ('CASH','BANK','CHEQUE')),
+        status              TEXT NOT NULL DEFAULT 'PAID' CHECK (status IN ('PAID','UNPAID')),
+        due_date            TEXT,
+        settlement_journal_entry_id INTEGER REFERENCES journal_entries(id),
+        bank_account_id     INTEGER REFERENCES bank_accounts(id),
+        cheque_id           INTEGER REFERENCES cheques(id),
+        description         TEXT,
+        created_by          INTEGER REFERENCES users(id),
+        created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at          TEXT,
+        UNIQUE (company_id, voucher_number)
+      );
+      -- Explicit column list: on older databases ensureColumns appends
+      -- account_id at the end of expenses, so SELECT * would misalign.
+      INSERT INTO expenses_rebuild
+        (id, company_id, voucher_number, category_id, account_id, expense_date,
+         amount, payment_method, status, due_date, settlement_journal_entry_id,
+         bank_account_id, cheque_id, description, created_by, created_at, updated_at)
+      SELECT
+        id, company_id, voucher_number, category_id, account_id, expense_date,
+        amount, payment_method, status, due_date, settlement_journal_entry_id,
+        bank_account_id, cheque_id, description, created_by, created_at, updated_at
+      FROM expenses;
+      DROP TABLE expenses;
+      ALTER TABLE expenses_rebuild RENAME TO expenses;
+    `);
+  } finally {
+    await db.exec("PRAGMA foreign_keys = ON");
   }
 }
 

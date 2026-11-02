@@ -7,7 +7,6 @@ import { bootstrapDatabase } from "./db/bootstrap.js";
 import type { SqlDatabase } from "./db/types.js";
 import { AccountingService } from "./services/accountingService.js";
 import { BankingService } from "./services/bankingService.js";
-import { ExpenseItemService } from "./services/expenseItemService.js";
 import { ExpenseService } from "./services/expenseService.js";
 import { ManufacturingService } from "./services/manufacturingService.js";
 import { PaymentService } from "./services/paymentService.js";
@@ -166,7 +165,6 @@ export async function seedRichDemoData(
   const payments = new PaymentService(db, companyId);
   const banking = new BankingService(db, companyId);
   const expenses = new ExpenseService(db, companyId);
-  const expenseItems = new ExpenseItemService(db, companyId);
   const asset = new AssetService(db, companyId);
   const returns_ = new ReturnsService(db, companyId);
   const manufacturing = new ManufacturingService(db, companyId);
@@ -249,13 +247,11 @@ export async function seedRichDemoData(
       branchCode: "BR001",
     });
 
-    // -- Expense category + item --
-    const expenseCat = await expenses.createCategory("Utilities", undefined);
-    const expItem = await expenseItems.create({
-      categoryId: expenseCat.id,
-      name: "Electricity Bill",
-      amount: 5000,
-    });
+    // -- Expense demo: posts straight to the office-equipment expense account --
+    const expenseAccountId = await db.get<{ id: number }>(
+      "SELECT id FROM accounts WHERE account_code = '6000' AND company_id = ?",
+      [companyId],
+    );
 
     // -- Purchase invoice: credit purchase from supplier (creates stock + AP) --
     await purchases.createPurchaseInvoice({
@@ -345,19 +341,13 @@ export async function seedRichDemoData(
       supplierId: extraSupplierId,
     });
 
-    // -- Expense via category, then bulk pay-items --
+    // -- Expense demo: posted straight to General & Administrative (6000) --
     await expenses.createExpense({
-      categoryId: expenseCat.id,
+      accountId: expenseAccountId?.id,
       expenseDate: demoDate,
       amount: 3000,
       paymentMethod: "CASH",
       description: "Monthly utilities",
-    });
-    await expenseItems.payItems({
-      categoryId: expenseCat.id,
-      selections: [{ itemId: expItem.id, amount: 5000 }],
-      paymentMethod: "BANK",
-      expenseDate: demoDate,
     });
 
     // -- Manufacturing: formulation BOM -> unpacked bulk -> packing order -> FG --

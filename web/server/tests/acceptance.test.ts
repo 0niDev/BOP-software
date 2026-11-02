@@ -61,10 +61,7 @@ describe("rich demo acceptance audit", () => {
       await count("SELECT COUNT(*) AS n FROM bank_accounts WHERE company_id = ?", COMPANY),
     ).toBeGreaterThanOrEqual(1);
     expect(await count("SELECT COUNT(*) AS n FROM cheques WHERE company_id = ?", COMPANY)).toBeGreaterThanOrEqual(1);
-    expect(await count("SELECT COUNT(*) AS n FROM expenses WHERE company_id = ?", COMPANY)).toBeGreaterThanOrEqual(2);
-    expect(
-      await count("SELECT COUNT(*) AS n FROM expense_items WHERE company_id = ?", COMPANY),
-    ).toBeGreaterThanOrEqual(1);
+    expect(await count("SELECT COUNT(*) AS n FROM expenses WHERE company_id = ?", COMPANY)).toBeGreaterThanOrEqual(1);
     expect(await count("SELECT COUNT(*) AS n FROM asset_details")).toBeGreaterThanOrEqual(1);
     expect(
       await count("SELECT COUNT(*) AS n FROM bill_of_materials WHERE company_id = ?", COMPANY),

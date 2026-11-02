@@ -18,7 +18,7 @@ import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.j
 import { RestoreService } from "../src/services/restoreService.js";
 import { ReturnsService } from "../src/services/returnsService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
-import { freshDb, type TestContext } from "./helpers/db.js";
+import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
 let expenses: ExpenseService;
@@ -31,7 +31,7 @@ let assets: AssetService;
 let restore: RestoreService;
 let accounting: AccountingService;
 let supplierId: number;
-let categoryId: number;
+let expenseAccountId: number;
 
 beforeEach(async () => {
   ctx = await freshDb();
@@ -53,7 +53,7 @@ beforeEach(async () => {
     credit_limit: 0,
     is_active: 1,
   });
-  categoryId = (await expenses.createCategory("Office Supplies")).id;
+  expenseAccountId = await accountId(ctx.db, "6000");
 });
 afterEach(async () => {
   await ctx.db.close();
@@ -82,7 +82,7 @@ async function journalCount(sourceTable: string, sourceId: number): Promise<numb
 describe("expenses", () => {
   it("edits an expense, replacing its journal entry", async () => {
     const created = await expenses.createExpense({
-      categoryId,
+      accountId: expenseAccountId,
       expenseDate: "2026-10-08",
       amount: 250,
       paymentMethod: "CASH",
@@ -91,7 +91,7 @@ describe("expenses", () => {
     expect(await balance("1000")).toBe(-250);
 
     await expenses.updateExpense(created.id, {
-      categoryId,
+      accountId: expenseAccountId,
       expenseDate: "2026-10-08",
       amount: 400,
       paymentMethod: "CASH",
@@ -105,7 +105,7 @@ describe("expenses", () => {
 
   it("deletes an expense and its journal entry", async () => {
     const created = await expenses.createExpense({
-      categoryId,
+      accountId: expenseAccountId,
       expenseDate: "2026-10-08",
       amount: 250,
       paymentMethod: "CASH",
@@ -120,7 +120,7 @@ describe("expenses", () => {
 
   it("unsettles a pay-later bill, then allows deleting it", async () => {
     const bill = await expenses.createExpense({
-      categoryId,
+      accountId: expenseAccountId,
       expenseDate: "2026-10-08",
       amount: 500,
       paymentMethod: "CASH",
@@ -370,7 +370,7 @@ describe("invoice paid guard", () => {
 describe("restore", () => {
   it("restores a deleted expense through the audit trail", async () => {
     const created = await expenses.createExpense({
-      categoryId,
+      accountId: expenseAccountId,
       expenseDate: "2026-10-08",
       amount: 250,
       paymentMethod: "CASH",

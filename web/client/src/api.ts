@@ -20,9 +20,6 @@ import type {
   DatabaseInfo,
   DeletedRecord,
   Expense,
-  ExpenseCategory,
-  ExpenseFrequency,
-  ExpenseItem,
   ExpenseResult,
   JournalEntryDetail,
   JournalEntryResult,
@@ -518,61 +515,9 @@ export const api = {
     request<{ ok: boolean }>(`/api/cheques/${id}`, { method: "DELETE" }),
   cancelCheque: (id: number) =>
     request<{ ok: boolean }>(`/api/cheques/${id}/cancel`, { method: "POST" }),
-  expenseCategories: () => request<ExpenseCategory[]>("/api/expense-categories"),
-  createExpenseCategory: (name: string, accountId?: number | null) =>
-    request<{ id: number; name: string }>("/api/expense-categories", {
-      method: "POST",
-      body: JSON.stringify({ name, accountId }),
-    }),
-  /** Relinking the account re-posts every existing expense in the category. */
-  updateExpenseCategory: (
-    id: number,
-    body: { name?: string; accountId?: number | null; isActive?: boolean },
-  ) =>
-    request<{ category: ExpenseCategory; reposted: number }>(
-      `/api/expense-categories/${id}`,
-      { method: "PUT", body: JSON.stringify(body) },
-    ),
   expenses: () => request<Expense[]>("/api/expenses"),
-  expenseItems: (categoryId?: number) =>
-    request<ExpenseItem[]>(
-      `/api/expense-items${categoryId ? `?categoryId=${categoryId}` : ""}`,
-    ),
-  createExpenseItem: (body: {
-    categoryId: number;
-    name: string;
-    amount?: number | null;
-    frequency?: ExpenseFrequency | null;
-    nextRunDate?: string | null;
-  }) =>
-    request<ExpenseItem>("/api/expense-items", { method: "POST", body: JSON.stringify(body) }),
-  updateExpenseItem: (
-    id: number,
-    body: {
-      name?: string | null;
-      amount?: number | null;
-      frequency?: ExpenseFrequency | null;
-      nextRunDate?: string | null;
-    },
-  ) =>
-    request<ExpenseItem>(`/api/expense-items/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  deactivateExpenseItem: (id: number) =>
-    request<{ ok: boolean }>(`/api/expense-items/${id}/deactivate`, { method: "POST" }),
-  payExpenseItems: (body: {
-    categoryId: number;
-    paymentMethod: SettlementMethod;
-    bankAccountId?: number | null;
-    expenseDate: string;
-    payLater?: boolean;
-    dueDate?: string | null;
-    selections: Array<{ itemId: number; amount: number; description?: string | null }>;
-  }) =>
-    request<{ voucherNumbers: string[]; totalPaid: number }>("/api/expense-items/pay", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
   createExpense: (body: {
-    categoryId: number;
+    accountId?: number | null;
     expenseDate: string;
     amount: number;
     paymentMethod: SettlementMethod;
@@ -596,7 +541,7 @@ export const api = {
   updateExpense: (
     id: number,
     body: {
-      categoryId: number;
+      accountId?: number | null;
       expenseDate: string;
       amount: number;
       paymentMethod: SettlementMethod;

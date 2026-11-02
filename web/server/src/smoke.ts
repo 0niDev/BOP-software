@@ -209,19 +209,16 @@ async function main(): Promise<void> {
     );
 
     // --- expense voucher ------------------------------------------------
-    const categoryRes = await fetch(`${base}/api/expense-categories`, {
-      method: "POST",
-      headers: { ...headers, "content-type": "application/json" },
-      body: JSON.stringify({ name: "Smoke Expense" }),
-    });
-    check(categoryRes.status === 201, "POST /api/expense-categories creates a category (201)");
-    const category = (await json(categoryRes)) as { id: number };
+    const expenseAccounts = (await json(
+      await fetch(`${base}/api/accounts`, { headers }),
+    )) as Array<{ id: number; account_code: string }>;
+    const expenseAccount = expenseAccounts.find((a) => a.account_code === "6000")!;
 
     const expenseRes = await fetch(`${base}/api/expenses`, {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify({
-        categoryId: category.id,
+        accountId: expenseAccount.id,
         expenseDate: "2026-10-08",
         amount: 25,
         paymentMethod: "CASH",
@@ -814,59 +811,6 @@ async function main(): Promise<void> {
     check(
       noBomRes.status === 400,
       `an order with neither a BOM nor manual details is rejected (${noBomRes.status})`,
-    );
-
-    // --- recurring expense items ("Pay Items") ---------------------------
-    const expenseItemRes = await post("/api/expense-items", {
-      categoryId: category.id,
-      name: "Smoke Payee",
-      amount: 0,
-    });
-    check(
-      expenseItemRes.status === 201,
-      `POST /api/expense-items creates an item (${expenseItemRes.status})`,
-    );
-    const expenseItem = (await json(expenseItemRes)) as { id: number; name: string };
-
-    const dupExpenseItemRes = await post("/api/expense-items", {
-      categoryId: category.id,
-      name: "Smoke Payee",
-    });
-    check(
-      dupExpenseItemRes.status === 409,
-      `duplicate expense item rejected (${dupExpenseItemRes.status})`,
-    );
-
-    const listExpenseItems = (await json(
-      await fetch(`${base}/api/expense-items?categoryId=${category.id}`, { headers }),
-    )) as Array<{ id: number }>;
-    check(
-      listExpenseItems.some((i) => i.id === expenseItem.id),
-      "GET /api/expense-items lists items for the category",
-    );
-
-    const payItemsRes = await post("/api/expense-items/pay", {
-      categoryId: category.id,
-      paymentMethod: "CASH",
-      expenseDate: "2026-10-09",
-      selections: [
-        { itemId: expenseItem.id, amount: 1_500 },
-        { itemId: expenseItem.id, amount: 0 },
-      ],
-    });
-    check(payItemsRes.status === 201, `POST /api/expense-items/pay pays items (${payItemsRes.status})`);
-    const payItems = (await json(payItemsRes)) as { voucherNumbers: string[]; totalPaid: number };
-    check(
-      payItems.voucherNumbers.length === 1 && payItems.totalPaid === 1_500,
-      `bulk payment created 1 voucher for ${payItems.totalPaid} (zero amount skipped)`,
-    );
-    // The paid amount is remembered on the item.
-    const refreshedItems = (await json(
-      await fetch(`${base}/api/expense-items?categoryId=${category.id}`, { headers }),
-    )) as Array<{ id: number; amount: number | null }>;
-    check(
-      refreshedItems.find((i) => i.id === expenseItem.id)?.amount === 1_500,
-      "paid amount is stored on the expense item",
     );
 
     // --- fixed assets -----------------------------------------------------

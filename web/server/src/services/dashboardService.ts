@@ -209,8 +209,11 @@ export class DashboardService {
          FROM receipts r JOIN parties pa ON pa.id = r.party_id
          WHERE r.company_id = ?
          UNION ALL
-         SELECT e.voucher_number, e.expense_date, 'Expense', e.amount, ec.name
-         FROM expenses e JOIN expense_categories ec ON ec.id = e.category_id
+         SELECT e.voucher_number, e.expense_date, 'Expense', e.amount,
+                COALESCE(ec.name, a.account_name, 'Expense')
+         FROM expenses e
+         LEFT JOIN expense_categories ec ON ec.id = e.category_id
+         LEFT JOIN accounts a ON a.id = e.account_id
          WHERE e.company_id = ?
        )
        ORDER BY date DESC, reference DESC

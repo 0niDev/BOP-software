@@ -6,7 +6,7 @@ import { PartyService } from "../src/services/partyService.js";
 import { PaymentService } from "../src/services/paymentService.js";
 import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
-import { closeDb, freshDb, type TestContext } from "./helpers/db.js";
+import { accountId, closeDb, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
 let dashboard: DashboardService;
@@ -66,9 +66,8 @@ describe("DashboardService", () => {
       paymentType: "CREDIT",
       items: [{ itemId: ctx.ids.itemId, quantity: 2, unitCost: 100 }],
     });
-    const category = await expenses.createCategory("Dashboard Expense");
     await expenses.createExpense({
-      categoryId: category.id,
+      accountId: await accountId(ctx.db, "6000"),
       expenseDate: TODAY,
       amount: 25,
       paymentMethod: "CASH",
@@ -226,9 +225,8 @@ describe("DashboardService", () => {
       paymentType: "CASH",
       items: [{ itemId: ctx.ids.itemId, quantity: 1, unitPrice: 150 }],
     });
-    const category = await expenses.createCategory("Later Expense");
     await expenses.createExpense({
-      categoryId: category.id,
+      accountId: await accountId(ctx.db, "6000"),
       expenseDate: TODAY,
       amount: 10,
       paymentMethod: "CASH",

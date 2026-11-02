@@ -561,7 +561,10 @@ CREATE TABLE IF NOT EXISTS expenses (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id          INTEGER NOT NULL REFERENCES companies(id),
     voucher_number      TEXT NOT NULL,
-    category_id         INTEGER NOT NULL REFERENCES expense_categories(id),
+    -- New expenses post straight to a COA account (level-4 leaf, or a level-3
+    -- header with no children). Legacy rows keep their category_id instead.
+    category_id         INTEGER REFERENCES expense_categories(id),
+    account_id          INTEGER REFERENCES accounts(id),
     expense_date        TEXT NOT NULL,
     amount              REAL NOT NULL,
     payment_method      TEXT NOT NULL CHECK (payment_method IN ('CASH','BANK','CHEQUE')),

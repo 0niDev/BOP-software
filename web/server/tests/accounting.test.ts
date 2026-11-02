@@ -105,7 +105,7 @@ describe("AccountingService", () => {
     expect(n2).toBe(n1 + 1);
   });
 
-  it("refuses to post to a header account that has active sub-accounts", async () => {
+  it("accepts postings to a header account that has active sub-accounts", async () => {
     const cash = await accountId(ctx.db, "1000");
     const bank = await accountId(ctx.db, "1010");
     const revenue = await accountId(ctx.db, "4000");
@@ -113,6 +113,8 @@ describe("AccountingService", () => {
     await ctx.db.run("UPDATE accounts SET parent_account_id = ? WHERE id = ?", [cash, bank]);
 
     const svc = new AccountingService(ctx.db);
+    // Headers are postable: the header line and its children's lines are
+    // separate rows, so subtree totals stay correct.
     await expect(
       svc.postJournalEntry({
         voucherType: "JOURNAL",
@@ -122,9 +124,9 @@ describe("AccountingService", () => {
           { accountId: revenue, credit: 100 },
         ],
       }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    ).resolves.toBeGreaterThan(0);
 
-    // The leaf still accepts postings.
+    // The leaf still accepts postings too.
     await expect(
       svc.postJournalEntry({
         voucherType: "JOURNAL",

@@ -222,18 +222,17 @@ export interface Cheque {
   notes: string | null;
 }
 
-export interface ExpenseCategory {
-  id: number;
-  name: string;
-  account_id: number | null;
-  is_active: number;
-}
-
 export interface Expense {
   id: number;
   voucher_number: string;
-  category_id: number;
-  category_name: string;
+  /** Legacy rows recorded under the retired category system; new rows are null. */
+  category_id: number | null;
+  category_name: string | null;
+  /** COA account the expense posts Dr to. */
+  account_id: number | null;
+  /** Resolved posting account for display (legacy rows fall back to their category / 6000). */
+  ledger_code: string;
+  ledger_name: string;
   expense_date: string;
   amount: number;
   payment_method: SettlementMethod;
@@ -250,23 +249,6 @@ export interface ExpenseResult {
   id: number;
   voucherNumber: string;
   journalEntryId: number;
-}
-
-/** Auto-generation interval for a recurring expense item. */
-export type ExpenseFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
-
-/** A recurring expense payee/bill within a category ("Pay Items"). */
-export interface ExpenseItem {
-  id: number;
-  company_id: number;
-  category_id: number;
-  name: string;
-  amount: number | null;
-  frequency: ExpenseFrequency | null;
-  next_run_date: string | null;
-  is_active: number;
-  created_at: string;
-  updated_at: string | null;
 }
 
 /** A manual journal voucher row (list view). */

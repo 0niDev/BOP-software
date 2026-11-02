@@ -36,9 +36,6 @@ export interface PostJournalEntryInput {
   createdBy?: number | null;
   companyId?: number;
   voucherNumber?: string | null;
-  /** Manual vouchers may post straight to a header (a level-3 account that
-   * still has sub-accounts); every document path stays leaf-only. */
-  allowGroupAccounts?: boolean;
 }
 
 export interface ManualJournalLineInput {
@@ -149,9 +146,6 @@ export class AccountingService {
     }
 
     const companyId = input.companyId ?? this.companyId;
-    if (!input.allowGroupAccounts) {
-      await this.assertPostable(companyId, prepared.map(({ line }) => line.accountId));
-    }
 
     const voucherNumber =
       input.voucherNumber ??
@@ -229,7 +223,6 @@ export class AccountingService {
         sourceTable: "journal_entries",
         companyId,
         createdBy: input.createdBy ?? null,
-        allowGroupAccounts: true,
       });
       await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [id, id]);
       const row = await this.journal.findById(id);
@@ -280,7 +273,6 @@ export class AccountingService {
         sourceTable: "journal_entries",
         companyId,
         createdBy: input.createdBy ?? null,
-        allowGroupAccounts: true,
       });
       await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [
         reversalId,
@@ -292,23 +284,10 @@ export class AccountingService {
   }
 
   /**
-   * A group/header account (one that has active sub-accounts) must never
-   * receive journal lines: the balance belongs to the leaf account, and
-   * posting to both would double-count as soon as balances roll up through
-   * the hierarchy. One query per entry keeps this cheap and catches every
-   * posting path (vouchers, expenses, opening balances, ...).
+   * Any account may receive journal lines, headers with sub-accounts included:
+   * a header posting and its children's postings are separate lines, so a
+   * subtree total is still the plain sum of the lines underneath it.
    */
-  private async assertPostable(companyId: number, accountIds: readonly number[]): Promise<void> {
-    const groups = await this.accounts.findGroupIds(companyId);
-    if (groups.size === 0) return;
-    for (const accountId of new Set(accountIds)) {
-      if (!groups.has(accountId)) continue;
-      const account = await this.accounts.findById(accountId);
-      throw new ValidationError(
-        `Account ${account?.account_code ?? accountId} "${account?.account_name ?? ""}" has sub-accounts — post to a ledger sub-account instead.`,
-      );
-    }
-  }
 
   async getJournalEntry(sourceTable: string, sourceId: number): Promise<Record<string, unknown> | null> {
     const entry = await this.journal.findBySource(sourceTable, sourceId);

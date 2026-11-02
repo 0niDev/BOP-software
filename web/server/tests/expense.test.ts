@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError, NotFoundError, ValidationError } from "../src/domain/errors.js";
+import { insertRow } from "../src/repositories/base.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ExpenseService } from "../src/services/expenseService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
@@ -7,23 +8,22 @@ import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 let ctx: TestContext;
 let expenses: ExpenseService;
 let accounting: AccountingService;
-let categoryId: number;
+let generalId: number;
 
 beforeEach(async () => {
   ctx = await freshDb();
   expenses = new ExpenseService(ctx.db);
   accounting = new AccountingService(ctx.db);
-  const category = await expenses.createCategory("Office Supplies");
-  categoryId = category.id;
+  generalId = await accountId(ctx.db, "6000");
 });
 afterEach(async () => {
   await ctx.db.close();
 });
 
 describe("ExpenseService", () => {
-  it("records an expense to the default expense account and posts to cash", async () => {
+  it("records an expense to the chosen account and posts to cash", async () => {
     const result = await expenses.createExpense({
-      categoryId,
+      accountId: generalId,
       expenseDate: "2026-10-08",
       amount: 250,
       paymentMethod: "CASH",
@@ -39,11 +39,32 @@ describe("ExpenseService", () => {
     );
   });
 
-  it("uses the category's own expense account when linked", async () => {
-    const sellingId = await accountId(ctx.db, "6100");
-    const category = await expenses.createCategory("Selling", sellingId);
+  it("falls back to General & Administrative (6000) when no account is chosen", async () => {
     const result = await expenses.createExpense({
-      categoryId: category.id,
+      expenseDate: "2026-10-08",
+      amount: 75,
+      paymentMethod: "CASH",
+    });
+    const je = await accounting.getJournalEntry("expenses", result.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number }>;
+    expect(lines.find((l) => l.account_code === "6000")?.debit).toBe(75);
+  });
+
+  it("allows posting to an account that has sub-accounts", async () => {
+    const sellingId = await accountId(ctx.db, "6100");
+    await insertRow(ctx.db, "accounts", {
+      company_id: 1,
+      account_code: "6101",
+      account_name: "Salesman Salary",
+      parent_account_id: sellingId,
+      account_type: "EXPENSE",
+      opening_balance: 0,
+      is_active: 1,
+    });
+
+    // 6100 is now a header (has sub-accounts) and must still accept postings.
+    const result = await expenses.createExpense({
+      accountId: sellingId,
       expenseDate: "2026-10-08",
       amount: 100,
       paymentMethod: "BANK",
@@ -53,33 +74,21 @@ describe("ExpenseService", () => {
     expect(lines.find((l) => l.account_code === "6100")?.debit).toBe(100);
   });
 
-  it("relinking a category moves the expenses already posted to the old account", async () => {
-    const recorded = await expenses.createExpense({
-      categoryId,
-      expenseDate: "2026-10-08",
-      amount: 300,
-      paymentMethod: "CASH",
-    });
-    const sellingId = await accountId(ctx.db, "6100");
-
-    const { reposted } = await expenses.updateCategory(categoryId, { accountId: sellingId });
-    expect(reposted).toBe(1);
-
-    const je = await accounting.getJournalEntry("expenses", recorded.id);
-    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
-    expect(lines.find((l) => l.account_code === "6100")?.debit).toBe(300);
-    expect(lines.find((l) => l.account_code === "6000")).toBeUndefined();
-    expect(lines.find((l) => l.account_code === "1000")?.credit).toBe(300);
-  });
-
-  it("rejects a category linked to a non-expense account", async () => {
+  it("rejects a non-expense account", async () => {
     const cashId = await accountId(ctx.db, "1000");
-    await expect(expenses.createCategory("Bad", cashId)).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      expenses.createExpense({
+        accountId: cashId,
+        expenseDate: "2026-10-08",
+        amount: 10,
+        paymentMethod: "CASH",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("rejects a duplicate expense voucher number", async () => {
     const base = {
-      categoryId,
+      accountId: generalId,
       expenseDate: "2026-10-08",
       amount: 10,
       paymentMethod: "CASH" as const,
@@ -89,9 +98,29 @@ describe("ExpenseService", () => {
     await expect(expenses.createExpense(base)).rejects.toBeInstanceOf(ConflictError);
   });
 
+  it("resolves a legacy categoryId (pre-account audit payload) to the category account", async () => {
+    const sellingId = await accountId(ctx.db, "6100");
+    const category = await insertRow(ctx.db, "expense_categories", {
+      company_id: 1,
+      name: "Legacy Selling",
+      account_id: sellingId,
+      is_active: 1,
+    });
+
+    const result = await expenses.createExpense({
+      categoryId: category,
+      expenseDate: "2026-10-08",
+      amount: 40,
+      paymentMethod: "CASH",
+    });
+    const je = await accounting.getJournalEntry("expenses", result.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number }>;
+    expect(lines.find((l) => l.account_code === "6100")?.debit).toBe(40);
+  });
+
   it("records a pay-later bill on accounts payable and settles it exactly once", async () => {
     const bill = await expenses.createExpense({
-      categoryId,
+      accountId: generalId,
       expenseDate: "2026-10-01",
       amount: 500,
       paymentMethod: "BANK",
@@ -103,6 +132,7 @@ describe("ExpenseService", () => {
     expect(row.status).toBe("UNPAID");
     expect(row.due_date).toBe("2026-10-31");
     expect(row.settlement_journal_entry_id).toBeNull();
+    expect(row.ledger_code).toBe("6000");
 
     const billJe = await accounting.getJournalEntry("expenses", bill.id);
     const billLines = billJe!.lines as Array<{ account_code: string; debit: number; credit: number }>;

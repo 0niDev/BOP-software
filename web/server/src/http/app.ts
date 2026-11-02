@@ -17,7 +17,6 @@ import { DashboardService } from "../services/dashboardService.js";
 import { ItemService } from "../services/itemService.js";
 import { PartyService } from "../services/partyService.js";
 import { BankingService } from "../services/bankingService.js";
-import { ExpenseItemService } from "../services/expenseItemService.js";
 import { ExpenseService } from "../services/expenseService.js";
 import { ManufacturingService } from "../services/manufacturingService.js";
 import { PaymentService } from "../services/paymentService.js";
@@ -47,9 +46,6 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   }
   return result.data;
 }
-
-/** Recurrence frequency for expense items (null clears recurrence). */
-const expenseFrequencySchema = z.enum(["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"]).nullish();
 
 const returnSchema = z.object({
   invoiceId: z.coerce.number().int().positive(),
@@ -110,7 +106,6 @@ export function createApp(
   const users = new UserService(db);
   const settings = new SettingsService(db, companyId);
   const dashboard = new DashboardService(db, companyId);
-  const expenseItems = new ExpenseItemService(db, companyId);
   const assets = new AssetService(db, companyId);
   const restore = new RestoreService(db, companyId);
   const backups = new BackupService(
@@ -981,114 +976,14 @@ export function createApp(
     res.json(await manufacturing.packPackingOrder(Number(req.params.id), body));
   });
 
-  app.get("/api/expense-categories", requireAuth, async (_req, res) => {
-    res.json(await expenses.listCategories());
-  });
-
-  app.post("/api/expense-categories", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        name: z.string().min(1),
-        accountId: z.coerce.number().int().positive().nullish(),
-      }),
-      req.body,
-    );
-    res.status(201).json(await expenses.createCategory(body.name, body.accountId));
-  });
-
-  app.put("/api/expense-categories/:id", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        name: z.string().min(1).optional(),
-        accountId: z.coerce.number().int().positive().nullish(),
-        isActive: z.boolean().optional(),
-      }),
-      req.body,
-    );
-    res.json(await expenses.updateCategory(Number(req.params.id), body));
-  });
-
   app.get("/api/expenses", requireAuth, async (_req, res) => {
-    // Catch up any recurring bills before listing (no background scheduler).
-    await expenseItems.generateDue();
     res.json(await expenses.listExpenses());
-  });
-
-  // --- recurring expense items ("Pay Items") -----------------------------
-  app.get("/api/expense-items", requireAuth, async (req, res) => {
-    const categoryId =
-      typeof req.query.categoryId === "string" && req.query.categoryId
-        ? Number(req.query.categoryId)
-        : undefined;
-    res.json(
-      await expenseItems.list({ categoryId, activeOnly: activeOnlyFlag(req) }),
-    );
-  });
-
-  app.post("/api/expense-items", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        categoryId: z.number().int().positive(),
-        name: z.string().min(1),
-        amount: z.number().nonnegative().nullish(),
-        frequency: expenseFrequencySchema,
-        nextRunDate: isoDateSchema.nullish(),
-      }),
-      req.body,
-    );
-    res.status(201).json(await expenseItems.create(body));
-  });
-
-  app.put("/api/expense-items/:id", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        name: z.string().nullish(),
-        amount: z.number().nonnegative().nullish(),
-        frequency: expenseFrequencySchema,
-        nextRunDate: isoDateSchema.nullish(),
-      }),
-      req.body,
-    );
-    res.json(await expenseItems.update(Number(req.params.id), body));
-  });
-
-  app.post("/api/expense-items/:id/deactivate", requireAuth, async (req, res) => {
-    await expenseItems.deactivate(Number(req.params.id));
-    res.json({ ok: true });
-  });
-
-  /** Bulk payment: one expense voucher per selected item. */
-  app.post("/api/expense-items/pay", requireAuth, async (req, res) => {
-    const session = (req as Request & { user?: Session }).user;
-    const body = parseBody(
-      z.object({
-        categoryId: z.number().int().positive(),
-        paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
-        bankAccountId: z.coerce.number().int().positive().nullish(),
-        expenseDate: isoDateSchema,
-        payLater: z.boolean().optional(),
-        dueDate: isoDateSchema.nullish(),
-        selections: z
-          .array(
-            z.object({
-              itemId: z.number().int().positive(),
-              amount: z.number(),
-              description: z.string().nullish(),
-            }),
-          )
-          .min(1),
-      }),
-      req.body,
-    );
-    res.status(201).json(
-      await expenseItems.payItems({ ...body, createdBy: session?.userId ?? null }),
-    );
   });
 
   app.post("/api/expenses", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        categoryId: z.coerce.number().int().positive(),
+        accountId: z.coerce.number().int().positive().nullish(),
         expenseDate: isoDateSchema,
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
@@ -1127,7 +1022,7 @@ export function createApp(
   app.put("/api/expenses/:id", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        categoryId: z.coerce.number().int().positive(),
+        accountId: z.coerce.number().int().positive().nullish(),
         expenseDate: isoDateSchema,
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),

@@ -72,9 +72,8 @@ describe("manual journal vouchers", () => {
 
   it("does not list entries posted by another document", async () => {
     const expenses = new ExpenseService(ctx.db);
-    const category = await expenses.createCategory("Office");
     await expenses.createExpense({
-      categoryId: category.id,
+      accountId: await accountId(ctx.db, "6000"),
       expenseDate: "2026-10-20",
       amount: 40,
       paymentMethod: "CASH",
@@ -133,9 +132,8 @@ describe("manual journal vouchers", () => {
 
   it("refuses to reverse an entry owned by another document", async () => {
     const expenses = new ExpenseService(ctx.db);
-    const category = await expenses.createCategory("Office");
     const bill = await expenses.createExpense({
-      categoryId: category.id,
+      accountId: await accountId(ctx.db, "6000"),
       expenseDate: "2026-10-20",
       amount: 75,
       paymentMethod: "CASH",

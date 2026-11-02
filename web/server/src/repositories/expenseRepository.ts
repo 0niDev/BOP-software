@@ -15,7 +15,10 @@ export interface ExpenseRow {
   id: number;
   company_id: number;
   voucher_number: string;
-  category_id: number;
+  /** Legacy: category of a pre-account expense (the category system is retired). */
+  category_id: number | null;
+  /** COA account the expense posts Dr to (level-4 leaf or childless header). */
+  account_id: number | null;
   expense_date: string;
   amount: number;
   payment_method: PaymentMethod;
@@ -31,44 +34,18 @@ export interface ExpenseRow {
 }
 
 export interface ExpenseListRow extends ExpenseRow {
-  category_name: string;
+  category_name: string | null;
+  /** Ledger posting, resolved for display: e.account_id, else legacy category account, else 6000. */
+  ledger_code: string;
+  ledger_name: string;
 }
 
 export class ExpenseRepository {
   constructor(private readonly db: SqlDatabase) {}
 
-  async insertCategory(data: InsertData): Promise<number> {
-    return insertRow(this.db, "expense_categories", data);
-  }
-
+  /** Only used to resolve legacy audit payloads (restore of pre-account deletes). */
   async findCategoryById(id: number): Promise<ExpenseCategoryRow | undefined> {
     return this.db.get<ExpenseCategoryRow>("SELECT * FROM expense_categories WHERE id = ?", [id]);
-  }
-
-  async updateCategory(id: number, data: InsertData): Promise<void> {
-    const cols = Object.keys(data);
-    if (cols.length === 0) return;
-    await this.db.run(
-      `UPDATE expense_categories SET ${cols.map((col) => `${col} = ?`).join(", ")} WHERE id = ?`,
-      [...cols.map((col) => data[col] ?? null), id],
-    );
-  }
-
-  async categoryNameExists(name: string, companyId = 1): Promise<boolean> {
-    const row = await this.db.get<{ id: number }>(
-      "SELECT id FROM expense_categories WHERE name = ? AND company_id = ?",
-      [name, companyId],
-    );
-    return row !== undefined;
-  }
-
-  async listCategories(companyId = 1, activeOnly = true): Promise<ExpenseCategoryRow[]> {
-    return this.db.all<ExpenseCategoryRow>(
-      "SELECT * FROM expense_categories WHERE company_id = ?" +
-        (activeOnly ? " AND is_active = 1" : "") +
-        " ORDER BY name",
-      [companyId],
-    );
   }
 
   async insertExpense(data: InsertData): Promise<number> {
@@ -101,20 +78,19 @@ export class ExpenseRepository {
     await this.db.run("DELETE FROM expenses WHERE id = ?", [id]);
   }
 
-  /** Every expense in one category, for re-posting when the category is relinked. */
-  async listExpensesForCategory(companyId: number, categoryId: number): Promise<ExpenseRow[]> {
-    return this.db.all<ExpenseRow>(
-      "SELECT * FROM expenses WHERE company_id = ? AND category_id = ? ORDER BY id",
-      [companyId, categoryId],
-    );
-  }
-
   async listExpenses(companyId = 1, limit = 200): Promise<ExpenseListRow[]> {
     return this.db.all<ExpenseListRow>(
-      `SELECT e.*, c.name AS category_name
-       FROM expenses e JOIN expense_categories c ON c.id = e.category_id
-       WHERE e.company_id = ?
-       ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
+      `SELECT e.*, c.name AS category_name,
+              COALESCE(a.account_code, ca.account_code, '6000') AS ledger_code,
+              COALESCE(a.account_name, ca.account_name,
+                       (SELECT account_name FROM accounts
+                         WHERE account_code = '6000' AND company_id = e.company_id)) AS ledger_name
+         FROM expenses e
+         LEFT JOIN expense_categories c ON c.id = e.category_id
+         LEFT JOIN accounts a ON a.id = e.account_id
+         LEFT JOIN accounts ca ON ca.id = c.account_id
+        WHERE e.company_id = ?
+        ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
       [companyId, limit],
     );
   }
