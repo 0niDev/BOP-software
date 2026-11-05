@@ -73,6 +73,7 @@ export default function ManufacturingPage() {
   const [productionBomName, setProductionBomName] = useState("");
   const [productionLines, setProductionLines] = useState<ComponentDraft[]>([newComponent()]);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [orderQuery, setOrderQuery] = useState("");
   const [ignoreStockOrders, setIgnoreStockOrders] = useState<Record<number, boolean>>({});
   const addedProduction = useRef(false);
 
@@ -87,6 +88,7 @@ export default function ManufacturingPage() {
   const [packUnit, setPackUnit] = useState<string>("UNIT");
   const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
   const [editingPackingOrderId, setEditingPackingOrderId] = useState<number | null>(null);
+  const [packingOrderQuery, setPackingOrderQuery] = useState("");
   const [ignoreStockPacking, setIgnoreStockPacking] = useState<Record<number, boolean>>({});
   const addedPacking = useRef(false);
 
@@ -129,6 +131,26 @@ export default function ManufacturingPage() {
   const visibleBoms = boms.filter((bom) =>
     matchesQuery(bomQuery, [bom.bom_name, itemName(bom.finished_item_id)]),
   );
+
+  const visibleOrders = orders.filter((order) => {
+    const bom = boms.find((b) => b.id === order.bom_id);
+    return matchesQuery(orderQuery, [
+      order.order_number,
+      order.status,
+      order.manufacturing_date,
+      bom ? itemName(bom.finished_item_id) : "",
+    ]);
+  });
+
+  const visiblePackingOrders = packingOrders.filter((order) => {
+    const bom = boms.find((b) => b.id === order.bom_id);
+    return matchesQuery(packingOrderQuery, [
+      order.order_number,
+      order.status,
+      order.manufacturing_date,
+      bom ? itemName(bom.finished_item_id) : "",
+    ]);
+  });
 
   const optionsFor = (list: Item[]) => [
     { value: "0", label: "Select..." },
@@ -233,13 +255,13 @@ export default function ManufacturingPage() {
     }
   }
 
-  async function startEditBom(bom: Bom) {
+  async function startEditBom(bom: Bom, copy = false) {
     setError(null);
     setNotice(null);
     try {
       const detail = await api.bom(bom.id);
       setBomKind(bom.phase === "PACKING" ? "PACKING" : "FORMULATION");
-      setBomName(detail.bom.bom_name);
+      setBomName(copy ? `${detail.bom.bom_name} (copy)` : detail.bom.bom_name);
       setBomOutputItemId(detail.bom.finished_item_id);
       setOutputQuantity(detail.bom.output_quantity);
       setComponentLines(
@@ -251,7 +273,7 @@ export default function ManufacturingPage() {
             }))
           : [newComponent()],
       );
-      setEditingBomId(bom.id);
+      setEditingBomId(copy ? null : bom.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load BOM.");
     }
@@ -919,6 +941,9 @@ export default function ManufacturingPage() {
                         <button type="button" onClick={() => void startEditBom(bom)}>
                           Edit
                         </button>{" "}
+                        <button type="button" onClick={() => void startEditBom(bom, true)}>
+                          Copy
+                        </button>{" "}
                         <button type="button" onClick={() => void removeBom(bom)}>
                           Delete
                         </button>
@@ -1145,10 +1170,19 @@ export default function ManufacturingPage() {
 
           <div className="card">
             <h2>Production orders</h2>
+            <div className="row" style={{ marginBottom: 12 }}>
+              <FilterBox
+                value={orderQuery}
+                onChange={setOrderQuery}
+                placeholder="Search orders, items, status or date…"
+              />
+            </div>
             <table>
               <thead>
                 <tr>
                   <th>Order</th>
+                  <th>Unpacked item</th>
+                  <th>Date</th>
                   <th>Status</th>
                   <th className="num">Planned</th>
                   <th className="num">Actual</th>
@@ -1157,9 +1191,13 @@ export default function ManufacturingPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
+                {visibleOrders.map((order) => {
+                  const bom = boms.find((b) => b.id === order.bom_id);
+                  return (
                   <tr key={order.id}>
                     <td>{order.order_number}</td>
+                    <td>{bom ? itemName(bom.finished_item_id) : order.bom_id}</td>
+                    <td>{order.manufacturing_date}</td>
                     <td>{order.status}</td>
                     <td className="num">{order.planned_quantity}</td>
                     <td className="num">{order.actual_quantity}</td>
@@ -1202,10 +1240,11 @@ export default function ManufacturingPage() {
                       )}
                     </td>
                   </tr>
-                ))}
-                {orders.length === 0 && (
+                  );
+                })}
+                {visibleOrders.length === 0 && (
                   <tr>
-                    <td colSpan={6}>No production orders yet.</td>
+                    <td colSpan={8}>No production orders yet.</td>
                   </tr>
                 )}
               </tbody>
@@ -1541,6 +1580,13 @@ export default function ManufacturingPage() {
 
           <div className="card">
             <h2>Packing orders</h2>
+            <div className="row" style={{ marginBottom: 12 }}>
+              <FilterBox
+                value={packingOrderQuery}
+                onChange={setPackingOrderQuery}
+                placeholder="Search orders, items, status or date…"
+              />
+            </div>
             <table>
               <thead>
                 <tr>
@@ -1553,7 +1599,7 @@ export default function ManufacturingPage() {
                 </tr>
               </thead>
               <tbody>
-                {packingOrders.map((order) => {
+                {visiblePackingOrders.map((order) => {
                   const bom = boms.find((b) => b.id === order.bom_id);
                   return (
                     <tr key={order.id}>
@@ -1589,7 +1635,7 @@ export default function ManufacturingPage() {
                     </tr>
                   );
                 })}
-                {packingOrders.length === 0 && (
+                {visiblePackingOrders.length === 0 && (
                   <tr>
                     <td colSpan={6}>No packing orders yet.</td>
                   </tr>
