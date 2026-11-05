@@ -97,8 +97,12 @@ describe("SettingsService shortcuts", () => {
 describe("SettingsService database info", () => {
   it("reports the live connection without exposing credentials", async () => {
     const info = await settings.databaseInfo();
+    // databaseInfo reflects the live configured DB, so assert against whatever
+    // ERP_LOCAL_DB actually names, not a hard-coded dev.sqlite filename.
+    const envDb = process.env.ERP_LOCAL_DB ?? "erp.sqlite";
+    const envFile = envDb.split(/[\\/]/).pop() ?? envDb;
     expect(info.engine).toContain("local");
-    expect(info.location).toContain("dev.sqlite");
+    expect(info.location).toContain(envFile);
     expect(info.source).toContain("ERP_LOCAL_DB");
     expect(info.sqliteVersion).toMatch(/^\d+\.\d+/);
     expect(info.restartRequired).toBe(true);
