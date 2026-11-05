@@ -909,11 +909,22 @@ export function createApp(
   app.put("/api/production-orders/:id", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        bomId: z.coerce.number().int().positive(),
+        bomId: z.coerce.number().int().positive().nullish(),
         plannedQuantity: z.coerce.number().positive(),
         manufacturingDate: isoDateSchema,
         expiryDate: optionalIsoDateSchema,
         notes: z.string().nullish(),
+        // Manual run on an edit: saves a brand-new per-unit BOM.
+        bomName: z.string().nullish(),
+        components: z
+          .array(
+            z.object({
+              componentItemId: z.coerce.number().int().positive(),
+              quantityRequired: z.coerce.number().positive(),
+              wastagePercent: z.coerce.number().min(0).max(100).optional(),
+            }),
+          )
+          .nullish(),
       }),
       req.body,
     );
@@ -937,6 +948,11 @@ export function createApp(
       req.body,
     );
     res.json(await manufacturing.produceProduction(Number(req.params.id), body));
+  });
+
+  app.post("/api/production-orders/:id/reopen", requireAuth, async (req, res) => {
+    await manufacturing.reopenProductionOrder(Number(req.params.id));
+    res.json({ status: "DRAFT" });
   });
 
   app.get("/api/packing-orders", requireAuth, async (_req, res) => {
@@ -983,11 +999,25 @@ export function createApp(
   app.put("/api/packing-orders/:id", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
-        bomId: z.coerce.number().int().positive(),
+        bomId: z.coerce.number().int().positive().nullish(),
         plannedQuantity: z.coerce.number().positive(),
         manufacturingDate: isoDateSchema,
         expiryDate: optionalIsoDateSchema,
         notes: z.string().nullish(),
+        // Manual run on an edit: saves a brand-new per-unit BOM.
+        packingBomName: z.string().nullish(),
+        outputItemId: z.coerce.number().int().positive().nullish(),
+        unpackedItemId: z.coerce.number().int().positive().nullish(),
+        unpackedQuantity: z.coerce.number().positive().nullish(),
+        materials: z
+          .array(
+            z.object({
+              componentItemId: z.coerce.number().int().positive(),
+              quantityRequired: z.coerce.number().positive(),
+              wastagePercent: z.coerce.number().min(0).max(100).optional(),
+            }),
+          )
+          .nullish(),
       }),
       req.body,
     );
@@ -1024,6 +1054,11 @@ export function createApp(
       req.body ?? {},
     );
     res.json(await manufacturing.packPackingOrder(Number(req.params.id), body));
+  });
+
+  app.post("/api/packing-orders/:id/reopen", requireAuth, async (req, res) => {
+    await manufacturing.reopenPackingOrder(Number(req.params.id));
+    res.json({ status: "DRAFT" });
   });
 
   app.get("/api/expenses", requireAuth, async (_req, res) => {

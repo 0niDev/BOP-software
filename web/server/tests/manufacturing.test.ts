@@ -372,6 +372,86 @@ describe("ManufacturingService — production", () => {
     expect(consumptions).toHaveLength(0);
     expect(await accounting.getJournalEntry("production_orders", order.id)).not.toBeNull();
   });
+
+  it("reopens a completed production order: materials return, output batch is undone, draft again", async () => {
+    const bom = await formulationBom();
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+    });
+    await mfg.startProduction(order.id);
+    await mfg.produceProduction(order.id, { actualQuantity: 10, outputBatchNumber: "FG-REOPEN-1" });
+    expect(await batchQty("RM-1-BATCH")).toBe(95);
+
+    await mfg.reopenProductionOrder(order.id);
+
+    const { order: reopened } = await mfg.getProductionOrder(order.id);
+    expect(reopened.status).toBe("DRAFT");
+    expect(reopened.actual_quantity).toBe(0);
+    expect(reopened.output_batch_number).toBeNull();
+    expect(reopened.production_cost).toBe(0);
+    expect(await batchQty("RM-1-BATCH")).toBe(100);
+
+    const batch = await ctx.db.get<{ qty: number; active: number; movements: number }>(
+      `SELECT b.quantity_in_stock AS qty, b.is_active AS active,
+              (SELECT COUNT(*) FROM stock_movements WHERE batch_id = b.id) AS movements
+         FROM stock_batches b WHERE b.batch_number = 'FG-REOPEN-1'`,
+    );
+    expect(batch?.qty).toBe(0);
+    expect(batch?.active).toBe(0);
+    expect(Number(batch?.movements)).toBe(0);
+    const rows = await ctx.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM production_consumption WHERE production_order_id = ?",
+      [order.id],
+    );
+    expect(Number(rows?.n)).toBe(0);
+    const entries = await ctx.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM journal_entries WHERE source_table = 'production_orders' AND source_id = ?",
+      [order.id],
+    );
+    // Original entry + the posted reversal.
+    expect(Number(entries?.n)).toBe(2);
+
+    // The unwound order can be edited and produced again.
+    await mfg.updateProductionOrder(order.id, { bomId: bom.id, plannedQuantity: 5, manufacturingDate: DATE });
+    await mfg.startProduction(order.id);
+    const again = await mfg.produceProduction(order.id, { actualQuantity: 5, outputBatchNumber: "FG-REOPEN-2" });
+    // 5 units * 0.5 KG * 20 = 50; 100 - 2.5 KG = 97.5.
+    expect(again.productionCost).toBe(50);
+    expect(await batchQty("RM-1-BATCH")).toBe(97.5);
+  });
+
+  it("re-aims a reopened order at a brand-new manual-run BOM", async () => {
+    const bom = await formulationBom();
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+    });
+    await mfg.startProduction(order.id);
+    await mfg.produceProduction(order.id, { actualQuantity: 10 });
+    await mfg.reopenProductionOrder(order.id);
+
+    // Edit with no bomId at all: the quickie totals become a new per-unit BOM.
+    await mfg.updateProductionOrder(order.id, {
+      plannedQuantity: 4,
+      manufacturingDate: DATE,
+      bomName: "New recipe batch",
+      components: [{ componentItemId: rawItemId, quantityRequired: 1 }],
+    });
+    const { order: edited } = await mfg.getProductionOrder(order.id);
+    const detail = await mfg.getBom(edited.bom_id);
+    expect(detail.bom.bom_name).toBe("New recipe batch");
+    expect(detail.bom.finished_item_id).not.toBe(bom.finishedItemId);
+    expect(detail.components.map((c) => c.quantity_required)).toEqual([1]);
+
+    await mfg.startProduction(order.id);
+    const produced = await mfg.produceProduction(order.id, { actualQuantity: 4 });
+    // 4 items × 1 KG raw @20 → 80; raw stock 100 - 4 = 96.
+    expect(produced.productionCost).toBe(80);
+    expect(await batchQty("RM-1-BATCH")).toBe(96);
+  });
 });
 
 describe("ManufacturingService — packing", () => {
@@ -422,6 +502,84 @@ describe("ManufacturingService — packing", () => {
     expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
       lines.reduce((a, l) => a + l.credit, 0),
     );
+  });
+
+  it("reopens a completed packing order and undoes its output batch", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Reopen pack",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-REOPEN-PCO" });
+    const { order: completed } = await mfg.getPackingOrder(packing.id);
+    expect(completed.status).toBe("COMPLETED");
+    expect(await batchQty("PM-1-BATCH")).toBe(90);
+
+    await mfg.reopenPackingOrder(packing.id);
+
+    const { order } = await mfg.getPackingOrder(packing.id);
+    expect(order.status).toBe("DRAFT");
+    expect(order.actual_quantity).toBe(0);
+    expect(order.output_batch_number).toBeNull();
+    expect(await batchQty("PM-1-BATCH")).toBe(100);
+    expect(await batchQty("BULK-1")).toBe(10);
+    const batch = await ctx.db.get<{ active: number; movements: number }>(
+      `SELECT b.is_active AS active,
+              (SELECT COUNT(*) FROM stock_movements WHERE batch_id = b.id) AS movements
+         FROM stock_batches b WHERE b.batch_number = 'FG-REOPEN-PCO'`,
+    );
+    expect(batch?.active).toBe(0);
+    expect(Number(batch?.movements)).toBe(0);
+
+    // Can be packed again after reopening.
+    await mfg.startPacking(packing.id);
+    const again = await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-REOPEN-PCO-B" });
+    expect(again.productionCost).toBe(120);
+    expect((await mfg.getPackingOrder(packing.id)).order.production_cost).toBe(120);
+  });
+
+  it("re-aims a reopened packing order at a brand-new manual-run BOM", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "First pack",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id);
+    await mfg.reopenPackingOrder(packing.id);
+
+    // Edit with no bomId: whole new recipe — 0.5% of bulk per unit + nothing else.
+    await mfg.updatePackingOrder(packing.id, {
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      packingBomName: "Half-size pack",
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 5,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    const { order: edited } = await mfg.getPackingOrder(packing.id);
+    const detail = await mfg.getBom(edited.bom_id);
+    expect(detail.bom.bom_name).toBe("Half-size pack");
+    // Per unit: 0.5 unpacked + 1 bottle.
+    expect(detail.components.map((c) => c.quantity_required).sort()).toEqual([0.5, 1]);
+
+    // Pack again with the new recipe: 5×10 unpacked @10 = 50, bottles 10 @2 = 20 → 70.
+    await mfg.startPacking(packing.id);
+    const produced = await mfg.packPackingOrder(packing.id, { unpackedQuantity: 5, units: 10 });
+    expect(produced.productionCost).toBe(70);
+    expect(await batchQty("PM-1-BATCH")).toBe(90);
   });
 
   it("packs part of a packing order and completes it with the rest", async () => {

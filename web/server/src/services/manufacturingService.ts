@@ -88,11 +88,16 @@ export interface CompleteProductionInput {
 }
 
 export interface UpdateProductionOrderInput {
-  bomId: number;
+  /** Omit for a manual run, which saves a new per-unit BOM from `components`. */
+  bomId?: number | null;
   plannedQuantity: number | string;
   manufacturingDate: string;
   expiryDate?: string | null;
   notes?: string | null;
+  /** Manual run: name for the newly saved per-unit BOM. */
+  bomName?: string | null;
+  /** Manual run: the per-item totals to save into that BOM. */
+  components?: readonly BomComponentInput[] | null;
 }
 
 export interface CreatePackingOrderInput {
@@ -119,11 +124,18 @@ export interface CreatePackingOrderInput {
 }
 
 export interface UpdatePackingOrderInput {
-  bomId: number;
+  /** Omit for a manual run, which saves a new per-unit BOM from the totals. */
+  bomId?: number | null;
   plannedQuantity: number | string;
   manufacturingDate: string;
   expiryDate?: string | null;
   notes?: string | null;
+  /** Manual run: the fresh per-unit packing BOM spec. */
+  packingBomName?: string | null;
+  outputItemId?: number | null;
+  unpackedItemId?: number | null;
+  unpackedQuantity?: number | string | null;
+  materials?: readonly BomComponentInput[] | null;
 }
 
 export interface PackPackingOrderInput {
@@ -399,22 +411,8 @@ export class ManufacturingService {
     // Manual run: no saved BOM, so save the typed per-item amounts as the
     // per-unit recipe. Producing multiplies them by the output quantity.
     if (input.bomId == null) {
-      if (!input.bomName?.trim() || !input.components || input.components.length === 0) {
-        throw new ValidationError(
-          "A saved BOM, or a BOM name with the run's component totals, is required.",
-        );
-      }
+      const bom = await this.createManualProductionBom(input, companyId);
       return this.db.transaction(async () => {
-        const bom = await this.createBom({
-          bomName: input.bomName,
-          outputQuantity: 1,
-          components: input.components!.map((component) => ({
-            componentItemId: component.componentItemId,
-            quantityRequired: toQuantity(dec(component.quantityRequired)),
-          })),
-          notes: "Saved from a production run",
-          companyId,
-        });
         const orderNumber = await this.resolveOrderNumber(input.orderNumber, companyId);
         const id = await this.manufacturing.insertOrder({
           company_id: companyId,
@@ -454,6 +452,29 @@ export class ManufacturingService {
     return { id, orderNumber, bomId: bom.id, finishedItemId: bom.finished_item_id };
   }
 
+  /** Save a manual run's typed per-item amounts as a new per-unit production BOM. */
+  private async createManualProductionBom(
+    input: { bomName?: string | null; components?: readonly BomComponentInput[] | null },
+    companyId: number,
+  ): Promise<{ id: number; finishedItemId: number }> {
+    if (!input.bomName?.trim() || !input.components || input.components.length === 0) {
+      throw new ValidationError(
+        "A saved BOM, or a BOM name with the run's component totals, is required.",
+      );
+    }
+    const bom = await this.createBom({
+      bomName: input.bomName,
+      outputQuantity: 1,
+      components: input.components.map((component) => ({
+        componentItemId: component.componentItemId,
+        quantityRequired: toQuantity(dec(component.quantityRequired)),
+      })),
+      notes: "Saved from a production run",
+      companyId,
+    });
+    return { id: bom.id, finishedItemId: bom.finishedItemId };
+  }
+
   async updateProductionOrder(id: number, input: UpdateProductionOrderInput): Promise<void> {
     const order = await this.manufacturing.findOrderById(id);
     if (!order) throw new NotFoundError(`Production order ${id} not found.`);
@@ -464,11 +485,20 @@ export class ManufacturingService {
     if (plannedQuantity.lessThanOrEqualTo(0)) {
       throw new ValidationError("Planned quantity must be greater than 0.");
     }
-    const bom = await this.manufacturing.findBomById(input.bomId);
-    if (!bom) throw new ValidationError("BOM does not exist.");
+    let bomId = input.bomId ?? null;
+    if (bomId == null) {
+      // Manual run on an edit: save the typed amounts as a brand-new per-unit BOM.
+      bomId = (await this.createManualProductionBom(input, this.companyId)).id;
+    } else {
+      const bom = await this.manufacturing.findBomById(bomId);
+      if (!bom) throw new ValidationError("BOM does not exist.");
+      if (bom.phase === "PACKING") {
+        throw new ValidationError("This is a packing BOM — create a packing order instead.");
+      }
+    }
 
     await this.manufacturing.updateOrder(id, {
-      bom_id: bom.id,
+      bom_id: bomId,
       planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
@@ -677,6 +707,43 @@ export class ManufacturingService {
     });
   }
 
+  /**
+   * Reopen a completed production order: return consumed raw materials to
+   * stock, undo the output batch and reset the order to DRAFT so it can be
+   * edited and produced again.
+   */
+  async reopenProductionOrder(orderId: number): Promise<void> {
+    const order = await this.manufacturing.findOrderById(orderId);
+    if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
+    if (order.status !== "COMPLETED") {
+      throw new ValidationError(
+        `Cannot reopen an order with status '${order.status}'; only a completed order can be reopened.`,
+      );
+    }
+
+    await this.db.transaction(async () => {
+      await this.reverseJournalEntry(
+        "production_orders",
+        orderId,
+        `Reversal - production order ${order.order_number}`,
+      );
+      await this.returnConsumptions("production_consumption", "production_order_id", orderId, order.warehouse_id, order.order_number);
+      await this.removeOutputBatches("production_orders", orderId, order.order_number);
+      await this.db.run("DELETE FROM production_consumption WHERE production_order_id = ?", [orderId]);
+      await this.manufacturing.updateOrder(orderId, {
+        actual_quantity: 0,
+        wastage_quantity: 0,
+        output_batch_number: null,
+        production_cost: 0,
+        raw_material_cost: 0,
+        packing_material_cost: 0,
+        status: "DRAFT",
+        completed_at: null,
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
+
   // --- Packing orders ----------------------------------------------------
   async listPackingOrders(): Promise<PackingOrderRow[]> {
     return this.manufacturing.listPackingOrders(this.companyId);
@@ -703,52 +770,14 @@ export class ManufacturingService {
 
     // Manual run: save a per-unit packing BOM from the run's totals.
     if (input.bomId == null) {
-      if (input.outputItemId == null || input.unpackedItemId == null) {
-        throw new ValidationError("A packing order needs an output item and an unpacked material.");
-      }
-      const unpackedQuantity = dec(input.unpackedQuantity);
-      if (unpackedQuantity.lessThanOrEqualTo(0)) {
-        throw new ValidationError("Unpacked quantity must be greater than 0.");
-      }
-      const output = await this.requireFinishedItem(input.outputItemId);
-      if (output.id === input.unpackedItemId) {
-        throw new ValidationError("The output item must differ from the unpacked material.");
-      }
-      await this.requireFinishedItem(input.unpackedItemId);
-      const materials = input.materials ?? [];
-      for (const material of materials) {
-        const item = await this.items.requireById(material.componentItemId);
-        if (item.item_type !== "PACKING_MATERIAL") {
-          throw new ValidationError(`'${item.item_name}' is not a packing material.`);
-        }
-      }
-
+      const output = await this.createManualPackingBom(input, plannedQuantity, companyId);
       return this.db.transaction(async () => {
-        const bom = await this.createBom({
-          finishedItemId: output.id,
-          outputQuantity: 1,
-          bomName: input.packingBomName?.trim() || null,
-          components: [
-            {
-              componentItemId: input.unpackedItemId!,
-              quantityRequired: toQuantity(unpackedQuantity.dividedBy(plannedQuantity)),
-            },
-            ...materials.map((material) => ({
-              componentItemId: material.componentItemId,
-              quantityRequired: toQuantity(
-                dec(material.quantityRequired).dividedBy(plannedQuantity),
-              ),
-            })),
-          ],
-          notes: "Saved from a packing run",
-          companyId,
-        });
         const orderNumber = await this.resolvePackingOrderNumber(input.orderNumber, companyId);
         const id = await this.manufacturing.insertPackingOrder({
           company_id: companyId,
           warehouse_id: warehouseId,
           order_number: orderNumber,
-          bom_id: bom.id,
+          bom_id: output.bomId,
           planned_quantity: toQuantity(plannedQuantity),
           manufacturing_date: input.manufacturingDate,
           expiry_date: input.expiryDate ?? null,
@@ -756,7 +785,7 @@ export class ManufacturingService {
           created_by: input.createdBy ?? null,
           status: "DRAFT",
         });
-        return { id, orderNumber, bomId: bom.id, outputItemId: output.id };
+        return { id, orderNumber, bomId: output.bomId, outputItemId: output.outputItemId };
       });
     }
 
@@ -781,6 +810,54 @@ export class ManufacturingService {
     return { id, orderNumber, bomId: bom.id, outputItemId: bom.finished_item_id };
   }
 
+  /** Save a manual packing run's totals as a new per-unit packing BOM. */
+  private async createManualPackingBom(
+    input: CreatePackingOrderInput,
+    plannedQuantity: Decimal,
+    companyId: number,
+  ): Promise<{ bomId: number; outputItemId: number }> {
+    if (input.outputItemId == null || input.unpackedItemId == null) {
+      throw new ValidationError("A packing order needs an output item and an unpacked material.");
+    }
+    const unpackedQuantity = dec(input.unpackedQuantity);
+    if (unpackedQuantity.lessThanOrEqualTo(0)) {
+      throw new ValidationError("Unpacked quantity must be greater than 0.");
+    }
+    const output = await this.requireFinishedItem(input.outputItemId);
+    if (output.id === input.unpackedItemId) {
+      throw new ValidationError("The output item must differ from the unpacked material.");
+    }
+    await this.requireFinishedItem(input.unpackedItemId);
+    const materials = input.materials ?? [];
+    for (const material of materials) {
+      const item = await this.items.requireById(material.componentItemId);
+      if (item.item_type !== "PACKING_MATERIAL") {
+        throw new ValidationError(`'${item.item_name}' is not a packing material.`);
+      }
+    }
+
+    const bom = await this.createBom({
+      finishedItemId: output.id,
+      outputQuantity: 1,
+      bomName: input.packingBomName?.trim() || null,
+      components: [
+        {
+          componentItemId: input.unpackedItemId!,
+          quantityRequired: toQuantity(unpackedQuantity.dividedBy(plannedQuantity)),
+        },
+        ...materials.map((material) => ({
+          componentItemId: material.componentItemId,
+          quantityRequired: toQuantity(
+            dec(material.quantityRequired).dividedBy(plannedQuantity),
+          ),
+        })),
+      ],
+      notes: "Saved from a packing run",
+      companyId,
+    });
+    return { bomId: bom.id, outputItemId: output.id };
+  }
+
   async updatePackingOrder(id: number, input: UpdatePackingOrderInput): Promise<void> {
     const order = await this.manufacturing.findPackingOrderById(id);
     if (!order) throw new NotFoundError(`Packing order ${id} not found.`);
@@ -791,12 +868,18 @@ export class ManufacturingService {
     if (plannedQuantity.lessThanOrEqualTo(0)) {
       throw new ValidationError("Items generated must be greater than 0.");
     }
-    const bom = await this.manufacturing.findBomById(input.bomId);
-    if (!bom) throw new ValidationError("BOM does not exist.");
-    if (bom.phase !== "PACKING") throw new ValidationError("Packing needs a packing BOM.");
+    let bomId = input.bomId ?? null;
+    if (bomId == null) {
+      // Manual run on an edit: save the typed totals as a brand-new per-unit BOM.
+      bomId = (await this.createManualPackingBom(input, plannedQuantity, this.companyId)).bomId;
+    } else {
+      const bom = await this.manufacturing.findBomById(bomId);
+      if (!bom) throw new ValidationError("BOM does not exist.");
+      if (bom.phase !== "PACKING") throw new ValidationError("Packing needs a packing BOM.");
+    }
 
     await this.manufacturing.updatePackingOrder(id, {
-      bom_id: bom.id,
+      bom_id: bomId,
       planned_quantity: toQuantity(plannedQuantity),
       manufacturing_date: input.manufacturingDate,
       expiry_date: input.expiryDate ?? null,
@@ -1025,6 +1108,131 @@ export class ManufacturingService {
         outputBatchNumber,
       };
     });
+  }
+
+  /**
+   * Reopen a completed packing order: return every consumed material of every
+   * pack to stock, undo all output batches and reset the order to DRAFT.
+   */
+  async reopenPackingOrder(orderId: number): Promise<void> {
+    const order = await this.manufacturing.findPackingOrderById(orderId);
+    if (!order) throw new NotFoundError(`Packing order ${orderId} not found.`);
+    if (order.status !== "COMPLETED") {
+      throw new ValidationError(
+        `Cannot reopen an order with status '${order.status}'; only a completed order can be reopened.`,
+      );
+    }
+
+    await this.db.transaction(async () => {
+      await this.reverseJournalEntry("packing_orders", orderId, `Reversal - packing order ${order.order_number}`);
+      await this.returnConsumptions("packing_consumption", "packing_order_id", orderId, order.warehouse_id, order.order_number);
+      await this.removeOutputBatches("packing_orders", orderId, order.order_number);
+      await this.db.run("DELETE FROM packing_consumption WHERE packing_order_id = ?", [orderId]);
+      await this.manufacturing.updatePackingOrder(orderId, {
+        actual_quantity: 0,
+        output_batch_number: null,
+        production_cost: 0,
+        status: "DRAFT",
+        completed_at: null,
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
+
+  /** Post the opposite of every manufacturing journal entry sourced on an order. */
+  private async reverseJournalEntry(
+    sourceTable: string,
+    sourceId: number,
+    narration: string,
+  ): Promise<void> {
+    const entries = await this.db.all<{ id: number }>(
+      "SELECT id FROM journal_entries WHERE source_table = ? AND source_id = ? ORDER BY id",
+      [sourceTable, sourceId],
+    );
+    for (const entry of entries) {
+      const original = await this.journal.findLinesForEntry(entry.id);
+      await this.accounting.postJournalEntry({
+        voucherType: "MANUFACTURING",
+        entryDate: new Date().toISOString().slice(0, 10),
+        lines: original.map((line) => ({
+          accountId: Number(line.account_id),
+          debit: line.credit ? dec(line.credit as number) : undefined,
+          credit: line.debit ? dec(line.debit as number) : undefined,
+          partyId: line.party_id ? Number(line.party_id) : null,
+          description: line.description ? String(line.description) : null,
+        })),
+        sourceTable,
+        sourceId,
+        narration,
+        companyId: this.companyId,
+      });
+    }
+  }
+
+  /** Return every consumption row of an order to stock, with a reversing movement each. */
+  private async returnConsumptions(
+    table: string,
+    orderColumn: string,
+    orderId: number,
+    warehouseId: number,
+    orderNumber: string,
+  ): Promise<void> {
+    const rows = await this.db.all<{ batch_id: number; component_item_id: number; quantity_consumed: number; unit_cost: number }>(
+      `SELECT batch_id, component_item_id, quantity_consumed, unit_cost FROM ${table} WHERE ${orderColumn} = ?`,
+      [orderId],
+    );
+    const stage = table === "production_consumption" ? "production" : "packing";
+    for (const row of rows) {
+      if (!row.batch_id) continue;
+      const quantity = toQuantity(dec(row.quantity_consumed));
+      await this.batches.adjustQuantity(Number(row.batch_id), quantity);
+      await insertRow(this.db, "stock_movements", {
+        item_id: row.component_item_id,
+        batch_id: Number(row.batch_id),
+        warehouse_id: warehouseId,
+        movement_type: "PRODUCTION_CONSUME",
+        quantity: quantity,
+        unit_cost: row.unit_cost,
+        reference_table: `${stage}_orders`,
+        reference_id: orderId,
+        movement_date: new Date().toISOString().slice(0, 10),
+        notes: `Reversal - ${stage} order ${orderNumber}`,
+      });
+    }
+  }
+
+  /**
+   * Undo an order's PRODUCTION_IN movements: each output batch must have no
+   * other movements (i.e. nothing was sold, packed or adjusted from it), then
+   * its movements are removed and the batch is zeroed and deactivated.
+   */
+  private async removeOutputBatches(
+    sourceTable: string,
+    orderId: number,
+    orderNumber: string,
+  ): Promise<void> {
+    const batches = await this.db.all<{ batch_id: number }>(
+      `SELECT DISTINCT batch_id FROM stock_movements
+       WHERE reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN'`,
+      [sourceTable, orderId],
+    );
+    for (const row of batches) {
+      const batch = await this.batches.findById(row.batch_id);
+      if (!batch) continue;
+      const others = await this.db.get<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM stock_movements
+         WHERE batch_id = ? AND NOT (reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN')`,
+        [row.batch_id, sourceTable, orderId],
+      );
+      if (Number(others?.n ?? 0) > 0) {
+        throw new ValidationError(
+          `Batch '${batch.batch_number}' (${orderNumber}) has already been used — reopen needs the output batch untouched.`,
+        );
+      }
+      await this.db.run("DELETE FROM stock_movements WHERE batch_id = ?", [row.batch_id]);
+      await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(batch.quantity_in_stock)));
+      await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0, is_active = 0 WHERE id = ?", [row.batch_id]);
+    }
   }
 
   /** Dr the output inventory account, Cr each consumed item's inventory account. */

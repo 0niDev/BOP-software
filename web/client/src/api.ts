@@ -644,11 +644,18 @@ export const api = {
   updateProductionOrder: (
     id: number,
     body: {
-      bomId: number;
+      /** Omit for a manual run, which saves a new per-unit BOM from `components`. */
+      bomId?: number | null;
       plannedQuantity: number;
       manufacturingDate: string;
       expiryDate?: string | null;
       notes?: string | null;
+      bomName?: string | null;
+      components?: {
+        componentItemId: number;
+        quantityRequired: number;
+        wastagePercent?: number;
+      }[] | null;
     },
   ) =>
     request<{ ok: boolean }>(`/api/production-orders/${id}`, {
@@ -670,6 +677,8 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
+  reopenProduction: (id: number) =>
+    request<{ status: string }>(`/api/production-orders/${id}/reopen`, { method: "POST" }),
   packingOrders: () => request<PackingOrder[]>("/api/packing-orders"),
   createPackingOrder: (body: {
     /** Omit for a manual run, which saves a per-unit BOM from the totals. */
@@ -699,11 +708,21 @@ export const api = {
   updatePackingOrder: (
     id: number,
     body: {
-      bomId: number;
+      /** Omit for a manual run, which saves a new per-unit BOM from the totals. */
+      bomId?: number | null;
       plannedQuantity: number;
       manufacturingDate: string;
       expiryDate?: string | null;
       notes?: string | null;
+      packingBomName?: string | null;
+      outputItemId?: number | null;
+      unpackedItemId?: number | null;
+      unpackedQuantity?: number | null;
+      materials?: {
+        componentItemId: number;
+        quantityRequired: number;
+        wastagePercent?: number;
+      }[] | null;
     },
   ) =>
     request<{ ok: boolean }>(`/api/packing-orders/${id}`, {
@@ -726,6 +745,8 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
+  reopenPacking: (id: number) =>
+    request<{ status: string }>(`/api/packing-orders/${id}/reopen`, { method: "POST" }),
   trialBalance: (from?: string, to?: string) =>
     request<TrialBalance>(`/api/reports/trial-balance${periodQuery(from, to)}`),
   profitAndLoss: (from?: string, to?: string) =>
