@@ -163,6 +163,58 @@ describe("PartyService", () => {
     expect((await parties.list()).some((p) => p.id === clean.id)).toBe(false);
   });
 
+  it("posts party opening balances as one OPENING entry the ledger picks up", async () => {
+    const reports = new ReportService(ctx.db);
+    const customer = await parties.create({ name: "Advance Customer", partyType: "CUSTOMER" });
+    const supplier = await parties.create({ name: "Advance Supplier", partyType: "SUPPLIER" });
+
+    const result = await parties.postOpeningBalances([
+      { partyId: customer.id, debit: 500 },
+      { partyId: supplier.id, credit: 300 },
+    ]);
+    expect(result.partiesUpdated).toBe(2);
+    expect(result.totalDebit).toBe(500);
+    expect(result.totalCredit).toBe(300);
+
+    const customerLedger = await reports.partyLedger(customer.id);
+    expect(customerLedger).toHaveLength(1);
+    expect(customerLedger[0]!.debit).toBe(500);
+    expect(customerLedger[0]!.balance).toBe(500);
+    const supplierLedger = await reports.partyLedger(supplier.id);
+    expect(supplierLedger.at(-1)!.balance).toBe(-300);
+
+    expect((await reports.trialBalance()).balanced).toBe(true);
+    const ar = await accountId(ctx.db, "1100");
+    const ap = await accountId(ctx.db, "2000");
+    const retained = await accountId(ctx.db, "3100");
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((r) => r.accountId === ar)!.closingDebit).toBe(500);
+    expect(tb.rows.find((r) => r.accountId === ap)!.closingCredit).toBe(300);
+    expect(tb.rows.find((r) => r.accountId === retained)!.closingCredit).toBe(200);
+
+    // Re-saving the same value is a no-op, a new value replaces the old one.
+    await parties.postOpeningBalances([{ partyId: customer.id, debit: 500 }]);
+    expect((await reports.partyLedger(customer.id)).at(-1)!.balance).toBe(500);
+    await parties.postOpeningBalances([{ partyId: customer.id, debit: 700 }]);
+    expect((await reports.partyLedger(customer.id)).at(-1)!.balance).toBe(700);
+  });
+
+  it("rejects both-sided, duplicate and unknown-party opening balances", async () => {
+    const customer = await parties.create({ name: "Bad Opening", partyType: "CUSTOMER" });
+    await expect(
+      parties.postOpeningBalances([{ partyId: customer.id, debit: 5, credit: 5 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      parties.postOpeningBalances([
+        { partyId: customer.id, debit: 5 },
+        { partyId: customer.id, debit: 5 },
+      ]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      parties.postOpeningBalances([{ partyId: 999_999, debit: 5 }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it("updates name, credit limit and status", async () => {
     const created = await parties.create({ name: "Old Name", partyType: "CUSTOMER" });
     const updated = await parties.update(created.id, {

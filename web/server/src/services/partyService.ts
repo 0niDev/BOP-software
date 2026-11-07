@@ -6,10 +6,12 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
-import type { PartyType } from "../domain/enums.js";
+import { SystemAccountCodes, type PartyType } from "../domain/enums.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
+import { SystemAccountResolver } from "../repositories/systemAccounts.js";
+import { AccountingService, type JournalLineInput } from "./accountingService.js";
 
 const PARTY_TYPES: readonly PartyType[] = ["CUSTOMER", "SUPPLIER", "BOTH"];
 
@@ -37,10 +39,29 @@ export interface UpdatePartyInput {
   customerCategory?: string | null;
 }
 
+export interface PartyOpeningBalanceEntry {
+  partyId: number;
+  debit?: number;
+  credit?: number;
+}
+
+export interface PartyOpeningBalanceResult {
+  journalEntryId: number;
+  totalDebit: number;
+  totalCredit: number;
+  partiesUpdated: number;
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export class PartyService {
   private readonly parties: PartyRepository;
   private readonly accounts: AccountRepository;
   private readonly journal: JournalRepository;
+  private readonly accounting: AccountingService;
+  private readonly systemAccounts: SystemAccountResolver;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -49,6 +70,8 @@ export class PartyService {
     this.parties = new PartyRepository(db);
     this.accounts = new AccountRepository(db);
     this.journal = new JournalRepository(db);
+    this.accounting = new AccountingService(db, companyId);
+    this.systemAccounts = new SystemAccountResolver(db, companyId);
   }
 
   async list(
@@ -140,6 +163,106 @@ export class PartyService {
       throw new ValidationError("Cannot deactivate party with open transactions.");
     }
     await this.parties.deactivate(id);
+  }
+
+  /**
+   * Bulk opening balances, same shape as accountService.postOpeningBalances:
+   * debit = party owes us, credit = we owe the party (advance). Posted as ONE
+   * balanced OPENING entry; the net difference goes to Retained Earnings so the
+   * entry always balances. A party's previous opening balance is reversed with a
+   * contra line first, so re-saving the same values is a no-op.
+   */
+  async postOpeningBalances(
+    entries: readonly PartyOpeningBalanceEntry[],
+  ): Promise<PartyOpeningBalanceResult> {
+    const clean = entries.map((entry) => ({
+      partyId: entry.partyId,
+      debit: Math.abs(entry.debit ?? 0),
+      credit: Math.abs(entry.credit ?? 0),
+    }));
+
+    if (clean.length === 0) throw new ValidationError("No opening balances to save.");
+    if (new Set(clean.map((entry) => entry.partyId)).size !== clean.length) {
+      throw new ValidationError("A party can only appear once in opening balances.");
+    }
+
+    const receivableId = await this.systemAccounts.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
+    const payableId = await this.systemAccounts.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
+    const earningsId = await this.systemAccounts.idFor(SystemAccountCodes.RETAINED_EARNINGS);
+
+    const lines: JournalLineInput[] = [];
+    const updated: Array<{ id: number; signed: number }> = [];
+    for (const entry of clean) {
+      if (entry.debit !== 0 && entry.credit !== 0) {
+        throw new ValidationError("An opening balance line cannot be both debit and credit.");
+      }
+      const party = await this.parties.findById(entry.partyId);
+      if (!party || party.company_id !== this.companyId) {
+        throw new ValidationError(`Party ${entry.partyId} does not exist.`);
+      }
+      const accountId =
+        party.account_id ?? (party.party_type === "SUPPLIER" ? payableId : receivableId);
+      const prior = Number(party.opening_balance ?? 0);
+      if (prior !== 0) {
+        // shortcut: the contra uses the party's current linked account; changing
+        // that link after posting leaves the old OPENING line on the old account.
+        lines.push({
+          accountId,
+          partyId: party.id,
+          debit: prior < 0 ? -prior : 0,
+          credit: prior > 0 ? prior : 0,
+          description: "Opening balance reversal",
+        });
+      }
+      if (entry.debit !== 0 || entry.credit !== 0) {
+        lines.push({
+          accountId,
+          partyId: party.id,
+          debit: entry.debit,
+          credit: entry.credit,
+          description: "Opening balance",
+        });
+      }
+      updated.push({ id: party.id, signed: entry.debit - entry.credit });
+    }
+
+    if (lines.length === 0) throw new ValidationError("No opening balances to save.");
+
+    const sumDebit = lines.reduce((acc, line) => acc + Number(line.debit ?? 0), 0);
+    const sumCredit = lines.reduce((acc, line) => acc + Number(line.credit ?? 0), 0);
+    const totalDebit = clean.reduce((acc, entry) => acc + entry.debit, 0);
+    const totalCredit = clean.reduce((acc, entry) => acc + entry.credit, 0);
+    const plug = Math.round((sumDebit - sumCredit) * 100) / 100;
+    if (plug !== 0) {
+      lines.push({
+        accountId: earningsId,
+        debit: plug < 0 ? -plug : 0,
+        credit: plug > 0 ? plug : 0,
+        description: "Party opening balances",
+      });
+    }
+
+    const journalEntryId = await this.db.transaction(async () => {
+      const id = await this.accounting.postJournalEntry({
+        voucherType: "OPENING",
+        entryDate: today(),
+        lines,
+        narration: "Party opening balances",
+        sourceTable: "parties",
+        companyId: this.companyId,
+      });
+      for (const party of updated) {
+        await this.parties.update(party.id, { opening_balance: party.signed });
+      }
+      return id;
+    });
+
+    return {
+      journalEntryId,
+      totalDebit,
+      totalCredit,
+      partiesUpdated: updated.length,
+    };
   }
 
   /** Customers must link to an ASSET account (A/R), suppliers to a LIABILITY (A/P). */

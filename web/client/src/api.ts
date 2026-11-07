@@ -217,6 +217,18 @@ export const api = {
   ) => request<Party>(`/api/parties/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateParty: (id: number) =>
     request<{ ok: boolean }>(`/api/parties/${id}/deactivate`, { method: "POST" }),
+  postPartyOpeningBalances: (
+    entries: Array<{ partyId: number; debit?: number; credit?: number }>,
+  ) =>
+    request<{
+      journalEntryId: number;
+      totalDebit: number;
+      totalCredit: number;
+      partiesUpdated: number;
+    }>("/api/parties/opening-balances", {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    }),
   items: (opts: { search?: string; type?: Item["item_type"]; activeOnly?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (opts.search) params.set("search", opts.search);

@@ -448,6 +448,25 @@ export function createApp(
     res.json({ ok: true });
   });
 
+  /** Bulk party opening balances -> one balanced OPENING journal entry. */
+  app.post("/api/parties/opening-balances", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        entries: z
+          .array(
+            z.object({
+              partyId: z.number().int().positive(),
+              debit: z.number().optional(),
+              credit: z.number().optional(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.status(201).json(await parties.postOpeningBalances(body.entries));
+  });
+
   // --- items -------------------------------------------------------------
   app.get("/api/items", requireAuth, async (req, res) => {
     const type = req.query.type;

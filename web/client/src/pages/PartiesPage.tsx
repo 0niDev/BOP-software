@@ -54,6 +54,8 @@ export default function PartiesPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Party | null>(null);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState<Record<number, { debit: number; credit: number }>>({});
+  const [openingBusy, setOpeningBusy] = useState(false);
 
   async function refresh(): Promise<void> {
     try {
@@ -67,6 +69,16 @@ export default function PartiesPage() {
       ]);
       setParties(partyList);
       setAccounts(accountList);
+      setOpening(
+        Object.fromEntries(
+          partyList.map((party) => [
+            party.id,
+            party.opening_balance >= 0
+              ? { debit: party.opening_balance, credit: 0 }
+              : { debit: 0, credit: -party.opening_balance },
+          ]),
+        ),
+      );
     } catch (err) {
       setError(message(err, "Failed to load parties."));
     }
@@ -159,6 +171,38 @@ export default function PartiesPage() {
       await refresh();
     } catch (err) {
       setError(message(err, "Failed to deactivate the party."));
+    }
+  }
+
+  async function saveOpeningBalances(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    // Only changed rows are posted; the server reverses each party's previous
+    // opening balance before applying the new one.
+    const entries = parties
+      .map((party) => {
+        const line = opening[party.id] ?? { debit: 0, credit: 0 };
+        return { party, ...line, signed: line.debit - line.credit };
+      })
+      .filter((row) => row.signed !== row.party.opening_balance)
+      .map(({ party, debit, credit }) => ({ partyId: party.id, debit, credit }));
+    if (entries.length === 0) {
+      setError("No opening balance changes to save.");
+      return;
+    }
+    setOpeningBusy(true);
+    try {
+      const result = await api.postPartyOpeningBalances(entries);
+      setNotice(
+        `Posted party opening balances: debit ${money(result.totalDebit)} / credit ` +
+          `${money(result.totalCredit)} across ${result.partiesUpdated} party(ies).`,
+      );
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to post opening balances."));
+    } finally {
+      setOpeningBusy(false);
     }
   }
 
@@ -258,6 +302,76 @@ export default function PartiesPage() {
           </tbody>
         </table>
       </div>
+
+      <form className="card" onSubmit={saveOpeningBalances}>
+        <h2>Opening balances</h2>
+        <div className="row" style={{ alignItems: "flex-end" }}>
+          <button className="primary" type="submit" disabled={openingBusy}>
+            {openingBusy ? "Posting…" : "Save opening balances"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12 }}>
+          Debit = the party owes you. Credit = you owe the party (e.g. a customer paid in advance).
+          All amounts go into a single OPENING journal entry; the difference is posted to Retained
+          Earnings.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Party</th>
+              <th>Type</th>
+              <th className="num">Debit</th>
+              <th className="num">Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parties.map((party) => {
+              const line = opening[party.id] ?? { debit: 0, credit: 0 };
+              return (
+                <tr key={party.id}>
+                  <td>{party.code}</td>
+                  <td>{party.name}</td>
+                  <td>{party.party_type}</td>
+                  <td className="num">
+                    <NumberInput
+                      min="0"
+                      step="0.01"
+                      value={line.debit}
+                      onChange={(e) =>
+                        setOpening((current) => ({
+                          ...current,
+                          [party.id]: { debit: Number(e.target.value), credit: 0 },
+                        }))
+                      }
+                      style={{ width: 140, textAlign: "right" }}
+                    />
+                  </td>
+                  <td className="num">
+                    <NumberInput
+                      min="0"
+                      step="0.01"
+                      value={line.credit}
+                      onChange={(e) =>
+                        setOpening((current) => ({
+                          ...current,
+                          [party.id]: { debit: 0, credit: Number(e.target.value) },
+                        }))
+                      }
+                      style={{ width: 140, textAlign: "right" }}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+            {parties.length === 0 && (
+              <tr>
+                <td colSpan={5}>No parties to open.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </form>
 
       <form className="card" onSubmit={submit}>
         <h2>{editing ? `Edit party — ${editing.code}` : "Add party"}</h2>
