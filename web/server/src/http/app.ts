@@ -54,15 +54,17 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
 }
 
 const returnSchema = z.object({
-  invoiceId: z.coerce.number().int().positive(),
+  partyId: z.coerce.number().int().positive(),
   returnDate: isoDateSchema,
   returnNumber: z.string().nullish(),
   notes: z.string().nullish(),
   items: z
     .array(
       z.object({
-        invoiceItemId: z.coerce.number().int().positive(),
+        itemId: z.coerce.number().int().positive(),
         quantity: z.coerce.number().positive(),
+        unitCost: z.coerce.number().nonnegative(),
+        destination: z.enum(["INVENTORY", "WASTE"]).optional(),
       }),
     )
     .min(1),

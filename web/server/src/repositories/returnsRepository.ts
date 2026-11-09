@@ -15,8 +15,8 @@ export class ReturnsRepository {
 
   async listSalesReturns(companyId = 1): Promise<Row[]> {
     return this.db.all<Row>(
-      `SELECT r.*, s.invoice_number
-       FROM sales_returns r JOIN sales_invoices s ON s.id = r.invoice_id
+      `SELECT r.*, p.name AS party_name
+       FROM sales_returns r JOIN parties p ON p.id = r.party_id
        WHERE r.company_id = ? ORDER BY r.return_date DESC, r.id DESC LIMIT 200`,
       [companyId],
     );
@@ -41,8 +41,8 @@ export class ReturnsRepository {
 
   async listPurchaseReturns(companyId = 1): Promise<Row[]> {
     return this.db.all<Row>(
-      `SELECT r.*, p.invoice_number
-       FROM purchase_returns r JOIN purchase_invoices p ON p.id = r.invoice_id
+      `SELECT r.*, p.name AS party_name
+       FROM purchase_returns r JOIN parties p ON p.id = r.party_id
        WHERE r.company_id = ? ORDER BY r.return_date DESC, r.id DESC LIMIT 200`,
       [companyId],
     );
@@ -66,11 +66,21 @@ export class ReturnsRepository {
   }
 
   async listSalesReturnItems(returnId: number): Promise<Row[]> {
-    return this.db.all<Row>("SELECT * FROM sales_return_items WHERE return_id = ?", [returnId]);
+    return this.db.all<Row>(
+      `SELECT ri.*, i.item_name, i.item_code
+       FROM sales_return_items ri JOIN items i ON i.id = ri.item_id
+       WHERE ri.return_id = ? ORDER BY ri.id`,
+      [returnId],
+    );
   }
 
   async listPurchaseReturnItems(returnId: number): Promise<Row[]> {
-    return this.db.all<Row>("SELECT * FROM purchase_return_items WHERE return_id = ?", [returnId]);
+    return this.db.all<Row>(
+      `SELECT ri.*, i.item_name, i.item_code
+       FROM purchase_return_items ri JOIN items i ON i.id = ri.item_id
+       WHERE ri.return_id = ? ORDER BY ri.id`,
+      [returnId],
+    );
   }
 
   async deleteSalesReturn(id: number): Promise<void> {

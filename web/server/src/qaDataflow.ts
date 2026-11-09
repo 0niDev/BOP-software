@@ -449,37 +449,36 @@ async function main(): Promise<void> {
   eq("P2.3b", "A/R debit for the credit sale", await accounting.getAccountBalance(id.ar), 16_000);
 
   // --- 2.4 sales return --------------------------------------------------
-  section("PHASE 2.4 — Partial sales return (stock restored at original cost)");
-  const inv2Detail = await sales.getById(inv2.id);
-  const inv2Line = must(
-    (inv2Detail.items as Array<{ id: number; batch_id: number; quantity: number }>)[0],
-    "invoice 2 line",
-  );
-  const fgBatchBefore = must(
-    (await batchesOf(db, fgA.id)).find((b) => b.id === inv2Line.batch_id),
-    "returned batch",
-  );
-  const qtyBeforeReturn = d(fgBatchBefore.quantity_in_stock);
-  const unitCostBeforeReturn = d(fgBatchBefore.purchase_price);
+  section("PHASE 2.4 — Partial sales return (stock restored at the entered unit cost)");
 
   const returnResult = await db.transaction(() =>
-    returns.createSalesReturn({ invoiceId: inv2.id, returnDate: TODAY, items: [{ invoiceItemId: inv2Line.id, quantity: 100 }] }),
+    returns.createSalesReturn({
+      partyId: customer.id,
+      returnDate: TODAY,
+      items: [{ itemId: fgA.id, quantity: 100, unitCost: 40, destination: "INVENTORY" }],
+    }),
   );
-  eq("P2.4", "return value (100 of 400 units at 40.00)", returnResult.totalAmount, 4_000);
+  eq("P2.4", "return value (100 units at 40.00)", returnResult.totalAmount, 4_000);
 
-  const fgBatchAfter = must((await batchesOf(db, fgA.id)).find((b) => b.id === inv2Line.batch_id), "batch after return");
-  eq("P2.4", "stock restored to the original batch", d(fgBatchAfter.quantity_in_stock).minus(qtyBeforeReturn), 100);
-  eq("P2.4", "batch unit cost unchanged by the return", fgBatchAfter.purchase_price, unitCostBeforeReturn);
+  const fgBatchAfter = must(
+    await db.get<{ quantity_in_stock: number; purchase_price: number }>(
+      "SELECT quantity_in_stock, purchase_price FROM stock_batches WHERE batch_number = ?",
+      [`RET-${returnResult.returnNumber}-1`],
+    ),
+    "return batch",
+  );
+  eq("P2.4", "stock restored to a return batch", d(fgBatchAfter.quantity_in_stock), 100);
+  eq("P2.4", "return batch valued at the entered cost", fgBatchAfter.purchase_price, 40);
 
   const retEntry = must(await entryFor(db, "sales_returns", returnResult.id), "return journal entry");
   const retLines = await linesOf(db, Number(retEntry.id));
   eq("P2.4", "journal: sales returns debited (4100)", sumSide(retLines, "debit", id.salesReturns), 4_000);
   eq("P2.4", "journal: A/R credited", sumSide(retLines, "credit", id.ar), 4_000);
-  eq("P2.4", "journal: inventory restored (1220 debit) at original cost", sumSide(retLines, "debit", id.invFg), 3_000);
-  eq("P2.4", "journal: COGS reversed", sumSide(retLines, "credit", id.cogs), 3_000);
+  eq("P2.4", "journal: inventory restored (1220 debit)", sumSide(retLines, "debit", id.invFg), 4_000);
+  eq("P2.4", "journal: COGS reversed", sumSide(retLines, "credit", id.cogs), 4_000);
   eq("P2.4", "journal entry balances", entryTotal(retLines, "debit"), entryTotal(retLines, "credit"));
   const cogsNet = d(await accounting.getAccountBalance(id.cogs));
-  eq("P2.4", "COGS nets to 300 units sold (400 - 100) at 30.00", cogsNet.minus(67_540), 9_000);
+  eq("P2.4", "COGS nets to 400 units at 30.00 less the return", cogsNet.minus(67_540), 8_000);
 
   // --- 2.5 banking and payments -----------------------------------------
   section("PHASE 2.5 — Banking, receipts, supplier payment and the duplicate guard");
@@ -681,14 +680,14 @@ async function main(): Promise<void> {
 
   const pl = await reports.profitAndLoss();
   eq("P4", "P&L revenue (net of returns)", pl.revenue, 111_000);
-  eq("P4", "P&L expenses (COGS)", pl.expenses, 76_540);
+  eq("P4", "P&L expenses (COGS)", pl.expenses, 75_540);
   eq("P4", "P&L net profit = revenue - expenses", pl.netProfit, pl.revenue - pl.expenses);
-  eq("P4", "P&L net profit figure", pl.netProfit, 34_460);
+  eq("P4", "P&L net profit figure", pl.netProfit, 35_460);
 
   const bs = await reports.balanceSheet(null);
-  eq("P4", "balance sheet: assets", bs.assets, 2_319_460);
+  eq("P4", "balance sheet: assets", bs.assets, 2_320_460);
   eq("P4", "balance sheet: liabilities", bs.liabilities, 535_000);
-  eq("P4", "balance sheet: equity incl. net profit", bs.equity, 1_784_460);
+  eq("P4", "balance sheet: equity incl. net profit", bs.equity, 1_785_460);
   eq(
     "P4",
     "Assets = Liabilities + Equity + Net Profit",

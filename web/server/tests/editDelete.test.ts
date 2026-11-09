@@ -258,31 +258,22 @@ describe("banking", () => {
 
 describe("returns", () => {
   it("deleting a sales return takes the returned stock back out", async () => {
-    const invoice = await sales.createSalesInvoice({
-      customerId: ctx.ids.customerId,
-      invoiceDate: "2026-10-08",
-      paymentType: "CREDIT",
-      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
-    });
-    const [line] = await ctx.db.all<{ id: number }>(
-      "SELECT id FROM sales_invoice_items WHERE invoice_id = ?",
-      [invoice.id],
-    );
     const created = await returns.createSalesReturn({
-      invoiceId: invoice.id,
+      partyId: ctx.ids.customerId,
       returnDate: "2026-10-09",
-      items: [{ invoiceItemId: line!.id, quantity: 1 }],
+      items: [{ itemId: ctx.ids.itemId, quantity: 1, unitCost: 100 }],
     });
     const stock = async () =>
       (
         await ctx.db.get<{ qty: number }>(
-          "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = 'DEMO-BATCH'",
+          "SELECT quantity_in_stock AS qty FROM stock_batches WHERE batch_number = ?",
+          [`RET-${created.returnNumber}-1`],
         )
       )?.qty ?? 0;
-    expect(await stock()).toBe(999);
+    expect(await stock()).toBe(1);
 
     await returns.deleteSalesReturn(created.id);
-    expect(await stock()).toBe(998);
+    expect(await stock()).toBe(0);
     expect(await journalCount("sales_returns", created.id)).toBe(0);
   });
 });

@@ -280,7 +280,7 @@ export async function seedRichDemoData(
     });
 
     // -- Credit sale to extra customer (settled later with a receipt) --
-    const creditSale = await sales.createSalesInvoice({
+    await sales.createSalesInvoice({
       customerId: extraCustomerId,
       invoiceDate: demoDate,
       paymentType: "CREDIT",
@@ -379,37 +379,19 @@ export async function seedRichDemoData(
       outputBatchNumber: "PROD-DEMO-001-FG",
     });
 
-    // -- Sales return (partial: return 50 of the 200 units sold) --
-    const saleItems = await db.all<{ id: number }>(
-      "SELECT id FROM sales_invoice_items WHERE invoice_id = ? ORDER BY id LIMIT 1",
-      [creditSale.id],
-    );
-    if (saleItems[0]) {
-      await returns_.createSalesReturn({
-        invoiceId: creditSale.id,
-        returnDate: demoDate,
-        items: [{ invoiceItemId: saleItems[0].id, quantity: 50 }],
-      });
-    }
+    // -- Sales return (50 of the 200 units sold come back to stock) --
+    await returns_.createSalesReturn({
+      partyId: extraCustomerId,
+      returnDate: demoDate,
+      items: [{ itemId: ids.itemId, quantity: 50, unitCost: 100 }],
+    });
 
-    // -- Purchase return (partial: return 20 of the 100 raw units) --
-    const purchInv = await db.get<{ id: number }>(
-      "SELECT id FROM purchase_invoices WHERE company_id = ? AND invoice_number = ?",
-      [companyId, "PI-DEMO-001"],
-    );
-    if (purchInv) {
-      const items = await db.all<{ id: number }>(
-        "SELECT id FROM purchase_invoice_items WHERE invoice_id = ? ORDER BY id LIMIT 1",
-        [purchInv.id],
-      );
-      if (items[0]) {
-        await returns_.createPurchaseReturn({
-          invoiceId: purchInv.id,
-          returnDate: demoDate,
-          items: [{ invoiceItemId: items[0].id, quantity: 20 }],
-        });
-      }
-    }
+    // -- Purchase return (20 of the 100 raw units go back to the supplier) --
+    await returns_.createPurchaseReturn({
+      partyId: extraSupplierId,
+      returnDate: demoDate,
+      items: [{ itemId: rawItemId, quantity: 20, unitCost: 55 }],
+    });
 
     // --- Opening balances ---
     await accounting.postJournalEntry({

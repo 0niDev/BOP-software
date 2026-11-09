@@ -215,10 +215,26 @@ export class DashboardService {
          LEFT JOIN expense_categories ec ON ec.id = e.category_id
          LEFT JOIN accounts a ON a.id = e.account_id
          WHERE e.company_id = ?
+         UNION ALL
+         SELECT sr.return_number, sr.return_date, 'Sales return', sr.total_amount, p.name
+         FROM sales_returns sr JOIN parties p ON p.id = sr.party_id
+         WHERE sr.company_id = ?
+         UNION ALL
+         SELECT pr.return_number, pr.return_date, 'Purchase return', pr.total_amount, p.name
+         FROM purchase_returns pr JOIN parties p ON p.id = pr.party_id
+         WHERE pr.company_id = ?
        )
        ORDER BY date DESC, reference DESC
        LIMIT ${RECENT_LIMIT}`,
-      [this.companyId, this.companyId, this.companyId, this.companyId, this.companyId],
+      [
+        this.companyId,
+        this.companyId,
+        this.companyId,
+        this.companyId,
+        this.companyId,
+        this.companyId,
+        this.companyId,
+      ],
     );
 
     const lowStockRows = await this.db.all<Row>(

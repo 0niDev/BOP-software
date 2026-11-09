@@ -168,25 +168,6 @@ export class SalesInvoiceService {
     }
   }
 
-  /**
-   * A returned invoice still has sales_returns rows pointing at its line ids,
-   * so deleting the lines would trip the foreign key. Refuse cleanly instead.
-   */
-  private async assertNoReturns(
-    invoice: { id: number; invoice_number: string },
-    action: string,
-  ): Promise<void> {
-    const row = await this.db.get<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM sales_returns WHERE invoice_id = ?",
-      [invoice.id],
-    );
-    if (Number(row?.n ?? 0) > 0) {
-      throw new ConflictError(
-        `Invoice ${invoice.invoice_number} has sales returns. Delete the returns before you ${action} it.`,
-      );
-    }
-  }
-
   private async prepare(input: CreateSalesInvoiceInput): Promise<PreparedSalesInvoice> {
     if (!PAYMENT_METHODS.includes(input.paymentType)) {
       throw new ValidationError(`Invalid payment type '${input.paymentType}'.`);
@@ -312,7 +293,6 @@ export class SalesInvoiceService {
       throw new ValidationError("A cancelled invoice cannot be edited.");
     }
     this.assertUnpaid(existing, "edit");
-    await this.assertNoReturns(existing, "edit");
     const companyId = input.companyId ?? this.companyId;
     const warehouseId = input.warehouseId ?? existing.warehouse_id;
     const ctx = await this.prepare(input);
@@ -362,7 +342,6 @@ export class SalesInvoiceService {
     if (!existing) throw new NotFoundError(`Sales invoice ${id} not found.`);
     if (existing.status === "CANCELLED") return;
     this.assertUnpaid(existing, "cancel");
-    await this.assertNoReturns(existing, "cancel");
     await this.db.transaction(async () => {
       await this.clearEffects(id, existing.invoice_number);
       await this.sales.updateInvoice(id, {

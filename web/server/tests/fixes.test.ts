@@ -196,14 +196,10 @@ describe("F9: returns reverse the COGS account the sale used", () => {
       )?.debit,
     ).toBe(20);
 
-    const items = await ctx.db.all<{ id: number }>(
-      "SELECT id FROM sales_invoice_items WHERE invoice_id = ?",
-      [invoice.id],
-    );
     const ret = await new ReturnsService(ctx.db).createSalesReturn({
-      invoiceId: invoice.id,
+      partyId: ctx.ids.customerId,
       returnDate: "2026-10-09",
-      items: [{ invoiceItemId: items[0]!.id, quantity: 2 }],
+      items: [{ itemId: rawItemId, quantity: 2, unitCost: 10 }],
     });
     const jeRet = await accounting.getJournalEntry("sales_returns", ret.id);
     const retLines = jeRet!.lines as Array<{ account_code: string; credit: number }>;

@@ -276,7 +276,7 @@ CREATE TABLE IF NOT EXISTS sales_returns (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id          INTEGER NOT NULL REFERENCES companies(id),
     return_number       TEXT NOT NULL,
-    invoice_id          INTEGER NOT NULL REFERENCES sales_invoices(id),
+    party_id            INTEGER NOT NULL REFERENCES parties(id),
     return_date         TEXT NOT NULL,
     total_amount        REAL NOT NULL DEFAULT 0,
     notes               TEXT,
@@ -288,8 +288,12 @@ CREATE TABLE IF NOT EXISTS sales_returns (
 CREATE TABLE IF NOT EXISTS sales_return_items (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     return_id           INTEGER NOT NULL REFERENCES sales_returns(id) ON DELETE CASCADE,
-    invoice_item_id     INTEGER NOT NULL REFERENCES sales_invoice_items(id),
+    item_id             INTEGER NOT NULL REFERENCES items(id),
+    batch_id            INTEGER REFERENCES stock_batches(id),
     quantity            REAL NOT NULL,
+    unit_cost           REAL NOT NULL DEFAULT 0,
+    destination         TEXT NOT NULL DEFAULT 'INVENTORY'
+                          CHECK (destination IN ('INVENTORY','WASTE')),
     line_total          REAL NOT NULL
 );
 
@@ -338,7 +342,7 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id          INTEGER NOT NULL REFERENCES companies(id),
     return_number       TEXT NOT NULL,
-    invoice_id          INTEGER NOT NULL REFERENCES purchase_invoices(id),
+    party_id            INTEGER NOT NULL REFERENCES parties(id),
     return_date         TEXT NOT NULL,
     total_amount        REAL NOT NULL DEFAULT 0,
     notes               TEXT,
@@ -350,8 +354,10 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
 CREATE TABLE IF NOT EXISTS purchase_return_items (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     return_id           INTEGER NOT NULL REFERENCES purchase_returns(id) ON DELETE CASCADE,
-    invoice_item_id     INTEGER NOT NULL REFERENCES purchase_invoice_items(id),
+    item_id             INTEGER NOT NULL REFERENCES items(id),
+    batch_id            INTEGER REFERENCES stock_batches(id),
     quantity            REAL NOT NULL,
+    unit_cost           REAL NOT NULL DEFAULT 0,
     line_total          REAL NOT NULL
 );
 

@@ -45,6 +45,20 @@ import type {
   UserRow,
 } from "./types";
 
+export interface ReturnLineBody {
+  itemId: number;
+  quantity: number;
+  unitCost: number;
+  destination?: "INVENTORY" | "WASTE";
+}
+
+export interface ReturnBody {
+  partyId: number;
+  returnDate: string;
+  items: ReturnLineBody[];
+  notes?: string | null;
+}
+
 const TOKEN_KEY = "bop-erp.token";
 
 /** `?from=&to=` for the report endpoints, omitting empty values. */
@@ -400,11 +414,7 @@ export const api = {
       `/api/${kind}-invoices/${id}/payments`,
     ),
   salesReturns: () => request<Record<string, unknown>[]>("/api/sales-returns"),
-  createSalesReturn: (body: {
-    invoiceId: number;
-    returnDate: string;
-    items: { invoiceItemId: number; quantity: number }[];
-  }) =>
+  createSalesReturn: (body: ReturnBody) =>
     request<{ id: number; returnNumber: string; totalAmount: number }>("/api/sales-returns", {
       method: "POST",
       body: JSON.stringify(body),
@@ -413,15 +423,7 @@ export const api = {
     request<{ return: Record<string, unknown>; items: Record<string, unknown>[] }>(
       `/api/sales-returns/${id}`,
     ),
-  updateSalesReturn: (
-    id: number,
-    body: {
-      invoiceId: number;
-      returnDate: string;
-      items: { invoiceItemId: number; quantity: number }[];
-      notes?: string | null;
-    },
-  ) =>
+  updateSalesReturn: (id: number, body: ReturnBody) =>
     request<{ id: number; returnNumber: string; totalAmount: number }>(`/api/sales-returns/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -429,11 +431,7 @@ export const api = {
   deleteSalesReturn: (id: number) =>
     request<{ ok: boolean }>(`/api/sales-returns/${id}`, { method: "DELETE" }),
   purchaseReturns: () => request<Record<string, unknown>[]>("/api/purchase-returns"),
-  createPurchaseReturn: (body: {
-    invoiceId: number;
-    returnDate: string;
-    items: { invoiceItemId: number; quantity: number }[];
-  }) =>
+  createPurchaseReturn: (body: ReturnBody) =>
     request<{ id: number; returnNumber: string; totalAmount: number }>("/api/purchase-returns", {
       method: "POST",
       body: JSON.stringify(body),
@@ -442,15 +440,7 @@ export const api = {
     request<{ return: Record<string, unknown>; items: Record<string, unknown>[] }>(
       `/api/purchase-returns/${id}`,
     ),
-  updatePurchaseReturn: (
-    id: number,
-    body: {
-      invoiceId: number;
-      returnDate: string;
-      items: { invoiceItemId: number; quantity: number }[];
-      notes?: string | null;
-    },
-  ) =>
+  updatePurchaseReturn: (id: number, body: ReturnBody) =>
     request<{ id: number; returnNumber: string; totalAmount: number }>(
       `/api/purchase-returns/${id}`,
       { method: "PUT", body: JSON.stringify(body) },

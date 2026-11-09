@@ -308,6 +308,8 @@ export default function SalesInvoicesPage() {
           <label>Customer</label>
           <SearchableSelect
             value={String(customerId)}
+            // A new invoice starts at the party, not at the first item line.
+            autoFocus={editingId === null}
             onChange={(next) => setCustomerId(Number(next))}
             placeholder="Select customer..."
             options={[

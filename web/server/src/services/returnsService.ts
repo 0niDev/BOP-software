@@ -1,27 +1,28 @@
 /**
  * Sales and purchase returns.
  *
- * The original Python app defined the sales_returns / purchase_returns tables
- * but exposed no create path, so this is a clean implementation rather than a
- * line-by-line port.
+ * A return is a standalone party document: a party gives goods back (sales) or
+ * receives goods back (purchase). It is not tied to an invoice; the form takes
+ * the party, the item, the quantity and the unit cost directly.
  *
- * Sales return:     Dr Sales Returns (4100)     Cr AR/Cash      (net sale reversed)
- *                   Dr Inventory (by type)      Cr COGS (5000)  (cost restored)
+ * Sales return:     Dr Sales Returns (4100)     Cr AR            (party credit)
+ *                   Dr Inventory (by type)      Cr COGS (by type) (stock restored)
+ *                   Dr Wastage Expense (5200)   Cr COGS (by type) (goods scrapped)
  * Purchase return:  Dr Accounts Payable (2000)  Cr Inventory (by type)
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import {
   ConflictError,
+  InsufficientStockError,
   NotFoundError,
   ValidationError,
 } from "../domain/errors.js";
 import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
-import { ItemRepository } from "../repositories/itemRepository.js";
+import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
-import { PurchaseRepository } from "../repositories/purchaseRepository.js";
+import { PartyRepository } from "../repositories/partyRepository.js";
 import { ReturnsRepository } from "../repositories/returnsRepository.js";
-import { SalesRepository } from "../repositories/salesRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
@@ -29,28 +30,34 @@ import { AuditService } from "./auditService.js";
 import { deleteJournalBySource } from "./journalEffects.js";
 import { insertRow } from "../repositories/base.js";
 
+export type ReturnDestination = "INVENTORY" | "WASTE";
+
 export interface ReturnLineInput {
-  /** sales_invoice_items.id or purchase_invoice_items.id */
-  invoiceItemId: number;
+  itemId: number;
   quantity: number | string;
+  unitCost: number | string;
+  /** Sales returns only: restock the item or scrap it. Defaults to INVENTORY. */
+  destination?: ReturnDestination;
 }
 
 export interface CreateSalesReturnInput {
-  invoiceId: number;
+  partyId: number;
   returnDate: string;
   items: readonly ReturnLineInput[];
   returnNumber?: string | null;
   notes?: string | null;
+  warehouseId?: number;
   companyId?: number;
   createdBy?: number | null;
 }
 
 export interface CreatePurchaseReturnInput {
-  invoiceId: number;
+  partyId: number;
   returnDate: string;
   items: readonly ReturnLineInput[];
   returnNumber?: string | null;
   notes?: string | null;
+  warehouseId?: number;
   companyId?: number;
   createdBy?: number | null;
 }
@@ -62,38 +69,31 @@ export interface ReturnResult {
   journalEntryId: number;
 }
 
-/** Columns we read from an invoice line when building a return. */
-interface InvoiceItemRow {
-  id: number;
-  item_id: number;
-  batch_id: number | null;
-  quantity: number;
-  line_total: number;
-}
-
 const INVENTORY_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   RAW_MATERIAL: SystemAccountCodes.INVENTORY_RAW_MATERIALS,
   PACKING_MATERIAL: SystemAccountCodes.INVENTORY_PACKING_MATERIALS,
   FINISHED_GOOD: SystemAccountCodes.INVENTORY_FINISHED_GOODS,
 };
 
-/**
- * COGS accounts by item type, identical to the sales-invoice mapping. A return
- * must reverse the *same* COGS account the sale debited, otherwise a sale +
- * full return leaves a residual in two different expense accounts instead of
- * netting to zero.
- */
+/** COGS accounts by item type, identical to the sales-invoice mapping. */
 const COGS_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   FINISHED_GOOD: "5000",
   PACKING_MATERIAL: "5001",
   RAW_MATERIAL: "5002",
 };
 
+interface PreparedLine {
+  item: ItemRow;
+  quantity: Decimal;
+  unitCost: Decimal;
+  amount: Decimal;
+  destination: ReturnDestination;
+}
+
 export class ReturnsService {
   private readonly items: ItemRepository;
+  private readonly parties: PartyRepository;
   private readonly batches: StockBatchRepository;
-  private readonly sales: SalesRepository;
-  private readonly purchases: PurchaseRepository;
   private readonly returns: ReturnsRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
@@ -104,9 +104,8 @@ export class ReturnsService {
     private readonly companyId = 1,
   ) {
     this.items = new ItemRepository(db);
+    this.parties = new PartyRepository(db);
     this.batches = new StockBatchRepository(db);
-    this.sales = new SalesRepository(db);
-    this.purchases = new PurchaseRepository(db);
     this.returns = new ReturnsRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
@@ -139,109 +138,73 @@ export class ReturnsService {
 
   async createSalesReturn(input: CreateSalesReturnInput): Promise<ReturnResult> {
     const companyId = input.companyId ?? this.companyId;
-    const invoice = await this.sales.findById(input.invoiceId);
-    if (!invoice) throw new NotFoundError(`Sales invoice ${input.invoiceId} not found.`);
-    if (invoice.status === "CANCELLED") {
-      throw new ValidationError("Cannot return a cancelled invoice.");
+    const warehouseId = input.warehouseId ?? 1;
+    const party = await this.parties.requireById(input.partyId);
+    if (!party.is_active) throw new ValidationError(`Party '${party.name}' is not active.`);
+    if (party.party_type !== "CUSTOMER" && party.party_type !== "BOTH") {
+      throw new ValidationError(`Party '${party.name}' is not a customer.`);
     }
     if (!input.items?.length) throw new ValidationError("A return needs at least one line.");
 
-    const invoiceItems = (await this.sales.findItems(invoice.id)) as unknown as InvoiceItemRow[];
-    const invoiceItemsById = new Map(invoiceItems.map((row) => [row.id, row]));
-
-    const resolver = new SystemAccountResolver(this.db, companyId);
-    const salesReturnsId = await resolver.idFor(SystemAccountCodes.SALES_RETURNS);
-    const settleId =
-      invoice.payment_type === "CREDIT"
-        ? await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE)
-        : await resolver.idFor(SystemAccountCodes.CASH_IN_HAND);
-
-    let returnNumber = input.returnNumber?.trim() || "";
-    if (returnNumber) {
-      if (await this.returns.salesReturnNumberExists(returnNumber, companyId)) {
-        throw new ConflictError(`Return number '${returnNumber}' already exists.`);
-      }
-    } else {
-      returnNumber = await this.journal.nextVoucherNumber(companyId, "SALES_RETURN");
-    }
+    const returnNumber = await this.resolveReturnNumber(
+      input.returnNumber,
+      companyId,
+      "SALES_RETURN",
+    );
 
     return this.db.transaction(async () => {
+      const resolver = new SystemAccountResolver(this.db, companyId);
+      const prepared = await this.prepareLines(input.items);
       let netTotal = new Decimal(0);
-      let costTotal = new Decimal(0);
+      let wasteTotal = new Decimal(0);
       const cogsByType = new Map<ItemType, Decimal>();
-      const inventoryCredits = new Map<number, Decimal>();
-      const returnLines: Array<{ invoiceItemId: number; quantity: Decimal; amount: Decimal }> = [];
+      const inventoryDebits = new Map<number, Decimal>();
 
-      for (const line of input.items) {
-        const item = invoiceItemsById.get(line.invoiceItemId);
-        if (!item) {
-          throw new NotFoundError(`Invoice line ${line.invoiceItemId} not found on this invoice.`);
-        }
-        const quantity = dec(line.quantity);
-        const soldQty = dec(item.quantity);
-        if (quantity.lessThanOrEqualTo(0) || quantity.greaterThan(soldQty)) {
-          throw new ValidationError(
-            `Return quantity for line ${line.invoiceItemId} must be between 0 and ${soldQty.toString()}.`,
+      for (const line of prepared) {
+        netTotal = netTotal.plus(line.amount);
+        cogsByType.set(
+          line.item.item_type,
+          (cogsByType.get(line.item.item_type) ?? new Decimal(0)).plus(line.amount),
+        );
+        if (line.destination === "WASTE") {
+          wasteTotal = wasteTotal.plus(line.amount);
+        } else {
+          const inventoryId = await resolver.idFor(
+            INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type],
+          );
+          inventoryDebits.set(
+            inventoryId,
+            (inventoryDebits.get(inventoryId) ?? new Decimal(0)).plus(line.amount),
           );
         }
-        const unitNet = dec(item.line_total).dividedBy(soldQty);
-        const amount = round2(quantity.times(unitNet));
-        netTotal = netTotal.plus(amount);
-
-        // Restore stock and reverse the cost of goods sold.
-        const itemRow = await this.items.requireById(item.item_id);
-        let unitCost = dec(itemRow.purchase_price);
-        if (item.batch_id != null) {
-          await this.batches.adjustQuantity(item.batch_id, toQuantity(quantity));
-          const batch = await this.batches.findById(item.batch_id);
-          if (batch) {
-            const composed = dec(batch.raw_unit_cost).plus(dec(batch.packing_unit_cost));
-            if (composed.greaterThan(0)) unitCost = composed;
-            else if (dec(batch.purchase_price).greaterThan(0)) unitCost = dec(batch.purchase_price);
-          }
-        }
-        const cost = round2(quantity.times(unitCost));
-        costTotal = costTotal.plus(cost);
-        cogsByType.set(
-          itemRow.item_type,
-          (cogsByType.get(itemRow.item_type) ?? new Decimal(0)).plus(cost),
-        );
-        const inventoryId = await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemRow.item_type]);
-        inventoryCredits.set(inventoryId, (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(cost));
-
-        returnLines.push({ invoiceItemId: line.invoiceItemId, quantity, amount });
       }
 
       const returnId = await this.returns.insertSalesReturn({
         company_id: companyId,
         return_number: returnNumber,
-        invoice_id: invoice.id,
+        party_id: party.id,
         return_date: input.returnDate,
         total_amount: toStorage(netTotal),
         notes: input.notes ?? null,
         created_by: input.createdBy ?? null,
       });
 
-      for (const line of returnLines) {
-        await this.returns.insertSalesReturnItem({
-          return_id: returnId,
-          invoice_item_id: line.invoiceItemId,
-          quantity: toQuantity(line.quantity),
-          line_total: toStorage(line.amount),
-        });
-      }
-
-      // Record stock movements for the return (restore stock to batch).
-      for (const line of input.items) {
-        const item = invoiceItemsById.get(line.invoiceItemId);
-        if (item?.batch_id != null) {
+      for (const [index, line] of prepared.entries()) {
+        let batchId: number | null = null;
+        if (line.destination === "INVENTORY") {
+          batchId = await this.restoreBatch(
+            line,
+            `RET-${returnNumber}-${index + 1}`,
+            warehouseId,
+            input.returnDate,
+          );
           await insertRow(this.db, "stock_movements", {
-            item_id: item.item_id,
-            batch_id: item.batch_id,
-            warehouse_id: invoice.warehouse_id ?? 1,
+            item_id: line.item.id,
+            batch_id: batchId,
+            warehouse_id: warehouseId,
             movement_type: "SALE_RETURN",
-            quantity: line.quantity,
-            unit_cost: 0,
+            quantity: toQuantity(line.quantity),
+            unit_cost: toStorage(line.unitCost),
             reference_table: "sales_returns",
             reference_id: returnId,
             movement_date: input.returnDate,
@@ -249,29 +212,47 @@ export class ReturnsService {
             created_by: input.createdBy ?? null,
           });
         }
+        await this.returns.insertSalesReturnItem({
+          return_id: returnId,
+          item_id: line.item.id,
+          batch_id: batchId,
+          quantity: toQuantity(line.quantity),
+          unit_cost: toStorage(line.unitCost),
+          destination: line.destination,
+          line_total: toStorage(line.amount),
+        });
       }
 
       const journalLines: JournalLineInput[] = [
-        { accountId: salesReturnsId, debit: netTotal, description: `Sales return ${returnNumber}` },
         {
-          accountId: settleId,
+          accountId: await resolver.idFor(SystemAccountCodes.SALES_RETURNS),
+          debit: netTotal,
+          description: `Sales return ${returnNumber}`,
+        },
+        {
+          accountId: await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE),
           credit: netTotal,
-          partyId: invoice.payment_type === "CREDIT" ? invoice.customer_id : null,
+          partyId: party.id,
           description: `Sales return ${returnNumber}`,
         },
       ];
-      if (costTotal.greaterThan(0)) {
-        for (const [itemType, amount] of cogsByType) {
-          if (amount.lessThanOrEqualTo(0)) continue;
-          journalLines.push({
-            accountId: await this.cogsAccountId(resolver, itemType),
-            credit: amount,
-            description: `Reverse COGS (${itemType})`,
-          });
-        }
-        for (const [inventoryId, amount] of inventoryCredits) {
-          journalLines.push({ accountId: inventoryId, debit: amount, description: "Restore inventory" });
-        }
+      for (const [itemType, amount] of cogsByType) {
+        if (amount.lessThanOrEqualTo(0)) continue;
+        journalLines.push({
+          accountId: await this.cogsAccountId(resolver, itemType),
+          credit: amount,
+          description: `Reverse COGS (${itemType})`,
+        });
+      }
+      for (const [inventoryId, amount] of inventoryDebits) {
+        journalLines.push({ accountId: inventoryId, debit: amount, description: "Restore inventory" });
+      }
+      if (wasteTotal.greaterThan(0)) {
+        journalLines.push({
+          accountId: await resolver.idFor(SystemAccountCodes.MANUFACTURING_WASTAGE_EXPENSE),
+          debit: wasteTotal,
+          description: "Returned goods scrapped",
+        });
       }
 
       const journalEntryId = await this.accounting.postJournalEntry({
@@ -292,127 +273,69 @@ export class ReturnsService {
 
   async createPurchaseReturn(input: CreatePurchaseReturnInput): Promise<ReturnResult> {
     const companyId = input.companyId ?? this.companyId;
-    const invoice = await this.purchases.findById(input.invoiceId);
-    if (!invoice) throw new NotFoundError(`Purchase invoice ${input.invoiceId} not found.`);
+    const warehouseId = input.warehouseId ?? 1;
+    const party = await this.parties.requireById(input.partyId);
+    if (!party.is_active) throw new ValidationError(`Party '${party.name}' is not active.`);
+    if (party.party_type !== "SUPPLIER" && party.party_type !== "BOTH") {
+      throw new ValidationError(`Party '${party.name}' is not a supplier.`);
+    }
     if (!input.items?.length) throw new ValidationError("A return needs at least one line.");
 
-    const invoiceItems = (await this.purchases.findItems(invoice.id)) as unknown as InvoiceItemRow[];
-    const invoiceItemsById = new Map(invoiceItems.map((row) => [row.id, row]));
-
-    const resolver = new SystemAccountResolver(this.db, companyId);
-    const apId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
-
-    // Cash/Bank purchases are refunded to the payment account; only CREDIT
-    // purchases use A/P. A return on a cash invoice credits the refund account
-    // (a refund); a credit purchase debits A/P (a receivable reduction).
-    const isCredit = invoice.payment_type === "CREDIT";
-    const refundAccountId = isCredit
-      ? apId
-      : invoice.payment_type === "CASH"
-        ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
-        : await this.resolveBankAccount(invoice.bank_account_id);
-
-    let returnNumber = input.returnNumber?.trim() || "";
-    if (returnNumber) {
-      if (await this.returns.purchaseReturnNumberExists(returnNumber, companyId)) {
-        throw new ConflictError(`Return number '${returnNumber}' already exists.`);
-      }
-    } else {
-      returnNumber = await this.journal.nextVoucherNumber(companyId, "PURCHASE_RETURN");
-    }
+    const returnNumber = await this.resolveReturnNumber(
+      input.returnNumber,
+      companyId,
+      "PURCHASE_RETURN",
+    );
 
     return this.db.transaction(async () => {
+      const resolver = new SystemAccountResolver(this.db, companyId);
+      const prepared = await this.prepareLines(input.items);
       let netTotal = new Decimal(0);
-      const inventoryDebits = new Map<number, Decimal>();
-      const returnLines: Array<{ invoiceItemId: number; quantity: Decimal; amount: Decimal }> = [];
+      const inventoryCredits = new Map<number, Decimal>();
 
-      for (const line of input.items) {
-        const item = invoiceItemsById.get(line.invoiceItemId);
-        if (!item) {
-          throw new NotFoundError(`Invoice line ${line.invoiceItemId} not found on this invoice.`);
-        }
-        const quantity = dec(line.quantity);
-        const soldQty = dec(item.quantity);
-        if (quantity.lessThanOrEqualTo(0) || quantity.greaterThan(soldQty)) {
-          throw new ValidationError(
-            `Return quantity for line ${line.invoiceItemId} must be between 0 and ${soldQty.toString()}.`,
-          );
-        }
-        const amount = round2(quantity.times(dec(item.line_total).dividedBy(soldQty)));
-        netTotal = netTotal.plus(amount);
-
-        // Remove the returned stock from its batch.
-        if (item.batch_id != null) {
-          await this.batches.adjustQuantity(item.batch_id, -toQuantity(quantity));
-        }
-        const itemRow = await this.items.requireById(item.item_id);
-        const inventoryId = await resolver.idFor(INVENTORY_ACCOUNT_BY_TYPE[itemRow.item_type]);
-        inventoryDebits.set(inventoryId, (inventoryDebits.get(inventoryId) ?? new Decimal(0)).plus(amount));
-
-        returnLines.push({ invoiceItemId: line.invoiceItemId, quantity, amount });
+      for (const line of prepared) {
+        netTotal = netTotal.plus(line.amount);
+        const inventoryId = await resolver.idFor(
+          INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type],
+        );
+        inventoryCredits.set(
+          inventoryId,
+          (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(line.amount),
+        );
       }
 
       const returnId = await this.returns.insertPurchaseReturn({
         company_id: companyId,
         return_number: returnNumber,
-        invoice_id: invoice.id,
+        party_id: party.id,
         return_date: input.returnDate,
         total_amount: toStorage(netTotal),
         notes: input.notes ?? null,
         created_by: input.createdBy ?? null,
       });
 
-      for (const line of returnLines) {
+      for (const line of prepared) {
+        await this.consumeStock(line, warehouseId, returnId, returnNumber, input);
         await this.returns.insertPurchaseReturnItem({
           return_id: returnId,
-          invoice_item_id: line.invoiceItemId,
+          item_id: line.item.id,
+          batch_id: null,
           quantity: toQuantity(line.quantity),
+          unit_cost: toStorage(line.unitCost),
           line_total: toStorage(line.amount),
         });
       }
 
-      // Record stock movements for the return (remove stock from batch).
-      for (const line of input.items) {
-        const item = invoiceItemsById.get(line.invoiceItemId);
-        if (item?.batch_id != null) {
-          await insertRow(this.db, "stock_movements", {
-            item_id: item.item_id,
-            batch_id: item.batch_id,
-            warehouse_id: invoice.warehouse_id ?? 1,
-            movement_type: "PURCHASE_RETURN",
-            quantity: -toQuantity(line.quantity),
-            unit_cost: 0,
-            reference_table: "purchase_returns",
-            reference_id: returnId,
-            movement_date: input.returnDate,
-            notes: `Purchase return ${returnNumber}`,
-            created_by: input.createdBy ?? null,
-          });
-        }
-      }
-
-      // A purchase return: inventory is credited (goods back in stock), and the
-      // offset is A/P for CREDIT purchases, or the original cash/bank account
-      // for CASH/BANK purchases (a refund, not an A/P credit).
       const journalLines: JournalLineInput[] = [];
-      for (const [inventoryId, amount] of inventoryDebits) {
+      for (const [inventoryId, amount] of inventoryCredits) {
         journalLines.push({ accountId: inventoryId, credit: amount, description: "Return to supplier" });
       }
-      if (isCredit) {
-        journalLines.push({
-          accountId: apId,
-          debit: netTotal,
-          partyId: invoice.supplier_id,
-          description: `Purchase return ${returnNumber}`,
-        });
-      } else {
-        journalLines.push({
-          accountId: refundAccountId,
-          debit: netTotal,
-          partyId: null,
-          description: `Refund for purchase return ${returnNumber}`,
-        });
-      }
+      journalLines.push({
+        accountId: await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE),
+        debit: netTotal,
+        partyId: party.id,
+        description: `Purchase return ${returnNumber}`,
+      });
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PURCHASE_RETURN",
@@ -453,7 +376,7 @@ export class ReturnsService {
     });
   }
 
-  /** Delete a sales return: pull the returned stock back out and remove the journal. */
+  /** Delete a sales return: remove its stock and journal. */
   async deleteSalesReturn(id: number, userId: number | null = null): Promise<void> {
     const existing = await this.returns.findSalesReturnById(id);
     if (!existing) throw new NotFoundError(`Sales return ${id} not found.`);
@@ -469,13 +392,15 @@ export class ReturnsService {
         details: {
           returnNumber: existing.return_number,
           input: {
-            invoiceId: existing.invoice_id,
+            partyId: existing.party_id,
             returnDate: existing.return_date,
             notes: existing.notes,
             returnNumber: existing.return_number,
             items: items.map((item) => ({
-              invoiceItemId: item.invoice_item_id,
+              itemId: item.item_id,
               quantity: item.quantity,
+              unitCost: item.unit_cost,
+              destination: item.destination,
             })),
           },
         },
@@ -525,18 +450,120 @@ export class ReturnsService {
         details: {
           returnNumber: existing.return_number,
           input: {
-            invoiceId: existing.invoice_id,
+            partyId: existing.party_id,
             returnDate: existing.return_date,
             notes: existing.notes,
             returnNumber: existing.return_number,
             items: items.map((item) => ({
-              invoiceItemId: item.invoice_item_id,
+              itemId: item.item_id,
               quantity: item.quantity,
+              unitCost: item.unit_cost,
             })),
           },
         },
       });
     });
+  }
+
+  /** Validate and price every line, loading each item once. */
+  private async prepareLines(lines: readonly ReturnLineInput[]): Promise<PreparedLine[]> {
+    const prepared: PreparedLine[] = [];
+    for (const line of lines) {
+      const item = await this.items.requireById(line.itemId);
+      if (!item.is_active) {
+        throw new ValidationError(`Item '${item.item_name}' is not active.`);
+      }
+      const quantity = dec(line.quantity);
+      if (quantity.lessThanOrEqualTo(0)) {
+        throw new ValidationError(`Quantity for '${item.item_name}' must be greater than zero.`);
+      }
+      const unitCost = dec(line.unitCost);
+      if (unitCost.lessThan(0)) {
+        throw new ValidationError(`Unit cost for '${item.item_name}' cannot be negative.`);
+      }
+      const destination = line.destination ?? "INVENTORY";
+      if (destination !== "INVENTORY" && destination !== "WASTE") {
+        throw new ValidationError(`Invalid return destination '${destination}'.`);
+      }
+      prepared.push({
+        item,
+        quantity,
+        unitCost,
+        amount: round2(quantity.times(unitCost)),
+        destination,
+      });
+    }
+    return prepared;
+  }
+
+  /**
+   * Add returned goods back to stock. A return batch is reused on edit (same
+   * number) so deleting and re-creating a return cannot duplicate a batch.
+   */
+  private async restoreBatch(
+    line: PreparedLine,
+    batchNumber: string,
+    warehouseId: number,
+    returnDate: string,
+  ): Promise<number> {
+    const existing = await this.batches.findByNumber(line.item.id, warehouseId, batchNumber);
+    if (existing) {
+      await this.batches.addToBatch(existing.id, toQuantity(line.quantity), {
+        purchasePrice: toStorage(line.unitCost),
+        rawUnitCost: 0,
+        packingUnitCost: 0,
+      });
+      return existing.id;
+    }
+    return this.batches.insert({
+      item_id: line.item.id,
+      warehouse_id: warehouseId,
+      batch_number: batchNumber,
+      purchase_price: toStorage(line.unitCost),
+      raw_unit_cost: 0,
+      packing_unit_cost: 0,
+      quantity_in_stock: toQuantity(line.quantity),
+      received_date: returnDate,
+      is_active: 1,
+    });
+  }
+
+  /** Take a purchase return out of FIFO batches and record each movement. */
+  private async consumeStock(
+    line: PreparedLine,
+    warehouseId: number,
+    returnId: number,
+    returnNumber: string,
+    input: CreatePurchaseReturnInput,
+  ): Promise<void> {
+    const batches = await this.batches.listAvailableFifo(line.item.id, warehouseId);
+    const available = batches.reduce((sum, batch) => sum.plus(dec(batch.quantity_in_stock)), new Decimal(0));
+    if (available.lessThan(line.quantity)) {
+      throw new InsufficientStockError(
+        `Not enough stock for '${line.item.item_name}': need ${line.quantity.toString()}, have ${available.toString()}.`,
+      );
+    }
+    let remaining = line.quantity;
+    for (const batch of batches) {
+      if (remaining.lessThanOrEqualTo(0)) break;
+      const take = Decimal.min(remaining, dec(batch.quantity_in_stock));
+      if (take.lessThanOrEqualTo(0)) continue;
+      await this.batches.adjustQuantity(batch.id, -toQuantity(take));
+      await insertRow(this.db, "stock_movements", {
+        item_id: line.item.id,
+        batch_id: batch.id,
+        warehouse_id: warehouseId,
+        movement_type: "PURCHASE_RETURN",
+        quantity: -toQuantity(take),
+        unit_cost: toStorage(line.unitCost),
+        reference_table: "purchase_returns",
+        reference_id: returnId,
+        movement_date: input.returnDate,
+        notes: `Purchase return ${returnNumber}`,
+        created_by: input.createdBy ?? null,
+      });
+      remaining = remaining.minus(take);
+    }
   }
 
   /** Reverse a return's stock movements, journal entry and rows. */
@@ -552,11 +579,7 @@ export class ReturnsService {
     await this.returns.deletePurchaseReturn(id);
   }
 
-  /**
-   * Negate every stock movement the return wrote: a sales return put quantity
-   * back on the batch (delete takes it out), a purchase return took it off
-   * (delete puts it back).
-   */
+  /** Negate every stock movement the return wrote. */
   private async reverseStockMovements(referenceTable: string, referenceId: number): Promise<void> {
     const movements = await this.db.all<{ id: number; batch_id: number | null; quantity: number }>(
       `SELECT id, batch_id, quantity FROM stock_movements
@@ -586,16 +609,21 @@ export class ReturnsService {
     }
   }
 
-  /** Resolve a purchase's bank account to its GL account id. */
-  private async resolveBankAccount(bankAccountId: number | null): Promise<number> {
-    if (!bankAccountId) {
-      throw new ValidationError("Purchase invoice references a missing bank account.");
+  /** Allocate the next document number, or reject a duplicate manual one. */
+  private async resolveReturnNumber(
+    requested: string | null | undefined,
+    companyId: number,
+    documentType: "SALES_RETURN" | "PURCHASE_RETURN",
+  ): Promise<string> {
+    const trimmed = requested?.trim() || "";
+    if (trimmed) {
+      const exists =
+        documentType === "SALES_RETURN"
+          ? await this.returns.salesReturnNumberExists(trimmed, companyId)
+          : await this.returns.purchaseReturnNumberExists(trimmed, companyId);
+      if (exists) throw new ConflictError(`Return number '${trimmed}' already exists.`);
+      return trimmed;
     }
-    const bank = await this.db.get<{ account_id: number }>(
-      "SELECT account_id FROM bank_accounts WHERE id = ?",
-      [bankAccountId],
-    );
-    if (!bank) throw new ValidationError(`Bank account ${bankAccountId} not found.`);
-    return bank.account_id;
+    return this.journal.nextVoucherNumber(companyId, documentType);
   }
 }
