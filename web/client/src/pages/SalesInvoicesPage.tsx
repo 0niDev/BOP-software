@@ -383,7 +383,15 @@ export default function SalesInvoicesPage() {
                   placeholder="Select item..."
                   options={[
                     { value: "0", label: "Select item..." },
-                    ...items.map((it) => ({ value: String(it.id), label: it.item_name })),
+                    // Finished goods only; an item already on this invoice stays
+                    // so an old packing/raw line still shows its name when editing.
+                    ...items
+                      .filter(
+                        (it) =>
+                          it.item_type === "FINISHED_GOOD" ||
+                          lines.some((l) => l.itemId === it.id),
+                      )
+                      .map((it) => ({ value: String(it.id), label: it.item_name })),
                   ]}
                 />
               </td>
