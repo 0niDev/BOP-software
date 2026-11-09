@@ -671,6 +671,35 @@ tr.total td {
   overflow-x: auto;
 }
 
+/* One saved opening-balance change inside the Opening balances dialog. */
+.opening-change {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  padding: 14px 16px;
+  margin-top: 12px;
+}
+.opening-change-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.opening-change-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.opening-change table {
+  margin-top: 4px;
+}
+.opening-change table th,
+.opening-change table td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
 /* Searchable dropdown (components/SearchableSelect.tsx) — replaces <select>. */
 .sselect {
   position: relative;

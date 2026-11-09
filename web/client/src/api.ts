@@ -25,6 +25,7 @@ import type {
   JournalEntryResult,
   ManualJournalEntry,
   Item,
+  OpeningBalanceChange,
   Party,
   PartyType,
   Payment,
@@ -233,16 +234,25 @@ export const api = {
     request<{ ok: boolean }>(`/api/parties/${id}/deactivate`, { method: "POST" }),
   postPartyOpeningBalances: (
     entries: Array<{ partyId: number; debit?: number; credit?: number }>,
+    date?: string,
   ) =>
     request<{
       journalEntryId: number;
       totalDebit: number;
       totalCredit: number;
       partiesUpdated: number;
+      openingDate: string;
     }>("/api/parties/opening-balances", {
       method: "POST",
-      body: JSON.stringify({ entries }),
+      body: JSON.stringify({ date, entries }),
     }),
+  openingBalanceChanges: () =>
+    request<OpeningBalanceChange[]>("/api/parties/opening-balances/changes"),
+  deleteOpeningBalanceChange: (journalEntryId: number) =>
+    request<{ journalEntryId: number; partiesUpdated: number }>(
+      `/api/parties/opening-balances/changes/${journalEntryId}`,
+      { method: "DELETE" },
+    ),
   items: (opts: { search?: string; type?: Item["item_type"]; activeOnly?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (opts.search) params.set("search", opts.search);
@@ -321,7 +331,7 @@ export const api = {
       `/api/sales-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
     ),
   salesInvoice: (id: number) =>
-    request<{ invoice: SalesInvoice; items: Record<string, unknown>[] }>(
+    request<{ invoice: SalesInvoice; items: Record<string, unknown>[]; stockApplied: boolean }>(
       `/api/sales-invoices/${id}`,
     ),
   createSalesInvoice: (body: CreateSalesInvoiceRequest) =>

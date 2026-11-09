@@ -342,6 +342,33 @@ export class PurchaseInvoiceService {
       [invoiceId],
     );
 
+    await this.restoreStock(invoiceId);
+    await this.db.run("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", [invoiceId]);
+    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
+  }
+
+  /**
+   * Undo the stock this purchase added. Movements are the authoritative
+   * per-batch record; older invoices fall back to the line batch links.
+   */
+  private async restoreStock(invoiceId: number): Promise<void> {
+    const movements = await this.db.all<{ batch_id: number | null; quantity: number }>(
+      `SELECT batch_id, quantity FROM stock_movements
+        WHERE reference_table = 'purchase_invoices' AND reference_id = ?`,
+      [invoiceId],
+    );
+    if (movements.length > 0) {
+      for (const movement of movements) {
+        if (movement.batch_id != null) {
+          await this.batches.adjustQuantity(movement.batch_id, -Number(movement.quantity));
+        }
+      }
+      await this.db.run(
+        "DELETE FROM stock_movements WHERE reference_table = 'purchase_invoices' AND reference_id = ?",
+        [invoiceId],
+      );
+      return;
+    }
     const rows = await this.db.all<{ batch_id: number; quantity: number }>(
       "SELECT batch_id, quantity FROM purchase_invoice_items WHERE invoice_id = ?",
       [invoiceId],
@@ -349,12 +376,6 @@ export class PurchaseInvoiceService {
     for (const row of rows) {
       await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(row.quantity)));
     }
-    await this.db.run(
-      "DELETE FROM stock_movements WHERE reference_table = 'purchase_invoices' AND reference_id = ?",
-      [invoiceId],
-    );
-    await this.db.run("DELETE FROM purchase_invoice_items WHERE invoice_id = ?", [invoiceId]);
-    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
   }
 
   private async postEffects(

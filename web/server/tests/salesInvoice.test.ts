@@ -181,6 +181,73 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(lines.reduce((a, l) => a + l.credit, 0));
   });
 
+  it("does not deduct stock twice on a note-only edit", async () => {
+    const created = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    await sales.updateSalesInvoice(created.id, {
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      notes: "delivered to the warehouse",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    expect(await stockFor(ctx.ids.itemId)).toBe(995);
+
+    const movements = await ctx.db.all<{ quantity: number }>(
+      "SELECT quantity FROM stock_movements WHERE reference_table = 'sales_invoices' AND reference_id = ?",
+      [created.id],
+    );
+    expect(movements).toHaveLength(1);
+    expect(movements[0]?.quantity).toBe(-5);
+  });
+
+  it("restores an invoice whose lines lost their batch link, from its movements", async () => {
+    const created = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    // An older invoice records the stock movement but not the line's batch.
+    await ctx.db.run("UPDATE sales_invoice_items SET batch_id = NULL WHERE invoice_id = ?", [
+      created.id,
+    ]);
+
+    await sales.updateSalesInvoice(created.id, {
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      notes: "note only",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    expect(await stockFor(ctx.ids.itemId)).toBe(995);
+  });
+
+  it("keeps an ignore-stock invoice out of stock when it is edited", async () => {
+    const created = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      ignoreStock: true,
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    expect((await sales.getById(created.id)).stockApplied).toBe(false);
+
+    await sales.updateSalesInvoice(created.id, {
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      ignoreStock: true,
+      notes: "note only",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
+    });
+    expect(await stockFor(ctx.ids.itemId)).toBe(1000);
+  });
+
   it("cancels an invoice: restores stock and removes its journal entry", async () => {
     const created = await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,

@@ -165,6 +165,8 @@ const ADDED_COLUMNS: ReadonlyArray<readonly [table: string, column: string, defi
   ["expense_items", "next_run_date", "TEXT"],
   // BOM stage: 'FORMULATION' (raw materials) or 'PACKING' (packaging + finished good).
   ["bill_of_materials", "phase", "TEXT"],
+  // Date-wise party opening: invoices before it do not move the party balance.
+  ["parties", "opening_balance_date", "TEXT"],
 ];
 
 async function ensureColumns(db: SqlDatabase): Promise<void> {

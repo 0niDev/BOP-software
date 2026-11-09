@@ -148,6 +148,9 @@ CREATE TABLE IF NOT EXISTS parties (
     address         TEXT,
     email           TEXT,
     opening_balance REAL NOT NULL DEFAULT 0,
+    -- Date the opening balance is carried forward from; invoices before it are
+    -- informational only in the party ledger.
+    opening_balance_date TEXT,
     credit_limit    REAL NOT NULL DEFAULT 0,
     account_id      INTEGER REFERENCES accounts(id),
     is_active       INTEGER NOT NULL DEFAULT 1,

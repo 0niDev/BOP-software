@@ -216,6 +216,9 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
             <td>
               {row.description ?? "—"}
               {row.settled ? <span style={{ opacity: 0.6 }}> · settled</span> : null}
+              {row.beforeOpening ? (
+                <span style={{ opacity: 0.6 }}> · before opening</span>
+              ) : null}
             </td>
             <td>{row.notes ?? "—"}</td>
             <td className="num">{amount(row.debit)}</td>

@@ -450,10 +450,11 @@ export function createApp(
     res.json({ ok: true });
   });
 
-  /** Bulk party opening balances -> one balanced OPENING journal entry. */
+  /** Bulk party opening balances -> one balanced OPENING entry dated `date`. */
   app.post("/api/parties/opening-balances", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
+        date: isoDateSchema.optional(),
         entries: z
           .array(
             z.object({
@@ -466,7 +467,17 @@ export function createApp(
       }),
       req.body,
     );
-    res.status(201).json(await parties.postOpeningBalances(body.entries));
+    res.status(201).json(await parties.postOpeningBalances(body.entries, body.date));
+  });
+
+  /** Saved opening-balance changes, newest first. */
+  app.get("/api/parties/opening-balances/changes", requireAuth, async (_req, res) => {
+    res.json(await parties.listOpeningBalanceChanges());
+  });
+
+  /** Delete one change and restore the prior balances of the parties it set. */
+  app.delete("/api/parties/opening-balances/changes/:id", requireAuth, async (req, res) => {
+    res.json(await parties.deleteOpeningBalanceChange(Number(req.params.id)));
   });
 
   // --- items -------------------------------------------------------------

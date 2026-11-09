@@ -199,6 +199,125 @@ describe("PartyService", () => {
     expect((await reports.partyLedger(customer.id)).at(-1)!.balance).toBe(700);
   });
 
+  it("carries the opening from its date and ignores earlier invoices", async () => {
+    const reports = new ReportService(ctx.db);
+    const sales = new SalesInvoiceService(ctx.db);
+    const customer = await parties.create({ name: "Dated Opening", partyType: "CUSTOMER" });
+
+    await sales.createSalesInvoice({
+      customerId: customer.id,
+      invoiceDate: "2026-09-20",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 1, unitPrice: 100 }],
+    });
+    await sales.createSalesInvoice({
+      customerId: customer.id,
+      invoiceDate: "2026-10-05",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 100 }],
+    });
+
+    const result = await parties.postOpeningBalances(
+      [{ partyId: customer.id, debit: 500 }],
+      "2026-10-01",
+    );
+    expect(result.openingDate).toBe("2026-10-01");
+
+    const ledger = await reports.partyLedger(customer.id);
+    // The pre-cutover invoice is listed but its amount is already in the opening.
+    const before = ledger.find((row) => row.date === "2026-09-20")!;
+    expect(before.beforeOpening).toBe(true);
+    expect(before.balance).toBe(0);
+
+    const opening = ledger.find((row) => row.description === "Opening balance")!;
+    expect(opening.date).toBe("2026-10-01");
+    expect(opening.balance).toBe(500);
+
+    // On/after the opening date counts toward the party's credit.
+    const after = ledger.find((row) => row.date === "2026-10-05")!;
+    expect(after.balance).toBe(700);
+    expect(ledger.at(-1)!.balance).toBe(700);
+  });
+
+  it("lists opening-balance changes and restores prior balances when the newest is deleted", async () => {
+    const customer = await parties.create({ name: "Change Log Customer", partyType: "CUSTOMER" });
+    const first = await parties.postOpeningBalances(
+      [{ partyId: customer.id, debit: 500 }],
+      "2026-10-01",
+    );
+    const second = await parties.postOpeningBalances(
+      [{ partyId: customer.id, debit: 700 }],
+      "2026-10-02",
+    );
+
+    let changes = await parties.listOpeningBalanceChanges();
+    expect(changes).toHaveLength(2);
+    const newest = changes[0]!;
+    const older = changes[1]!;
+    expect(newest.journalEntryId).toBe(second.journalEntryId);
+    expect(newest.entryDate).toBe("2026-10-02");
+    expect(newest.deletable).toBe(true);
+    expect(newest.parties[0]).toMatchObject({
+      partyId: customer.id,
+      debit: 700,
+      credit: 0,
+      cleared: false,
+    });
+    expect(older.journalEntryId).toBe(first.journalEntryId);
+    expect(older.deletable).toBe(false);
+    expect(older.blockedBy).toHaveLength(1);
+
+    // An older change is protected while a newer one exists for the party.
+    await expect(
+      parties.deleteOpeningBalanceChange(first.journalEntryId),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const deleted = await parties.deleteOpeningBalanceChange(second.journalEntryId);
+    expect(deleted.partiesUpdated).toBe(1);
+    const restored = await parties.get(customer.id);
+    expect(restored.opening_balance).toBe(500);
+    expect(restored.opening_balance_date).toBe("2026-10-01");
+
+    changes = await parties.listOpeningBalanceChanges();
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.deletable).toBe(true);
+    expect(changes[0]!.parties[0]!.debit).toBe(500);
+
+    const reports = new ReportService(ctx.db);
+    expect((await reports.partyLedger(customer.id)).at(-1)!.balance).toBe(500);
+    expect((await reports.trialBalance()).balanced).toBe(true);
+  });
+
+  it("restores a cleared balance, and zero with no prior change", async () => {
+    const customer = await parties.create({ name: "Cleared Customer", partyType: "CUSTOMER" });
+    const fresh = await parties.create({ name: "Only Change", partyType: "CUSTOMER" });
+
+    await parties.postOpeningBalances([{ partyId: customer.id, debit: 500 }], "2026-10-01");
+    // A zero entry clears the 500; the next change replaces the cleared state.
+    await parties.postOpeningBalances([{ partyId: customer.id }], "2026-10-02");
+    const replaced = await parties.postOpeningBalances(
+      [{ partyId: customer.id, debit: 300 }],
+      "2026-10-03",
+    );
+
+    await parties.deleteOpeningBalanceChange(replaced.journalEntryId);
+    const cleared = await parties.get(customer.id);
+    expect(cleared.opening_balance).toBe(0);
+    expect(cleared.opening_balance_date).toBe("2026-10-02");
+    expect(await parties.listOpeningBalanceChanges()).toHaveLength(2);
+    expect((await new ReportService(ctx.db).partyLedger(customer.id)).at(-1)!.balance).toBe(0);
+
+    // Deleting the only change on a party with no history puts it back to unset.
+    const only = await parties.postOpeningBalances(
+      [{ partyId: fresh.id, credit: 250 }],
+      "2026-10-04",
+    );
+    await parties.deleteOpeningBalanceChange(only.journalEntryId);
+    const reset = await parties.get(fresh.id);
+    expect(reset.opening_balance).toBe(0);
+    expect(reset.opening_balance_date).toBeNull();
+  });
+
   it("rejects both-sided, duplicate and unknown-party opening balances", async () => {
     const customer = await parties.create({ name: "Bad Opening", partyType: "CUSTOMER" });
     await expect(

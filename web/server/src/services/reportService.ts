@@ -1,6 +1,7 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
 import { Decimal, toStorage } from "../domain/money.js";
+import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import {
   AccountingService,
   type DateRangeOptions,
@@ -40,6 +41,8 @@ export interface LedgerEntry {
   balance: number;
   /** Invoice already settled at creation (cash/bank/cheque): shown, not owed. */
   settled?: boolean;
+  /** Dated before the party's opening date: shown, but the balance ignores it. */
+  beforeOpening?: boolean;
 }
 
 function csvEscape(value: string): string {
@@ -48,12 +51,14 @@ function csvEscape(value: string): string {
 
 export class ReportService {
   private readonly accounting: AccountingService;
+  private readonly parties: PartyRepository;
 
   constructor(
     private readonly db: SqlDatabase,
     private readonly companyId = 1,
   ) {
     this.accounting = new AccountingService(db, companyId);
+    this.parties = new PartyRepository(db);
   }
 
   /**
@@ -134,10 +139,23 @@ export class ReportService {
     };
   }
 
-  /** Transaction ledger for a party, with a running balance. */
+  /**
+   * Transaction ledger for a party, with a running balance.
+   *
+   * The party's opening balance is carried forward from its opening date: the
+   * OPENING journal lines themselves are excluded (the stored opening already
+   * represents them, so re-saving or moving the date cannot double-count) and
+   * one synthetic "Opening balance" row seeds the balance. Invoices dated
+   * before that date are still listed but never move the balance; on/after the
+   * date counts. Payments, receipts and exports inherit this.
+   */
   async partyLedger(partyId: number, from?: string, to?: string): Promise<LedgerEntry[]> {
+    const party = await this.parties.requireById(partyId);
+    const openingDate = await this.partyOpeningDate(party);
+    const openingBalance = new Decimal(Number(party.opening_balance ?? 0));
+
     let sql = `
-      SELECT je.entry_date AS date, je.voucher_number, je.voucher_type,
+      SELECT je.entry_date AS date, je.id AS entry_id, je.voucher_number, je.voucher_type,
              COALESCE(jel.description, je.narration) AS description,
              COALESCE(si.notes, pi.notes) AS notes,
              jel.debit, jel.credit,
@@ -150,9 +168,15 @@ export class ReportService {
              ON je.source_table = 'sales_invoices' AND si.id = je.source_id
       LEFT JOIN purchase_invoices pi
              ON je.source_table = 'purchase_invoices' AND pi.id = je.source_id
-      WHERE jel.party_id = ? AND je.is_posted = 1`;
+      WHERE jel.party_id = ? AND je.is_posted = 1
+        AND NOT (je.voucher_type = 'OPENING' AND je.source_table = 'parties')`;
     const params: Array<string | number> = [partyId];
-    if (from) {
+    // A requested start later than the opening date still needs the lines in
+    // between, so the opening row can carry their net balance into the window.
+    if (from && openingDate) {
+      sql += " AND je.entry_date >= ?";
+      params.push(from < openingDate ? from : openingDate);
+    } else if (from) {
       sql += " AND je.entry_date >= ?";
       params.push(from);
     }
@@ -161,7 +185,70 @@ export class ReportService {
       params.push(to);
     }
     sql += " ORDER BY je.entry_date, je.id";
-    return this.withRunningBalance(await this.db.all<Row>(sql, params));
+    const rows = await this.db.all<Row>(sql, params);
+    const inWindow = rows.filter((row) => !from || String(row.date ?? "") >= from);
+
+    let openingRow: Row | null = null;
+    if (openingDate) {
+      let carried = openingBalance;
+      let openingRowDate = openingDate;
+      if (from && from > openingDate) {
+        // Fold everything between the opening date and the window start into
+        // the opening row so a period view still starts at the right balance.
+        for (const row of rows) {
+          if (String(row.date ?? "") >= from) break;
+          if (Number(row.settled ?? 0) === 0) {
+            carried = carried
+              .plus(new Decimal(Number(row.debit ?? 0)))
+              .minus(new Decimal(Number(row.credit ?? 0)));
+          }
+        }
+        openingRowDate = from;
+      }
+      openingRow = {
+        date: openingRowDate,
+        entry_id: 0,
+        voucher_number: "",
+        voucher_type: "OPENING",
+        description: "Opening balance",
+        notes: null,
+        debit: toStorage(carried.greaterThan(0) ? carried : new Decimal(0)),
+        credit: toStorage(carried.lessThan(0) ? carried.abs() : new Decimal(0)),
+        settled: 0,
+        synthetic: 1,
+      };
+    }
+
+    const combined: Row[] = openingRow ? [openingRow, ...inWindow] : inWindow;
+    combined.sort((a, b) => {
+      const dateA = String(a.date ?? "");
+      const dateB = String(b.date ?? "");
+      if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+      const syntheticA = Number(a.synthetic ?? 0);
+      const syntheticB = Number(b.synthetic ?? 0);
+      if (syntheticA !== syntheticB) return syntheticB - syntheticA;
+      return Number(a.entry_id ?? 0) - Number(b.entry_id ?? 0);
+    });
+    return this.withRunningBalance(combined, { openingDate });
+  }
+
+  /**
+   * The party's cutover date: the stored column, or — for openings posted
+   * before this feature existed — the date of its latest OPENING entry.
+   */
+  private async partyOpeningDate(party: PartyRow): Promise<string | null> {
+    if (party.opening_balance_date) return String(party.opening_balance_date);
+    if (Number(party.opening_balance ?? 0) === 0) return null;
+    const row = await this.db.get<{ entry_date: string | null }>(
+      `SELECT MAX(je.entry_date) AS entry_date
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_id = ? AND je.is_posted = 1
+          AND je.voucher_type = 'OPENING' AND je.source_table = 'parties'`,
+      [party.id],
+    );
+    const fallback = String(party.created_at ?? "").slice(0, 10);
+    return row?.entry_date ?? (fallback || null);
   }
 
   /** Cash book: every posted movement on the Cash in Hand account. */
@@ -187,15 +274,23 @@ export class ReportService {
     return this.withRunningBalance(await this.db.all<Row>(sql, params));
   }
 
-  private withRunningBalance(rows: Row[]): LedgerEntry[] {
+  private withRunningBalance(
+    rows: Row[],
+    opts: { openingDate?: string | null } = {},
+  ): LedgerEntry[] {
     let balance = new Decimal(0);
+    const openingDate = opts.openingDate ?? null;
     return rows.map((row) => {
       const debit = new Decimal(Number(row.debit ?? 0));
       const credit = new Decimal(Number(row.credit ?? 0));
       const settled = Number(row.settled ?? 0) === 1;
+      const beforeOpening =
+        openingDate !== null && String(row.date ?? "") < openingDate;
       // A settled invoice line (cash/bank/cheque) is informational only: it
       // must not move the running balance, which tracks what the party owes.
-      if (!settled) balance = balance.plus(debit).minus(credit);
+      // A line dated before the party's opening is likewise already reflected
+      // in its opening balance.
+      if (!settled && !beforeOpening) balance = balance.plus(debit).minus(credit);
       return {
         date: String(row.date ?? ""),
         voucherNumber: String(row.voucher_number ?? ""),
@@ -206,6 +301,7 @@ export class ReportService {
         credit: toStorage(credit),
         balance: toStorage(balance),
         settled,
+        ...(beforeOpening ? { beforeOpening: true } : {}),
       };
     });
   }

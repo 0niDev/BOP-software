@@ -248,3 +248,39 @@ test("inDateRange is inclusive and open-ended", async () => {
   expect(inDateRange(null, "", "")).toBe(true);
   expect(inDateRange(null, "2026-10-25", "")).toBe(false);
 });
+
+// --- expense form tree (pages/ExpensesPage) ------------------------------
+
+test("expense form posts level-4 items, or the level-3 itself when it has none", async () => {
+  const { expenseCategories } = await import("../src/pages/ExpensesPage");
+  const account = (id: number, code: string, parent: number | null) => ({
+    id,
+    account_code: code,
+    account_name: code,
+    account_type: "EXPENSE" as const,
+    account_subtype: null,
+    parent_account_id: parent,
+    opening_balance: 0,
+    is_system_account: 0,
+    is_active: 1,
+  });
+  const groups = expenseCategories([
+    account(1, "5", null), // level 1
+    account(2, "52", 1), // level 2
+    account(3, "5201", 2), // level 3 category
+    account(4, "52011", 3), // level 4 item
+    account(5, "52012", 3), // level 4 item
+    account(6, "520111", 4), // level 5, never offered
+    account(7, "5207", 2), // level 3 with no level 4
+    account(8, "6000", null), // flat bootstrap root
+  ]);
+  const items = Object.fromEntries(
+    groups.map((group) => [group.account.account_code, group.items.map((item) => item.account_code)]),
+  );
+  expect(items["5201"]).toEqual(["52011", "52012"]);
+  expect(items["5207"]).toEqual(["5207"]);
+  expect(items["6000"]).toEqual(["6000"]);
+  expect(items["5"]).toBeUndefined();
+  expect(items["52"]).toBeUndefined();
+  expect(Object.values(items).flat()).not.toContain("520111");
+});

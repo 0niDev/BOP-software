@@ -127,6 +127,10 @@ export class SqliteCloudDatabase implements SqlDatabase {
     try {
       return await attempt();
     } catch (err) {
+      // Inside BEGIN/COMMIT a failed statement has already broken the session;
+      // retrying can reconnect outside the transaction and apply a stock delta
+      // twice (or commit it alone), so never retry there.
+      if (txContext.getStore()) throw err;
       // One retry window for socket drops and idle timeouts.
       if (isTransient(err) && !isPermanent(err)) {
         try {

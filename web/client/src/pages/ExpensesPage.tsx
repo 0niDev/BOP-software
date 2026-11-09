@@ -9,17 +9,12 @@ import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, Expense, SettlementMethod } from "../types";
+import { accountDepths } from "./JournalVouchersPage";
 
-/** One amount row in the record dialog: an account under the chosen category. */
-interface ItemRow {
-  account: Account;
-  depth: number;
-}
-
-/** A level-3 expense account (a "category") and every account beneath it. */
+/** A level-3 expense account (a "category") and the items you can post to. */
 interface CategoryGroup {
   account: Account;
-  items: ItemRow[];
+  items: Account[];
 }
 
 function money(value: number): string {
@@ -31,60 +26,35 @@ function codeOrder(a: Account, b: Account): number {
 }
 
 /**
- * Lay the expense tree out the way the business reads it: level-3 accounts are
- * categories, everything beneath a category is an item (any depth — headers
- * included, they are postable). A childless level-2 account is its own
- * category so nothing in the tree is unreachable.
+ * Expense form layout only: a level-3 account is the category and its level-4
+ * children are the items. When a level-3 has no level-4 child it becomes its
+ * own item. Deeper levels stay untouched in the CoA for the modules that post
+ * to them (manufacturing/COGS) — this form never offers them.
+ *
+ * Childless accounts above level 3 (the flat bootstrap chart) are their own
+ * category so they stay reachable.
  */
-function expenseCategories(accounts: readonly Account[]): CategoryGroup[] {
-  const byId = new Map(accounts.map((account) => [account.id, account]));
+export function expenseCategories(accounts: readonly Account[]): CategoryGroup[] {
+  const depths = accountDepths(accounts);
   const children = new Map<number, Account[]>();
-  const roots: Account[] = [];
   for (const account of accounts) {
-    const parent = account.parent_account_id == null ? undefined : byId.get(account.parent_account_id);
-    if (!parent) {
-      roots.push(account);
-      continue;
-    }
-    children.set(parent.id, [...(children.get(parent.id) ?? []), account]);
+    if (account.parent_account_id == null) continue;
+    const list = children.get(account.parent_account_id) ?? [];
+    list.push(account);
+    children.set(account.parent_account_id, list);
   }
-
-  const depthOf = (account: Account): number => {
-    let depth = 0;
-    let current = account;
-    const seen = new Set<number>([account.id]);
-    while (current.parent_account_id != null) {
-      const parent = byId.get(current.parent_account_id);
-      if (!parent || seen.has(parent.id)) break;
-      seen.add(parent.id);
-      depth += 1;
-      current = parent;
-    }
-    return depth;
-  };
-
-  const collect = (root: Account): ItemRow[] => {
-    const rows: ItemRow[] = [{ account: root, depth: 0 }];
-    const walk = (parent: Account, depth: number): void => {
-      for (const child of (children.get(parent.id) ?? []).slice().sort(codeOrder)) {
-        rows.push({ account: child, depth });
-        walk(child, depth + 1);
-      }
-    };
-    walk(root, 1);
-    return rows;
-  };
 
   const categories: CategoryGroup[] = [];
-  for (const root of roots.slice().sort(codeOrder)) {
-    for (const account of [root, ...(children.get(root.id) ?? []).slice().sort(codeOrder)]) {
-      const depth = depthOf(account);
-      const childless = (children.get(account.id) ?? []).length === 0;
-      if (depth !== 2 && !(depth < 2 && childless)) continue;
-      categories.push({ account, items: collect(account) });
+  for (const account of accounts.slice().sort(codeOrder)) {
+    const depth = depths.get(account.id) ?? 1;
+    const kids = (children.get(account.id) ?? []).slice().sort(codeOrder);
+    if (depth === 3) {
+      categories.push({ account, items: kids.length > 0 ? kids : [account] });
+    } else if (depth < 3 && kids.length === 0) {
+      categories.push({ account, items: [account] });
     }
   }
-  return categories.slice().sort((a, b) => codeOrder(a.account, b.account));
+  return categories;
 }
 
 export default function ExpensesPage() {
@@ -120,7 +90,14 @@ export default function ExpensesPage() {
   const categories = expenseCategories(accounts);
   const category = categories.find((group) => group.account.id === categoryId);
   const items = category?.items ?? [];
-  const accountOptions = accounts
+  // Edit only offers the same posting accounts as the record form, plus the
+  // expense's current account when it predates this layout.
+  const editAccounts = categories.flatMap((group) => group.items);
+  const currentEditAccount = accounts.find((account) => account.id === editAccountId);
+  if (currentEditAccount && !editAccounts.some((account) => account.id === currentEditAccount.id)) {
+    editAccounts.push(currentEditAccount);
+  }
+  const accountOptions = editAccounts
     .slice()
     .sort(codeOrder)
     .map((account) => ({
@@ -222,7 +199,7 @@ export default function ExpensesPage() {
       return;
     }
     const rows = items
-      .map((item) => ({ account: item.account, amount: amounts[item.account.id] ?? 0 }))
+      .map((item) => ({ account: item, amount: amounts[item.id] ?? 0 }))
       .filter((row) => row.amount > 0);
     if (rows.length === 0) {
       setError("Enter an amount against at least one line.");
@@ -294,10 +271,7 @@ export default function ExpensesPage() {
     },
   );
 
-  const selectedTotal = items.reduce(
-    (sum, item) => sum + Math.max(amounts[item.account.id] ?? 0, 0),
-    0,
-  );
+  const selectedTotal = items.reduce((sum, item) => sum + Math.max(amounts[item.id] ?? 0, 0), 0);
 
   return (
     <>
@@ -331,9 +305,8 @@ export default function ExpensesPage() {
               </button>
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
-              Pick a category, then type an amount next to the accounts to post to — the category
-              itself counts as a line, so you can post to it even when it has sub-accounts behind
-              it. Zeros are skipped.
+              Pick a category (level 3), then type an amount next to the items (level 4). A category
+              with no items below it is posted to directly. Zeros are skipped.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -383,20 +356,20 @@ export default function ExpensesPage() {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.account.id}>
-                    <td style={{ paddingLeft: 8 + item.depth * 16 }}>
-                      {item.account.account_code} - {item.account.account_name}
+                  <tr key={item.id}>
+                    <td style={{ paddingLeft: 8 }}>
+                      {item.account_code} - {item.account_name}
                     </td>
                     <td className="num">
                       <NumberInput
                         min="0"
                         step="0.01"
-                        aria-label={`Amount for ${item.account.account_name}`}
-                        value={amounts[item.account.id] ?? 0}
+                        aria-label={`Amount for ${item.account_name}`}
+                        value={amounts[item.id] ?? 0}
                         onChange={(e) =>
                           setAmounts((current) => ({
                             ...current,
-                            [item.account.id]: Number(e.target.value),
+                            [item.id]: Number(e.target.value),
                           }))
                         }
                         style={{ width: 130, textAlign: "right" }}

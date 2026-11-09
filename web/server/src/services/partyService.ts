@@ -5,6 +5,7 @@
  * "cannot deactivate a party with open transactions" guard.
  */
 import type { SqlDatabase } from "../db/types.js";
+import { todayIso, validateIsoDate } from "../domain/dateValidation.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { SystemAccountCodes, type PartyType } from "../domain/enums.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
@@ -12,6 +13,7 @@ import { JournalRepository } from "../repositories/journalRepository.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import { deleteJournalById } from "./journalEffects.js";
 
 const PARTY_TYPES: readonly PartyType[] = ["CUSTOMER", "SUPPLIER", "BOTH"];
 
@@ -50,10 +52,32 @@ export interface PartyOpeningBalanceResult {
   totalDebit: number;
   totalCredit: number;
   partiesUpdated: number;
+  /** Date the opening balance is carried forward from. */
+  openingDate: string;
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+export interface PartyOpeningBalanceChangeParty {
+  partyId: number;
+  partyCode: string;
+  partyName: string;
+  debit: number;
+  credit: number;
+  /** True when this change set the party's opening balance back to zero. */
+  cleared: boolean;
+}
+
+export interface PartyOpeningBalanceChange {
+  journalEntryId: number;
+  entryDate: string;
+  voucherNumber: string;
+  createdAt: string;
+  totalDebit: number;
+  totalCredit: number;
+  /** False once a newer change exists for any party in this change. */
+  deletable: boolean;
+  /** Parties whose newer change blocks deleting this one. */
+  blockedBy: string[];
+  parties: PartyOpeningBalanceChangeParty[];
 }
 
 export class PartyService {
@@ -171,10 +195,15 @@ export class PartyService {
    * balanced OPENING entry; the net difference goes to Retained Earnings so the
    * entry always balances. A party's previous opening balance is reversed with a
    * contra line first, so re-saving the same values is a no-op.
+   *
+   * `openingDate` is the per-party cutover: the OPENING entry is dated there and
+   * invoices before it no longer move the party ledger balance.
    */
   async postOpeningBalances(
     entries: readonly PartyOpeningBalanceEntry[],
+    openingDate?: string | null,
   ): Promise<PartyOpeningBalanceResult> {
+    const entryDate = openingDate ? validateIsoDate(openingDate) : todayIso();
     const clean = entries.map((entry) => ({
       partyId: entry.partyId,
       debit: Math.abs(entry.debit ?? 0),
@@ -226,8 +255,6 @@ export class PartyService {
       updated.push({ id: party.id, signed: entry.debit - entry.credit });
     }
 
-    if (lines.length === 0) throw new ValidationError("No opening balances to save.");
-
     const sumDebit = lines.reduce((acc, line) => acc + Number(line.debit ?? 0), 0);
     const sumCredit = lines.reduce((acc, line) => acc + Number(line.credit ?? 0), 0);
     const totalDebit = clean.reduce((acc, entry) => acc + entry.debit, 0);
@@ -243,16 +270,24 @@ export class PartyService {
     }
 
     const journalEntryId = await this.db.transaction(async () => {
-      const id = await this.accounting.postJournalEntry({
-        voucherType: "OPENING",
-        entryDate: today(),
-        lines,
-        narration: "Party opening balances",
-        sourceTable: "parties",
-        companyId: this.companyId,
-      });
+      // A date-only save on all-zero parties has no lines to post; the date is
+      // still stored so those parties carry a dated opening row.
+      const id =
+        lines.length === 0
+          ? 0
+          : await this.accounting.postJournalEntry({
+              voucherType: "OPENING",
+              entryDate,
+              lines,
+              narration: "Party opening balances",
+              sourceTable: "parties",
+              companyId: this.companyId,
+            });
       for (const party of updated) {
-        await this.parties.update(party.id, { opening_balance: party.signed });
+        await this.parties.update(party.id, {
+          opening_balance: party.signed,
+          opening_balance_date: entryDate,
+        });
       }
       return id;
     });
@@ -262,7 +297,200 @@ export class PartyService {
       totalDebit,
       totalCredit,
       partiesUpdated: updated.length,
+      openingDate: entryDate,
     };
+  }
+
+  /**
+   * The opening-balance change log, newest first. Each saved OPENING entry is
+   * one change; `party_id` lines tell us which parties it set and to what.
+   * A change is deletable only while no newer change exists for any of its
+   * parties, because a later entry reverses this one's balances.
+   */
+  async listOpeningBalanceChanges(): Promise<PartyOpeningBalanceChange[]> {
+    const rows = await this.db.all<{
+      journal_entry_id: number;
+      entry_date: string;
+      voucher_number: string;
+      created_at: string;
+      party_id: number;
+      party_code: string;
+      party_name: string;
+      debit: number;
+      credit: number;
+      has_opening: number;
+    }>(
+      `SELECT je.id AS journal_entry_id, je.entry_date, je.voucher_number, je.created_at,
+              jel.party_id, p.code AS party_code, p.name AS party_name,
+              SUM(CASE WHEN jel.description = 'Opening balance' THEN jel.debit ELSE 0 END) AS debit,
+              SUM(CASE WHEN jel.description = 'Opening balance' THEN jel.credit ELSE 0 END) AS credit,
+              MAX(CASE WHEN jel.description = 'Opening balance' THEN 1 ELSE 0 END) AS has_opening
+         FROM journal_entries je
+         JOIN journal_entry_lines jel ON jel.journal_entry_id = je.id
+         JOIN parties p ON p.id = jel.party_id
+        WHERE je.company_id = ? AND je.voucher_type = 'OPENING'
+          AND je.source_table = 'parties' AND jel.party_id IS NOT NULL
+        GROUP BY je.id, jel.party_id
+        ORDER BY je.id DESC, p.name`,
+      [this.companyId],
+    );
+
+    const latestByParty = new Map<number, number>();
+    const changes = new Map<number, PartyOpeningBalanceChange>();
+    for (const row of rows) {
+      const journalEntryId = Number(row.journal_entry_id);
+      const partyId = Number(row.party_id);
+      // Rows are newest first, so the first time a party appears is its latest
+      // change; later appearances are superseded entries.
+      if (!latestByParty.has(partyId)) latestByParty.set(partyId, journalEntryId);
+
+      let change = changes.get(journalEntryId);
+      if (!change) {
+        change = {
+          journalEntryId,
+          entryDate: String(row.entry_date),
+          voucherNumber: String(row.voucher_number),
+          createdAt: String(row.created_at),
+          totalDebit: 0,
+          totalCredit: 0,
+          deletable: true,
+          blockedBy: [],
+          parties: [],
+        };
+        changes.set(journalEntryId, change);
+      }
+      const debit = Number(row.debit ?? 0);
+      const credit = Number(row.credit ?? 0);
+      change.parties.push({
+        partyId,
+        partyCode: String(row.party_code),
+        partyName: String(row.party_name),
+        debit,
+        credit,
+        cleared: Number(row.has_opening ?? 0) === 0,
+      });
+      change.totalDebit = Math.round((change.totalDebit + debit) * 100) / 100;
+      change.totalCredit = Math.round((change.totalCredit + credit) * 100) / 100;
+    }
+
+    for (const change of changes.values()) {
+      change.blockedBy = change.parties
+        .filter((party) => latestByParty.get(party.partyId) !== change.journalEntryId)
+        .map((party) => `${party.partyCode} ${party.partyName}`);
+      change.deletable = change.blockedBy.length === 0;
+    }
+    return [...changes.values()];
+  }
+
+  /**
+   * Delete one opening-balance change and put every party it touched back to
+   * the balance it had before that change.
+   *
+   * The target entry's own "Opening balance reversal" lines encode the prior
+   * amounts. The prior date comes from the latest older OPENING entry for the
+   * party. Newer changes for any affected party block the delete: their
+   * reversal lines depend on this entry, so removing it would leave them stale.
+   */
+  async deleteOpeningBalanceChange(
+    journalEntryId: number,
+  ): Promise<{ journalEntryId: number; partiesUpdated: number }> {
+    const entry = await this.db.get<{ id: number }>(
+      `SELECT id FROM journal_entries
+        WHERE id = ? AND company_id = ?
+          AND voucher_type = 'OPENING' AND source_table = 'parties'`,
+      [journalEntryId, this.companyId],
+    );
+    if (!entry) throw new NotFoundError("Opening balance change not found.");
+
+    const lines = await this.db.all<{
+      party_id: number;
+      description: string | null;
+      debit: number;
+      credit: number;
+    }>(
+      `SELECT party_id, description, debit, credit
+         FROM journal_entry_lines
+        WHERE journal_entry_id = ? AND party_id IS NOT NULL`,
+      [journalEntryId],
+    );
+
+    const priorFromReversal = new Map<number, number>();
+    for (const line of lines) {
+      if (line.description !== "Opening balance reversal") continue;
+      const partyId = Number(line.party_id);
+      // A reversal line is the mirror of the prior balance: reversing a debit
+      // prior posts a credit, and vice versa.
+      const prior = Number(line.credit) - Number(line.debit);
+      const running = (priorFromReversal.get(partyId) ?? 0) + prior;
+      priorFromReversal.set(partyId, Math.round(running * 100) / 100);
+    }
+
+    const partyIds = [...new Set(lines.map((line) => Number(line.party_id)))];
+    if (partyIds.length === 0) {
+      throw new ValidationError("This opening balance change has no party lines to revert.");
+    }
+
+    const blocked: string[] = [];
+    const restores: Array<{
+      id: number;
+      prior: number;
+      priorDate: string | null;
+    }> = [];
+    for (const partyId of partyIds) {
+      const party = await this.parties.findById(partyId);
+      if (!party) continue;
+
+      const later = await this.db.get<{ id: number }>(
+        `SELECT je.id
+           FROM journal_entry_lines jel
+           JOIN journal_entries je ON je.id = jel.journal_entry_id
+          WHERE jel.party_id = ? AND je.company_id = ?
+            AND je.voucher_type = 'OPENING' AND je.source_table = 'parties'
+            AND je.id > ?
+          LIMIT 1`,
+        [partyId, this.companyId, journalEntryId],
+      );
+      if (later) {
+        blocked.push(`${party.code} ${party.name}`);
+        continue;
+      }
+
+      const priorEntry = await this.db.get<{ entry_date: string }>(
+        `SELECT je.entry_date
+           FROM journal_entry_lines jel
+           JOIN journal_entries je ON je.id = jel.journal_entry_id
+          WHERE jel.party_id = ? AND je.company_id = ?
+            AND je.voucher_type = 'OPENING' AND je.source_table = 'parties'
+            AND je.id < ?
+          ORDER BY je.id DESC
+          LIMIT 1`,
+        [partyId, this.companyId, journalEntryId],
+      );
+
+      restores.push({
+        id: party.id,
+        prior: priorFromReversal.get(partyId) ?? 0,
+        priorDate: priorEntry?.entry_date ?? null,
+      });
+    }
+
+    if (blocked.length > 0) {
+      throw new ValidationError(
+        `Only the newest opening balance change can be deleted. A newer change exists for: ${blocked.join(", ")}.`,
+      );
+    }
+
+    await this.db.transaction(async () => {
+      for (const restore of restores) {
+        await this.parties.update(restore.id, {
+          opening_balance: restore.prior,
+          opening_balance_date: restore.priorDate,
+        });
+      }
+      await deleteJournalById(this.db, journalEntryId);
+    });
+
+    return { journalEntryId, partiesUpdated: restores.length };
   }
 
   /** Customers must link to an ASSET account (A/R), suppliers to a LIABILITY (A/P). */

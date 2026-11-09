@@ -130,11 +130,31 @@ export class SalesInvoiceService {
     return this.sales.list(this.companyId, opts);
   }
 
-  async getById(id: number): Promise<{ invoice: SalesInvoiceRow; items: Record<string, unknown>[] }> {
+  async getById(id: number): Promise<{
+    invoice: SalesInvoiceRow;
+    items: Record<string, unknown>[];
+    /** False when the invoice never moved stock (saved with "Ignore stock"). */
+    stockApplied: boolean;
+  }> {
     const invoice = await this.sales.findById(id);
     if (!invoice) throw new NotFoundError(`Sales invoice ${id} not found.`);
     const items = await this.sales.findItems(id);
-    return { invoice, items };
+    return { invoice, items, stockApplied: await this.hasStockEffect(id) };
+  }
+
+  /** Whether creating this invoice moved stock (movements, or the older line links). */
+  private async hasStockEffect(invoiceId: number): Promise<boolean> {
+    const movement = await this.db.get<{ id: number }>(
+      `SELECT id FROM stock_movements
+        WHERE reference_table = 'sales_invoices' AND reference_id = ? LIMIT 1`,
+      [invoiceId],
+    );
+    if (movement) return true;
+    const line = await this.db.get<{ id: number }>(
+      "SELECT id FROM sales_invoice_items WHERE invoice_id = ? AND batch_id IS NOT NULL LIMIT 1",
+      [invoiceId],
+    );
+    return line !== undefined;
   }
 
   /**
@@ -363,6 +383,34 @@ export class SalesInvoiceService {
       [invoiceId],
     );
 
+    await this.restoreStock(invoiceId);
+    await this.db.run("DELETE FROM sales_invoice_items WHERE invoice_id = ?", [invoiceId]);
+    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
+  }
+
+  /**
+   * Undo the stock this invoice took. The movements are the authoritative
+   * per-batch record, so negate them; older invoices written before movements
+   * existed fall back to the line batch links.
+   */
+  private async restoreStock(invoiceId: number): Promise<void> {
+    const movements = await this.db.all<{ batch_id: number | null; quantity: number }>(
+      `SELECT batch_id, quantity FROM stock_movements
+        WHERE reference_table = 'sales_invoices' AND reference_id = ?`,
+      [invoiceId],
+    );
+    if (movements.length > 0) {
+      for (const movement of movements) {
+        if (movement.batch_id != null) {
+          await this.batches.adjustQuantity(movement.batch_id, -Number(movement.quantity));
+        }
+      }
+      await this.db.run(
+        "DELETE FROM stock_movements WHERE reference_table = 'sales_invoices' AND reference_id = ?",
+        [invoiceId],
+      );
+      return;
+    }
     const rows = await this.db.all<{ batch_id: number | null; quantity: number }>(
       "SELECT batch_id, quantity FROM sales_invoice_items WHERE invoice_id = ?",
       [invoiceId],
@@ -372,12 +420,6 @@ export class SalesInvoiceService {
         await this.batches.adjustQuantity(row.batch_id, toQuantity(dec(row.quantity)));
       }
     }
-    await this.db.run(
-      "DELETE FROM stock_movements WHERE reference_table = 'sales_invoices' AND reference_id = ?",
-      [invoiceId],
-    );
-    await this.db.run("DELETE FROM sales_invoice_items WHERE invoice_id = ?", [invoiceId]);
-    await this.db.run("DELETE FROM bank_transactions WHERE reference_no = ?", [invoiceNumber]);
   }
 
   /** Stock, journal and bank side of a confirmed sales invoice. */

@@ -38,9 +38,34 @@ export interface Party {
   address: string | null;
   email: string | null;
   opening_balance: number;
+  /** Invoices before this date do not move the party ledger balance. */
+  opening_balance_date: string | null;
   credit_limit: number;
   account_id: number | null;
   is_active: number;
+}
+
+export interface OpeningBalanceChangeParty {
+  partyId: number;
+  partyCode: string;
+  partyName: string;
+  debit: number;
+  credit: number;
+  /** True when this change set the party's opening balance back to zero. */
+  cleared: boolean;
+}
+
+export interface OpeningBalanceChange {
+  journalEntryId: number;
+  entryDate: string;
+  voucherNumber: string;
+  createdAt: string;
+  totalDebit: number;
+  totalCredit: number;
+  /** False once a newer change exists for any party in this change. */
+  deletable: boolean;
+  blockedBy: string[];
+  parties: OpeningBalanceChangeParty[];
 }
 
 export interface Item {
@@ -409,6 +434,8 @@ export interface LedgerEntry {
   balance: number;
   /** Invoice settled at creation (cash/bank/cheque): shown, not owed. */
   settled?: boolean;
+  /** Dated before the party's opening date: shown, but the balance ignores it. */
+  beforeOpening?: boolean;
 }
 
 export interface UserRow {

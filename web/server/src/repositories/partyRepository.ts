@@ -14,6 +14,8 @@ export interface PartyRow {
   address: string | null;
   email: string | null;
   opening_balance: number;
+  /** Invoices before this date do not move the party ledger balance. */
+  opening_balance_date: string | null;
   credit_limit: number;
   account_id: number | null;
   is_active: number;

@@ -130,7 +130,9 @@ export default function SalesInvoicesPage() {
       setBankId(detail.invoice.bank_account_id ?? 0);
       setNotes(detail.invoice.notes ?? "");
       setLines(grouped.size > 0 ? [...grouped.values()] : [newLine()]);
-      setIgnoreStock(false);
+      // Keep "Ignore stock" checked for an invoice that never touched stock,
+      // otherwise saving a note-only edit would deduct it for the first time.
+      setIgnoreStock(!detail.stockApplied);
       setEditingId(invoice.id);
       setShowForm(true);
     } catch (err) {
