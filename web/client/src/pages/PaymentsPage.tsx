@@ -279,6 +279,8 @@ export default function PaymentsPage() {
             <label>{tab === "payments" ? "Supplier" : "Customer"}</label>
             <SearchableSelect
               value={String(partyId)}
+              // A new voucher starts at the party.
+              autoFocus={editingId == null}
               onChange={(next) => {
                 setPartyId(Number(next));
                 setInvoiceId(0);

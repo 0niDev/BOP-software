@@ -187,6 +187,8 @@ export default function ReturnsPage() {
           <label>{tab === "sales" ? "Customer" : "Supplier"}</label>
           <SearchableSelect
             value={String(partyId)}
+            // A new return starts at the party, not at the first item line.
+            autoFocus={editingId == null}
             onChange={(next) => setPartyId(Number(next))}
             placeholder={tab === "sales" ? "Select customer..." : "Select supplier..."}
             options={[
