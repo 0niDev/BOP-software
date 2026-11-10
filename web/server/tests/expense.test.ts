@@ -3,6 +3,7 @@ import { ConflictError, NotFoundError, ValidationError } from "../src/domain/err
 import { insertRow } from "../src/repositories/base.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ExpenseService } from "../src/services/expenseService.js";
+import { ReportService } from "../src/services/reportService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
@@ -167,5 +168,88 @@ describe("ExpenseService", () => {
     await expect(
       expenses.payExpense(999_999, { paymentMethod: "CASH" }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("tags the payment line with a party so the expense shows in its ledger", async () => {
+    const reports = new ReportService(ctx.db);
+    const result = await expenses.createExpense({
+      accountId: generalId,
+      expenseDate: "2026-10-08",
+      amount: 300,
+      paymentMethod: "CASH",
+      partyId: ctx.ids.supplierId,
+    });
+
+    const je = await accounting.getJournalEntry("expenses", result.id);
+    const lines = je!.lines as Array<{
+      account_code: string;
+      party_id: number | null;
+    }>;
+    expect(lines.find((l) => l.account_code === "1000")?.party_id).toBe(ctx.ids.supplierId);
+    expect(lines.find((l) => l.account_code === "6000")?.party_id ?? null).toBeNull();
+
+    const [row] = await expenses.listExpenses();
+    expect(row.party_id).toBe(ctx.ids.supplierId);
+
+    // Paid at once, so it is informational in the ledger: the payable does not move.
+    const ledger = await reports.partyLedger(ctx.ids.supplierId);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]!.credit).toBe(300);
+    expect(ledger[0]!.settled).toBe(true);
+    expect(
+      (await reports.partyBalances()).find((p) => p.partyId === ctx.ids.supplierId)?.balance,
+    ).toBe(0);
+  });
+
+  it("moves the party balance for an unpaid bill and clears it on settlement", async () => {
+    const reports = new ReportService(ctx.db);
+    const bill = await expenses.createExpense({
+      accountId: generalId,
+      expenseDate: "2026-10-01",
+      amount: 400,
+      paymentMethod: "BANK",
+      payLater: true,
+      partyId: ctx.ids.supplierId,
+    });
+    const balance = async (): Promise<number | undefined> =>
+      (await reports.partyBalances()).find((p) => p.partyId === ctx.ids.supplierId)?.balance;
+
+    expect(await balance()).toBe(-400);
+
+    await expenses.payExpense(bill.id, { paymentMethod: "BANK", paymentDate: "2026-10-05" });
+    expect(await balance()).toBe(0);
+  });
+
+  it("keeps the party tag when an expense is edited without one", async () => {
+    const result = await expenses.createExpense({
+      accountId: generalId,
+      expenseDate: "2026-10-08",
+      amount: 90,
+      paymentMethod: "CASH",
+      partyId: ctx.ids.supplierId,
+    });
+
+    await expenses.updateExpense(result.id, {
+      accountId: generalId,
+      expenseDate: "2026-10-09",
+      amount: 110,
+      paymentMethod: "CASH",
+    });
+
+    const [row] = await expenses.listExpenses();
+    expect(row.amount).toBe(110);
+    expect(row.party_id).toBe(ctx.ids.supplierId);
+  });
+
+  it("rejects a party that does not exist", async () => {
+    await expect(
+      expenses.createExpense({
+        accountId: generalId,
+        expenseDate: "2026-10-08",
+        amount: 10,
+        paymentMethod: "CASH",
+        partyId: 999_999,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });

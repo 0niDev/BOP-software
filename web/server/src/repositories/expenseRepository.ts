@@ -38,6 +38,8 @@ export interface ExpenseListRow extends ExpenseRow {
   /** Ledger posting, resolved for display: e.account_id, else legacy category account, else 6000. */
   ledger_code: string;
   ledger_name: string;
+  /** Party tagged on the expense's journal entry (its payment or A/P line). */
+  party_id: number | null;
 }
 
 export class ExpenseRepository {
@@ -78,13 +80,36 @@ export class ExpenseRepository {
     await this.db.run("DELETE FROM expenses WHERE id = ?", [id]);
   }
 
+  /**
+   * Party tagged on an expense's journal entry — the payment / A/P line the
+   * service marks. The journal is the only place the link lives, so an edit
+   * that reposts the entry reads it back from here.
+   */
+  async findPartyIdForExpense(id: number): Promise<number | null> {
+    const row = await this.db.get<{ party_id: number | null }>(
+      `SELECT jel.party_id
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE je.source_table = 'expenses' AND je.source_id = ? AND jel.party_id IS NOT NULL
+        LIMIT 1`,
+      [id],
+    );
+    return row?.party_id == null ? null : Number(row.party_id);
+  }
+
   async listExpenses(companyId = 1, limit = 200): Promise<ExpenseListRow[]> {
     return this.db.all<ExpenseListRow>(
       `SELECT e.*, c.name AS category_name,
               COALESCE(a.account_code, ca.account_code, '6000') AS ledger_code,
               COALESCE(a.account_name, ca.account_name,
                        (SELECT account_name FROM accounts
-                         WHERE account_code = '6000' AND company_id = e.company_id)) AS ledger_name
+                         WHERE account_code = '6000' AND company_id = e.company_id)) AS ledger_name,
+              (SELECT jel.party_id
+                 FROM journal_entry_lines jel
+                 JOIN journal_entries je ON je.id = jel.journal_entry_id
+                WHERE je.source_table = 'expenses' AND je.source_id = e.id
+                  AND jel.party_id IS NOT NULL
+                LIMIT 1) AS party_id
          FROM expenses e
          LEFT JOIN expense_categories c ON c.id = e.category_id
          LEFT JOIN accounts a ON a.id = e.account_id

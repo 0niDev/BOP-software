@@ -8,7 +8,7 @@ import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../com
 import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, Expense, SettlementMethod } from "../types";
+import type { Account, Expense, Party, SettlementMethod } from "../types";
 import { accountDepths } from "./JournalVouchersPage";
 
 /** A level-3 expense account (a "category") and the items you can post to. */
@@ -60,6 +60,7 @@ export function expenseCategories(accounts: readonly Account[]): CategoryGroup[]
 export default function ExpensesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -68,6 +69,7 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
   const [bankId, setBankId] = useState(0);
+  const [partyId, setPartyId] = useState(0);
   const [description, setDescription] = useState("");
   /** Amount to post for each account id (all rows start at 0). */
   const [amounts, setAmounts] = useState<Record<number, number>>({});
@@ -85,6 +87,7 @@ export default function ExpensesPage() {
   const [editAmount, setEditAmount] = useState(0);
   const [editMethod, setEditMethod] = useState<SettlementMethod>("CASH");
   const [editBankId, setEditBankId] = useState(0);
+  const [editPartyId, setEditPartyId] = useState(0);
   const [editDescription, setEditDescription] = useState("");
 
   const categories = expenseCategories(accounts);
@@ -114,6 +117,7 @@ export default function ExpensesPage() {
     setEditAmount(expense.amount);
     setEditMethod(expense.payment_method);
     setEditBankId(expense.bank_account_id ?? 0);
+    setEditPartyId(expense.party_id ?? 0);
     setEditDescription(expense.description ?? "");
   }
 
@@ -128,6 +132,7 @@ export default function ExpensesPage() {
         expenseDate: editDate,
         amount: editAmount,
         paymentMethod: editMethod,
+        partyId: editPartyId || null,
         bankAccountId: editMethod === "CASH" ? null : editBankId || null,
         description: editDescription.trim() || null,
       });
@@ -176,9 +181,14 @@ export default function ExpensesPage() {
 
   async function refresh() {
     try {
-      const [accountList, expenseList] = await Promise.all([api.accounts(), api.expenses()]);
+      const [accountList, expenseList, partyList] = await Promise.all([
+        api.accounts(),
+        api.expenses(),
+        api.parties({ activeOnly: false }),
+      ]);
       setAccounts(accountList.filter((a) => a.account_type === "EXPENSE" && a.is_active));
       setExpenses(expenseList);
+      setParties(partyList);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load expenses.");
     }
@@ -215,6 +225,7 @@ export default function ExpensesPage() {
           expenseDate: date,
           amount: row.amount,
           paymentMethod: method,
+          partyId: partyId || null,
           bankAccountId: method === "CASH" ? null : bankId || null,
           description: description.trim() || null,
         });
@@ -224,6 +235,7 @@ export default function ExpensesPage() {
       setNotice(`Recorded ${rows.length} expense(s) — ${money(total)} (${parts.join(", ")})`);
       setAmounts({});
       setDescription("");
+      setPartyId(0);
       setDialogOpen(false);
       await refresh();
     } catch (err) {
@@ -243,6 +255,7 @@ export default function ExpensesPage() {
           expense.category_name,
           expense.ledger_code,
           expense.ledger_name,
+          expense.party_id == null ? null : (partyNameById.get(expense.party_id) ?? null),
           expense.description,
           expense.payment_method,
           expense.amount,
@@ -272,6 +285,14 @@ export default function ExpensesPage() {
   );
 
   const selectedTotal = items.reduce((sum, item) => sum + Math.max(amounts[item.id] ?? 0, 0), 0);
+
+  const partyNameById = new Map(parties.map((party) => [party.id, party.name]));
+  const partyOptions = [
+    { value: "", label: "No party" },
+    ...parties
+      .filter((party) => party.is_active === 1)
+      .map((party) => ({ value: String(party.id), label: `${party.code} — ${party.name}` })),
+  ];
 
   return (
     <>
@@ -390,13 +411,25 @@ export default function ExpensesPage() {
               </tbody>
             </table>
 
-            <div>
-              <label>Description</label>
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What are these for? (optional)"
-              />
+            <div className="row">
+              <div style={{ flex: 1 }}>
+                <label>Party (optional)</label>
+                <SearchableSelect
+                  value={partyId ? String(partyId) : ""}
+                  onChange={(next) => setPartyId(Number(next) || 0)}
+                  placeholder="No party"
+                  emptyText="No matching party"
+                  options={partyOptions}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label>Description</label>
+                <input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="What are these for? (optional)"
+                />
+              </div>
             </div>
 
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
@@ -464,6 +497,16 @@ export default function ExpensesPage() {
               {editMethod !== "CASH" && <BankSelect value={editBankId} onChange={setEditBankId} />}
             </div>
             <div>
+              <label>Party (optional)</label>
+              <SearchableSelect
+                value={editPartyId ? String(editPartyId) : ""}
+                onChange={(next) => setEditPartyId(Number(next) || 0)}
+                placeholder="No party"
+                emptyText="No matching party"
+                options={partyOptions}
+              />
+            </div>
+            <div>
               <label>Description</label>
               <input
                 value={editDescription}
@@ -499,6 +542,7 @@ export default function ExpensesPage() {
               <SortTh label="Date" sortKey="date" sort={sort} setSort={setSort} />
               <SortTh label="Category" sortKey="category" sort={sort} setSort={setSort} />
               <th>Ledger account</th>
+              <th>Party</th>
               <SortTh label="Description" sortKey="description" sort={sort} setSort={setSort} />
               <SortTh label="Method" sortKey="method" sort={sort} setSort={setSort} />
               <SortTh label="Status" sortKey="status" sort={sort} setSort={setSort} />
@@ -514,6 +558,11 @@ export default function ExpensesPage() {
                 <td>{expense.category_name ?? "—"}</td>
                 <td>
                   {expense.ledger_code} - {expense.ledger_name}
+                </td>
+                <td>
+                  {expense.party_id == null
+                    ? "—"
+                    : (partyNameById.get(expense.party_id) ?? `Party ${expense.party_id}`)}
                 </td>
                 <td>{expense.description ?? "—"}</td>
                 <td>{expense.payment_method}</td>
@@ -538,7 +587,7 @@ export default function ExpensesPage() {
             ))}
             {visibleExpenses.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   {expenses.length === 0
                     ? "No expenses recorded yet."
                     : "No expenses match this filter."}

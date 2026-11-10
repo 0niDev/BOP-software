@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UnbalancedJournalEntryError, ValidationError } from "../src/domain/errors.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ExpenseService } from "../src/services/expenseService.js";
+import { ReportService } from "../src/services/reportService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
@@ -157,5 +158,33 @@ describe("manual journal vouchers", () => {
     await expect(accounting.createManualJournal(base)).rejects.toMatchObject({
       code: "CONFLICT",
     });
+  });
+
+  it("tags a receivable line with a party so it lands in that party's ledger", async () => {
+    const reports = new ReportService(ctx.db);
+    const receivableId = await accountId(ctx.db, "1100");
+
+    const created = await accounting.createManualJournal({
+      entryDate: "2026-10-20",
+      narration: "Freight charged to the customer",
+      lines: [
+        { accountId: receivableId, partyId: ctx.ids.customerId, debit: 200 },
+        { accountId: revenueId, credit: 200 },
+      ],
+    });
+
+    const je = await accounting.getJournalEntry("journal_entries", created.id);
+    const lines = je!.lines as Array<Line & { party_id: number | null }>;
+    expect(lines.find((l) => l.account_code === "1100")?.party_id).toBe(ctx.ids.customerId);
+    expect(lines.find((l) => l.account_code === "4000")?.party_id ?? null).toBeNull();
+
+    const ledger = await reports.partyLedger(ctx.ids.customerId);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]!.debit).toBe(200);
+
+    const balance = (await reports.partyBalances()).find(
+      (row) => row.partyId === ctx.ids.customerId,
+    );
+    expect(balance).toMatchObject({ accountId: receivableId, balance: 200 });
   });
 });

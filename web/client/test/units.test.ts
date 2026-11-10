@@ -211,7 +211,7 @@ test("a blank account falls back to the group only at level 3 or deeper", async 
 
 test("a new journal line inherits the narration above it, still editable", async () => {
   const { withNewLine } = await import("../src/pages/JournalVouchersPage");
-  const line = (description: string) => ({ accountId: 0, parentId: 0, description, debit: "", credit: "" });
+  const line = (description: string) => ({ accountId: 0, parentId: 0, partyId: 0, description, debit: "", credit: "" });
 
   let lines = [line("hello")];
   for (let i = 0; i < 4; i++) lines = withNewLine(lines);
@@ -221,6 +221,38 @@ test("a new journal line inherits the narration above it, still editable", async
   lines[lines.length - 1] = { ...lines[lines.length - 1], description: "world" };
   expect(withNewLine(lines).at(-1)?.description).toBe("world");
   expect(lines[0].description).toBe("hello");
+});
+
+test("journal lines offer the parties that sit under the chosen account", async () => {
+  const { partiesForAccount } = await import("../src/pages/JournalVouchersPage");
+  const party = (id: number, accountId: number | null, partyType: "CUSTOMER" | "SUPPLIER") => ({
+    id,
+    code: `P-${id}`,
+    name: `Party ${id}`,
+    party_type: partyType,
+    customer_category: null,
+    phone: null,
+    address: null,
+    email: null,
+    opening_balance: 0,
+    opening_balance_date: null,
+    credit_limit: 0,
+    account_id: accountId,
+    is_active: 1,
+  });
+  const parties = [
+    party(1, 3, "CUSTOMER"), // linked to A/R
+    party(2, null, "CUSTOMER"), // unlinked → A/R
+    party(3, null, "SUPPLIER"), // unlinked → A/P
+    party(4, 14, "SUPPLIER"), // linked to A/P
+  ];
+
+  const idsUnder = (accountId: number) =>
+    partiesForAccount(parties, accountId, 3, 14).map((p) => p.id);
+  expect(idsUnder(3)).toEqual([1, 2]);
+  expect(idsUnder(14)).toEqual([3, 4]);
+  expect(idsUnder(0)).toEqual([]);
+  expect(idsUnder(1000)).toEqual([]);
 });
 
 // --- list sorting and date filters (components/Sort) ---------------------

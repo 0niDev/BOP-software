@@ -1,7 +1,9 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
+import { SystemAccountCodes } from "../domain/enums.js";
 import { Decimal, toStorage } from "../domain/money.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
+import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import {
   AccountingService,
   type DateRangeOptions,
@@ -43,6 +45,19 @@ export interface LedgerEntry {
   settled?: boolean;
   /** Dated before the party's opening date: shown, but the balance ignores it. */
   beforeOpening?: boolean;
+}
+
+/** One party's sub-ledger balance, for the Chart of Accounts. */
+export interface PartyBalanceRow {
+  partyId: number;
+  /** Control account (Accounts Receivable / Payable) the sub-ledger sits under. */
+  accountId: number;
+  code: string;
+  name: string;
+  partyType: string;
+  isActive: number;
+  /** Closing balance, debit-positive (what the party owes us). */
+  balance: number;
 }
 
 function csvEscape(value: string): string {
@@ -161,6 +176,7 @@ export class ReportService {
              jel.debit, jel.credit,
              CASE WHEN (si.payment_type IS NOT NULL AND si.payment_type <> 'CREDIT')
                     OR (pi.payment_type IS NOT NULL AND pi.payment_type <> 'CREDIT')
+                    OR (ex.status = 'PAID' AND ex.settlement_journal_entry_id IS NULL)
                   THEN 1 ELSE 0 END AS settled
       FROM journal_entry_lines jel
       JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -168,6 +184,8 @@ export class ReportService {
              ON je.source_table = 'sales_invoices' AND si.id = je.source_id
       LEFT JOIN purchase_invoices pi
              ON je.source_table = 'purchase_invoices' AND pi.id = je.source_id
+      LEFT JOIN expenses ex
+             ON je.source_table = 'expenses' AND ex.id = je.source_id
       WHERE jel.party_id = ? AND je.is_posted = 1
         AND NOT (je.voucher_type = 'OPENING' AND je.source_table = 'parties')`;
     const params: Array<string | number> = [partyId];
@@ -249,6 +267,95 @@ export class ReportService {
     );
     const fallback = String(party.created_at ?? "").slice(0, 10);
     return row?.entry_date ?? (fallback || null);
+  }
+
+  /**
+   * Closing balance of every party, so the Chart of Accounts can list the
+   * sub-ledger under Accounts Receivable / Payable. Three queries total (every
+   * party, every party line, the OPENING cutover dates) and the same rules as
+   * partyLedger(): the stored opening seeds the balance, OPENING entries are
+   * excluded, and settled (cash/bank invoice or paid expense) or pre-opening
+   * lines do not move it.
+   */
+  async partyBalances(): Promise<PartyBalanceRow[]> {
+    const parties = await this.parties.list(this.companyId, { activeOnly: false });
+    if (parties.length === 0) return [];
+
+    const resolver = new SystemAccountResolver(this.db, this.companyId);
+    const receivableId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
+    const payableId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
+
+    const lines = await this.db.all<{
+      party_id: number;
+      date: string;
+      debit: number;
+      credit: number;
+      settled: number;
+    }>(
+      `SELECT jel.party_id, je.entry_date AS date, jel.debit, jel.credit,
+              CASE WHEN (si.payment_type IS NOT NULL AND si.payment_type <> 'CREDIT')
+                     OR (pi.payment_type IS NOT NULL AND pi.payment_type <> 'CREDIT')
+                     OR (ex.status = 'PAID' AND ex.settlement_journal_entry_id IS NULL)
+                   THEN 1 ELSE 0 END AS settled
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+         LEFT JOIN sales_invoices si
+                ON je.source_table = 'sales_invoices' AND si.id = je.source_id
+         LEFT JOIN purchase_invoices pi
+                ON je.source_table = 'purchase_invoices' AND pi.id = je.source_id
+         LEFT JOIN expenses ex
+                ON je.source_table = 'expenses' AND ex.id = je.source_id
+        WHERE jel.party_id IS NOT NULL AND je.is_posted = 1 AND je.company_id = ?
+          AND NOT (je.voucher_type = 'OPENING' AND je.source_table = 'parties')`,
+      [this.companyId],
+    );
+    const openDates = new Map(
+      (
+        await this.db.all<{ party_id: number; date: string }>(
+          `SELECT jel.party_id, MAX(je.entry_date) AS date
+             FROM journal_entry_lines jel
+             JOIN journal_entries je ON je.id = jel.journal_entry_id
+            WHERE je.is_posted = 1 AND je.company_id = ?
+              AND je.voucher_type = 'OPENING' AND je.source_table = 'parties'
+            GROUP BY jel.party_id`,
+          [this.companyId],
+        )
+      ).map((row) => [Number(row.party_id), String(row.date)]),
+    );
+
+    const linesByParty = new Map<number, typeof lines>();
+    for (const line of lines) {
+      const key = Number(line.party_id);
+      linesByParty.set(key, [...(linesByParty.get(key) ?? []), line]);
+    }
+
+    return parties.map((party) => {
+      const opening = new Decimal(Number(party.opening_balance ?? 0));
+      const openingDate =
+        party.opening_balance_date ??
+        (opening.isZero()
+          ? null
+          : openDates.get(party.id) ?? (String(party.created_at ?? "").slice(0, 10) || null));
+      let balance = opening;
+      for (const line of linesByParty.get(party.id) ?? []) {
+        if (Number(line.settled) === 1) continue;
+        if (openingDate !== null && String(line.date ?? "") < openingDate) continue;
+        balance = balance
+          .plus(new Decimal(Number(line.debit ?? 0)))
+          .minus(new Decimal(Number(line.credit ?? 0)));
+      }
+      const accountId =
+        party.account_id ?? (party.party_type === "SUPPLIER" ? payableId : receivableId);
+      return {
+        partyId: party.id,
+        accountId,
+        code: party.code,
+        name: party.name,
+        partyType: party.party_type,
+        isActive: party.is_active,
+        balance: toStorage(balance),
+      };
+    });
   }
 
   /** Cash book: every posted movement on the Cash in Hand account. */

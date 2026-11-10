@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PaymentService } from "../src/services/paymentService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
-import { freshDb, type TestContext } from "./helpers/db.js";
+import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
 let reports: ReportService;
@@ -74,6 +74,18 @@ describe("ReportService", () => {
     expect(ledger[1]!.credit).toBe(300);
     expect(ledger[1]!.balance).toBe(0);
     expect(ledger[1]!.notes).toBeNull();
+  });
+
+  it("reports each party's closing balance for the Chart of Accounts", async () => {
+    await seedActivity();
+    const ledger = await reports.partyLedger(ctx.ids.customerId);
+    const customer = (await reports.partyBalances()).find(
+      (row) => row.partyId === ctx.ids.customerId,
+    );
+
+    expect(customer?.balance).toBe(ledger.at(-1)!.balance);
+    // The demo customer has no linked account, so it falls back to A/R.
+    expect(customer?.accountId).toBe(await accountId(ctx.db, "1100"));
   });
 
   it("records cash sales in the cash book", async () => {

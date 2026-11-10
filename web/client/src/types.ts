@@ -45,6 +45,18 @@ export interface Party {
   is_active: number;
 }
 
+/** A party's closing sub-ledger balance, listed under its control account. */
+export interface PartyBalance {
+  partyId: number;
+  accountId: number;
+  code: string;
+  name: string;
+  partyType: PartyType;
+  isActive: number;
+  /** Debit-positive: what the party owes us. */
+  balance: number;
+}
+
 export interface OpeningBalanceChangeParty {
   partyId: number;
   partyCode: string;
@@ -267,6 +279,8 @@ export interface Expense {
   settlement_journal_entry_id: number | null;
   bank_account_id: number | null;
   cheque_id: number | null;
+  /** Party tagged on the expense's payment / A/P line. */
+  party_id: number | null;
   description: string | null;
 }
 
@@ -291,6 +305,7 @@ export interface JournalEntryLine {
   account_id: number;
   account_code: string;
   account_name: string;
+  party_id: number | null;
   debit: number;
   credit: number;
   description: string | null;

@@ -10,6 +10,7 @@ import type {
   Account,
   JournalEntryDetail,
   ManualJournalEntry,
+  Party,
 } from "../types";
 
 /** One editable line in the new-voucher dialog. Amounts stay strings so the
@@ -18,13 +19,15 @@ interface DraftLine {
   accountId: number;
   /** Group account the account must sit under; 0 = search every account. */
   parentId: number;
+  /** Party sub-ledger this line moves; 0 = none / not a party account. */
+  partyId: number;
   description: string;
   debit: string;
   credit: string;
 }
 
 function newLine(): DraftLine {
-  return { accountId: 0, parentId: 0, description: "", debit: "", credit: "" };
+  return { accountId: 0, parentId: 0, partyId: 0, description: "", debit: "", credit: "" };
 }
 
 /** Append an empty line that inherits the narration of the row above, so a
@@ -119,9 +122,29 @@ export function subtreeIds(accounts: readonly Account[], rootId: number): Set<nu
   return ids;
 }
 
+/**
+ * Parties whose sub-ledger sits under `accountId`: the account the party is
+ * linked to, or — for a party with no link — A/R for customers and A/P for
+ * suppliers, the same fallback the server posts with.
+ */
+export function partiesForAccount(
+  parties: readonly Party[],
+  accountId: number,
+  receivableId: number,
+  payableId: number,
+): Party[] {
+  if (!accountId) return [];
+  return parties.filter(
+    (party) =>
+      (party.account_id ?? (party.party_type === "SUPPLIER" ? payableId : receivableId)) ===
+      accountId,
+  );
+}
+
 export default function JournalVouchersPage() {
   const [entries, setEntries] = useState<ManualJournalEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -141,9 +164,14 @@ export default function JournalVouchersPage() {
 
   async function refresh(): Promise<void> {
     try {
-      const [entryList, accountList] = await Promise.all([api.journalEntries(), api.accounts()]);
+      const [entryList, accountList, partyList] = await Promise.all([
+        api.journalEntries(),
+        api.accounts(),
+        api.parties({ activeOnly: false }),
+      ]);
       setEntries(entryList);
       setAccounts(accountList);
+      setParties(partyList);
     } catch (err) {
       setError(message(err, "Failed to load journal vouchers."));
     }
@@ -186,6 +214,18 @@ export default function JournalVouchersPage() {
       accountOptions.filter((option) => ids.has(Number(option.value))),
     );
   }
+
+  // A line's party belongs to its account, so the list only appears for the
+  // accounts parties are linked to (A/R, A/P — see the Chart of Accounts).
+  const receivableId = accounts.find((account) => account.account_code === "1100")?.id ?? 0;
+  const payableId = accounts.find((account) => account.account_code === "2000")?.id ?? 0;
+  const partyOptionsFor = (accountId: number) =>
+    partiesForAccount(parties, accountId, receivableId, payableId)
+      .filter((party) => party.is_active === 1)
+      .map((party) => ({ value: String(party.id), label: `${party.code} — ${party.name}` }));
+  const partyNameById = new Map(
+    parties.map((party) => [party.id, `${party.code} — ${party.name}`]),
+  );
 
   const totalDebit = lines.reduce((sum, line) => sum + (Number(line.debit) || 0), 0);
   const totalCredit = lines.reduce((sum, line) => sum + (Number(line.credit) || 0), 0);
@@ -232,6 +272,7 @@ export default function JournalVouchersPage() {
         narration: narration.trim() || null,
         lines: active.map((line) => ({
           accountId: journalLineAccountId(line, depths),
+          partyId: line.partyId || null,
           description: line.description.trim() || null,
           debit: Number(line.debit) || 0,
           credit: Number(line.credit) || 0,
@@ -353,7 +394,8 @@ export default function JournalVouchersPage() {
               Debit at least one account and credit at least one for the same total.
               Pick a group first to narrow the account list to that branch — or leave the
               account blank to post to the group itself when it is a level-3 entry.
-              Posted vouchers cannot be edited — reverse one to correct it.
+              Lines on Accounts Receivable / Payable also take a party, which moves that
+              party&apos;s ledger. Posted vouchers cannot be edited — reverse one to correct it.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -378,6 +420,7 @@ export default function JournalVouchersPage() {
                   <tr>
                     <th>Group</th>
                     <th>Account</th>
+                    <th>Party</th>
                     <th>Description</th>
                     <th className="num">Debit</th>
                     <th className="num">Credit</th>
@@ -391,7 +434,11 @@ export default function JournalVouchersPage() {
                         <SearchableSelect
                           value={String(line.parentId)}
                           onChange={(next) =>
-                            updateLine(index, { parentId: Number(next), accountId: 0 })
+                            updateLine(index, {
+                              parentId: Number(next),
+                              accountId: 0,
+                              partyId: 0,
+                            })
                           }
                           placeholder="Any group..."
                           emptyText="No matching group"
@@ -403,10 +450,22 @@ export default function JournalVouchersPage() {
                         <SearchableSelect
                           value={String(line.accountId)}
                           autoFocus={justAdded.current && index === lines.length - 1}
-                          onChange={(next) => updateLine(index, { accountId: Number(next) })}
+                          onChange={(next) =>
+                            updateLine(index, { accountId: Number(next), partyId: 0 })
+                          }
                           placeholder="Select account or leave blank"
                           emptyText="No matching account"
                           options={optionsUnder.get(line.parentId) ?? accountOptions}
+                        />
+                      </td>
+                      <td style={{ minWidth: 200 }}>
+                        <SearchableSelect
+                          value={String(line.partyId)}
+                          onChange={(next) => updateLine(index, { partyId: Number(next) })}
+                          placeholder="No party"
+                          emptyText="No party under this account"
+                          ariaLabel={`Line ${index + 1} party`}
+                          options={partyOptionsFor(journalLineAccountId(line, depths))}
                         />
                       </td>
                       <td>
@@ -456,7 +515,7 @@ export default function JournalVouchersPage() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={3}>
+                    <td colSpan={4}>
                       <button
                         type="button"
                         onClick={() => {
@@ -602,6 +661,7 @@ export default function JournalVouchersPage() {
               <thead>
                 <tr>
                   <th>Account</th>
+                  <th>Party</th>
                   <th>Description</th>
                   <th className="num">Debit</th>
                   <th className="num">Credit</th>
@@ -612,6 +672,11 @@ export default function JournalVouchersPage() {
                   <tr key={index}>
                     <td>
                       {line.account_code} — {line.account_name}
+                    </td>
+                    <td>
+                      {line.party_id == null
+                        ? "—"
+                        : (partyNameById.get(line.party_id) ?? `Party ${line.party_id}`)}
                     </td>
                     <td>{line.description ?? "—"}</td>
                     <td className="num">{Number(line.debit) ? money(Number(line.debit)) : ""}</td>

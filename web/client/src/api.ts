@@ -27,6 +27,7 @@ import type {
   Item,
   OpeningBalanceChange,
   Party,
+  PartyBalance,
   PartyType,
   Payment,
   PaymentResult,
@@ -205,6 +206,7 @@ export const api = {
     const suffix = params.toString();
     return request<Party[]>(`/api/parties${suffix ? `?${suffix}` : ""}`);
   },
+  partyBalances: () => request<PartyBalance[]>("/api/parties/balances"),
   createParty: (body: {
     name: string;
     partyType: PartyType;
@@ -534,6 +536,7 @@ export const api = {
     amount: number;
     paymentMethod: SettlementMethod;
     payLater?: boolean;
+    partyId?: number | null;
     dueDate?: string | null;
     bankAccountId?: number | null;
     description?: string | null;
@@ -557,6 +560,7 @@ export const api = {
       expenseDate: string;
       amount: number;
       paymentMethod: SettlementMethod;
+      partyId?: number | null;
       dueDate?: string | null;
       bankAccountId?: number | null;
       description?: string | null;

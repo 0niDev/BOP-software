@@ -17,6 +17,7 @@ import {
   type ExpenseRow,
 } from "../repositories/expenseRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
+import { PartyRepository } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService } from "./accountingService.js";
 import { AuditService } from "./auditService.js";
@@ -32,6 +33,9 @@ export interface CreateExpenseInput {
   paymentMethod: ExpensePaymentMethod;
   /** Record as an unpaid bill (Dr expense / Cr Accounts Payable) instead of paying now. */
   payLater?: boolean;
+  /** Party the expense belongs to; tagged on the payment/A/P line so it shows
+   *  in that party's ledger. */
+  partyId?: number | null;
   dueDate?: string | null;
   voucherNumber?: string | null;
   bankAccountId?: number | null;
@@ -49,6 +53,8 @@ export interface UpdateExpenseInput {
   expenseDate: string;
   amount: number | string;
   paymentMethod: ExpensePaymentMethod;
+  /** Party the expense belongs to; omitted keeps the one already tagged. */
+  partyId?: number | null;
   dueDate?: string | null;
   bankAccountId?: number | null;
   chequeId?: number | null;
@@ -76,6 +82,7 @@ export class ExpenseService {
   private readonly accounts: AccountRepository;
   private readonly expenses: ExpenseRepository;
   private readonly journal: JournalRepository;
+  private readonly parties: PartyRepository;
   private readonly accounting: AccountingService;
   private readonly audit: AuditService;
 
@@ -86,6 +93,7 @@ export class ExpenseService {
     this.accounts = new AccountRepository(db);
     this.expenses = new ExpenseRepository(db);
     this.journal = new JournalRepository(db);
+    this.parties = new PartyRepository(db);
     this.accounting = new AccountingService(db, companyId);
     this.audit = new AuditService(db);
   }
@@ -122,6 +130,19 @@ export class ExpenseService {
     return account;
   }
 
+  /** Validate the optional party link and return its id (null = none). */
+  private async resolveParty(
+    partyId: number | null | undefined,
+    companyId: number,
+  ): Promise<number | null> {
+    if (partyId == null) return null;
+    const party = await this.parties.findById(partyId);
+    if (!party || party.company_id !== companyId) {
+      throw new ValidationError(`Party ${partyId} does not exist.`);
+    }
+    return party.id;
+  }
+
   async createExpense(input: CreateExpenseInput): Promise<ExpenseResult> {
     const companyId = input.companyId ?? this.companyId;
     const amount = round2(input.amount);
@@ -134,6 +155,7 @@ export class ExpenseService {
     if (!input.expenseDate) throw new ValidationError("Expense date is required.");
 
     const account = await this.resolveExpenseAccount(input.accountId, input.categoryId);
+    const partyId = await this.resolveParty(input.partyId, companyId);
 
     const resolver = new SystemAccountResolver(this.db, companyId);
     // Pay-later bills sit on Accounts Payable until payExpense() settles them.
@@ -182,6 +204,7 @@ export class ExpenseService {
           {
             accountId: paymentAccountId,
             credit: amount,
+            partyId,
             description: `Payment for: ${account.account_name}`,
           },
         ],
@@ -220,6 +243,9 @@ export class ExpenseService {
         input.paymentMethod === "CASH"
           ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
           : await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS);
+      // The bill's journal carries the party; tag the A/P debit with it too, or
+      // the party ledger would never clear the payable.
+      const partyId = await this.expenses.findPartyIdForExpense(expense.id);
 
       const journalEntryId = await this.accounting.postJournalEntry({
         voucherType: "PAYMENT",
@@ -228,6 +254,7 @@ export class ExpenseService {
           {
             accountId: apId,
             debit: expense.amount,
+            partyId,
             description: `Settle expense ${expense.voucher_number}`,
           },
           {
@@ -289,6 +316,12 @@ export class ExpenseService {
       : input.paymentMethod === "CASH"
         ? await resolver.idFor(SystemAccountCodes.CASH_IN_HAND)
         : await resolver.idFor(SystemAccountCodes.BANK_ACCOUNTS);
+    // No party in the request keeps the tag the journal already carries, so an
+    // edit (which reposts the entry) cannot silently drop it.
+    const partyId =
+      input.partyId !== undefined
+        ? await this.resolveParty(input.partyId, companyId)
+        : await this.expenses.findPartyIdForExpense(id);
 
     return this.db.transaction(async () => {
       await deleteJournalBySource(this.db, "expenses", id);
@@ -318,6 +351,7 @@ export class ExpenseService {
           {
             accountId: paymentAccountId,
             credit: amount,
+            partyId,
             description: `Payment for: ${account.account_name}`,
           },
         ],
@@ -354,6 +388,7 @@ export class ExpenseService {
     }
 
     await this.db.transaction(async () => {
+      const partyId = await this.expenses.findPartyIdForExpense(id);
       await deleteJournalBySource(this.db, "expenses", id);
       await this.expenses.deleteExpense(id);
       await this.audit.record({
@@ -370,6 +405,7 @@ export class ExpenseService {
             amount: existing.amount,
             paymentMethod: existing.payment_method,
             payLater: existing.status === "UNPAID",
+            partyId,
             dueDate: existing.due_date,
             bankAccountId: existing.bank_account_id,
             description: existing.description,

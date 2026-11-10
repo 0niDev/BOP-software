@@ -5,7 +5,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import { moveRowFocus } from "../lib/gridKeys";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, AccountType } from "../types";
+import type { Account, AccountType, PartyBalance } from "../types";
 
 const ACCOUNT_TYPES: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
 
@@ -55,6 +55,7 @@ function amount(value: number): string {
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [parties, setParties] = useState<PartyBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -71,7 +72,12 @@ export default function AccountsPage() {
 
   async function refresh(): Promise<void> {
     try {
-      setAccounts(await api.accounts(!showInactive));
+      const [accountList, partyList] = await Promise.all([
+        api.accounts(!showInactive),
+        api.partyBalances(),
+      ]);
+      setAccounts(accountList);
+      setParties(partyList);
     } catch (err) {
       setError(message(err, "Failed to load accounts."));
     }
@@ -158,16 +164,29 @@ export default function AccountsPage() {
   }
 
   // --- hierarchy ---------------------------------------------------------
+  // Parties are sub-ledgers of Accounts Receivable / Payable: they are listed
+  // under the account they are linked to, at the account's balance column.
+  const partiesByAccount = new Map<number, PartyBalance[]>();
+  for (const party of parties) {
+    const list = partiesByAccount.get(party.accountId) ?? [];
+    list.push(party);
+    partiesByAccount.set(party.accountId, list);
+  }
+  const partyMatches = (party: PartyBalance): boolean =>
+    matchesQuery(query, [party.code, party.name, party.partyType]);
+
   // Filtering happens before the tree is built, so a matching child whose
-  // parent is hidden simply surfaces as a root under its type section.
+  // parent is hidden simply surfaces as a root under its type section. An
+  // account whose party matches the filter stays visible to carry that party.
   const visibleAccounts = query
-    ? accounts.filter((account) =>
-        matchesQuery(query, [
-          account.account_code,
-          account.account_name,
-          account.account_type,
-          account.account_subtype,
-        ]),
+    ? accounts.filter(
+        (account) =>
+          matchesQuery(query, [
+            account.account_code,
+            account.account_name,
+            account.account_type,
+            account.account_subtype,
+          ]) || (partiesByAccount.get(account.id) ?? []).some(partyMatches),
       )
     : accounts;
   const accountsById = new Map(visibleAccounts.map((account) => [account.id, account]));
@@ -359,6 +378,36 @@ export default function AccountsPage() {
       </tr>,
     ];
     for (const child of children) rows.push(...treeRows(child, depth + 1));
+    for (const party of (partiesByAccount.get(account.id) ?? []).filter(partyMatches)) {
+      rows.push(
+        <tr key={`party-${party.partyId}`} className="coa-row coa-l3">
+          <td style={{ whiteSpace: "nowrap" }} title={`Party code: ${party.code}`}>
+            <span className="coa-code">
+              {Array.from({ length: depth + 1 }, (_, index) => (
+                <span key={index} className="coa-rail" />
+              ))}
+              <span className="coa-elbow">└</span>
+              {party.code}
+            </span>
+          </td>
+          <td>
+            {party.name}
+            <span className="badge" style={{ marginLeft: 6, opacity: 0.7 }}>
+              party
+            </span>
+          </td>
+          <td>{party.partyType}</td>
+          <td>—</td>
+          <td className="num" title="Closing balance of this party's ledger">
+            {amount(party.balance)}
+          </td>
+          <td>
+            <span className="badge">{party.isActive ? "Active" : "Inactive"}</span>
+          </td>
+          <td />
+        </tr>,
+      );
+    }
     return rows;
   }
 
@@ -495,6 +544,12 @@ export default function AccountsPage() {
             </button>
           ))}
         </div>
+        {parties.length > 0 && (
+          <p style={{ opacity: 0.7, fontSize: 12, margin: "4px 0 8px" }}>
+            Accounts Receivable and Payable list their parties beneath them; the amount on a
+            party row is that party&apos;s ledger balance.
+          </p>
+        )}
         <table>
           <thead>
             <tr>

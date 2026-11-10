@@ -409,6 +409,10 @@ export function createApp(
     );
   });
 
+  app.get("/api/parties/balances", requireAuth, async (_req, res) => {
+    res.json(await reports.partyBalances());
+  });
+
   app.post("/api/parties", requireAuth, async (req, res) => {
     const body = parseBody(
       z.object({
@@ -1105,6 +1109,7 @@ export function createApp(
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
         payLater: z.boolean().optional(),
+        partyId: z.coerce.number().int().positive().nullish(),
         dueDate: isoDateSchema.nullish(),
         voucherNumber: z.string().nullish(),
         bankAccountId: z.coerce.number().int().positive().nullish(),
@@ -1143,6 +1148,7 @@ export function createApp(
         expenseDate: isoDateSchema,
         amount: z.coerce.number().positive(),
         paymentMethod: z.enum(["CASH", "BANK", "CHEQUE"]),
+        partyId: z.coerce.number().int().positive().nullish(),
         dueDate: isoDateSchema.nullish(),
         bankAccountId: z.coerce.number().int().positive().nullish(),
         chequeId: z.coerce.number().int().positive().nullish(),
