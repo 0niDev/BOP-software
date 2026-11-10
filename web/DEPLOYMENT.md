@@ -130,9 +130,16 @@ adjust the unit if not.
    refresh the database from SQLite Cloud, start, health check:
 
    ```bash
-   ./deploy/linux/update.sh                # full
+   ./deploy/linux/update.sh                # full (cloud -> local)
    ./deploy/linux/update.sh --skip-tests   # hotfix
+   ./deploy/linux/update.sh --push         # local -> cloud, no pull
    ```
+
+   `--push` keeps this machine's database and replaces the SQLite Cloud copy
+   with it during the deploy (same wholesale, single-transaction push as the
+   app's replica). Use it when the local data is the one to keep. In
+   local-primary mode (`ERP_DB_ENGINE=local`) the `--boot` update never pulls,
+   so the restart that follows does not overwrite the local file again.
 
    It needs passwordless `systemctl stop|start|restart bop-erp`:
 

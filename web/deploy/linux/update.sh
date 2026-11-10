@@ -2,7 +2,9 @@
 # ===========================================================================
 #  Pull code, rebuild, refresh the local database from SQLite Cloud, restart.
 #
-#    ./deploy/linux/update.sh               # normal deploy
+#    ./deploy/linux/update.sh               # normal deploy (cloud -> local)
+#    ./deploy/linux/update.sh --push        # local -> cloud: keep the local
+#                                           # database and push it to SQLite Cloud
 #    ./deploy/linux/update.sh --skip-tests  # hotfix
 #    ./deploy/linux/update.sh --boot        # systemd ExecStartPre: no tests, no restart
 #
@@ -19,10 +21,12 @@ REPO_DIR=$(cd "$WEB_DIR/.." && pwd)
 
 SKIP_TESTS=0
 BOOT=0
+PUSH_DB=0
 for arg in "$@"; do
     case "$arg" in
         --skip-tests|-t) SKIP_TESTS=1 ;;
         --boot)          BOOT=1; SKIP_TESTS=1 ;;
+        --push|-p)       PUSH_DB=1 ;;
         *) echo "[update] unknown option: $arg"; exit 2 ;;
     esac
 done
@@ -96,24 +100,47 @@ if [ "$BOOT" = 0 ]; then
         sudo systemctl stop "$SERVICE" || log "could not stop $SERVICE - continuing"
 fi
 
-# --- 6. database: cloud is master at every start --------------------------
-# A previous local file is kept as erp.pre-sync-*.sqlite (3 newest) so a pull
-# against the wrong cloud state is recoverable.
-if [ -f "$DB_FILE" ]; then
-    PRE="$DATA_DIR/erp.pre-sync-$(date -u +%Y%m%d_%H%M%S).sqlite"
-    cp -f "$DB_FILE" "$PRE" && log "kept previous database as $(basename "$PRE")"
-    ls -1t "$DATA_DIR"/erp.pre-sync-*.sqlite 2>/dev/null | tail -n +4 | xargs -r rm -f
-fi
-PULL="$DATA_DIR/erp.pull.sqlite"
-rm -f "$PULL" "$PULL-wal" "$PULL-shm"
-if ( cd "$WEB_DIR" && node scripts/pull-cloud.mjs --out "$PULL" ); then
-    mv -f "$PULL" "$DB_FILE"
-    # A leftover -wal/-shm from the replaced file corrupts the new one.
-    rm -f "$DB_FILE-wal" "$DB_FILE-shm"
-    log "local database replaced with the SQLite Cloud copy"
+# --- 6. database -----------------------------------------------------------
+# Default: the cloud copy is master, so a deploy replaces the local file with
+# it. `--push` flips that for this deploy: the local file is kept and pushed to
+# SQLite Cloud instead (whole database, one transaction).
+#
+# In local-primary mode (ERP_DB_ENGINE=local) the boot update never pulls: the
+# `systemctl start` below runs this script with --boot, and pulling there would
+# overwrite the local file (and undo a --push) immediately after the deploy.
+DB_ENGINE=$(envval ERP_DB_ENGINE); DB_ENGINE=${DB_ENGINE:-sqlitecloud}
+DO_PULL=1
+[ "$PUSH_DB" = 1 ] && DO_PULL=0
+[ "$BOOT" = 1 ] && [ "$DB_ENGINE" = "local" ] && DO_PULL=0
+
+if [ "$PUSH_DB" = 1 ]; then
+    log "pushing the local database to SQLite Cloud (no pull)"
+    if ( cd "$WEB_DIR" && node scripts/push-cloud.mjs --db "$DB_FILE" ); then
+        log "local database pushed to SQLite Cloud"
+    else
+        log "cloud push FAILED - starting on the local database; the service retries at startup"
+    fi
+elif [ "$DO_PULL" = 0 ]; then
+    log "local-primary mode - keeping the local database (no cloud pull)"
 else
+    # A previous local file is kept as erp.pre-sync-*.sqlite (3 newest) so a pull
+    # against the wrong cloud state is recoverable.
+    if [ -f "$DB_FILE" ]; then
+        PRE="$DATA_DIR/erp.pre-sync-$(date -u +%Y%m%d_%H%M%S).sqlite"
+        cp -f "$DB_FILE" "$PRE" && log "kept previous database as $(basename "$PRE")"
+        ls -1t "$DATA_DIR"/erp.pre-sync-*.sqlite 2>/dev/null | tail -n +4 | xargs -r rm -f
+    fi
+    PULL="$DATA_DIR/erp.pull.sqlite"
     rm -f "$PULL" "$PULL-wal" "$PULL-shm"
-    log "cloud pull FAILED - starting on the existing local database"
+    if ( cd "$WEB_DIR" && node scripts/pull-cloud.mjs --out "$PULL" ); then
+        mv -f "$PULL" "$DB_FILE"
+        # A leftover -wal/-shm from the replaced file corrupts the new one.
+        rm -f "$DB_FILE-wal" "$DB_FILE-shm"
+        log "local database replaced with the SQLite Cloud copy"
+    else
+        rm -f "$PULL" "$PULL-wal" "$PULL-shm"
+        log "cloud pull FAILED - starting on the existing local database"
+    fi
 fi
 
 # --- 7. start --------------------------------------------------------------

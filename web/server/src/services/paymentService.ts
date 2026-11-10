@@ -174,7 +174,9 @@ export class PaymentService {
             description: `Payment to ${supplier.name}`,
           },
         ],
-        narration: `Payment to ${supplier.name}${input.referenceNo ? ` - ${input.referenceNo}` : ""}`,
+        narration: `Payment to ${supplier.name}${input.referenceNo ? ` - ${input.referenceNo}` : ""}${
+          input.notes ? ` - ${input.notes}` : ""
+        }`,
         companyId,
         createdBy: null,
       });
@@ -282,7 +284,9 @@ export class PaymentService {
             description: `Payment from ${customer.name}`,
           },
         ],
-        narration: `Receipt from ${customer.name}${input.referenceNo ? ` - ${input.referenceNo}` : ""}`,
+        narration: `Receipt from ${customer.name}${input.referenceNo ? ` - ${input.referenceNo}` : ""}${
+          input.notes ? ` - ${input.notes}` : ""
+        }`,
         companyId,
         createdBy: null,
       });

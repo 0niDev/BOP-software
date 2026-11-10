@@ -42,6 +42,8 @@ export default function PaymentsPage() {
   const [bankId, setBankId] = useState(0);
   /** Invoice this voucher settles; 0 = leave it as a party-level advance. */
   const [invoiceId, setInvoiceId] = useState(0);
+  /** Free-text narration stored on the voucher and its journal entry. */
+  const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [outstanding, setOutstanding] = useState<number | null>(null);
@@ -57,6 +59,7 @@ export default function PaymentsPage() {
     setDate("payment_date" in row ? row.payment_date : row.receipt_date);
     setMethod(row.payment_method);
     setBankId(row.bank_account_id ?? 0);
+    setNotes(row.notes ?? "");
   }
 
   async function removeRow(row: Payment | Receipt): Promise<void> {
@@ -134,6 +137,7 @@ export default function PaymentsPage() {
     setBusy(true);
     try {
       const bankAccountId = method === "CASH" ? null : bankId || null;
+      const narration = notes.trim() || null;
       if (editingId != null) {
         if (tab === "payments") {
           await api.updatePayment(editingId, {
@@ -142,6 +146,7 @@ export default function PaymentsPage() {
             paymentDate: date,
             paymentMethod: method,
             bankAccountId,
+            notes: narration,
           });
         } else {
           await api.updateReceipt(editingId, {
@@ -150,6 +155,7 @@ export default function PaymentsPage() {
             paymentDate: date,
             paymentMethod: method,
             bankAccountId,
+            notes: narration,
           });
         }
         setNotice("Updated.");
@@ -165,6 +171,7 @@ export default function PaymentsPage() {
               paymentDate: date,
               paymentMethod: method,
               bankAccountId,
+              notes: narration,
               purchaseInvoiceId: invoiceId || null,
             })
           : await api.receivePayment({
@@ -173,12 +180,14 @@ export default function PaymentsPage() {
               paymentDate: date,
               paymentMethod: method,
               bankAccountId,
+              notes: narration,
               salesInvoiceId: invoiceId || null,
             });
       setNotice(`Recorded ${result.voucherNumber} for ${money(amount)}`);
       setAmount(0);
       setPartyId(0);
       setInvoiceId(0);
+      setNotes("");
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to record.");
@@ -220,6 +229,7 @@ export default function PaymentsPage() {
       row.payment_method,
       bankName(row.bank_account_id),
       row.amount,
+      row.notes,
     ]),
   );
 
@@ -342,10 +352,19 @@ export default function PaymentsPage() {
             {busy ? "Saving..." : editingId != null ? "Save changes" : tab === "payments" ? "Record payment" : "Record receipt"}
           </button>
           {editingId != null && (
-            <button type="button" onClick={() => setEditingId(null)}>
+            <button type="button" onClick={() => { setEditingId(null); setNotes(""); }}>
               Cancel
             </button>
           )}
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label>Narration</label>
+          <input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. Cheque 12345, part payment"
+            style={{ width: "100%" }}
+          />
         </div>
       </form>
 
@@ -366,6 +385,7 @@ export default function PaymentsPage() {
               <th>Method</th>
               <th>Bank</th>
               <th className="num">Amount</th>
+              <th>Narration</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -380,6 +400,7 @@ export default function PaymentsPage() {
                   <td>{row.payment_method}</td>
                   <td>{bankName(row.bank_account_id)}</td>
                   <td className="num">{money(row.amount)}</td>
+                  <td>{row.notes ?? "—"}</td>
                   <td>
                     <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
                       <button type="button" onClick={() => startEdit(row)}>
@@ -395,7 +416,7 @@ export default function PaymentsPage() {
             })}
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   {rows.length === 0
                     ? "Nothing recorded yet."
                     : "No vouchers match this filter."}
