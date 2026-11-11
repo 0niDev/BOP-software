@@ -1529,7 +1529,8 @@ export function createApp(
 
   app.get("/api/reports/party-ledger-all", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    res.json(await reports.allPartyLedgers(from, to));
+    const showOpening = req.query.showOpening === "1" || req.query.showOpening === "true";
+    res.json(await reports.allPartyLedgers(from, to, { showOpening }));
   });
 
   app.get("/api/reports/trial-balance.csv", requireAuth, async (req, res) => {
@@ -1629,7 +1630,8 @@ export function createApp(
 
   app.get("/api/reports/party-ledger-all.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    const file = await reportXlsx.allPartyLedgers({ from, to });
+    const showOpening = req.query.showOpening === "1" || req.query.showOpening === "true";
+    const file = await reportXlsx.allPartyLedgers({ from, to, showOpening });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

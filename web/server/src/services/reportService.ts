@@ -616,18 +616,41 @@ export class ReportService {
   /**
    * Every active party's full ledger in one report: per party the entries and
    * closing balance, plus the grand total of all closing balances. Reuses
-   * partyLedger() so the figures match the single-party report exactly.
+   * partyLedger() so the figures match the single-party report exactly. With
+   * `showOpening` (off by default) the synthetic opening row is dropped and
+   * balances are recomputed from zero, so the report shows period activity
+   * only.
    */
-  async allPartyLedgers(from?: string, to?: string): Promise<AllPartyLedgersResult> {
+  async allPartyLedgers(
+    from?: string,
+    to?: string,
+    opts: { showOpening?: boolean } = {},
+  ): Promise<AllPartyLedgersResult> {
     const parties = await this.parties.list(this.companyId, { activeOnly: true });
     const result: PartyLedgerWithBalance[] = [];
     let grandTotal = new Decimal(0);
     for (const party of parties) {
-      const entries = await this.partyLedger(party.id, from, to);
+      const ledger = await this.partyLedger(party.id, from, to);
+      const entries =
+        opts.showOpening === true
+          ? ledger
+          : ledger.filter((entry) => entry.voucherType !== "OPENING");
       // Parties with nothing on their ledger carry no information here.
       if (entries.length === 0) continue;
+      if (opts.showOpening !== true) {
+        let balance = new Decimal(0);
+        for (const entry of entries) {
+          if (!entry.settled && !entry.beforeOpening) {
+            balance = balance
+              .plus(new Decimal(entry.debit))
+              .minus(new Decimal(entry.credit));
+          }
+          entry.balance = toStorage(balance);
+        }
+      }
       const last = entries[entries.length - 1];
-      const closing = last ? new Decimal(last.balance) : new Decimal(0);
+      if (!last) continue;
+      const closing = new Decimal(last.balance);
       grandTotal = grandTotal.plus(closing);
       result.push({
         partyId: party.id,

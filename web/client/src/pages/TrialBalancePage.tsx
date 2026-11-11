@@ -508,6 +508,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [allPartyLedgers, setAllPartyLedgers] = useState<AllPartyLedgers | null>(null);
   const [allFrom, setAllFrom] = useState("");
   const [allTo, setAllTo] = useState("");
+  const [allShowOpening, setAllShowOpening] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
   const [allBusy, setAllBusy] = useState(false);
 
@@ -595,7 +596,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setError(null);
     try {
       setAllPartyLedgers(
-        await api.partyLedgerAll(allFrom || undefined, allTo || undefined),
+        await api.partyLedgerAll(allFrom || undefined, allTo || undefined, allShowOpening),
       );
       setAllLoaded(true);
     } catch (err) {
@@ -1012,6 +1013,14 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             <label>To</label>
             <input type="date" value={allTo} onChange={(e) => setAllTo(e.target.value)} />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={allShowOpening}
+              onChange={(event) => setAllShowOpening(event.target.checked)}
+            />
+            Show opening balances
+          </label>
           <button
             className="primary"
             onClick={() => void loadAllPartyLedgers()}
@@ -1023,7 +1032,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             onClick={() =>
               void exportXlsx(
                 "all-parties",
-                () => api.partyLedgerAllXlsx(allFrom || undefined, allTo || undefined),
+                () => api.partyLedgerAllXlsx(allFrom || undefined, allTo || undefined, allShowOpening),
                 `all-party-ledgers_${periodTag(allFrom, allTo)}.xlsx`,
               )
             }
@@ -1033,8 +1042,9 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           </button>
         </div>
         <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 12 }}>
-          Every party's ledger with its closing balance; the last row totals all
-          parties. Leave the dates empty for full history.
+          Every party's activity in the period with its sum; the last row totals
+          all parties. Opening balances are hidden unless ticked. Leave the
+          dates empty for full history.
         </p>
         {allLoaded && allPartyLedgers && <AllPartyLedgerTable report={allPartyLedgers} />}
       </div>

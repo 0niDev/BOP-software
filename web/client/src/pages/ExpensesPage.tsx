@@ -59,8 +59,9 @@ export function expenseCategories(accounts: readonly Account[]): CategoryGroup[]
 
 /**
  * Category picker options: the level-3 category itself plus every level-4 item
- * under it, so "kashif" can be searched directly. An item option carries its
- * parent's id as the value, so picking it auto-fills the category.
+ * under it, so "kashif" can be searched directly. An item option carries the
+ * item's own id as the value; the dialog resolves it to the parent category
+ * (auto-fill) and shows only that item's row.
  */
 export function categoryOptions(categories: readonly CategoryGroup[]): SelectOption[] {
   const options: SelectOption[] = [];
@@ -73,7 +74,7 @@ export function categoryOptions(categories: readonly CategoryGroup[]): SelectOpt
       // A childless category is its own item; that option would be a duplicate.
       if (item.id === group.account.id) continue;
       options.push({
-        value: String(group.account.id),
+        value: String(item.id),
         label: `${item.account_code} - ${item.account_name} (${group.account.account_name})`,
       });
     }
@@ -89,6 +90,7 @@ export default function ExpensesPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const [categoryId, setCategoryId] = useState(0);
+  const [pickedItemId, setPickedItemId] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<SettlementMethod>("CASH");
@@ -116,7 +118,18 @@ export default function ExpensesPage() {
 
   const categories = expenseCategories(accounts);
   const category = categories.find((group) => group.account.id === categoryId);
-  const items = category?.items ?? [];
+  // The level-4 item the user searched for directly: show just that row, not
+  // its siblings. Picking the category itself shows the whole table again.
+  const picked = pickedItemId ? category?.items.find((item) => item.id === pickedItemId) : undefined;
+  const items = picked ? [picked] : category?.items ?? [];
+  // Maps a level-4 item id to its category group, for the picker's onChange.
+  const itemParents = new Map<number, CategoryGroup>();
+  for (const group of categories) {
+    for (const item of group.items) {
+      // A childless category is its own item; its id selects the category branch.
+      if (item.id !== group.account.id) itemParents.set(item.id, group);
+    }
+  }
   // Edit only offers the same posting accounts as the record form, plus the
   // expense's current account when it predates this layout.
   const editAccounts = categories.flatMap((group) => group.items);
@@ -351,8 +364,9 @@ export default function ExpensesPage() {
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
               Pick a category (level 3) or search an item (level 4) directly — its category fills
-              in. Then type an amount next to the items. A category with no items below it is
-              posted to directly. Zeros are skipped.
+              in and only that item shows; pick the category itself to see all its items. Then
+              type an amount next to the items. A category with no items below it is posted to
+              directly. Zeros are skipped.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -362,7 +376,16 @@ export default function ExpensesPage() {
                 <SearchableSelect
                   value={categoryId ? String(categoryId) : ""}
                   onChange={(next) => {
-                    setCategoryId(Number(next));
+                    const id = Number(next);
+                    const parent = itemParents.get(id);
+                    if (parent) {
+                      // Picked a level-4 item: auto-fill its category, show only it.
+                      setCategoryId(parent.account.id);
+                      setPickedItemId(id);
+                    } else {
+                      setCategoryId(id);
+                      setPickedItemId(0);
+                    }
                     setAmounts({});
                   }}
                   placeholder="Select..."

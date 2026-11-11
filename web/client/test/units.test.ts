@@ -317,7 +317,7 @@ test("expense form posts level-4 items, or the level-3 itself when it has none",
   expect(Object.values(items).flat()).not.toContain("520111");
 });
 
-test("category picker offers level-4 items whose value is the level-3 category", async () => {
+test("category picker offers level-4 items whose value is the item's own id", async () => {
   const { categoryOptions, expenseCategories } = await import("../src/pages/ExpensesPage");
   const account = (id: number, code: string, parent: number | null) => ({
     id,
@@ -340,7 +340,7 @@ test("category picker offers level-4 items whose value is the level-3 category",
   const options = categoryOptions(groups);
   expect(options).toEqual([
     { value: "3", label: "5201 - 5201" },
-    { value: "3", label: "52011 - 52011 (5201)" },
+    { value: "4", label: "52011 - 52011 (5201)" },
     { value: "7", label: "5207 - 5207" },
   ]);
 });

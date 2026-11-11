@@ -213,6 +213,10 @@ describe("xlsx report exports", () => {
 
     const sum = report.parties.reduce((total, row) => total + row.closingBalance, 0);
     expect(report.grandTotal).toBe(sum);
+    // Opening balances stay off unless asked for.
+    expect(
+      report.parties.every((row) => row.entries.every((entry) => entry.voucherType !== "OPENING")),
+    ).toBe(true);
 
     const files = open((await xlsx.allPartyLedgers({})).buffer);
     expect(sheetNames(files)).toEqual(["All Party Ledgers"]);

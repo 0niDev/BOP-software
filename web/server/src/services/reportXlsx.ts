@@ -310,10 +310,13 @@ export class ReportXlsx {
    * closing balance, its entries below, then the grand total of all parties.
    * Same entries the on-screen all-parties report shows.
    */
-  async allPartyLedgers(options: DateRangeOptions): Promise<XlsxFile> {
+  async allPartyLedgers(
+    options: DateRangeOptions & { showOpening?: boolean },
+  ): Promise<XlsxFile> {
     const report = await this.reports.allPartyLedgers(
       options.from ?? undefined,
       options.to ?? undefined,
+      { showOpening: options.showOpening },
     );
     const PARTY: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED" };
     const data: SheetData = [
