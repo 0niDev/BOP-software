@@ -274,20 +274,42 @@ function GroupedTbRows({ group }: GroupedTbRowsProps) {
             <td className="num">{amount(row.closingDebit)}</td>
             <td className="num">{amount(row.closingCredit)}</td>
           </tr>
-          {(row.tagBreakdown ?? []).map((tag) => (
-            <tr key={`${row.accountId}-tag-${tag.name}`} style={{ opacity: 0.75 }}>
-              <td />
-              <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
-                ↳ {tag.name}
-              </td>
-              <td className="num" />
-              <td className="num" />
-              <td className="num" />
-              <td className="num" />
-              <td className="num">{amount(tag.value)}</td>
-              <td className="num" />
-            </tr>
-          ))}
+          {(() => {
+            const tags = row.tagBreakdown ?? [];
+            if (tags.length === 0) return null;
+            const stockTotal = tags.reduce((total, tag) => total + tag.value, 0);
+            const difference = stockTotal - row.closingDebit;
+            return (
+              <>
+                {tags.map((tag) => (
+                  <tr key={`${row.accountId}-tag-${tag.name}`} style={{ opacity: 0.75 }}>
+                    <td />
+                    <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
+                      ↳ {tag.name}
+                    </td>
+                    <td className="num" />
+                    <td className="num" />
+                    <td className="num" />
+                    <td className="num" />
+                    <td className="num">{amount(tag.value)}</td>
+                    <td className="num" />
+                  </tr>
+                ))}
+                <tr style={{ opacity: 0.75 }}>
+                  <td />
+                  <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
+                    Difference (stock - GL)
+                  </td>
+                  <td className="num" />
+                  <td className="num" />
+                  <td className="num" />
+                  <td className="num" />
+                  <td className="num">{money(difference)}</td>
+                  <td className="num" />
+                </tr>
+              </>
+            );
+          })()}
         </Fragment>
       ))}
       <tr className="total">
@@ -730,7 +752,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
         {tb && visibleTbRows.some((row) => row.tagBreakdown?.length) && (
           <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
             Inventory tags are memo lines: stock valued at current unit cost, with tag
-            membership as at the report end. They do not change the account balances.
+            membership as at the report end. An item under several tags counts in full
+            under each. They do not change the account balances.
           </p>
         )}
       </div>

@@ -527,6 +527,26 @@ export class ReportService {
   }
 
   /**
+   * Memo lines printed under an inventory account: one per tag, then the gap
+   * between the tag total (stock, per batch) and the account's GL balance.
+   * `label` applies the caller's escaping and indentation.
+   */
+  private inventoryMemoCsv(
+    row: TrialBalanceRow,
+    label: (text: string) => string,
+  ): string[] {
+    const tags = row.tagBreakdown ?? [];
+    if (tags.length === 0) return [];
+    const stock = tags.reduce((total, tag) => total.plus(tag.value), new Decimal(0));
+    const line = (name: string, value: number): string =>
+      ["", label(name), "", "", "", "", "", value.toFixed(2), ""].join(",");
+    return [
+      ...tags.map((tag) => line(`↳ ${tag.name}`, tag.value)),
+      line("Difference (stock - GL)", toStorage(stock.minus(row.closingDebit))),
+    ];
+  }
+
+  /**
    * Trial balance rendered as CSV for download/export, including the opening,
    * period and closing columns an accountant expects.
    */
@@ -550,21 +570,7 @@ export class ReportService {
           row.closingCredit.toFixed(2),
         ].join(","),
       );
-      for (const tag of row.tagBreakdown ?? []) {
-        lines.push(
-          [
-            "",
-            escape(`  ↳ ${tag.name}`),
-            "",
-            "",
-            "",
-            "",
-            "",
-            tag.value.toFixed(2),
-            "",
-          ].join(","),
-        );
-      }
+      lines.push(...this.inventoryMemoCsv(row, (text) => escape(`  ${text}`)));
     }
     lines.push(
       ["", "", "TOTAL", "", "", "", "", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(
@@ -616,21 +622,11 @@ export class ReportService {
             row.closingCredit.toFixed(2),
           ].join(","),
         );
-        for (const tag of row.tagBreakdown ?? []) {
-          lines.push(
-            [
-              "",
-              csvEscape(`${"  ".repeat(row.depth + 1)}↳ ${tag.name}`),
-              "",
-              "",
-              "",
-              "",
-              "",
-              tag.value.toFixed(2),
-              "",
-            ].join(","),
-          );
-        }
+        lines.push(
+          ...this.inventoryMemoCsv(row, (text) =>
+            csvEscape(`${"  ".repeat(row.depth + 1)}${text}`),
+          ),
+        );
       }
       lines.push(
         [

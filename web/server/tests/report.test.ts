@@ -112,9 +112,12 @@ describe("ReportService", () => {
       "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
     );
     expect(lines[lines.length - 1]).toContain("TOTAL");
-    // One header + one line per account + any inventory tag memo line + the TOTAL line.
+    // One header + one line per account + any inventory memo line + the TOTAL line.
     const { rows } = await reports.trialBalance();
-    const memoLines = rows.reduce((count, row) => count + (row.tagBreakdown?.length ?? 0), 0);
+    const memoLines = rows.reduce(
+      (count, row) => count + (row.tagBreakdown?.length ? row.tagBreakdown.length + 1 : 0),
+      0,
+    );
     expect(lines).toHaveLength(rows.length + memoLines + 2);
   });
 
@@ -178,7 +181,14 @@ describe("ReportService", () => {
     expect(tb.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
       { name: "bottle", value: 100_000 },
     ]);
-    expect(await reports.trialBalanceCsv()).toContain("↳ bottle");
+    const csv = await reports.trialBalanceCsv();
+    expect(csv).toContain("↳ bottle");
+    // The memo block closes with the stock-vs-GL gap, using the account's own
+    // (GL) closing balance rather than a second GL row.
+    const rawRow = tb.rows.find((row) => row.accountCode === "1200")!;
+    expect(csv).toContain("Difference (stock - GL)");
+    expect(csv).toContain(`,${(500 - rawRow.closingDebit).toFixed(2)},`);
+    expect(csv).not.toContain("GL balance");
   });
 
   it("scopes the trial balance to a period and carries earlier entries as opening", async () => {

@@ -478,35 +478,40 @@ export class ReportXlsx {
       ],
       ...sections.flatMap((section): SheetData => [
         [text(`${section.label.toUpperCase()} (${section.rows.length})`, SECTION)],
-        ...section.rows.flatMap((row): SheetData => [
-          [
-            text(row.displayCode),
-            text(row.accountName, {
-              indent: row.depth * 2,
-              ...(row.hasChildren ? { fontWeight: "bold" } : {}),
-            }),
-            text(row.accountType),
-            moneyOrBlank(row.openingDebit),
-            moneyOrBlank(row.openingCredit),
-            moneyOrBlank(row.debit),
-            moneyOrBlank(row.credit),
-            moneyOrBlank(row.closingDebit),
-            moneyOrBlank(row.closingCredit),
-          ],
-          ...(row.tagBreakdown ?? []).map(
-            (tag): Cell[] => [
-              null,
-              text(`↳ ${tag.name}`, { ...MUTED, indent: row.depth * 2 + 2 }),
-              null,
-              null,
-              null,
-              null,
-              null,
-              money(tag.value, MUTED),
-              null,
+        ...section.rows.flatMap((row): SheetData => {
+          const tags = row.tagBreakdown ?? [];
+          const memo = (label: string, value: number): Cell[] => [
+            null,
+            text(label, { ...MUTED, indent: row.depth * 2 + 2 }),
+            null,
+            null,
+            null,
+            null,
+            null,
+            money(value, MUTED),
+            null,
+          ];
+          const stock = tags.reduce((total, tag) => total + tag.value, 0);
+          return [
+            [
+              text(row.displayCode),
+              text(row.accountName, {
+                indent: row.depth * 2,
+                ...(row.hasChildren ? { fontWeight: "bold" } : {}),
+              }),
+              text(row.accountType),
+              moneyOrBlank(row.openingDebit),
+              moneyOrBlank(row.openingCredit),
+              moneyOrBlank(row.debit),
+              moneyOrBlank(row.credit),
+              moneyOrBlank(row.closingDebit),
+              moneyOrBlank(row.closingCredit),
             ],
-          ),
-        ]),
+            ...tags.map((tag): Cell[] => memo(`↳ ${tag.name}`, tag.value)),
+            // The memo block ends with the stock-vs-GL gap, once per account.
+            ...(tags.length > 0 ? [memo("Difference (stock - GL)", stock - row.closingDebit)] : []),
+          ];
+        }),
         [
           null,
           text(`Total ${section.label}`, TOTAL),
