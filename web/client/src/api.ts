@@ -202,16 +202,6 @@ export const api = {
   /** Hard delete; server refuses any account with postings/links/children. */
   deleteAccount: (id: number) =>
     request<{ ok: boolean }>(`/api/accounts/${id}`, { method: "DELETE" }),
-  postOpeningBalances: (entries: Array<{ accountId: number; debit?: number; credit?: number }>) =>
-    request<{
-      journalEntryId: number;
-      totalDebit: number;
-      totalCredit: number;
-      accountsUpdated: number;
-    }>("/api/accounts/opening-balances", {
-      method: "POST",
-      body: JSON.stringify({ entries }),
-    }),
   parties: (opts: { type?: "CUSTOMER" | "SUPPLIER"; search?: string; activeOnly?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (opts.type) params.set("type", opts.type);

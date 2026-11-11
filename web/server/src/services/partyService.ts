@@ -190,7 +190,8 @@ export class PartyService {
   }
 
   /**
-   * Bulk opening balances, same shape as accountService.postOpeningBalances:
+   * Bulk opening balances, same shape as the (removed) account-level bulk
+   * opening-balance posting:
    * debit = party owes us, credit = we owe the party (advance). Posted as ONE
    * balanced OPENING entry; the net difference goes to Retained Earnings so the
    * entry always balances. A party's previous opening balance is reversed with a

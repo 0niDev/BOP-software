@@ -3,7 +3,6 @@ import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
-import { moveRowFocus } from "../lib/gridKeys";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, AccountType, PartyBalance } from "../types";
 
@@ -65,10 +64,6 @@ export default function AccountsPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // Opening-balance grid: amount per account id.
-  const [opening, setOpening] = useState<Record<number, number>>({});
-  const [openingBusy, setOpeningBusy] = useState(false);
 
   async function refresh(): Promise<void> {
     try {
@@ -200,15 +195,6 @@ export default function AccountsPage() {
   }
   for (const list of childrenByParent.values()) list.sort(byCode);
 
-  // Accounts with at least one active child act as headers and are not
-  // postable (matches the server-side posting guard).
-  const headerIds = new Set<number>();
-  for (const account of accounts) {
-    if (account.is_active === 1 && account.parent_account_id != null) {
-      headerIds.add(account.parent_account_id);
-    }
-  }
-
   const roots = visibleAccounts
     .filter(
       (account) =>
@@ -228,64 +214,6 @@ export default function AccountsPage() {
       }
     }
     return ids;
-  }
-
-  const openingRows = accounts.filter(
-    (account) => account.is_active === 1 && !headerIds.has(account.id),
-  );
-  const totalDebit = openingRows
-    .filter((account) => account.account_type === "ASSET")
-    .reduce((sum, account) => sum + (opening[account.id] ?? 0), 0);
-  const totalCredit = openingRows
-    .filter((account) => account.account_type === "LIABILITY" || account.account_type === "EQUITY")
-    .reduce((sum, account) => sum + (opening[account.id] ?? 0), 0);
-  const difference = Math.round((totalDebit - totalCredit) * 100) / 100;
-
-  function calculateEquity(): void {
-    const equity = openingRows.find((account) => account.account_type === "EQUITY");
-    if (!equity) {
-      setError("No postable EQUITY account exists to absorb the difference.");
-      return;
-    }
-    setError(null);
-    setOpening((current) => {
-      const next = { ...current };
-      next[equity.id] = Math.round(((current[equity.id] ?? 0) + difference) * 100) / 100;
-      return next;
-    });
-  }
-
-  async function saveOpeningBalances(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    setError(null);
-    setNotice(null);
-    const entries = openingRows
-      .filter((account) => (opening[account.id] ?? 0) !== 0)
-      .map((account) =>
-        account.account_type === "ASSET"
-          ? { accountId: account.id, debit: opening[account.id] ?? 0 }
-          : account.account_type === "LIABILITY" || account.account_type === "EQUITY"
-            ? { accountId: account.id, credit: opening[account.id] ?? 0 }
-            : { accountId: account.id, debit: opening[account.id] ?? 0 },
-      );
-    if (entries.length === 0) {
-      setError("Enter at least one opening balance.");
-      return;
-    }
-    setOpeningBusy(true);
-    try {
-      const result = await api.postOpeningBalances(entries);
-      setNotice(
-        `Posted opening balances: debit ${money(result.totalDebit)} / credit ${money(result.totalCredit)} ` +
-          `across ${result.accountsUpdated} account(s).`,
-      );
-      setOpening({});
-      await refresh();
-    } catch (err) {
-      setError(message(err, "Failed to post opening balances."));
-    } finally {
-      setOpeningBusy(false);
-    }
   }
 
   async function deactivate(account: Account): Promise<void> {
@@ -501,8 +429,8 @@ export default function AccountsPage() {
         )}
       </div>
       <p style={{ opacity: 0.7, fontSize: 12 }}>
-        A non-zero opening balance is posted immediately as an OPENING journal entry against
-        Retained Earnings (3100), so the ledger stays balanced.
+        A non-zero opening balance is stored on the account and counts toward its balance.
+        Nothing is taken from another account, so enter the matching side yourself if needed.
       </p>
     </>
   );
@@ -596,72 +524,6 @@ export default function AccountsPage() {
           </tbody>
         </table>
       </div>
-
-      <form className="card" onSubmit={saveOpeningBalances}>
-        <h2>Opening balances</h2>
-        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div>
-            <label>Debit total (assets)</label>
-            <div style={{ fontSize: 18 }}>{money(totalDebit)}</div>
-          </div>
-          <div>
-            <label>Credit total (liabilities + equity)</label>
-            <div style={{ fontSize: 18 }}>{money(totalCredit)}</div>
-          </div>
-          <div>
-            <label>Difference</label>
-            <div className="badge" style={{ display: "inline-block", fontSize: 14 }}>
-              {money(difference)}
-            </div>
-          </div>
-          <button type="button" onClick={calculateEquity}>
-            Calculate equity
-          </button>
-          <button className="primary" type="submit" disabled={openingBusy}>
-            {openingBusy ? "Posting…" : "Post opening balances"}
-          </button>
-        </div>
-        <p style={{ opacity: 0.7, fontSize: 12 }}>
-          Enter an amount against the accounts you are opening. Assets are debited, liabilities and
-          equity credited; use “Calculate equity” to absorb the difference, then post — all amounts
-          go into a single balanced OPENING journal entry.
-        </p>
-        <table onKeyDown={moveRowFocus}>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Account</th>
-              <th>Type</th>
-              <th className="num">Opening amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {openingRows.map((account) => (
-              <tr key={account.id}>
-                <td title={`Internal code: ${account.account_code}`}>
-                  {account.display_code ?? account.account_code}
-                </td>
-                <td>{account.account_name}</td>
-                <td>{account.account_type}</td>
-                <td className="num">
-                  <NumberInput
-                    
-                    step="0.01"
-                    value={opening[account.id] ?? 0}
-                    onChange={(e) =>
-                      setOpening((current) => ({
-                        ...current,
-                        [account.id]: Number(e.target.value),
-                      }))
-                    }
-                    style={{ width: 140, textAlign: "right" }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </form>
 
       {editing ? (
         <div

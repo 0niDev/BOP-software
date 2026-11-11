@@ -196,15 +196,10 @@ export default function JournalVouchersPage() {
     label: accountLabel(account),
   }));
 
-  // Group accounts are the ones allowed in the first column; picking one
-  // narrows the account list to its branch. Levels 1–2 (Assets, Current
-  // Assets, …) are too coarse to post into, so only depth-3 groups and
-  // deeper show up — level 4 only when it still has children.
+  // Every category that has children — any level, any type — can be searched
+  // and picked; it only narrows the account list to its branch.
   const groupOptions = accounts
-    .filter(
-      (account) =>
-        parentIds.has(account.id) && (depths.get(account.id) ?? 0) >= 3,
-    )
+    .filter((account) => parentIds.has(account.id))
     .map((account) => ({ value: String(account.id), label: accountLabel(account) }));
   const optionsUnder = new Map<number, typeof accountOptions>();
   for (const group of groupOptions) {
@@ -392,8 +387,8 @@ export default function JournalVouchersPage() {
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
               Debit at least one account and credit at least one for the same total.
-              Pick a group first to narrow the account list to that branch — or leave the
-              account blank to post to the group itself when it is a level-3 entry.
+              Search any category at any level to narrow the account list to that branch — the
+              account is optional, so a level-3 category can be posted to on its own.
               Lines on Accounts Receivable / Payable also take a party, which moves that
               party&apos;s ledger. Posted vouchers cannot be edited — reverse one to correct it.
             </p>

@@ -1,18 +1,16 @@
 /**
  * Chart of Accounts business rules, ported from services/account_service.py.
  *
- * Opening balances are never left dangling: every non-zero opening balance is
- * posted immediately as an OPENING journal entry against the system
- * "Retained Earnings" account (3100), so the accounting equation stays valid
- * at all times. Changing an opening balance later posts an adjusting entry.
+ * An opening balance is a value stored on the account itself (signed by the
+ * account's normal balance) and folded into the account's balance by the
+ * repositories. Nothing is posted against equity, so an unbalanced set of
+ * openings shows as an unbalanced trial balance instead of being hidden.
  */
 import type { SqlDatabase } from "../db/types.js";
-import { isDebitNormal, SystemAccountCodes, type AccountType } from "../domain/enums.js";
+import { SystemAccountCodes, type AccountType } from "../domain/enums.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { AccountRepository, type AccountRow } from "../repositories/accountRepository.js";
-import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
-import { AccountingService, type JournalLineInput } from "./accountingService.js";
 import { assignDisplayCodes } from "./displayCodes.js";
 
 export const ACCOUNT_TYPES: readonly AccountType[] = [
@@ -38,19 +36,6 @@ export interface UpdateAccountInput {
   openingBalance: number;
   parentAccountId?: number | null;
   isActive?: boolean;
-}
-
-export interface OpeningBalanceEntry {
-  accountId: number;
-  debit?: number;
-  credit?: number;
-}
-
-export interface OpeningBalanceResult {
-  journalEntryId: number;
-  totalDebit: number;
-  totalCredit: number;
-  accountsUpdated: number;
 }
 
 export type AccountWithDeleteFlags = AccountRow & {
@@ -79,22 +64,14 @@ const PROTECTED_CODES: ReadonlySet<string> = new Set([
   "1300", "2200", "5100", "5300", "1500", "1501", "1502", "1503", "1504", "1505", // bootstrap seeds (server/src/db/bootstrap.ts)
 ]);
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export class AccountService {
   private readonly accounts: AccountRepository;
-  private readonly accounting: AccountingService;
-  private readonly systemAccounts: SystemAccountResolver;
 
   constructor(
     private readonly db: SqlDatabase,
     private readonly companyId = 1,
   ) {
     this.accounts = new AccountRepository(db);
-    this.accounting = new AccountingService(db, companyId);
-    this.systemAccounts = new SystemAccountResolver(db, companyId);
   }
 
   async list(activeOnly = true): Promise<AccountRow[]> {
@@ -157,7 +134,7 @@ export class AccountService {
         const generated = await new JournalRepository(this.db).nextVoucherNumber(this.companyId, "ACCOUNT");
         accountCode = generated;
       }
-      const newId = await this.accounts.insert({
+      return this.accounts.insert({
         company_id: this.companyId,
         account_code: accountCode,
         account_name: accountName,
@@ -168,13 +145,6 @@ export class AccountService {
         is_system_account: 0,
         is_active: 1,
       });
-      if (openingBalance) {
-        await this.postOpeningBalance(
-          { id: newId, account_code: accountCode, account_name: accountName, account_type: accountType, opening_balance: openingBalance },
-          openingBalance,
-        );
-      }
-      return newId;
     });
 
     return this.get(id);
@@ -194,22 +164,11 @@ export class AccountService {
       await this.assertParentUsable(input.parentAccountId ?? null, existing.account_type, id);
     }
 
-    const oldOpening = Number(existing.opening_balance);
-    const newOpening = input.openingBalance;
-
-    await this.db.transaction(async () => {
-      await this.accounts.update(id, {
-        account_name: accountName,
-        opening_balance: newOpening,
-        parent_account_id: input.parentAccountId ?? null,
-        is_active: input.isActive === false ? 0 : 1,
-      });
-      if (Math.abs(newOpening - oldOpening) > 0.01) {
-        await this.adjustOpeningBalance(
-          { ...existing, account_name: accountName },
-          newOpening - oldOpening,
-        );
-      }
+    await this.accounts.update(id, {
+      account_name: accountName,
+      opening_balance: input.openingBalance,
+      parent_account_id: input.parentAccountId ?? null,
+      is_active: input.isActive === false ? 0 : 1,
     });
 
     return this.get(id);
@@ -255,78 +214,6 @@ export class AccountService {
   }
 
   /**
-   * Bulk opening balances, ported from views/widgets/opening_balance_dialog.py:
-   * the entered amounts are posted as ONE balanced OPENING journal entry and the
-   * `accounts.opening_balance` display column is refreshed for each account.
-   * (The display column is still never added into balances -- the posted entry
-   * is the single source of truth, see the class comment.)
-   */
-  async postOpeningBalances(entries: readonly OpeningBalanceEntry[]): Promise<OpeningBalanceResult> {
-    const clean = entries
-      .map((entry) => ({
-        accountId: entry.accountId,
-        debit: Math.abs(entry.debit ?? 0),
-        credit: Math.abs(entry.credit ?? 0),
-      }))
-      .filter((entry) => entry.debit !== 0 || entry.credit !== 0);
-
-    if (clean.length === 0) {
-      throw new ValidationError("No opening balances to save.");
-    }
-
-    let totalDebit = 0;
-    let totalCredit = 0;
-    const resolved: Array<{ entry: (typeof clean)[number]; account: AccountRow }> = [];
-    for (const entry of clean) {
-      if (entry.debit !== 0 && entry.credit !== 0) {
-        throw new ValidationError("An opening balance line cannot be both debit and credit.");
-      }
-      const account = await this.accounts.findById(entry.accountId);
-      if (!account || account.company_id !== this.companyId) {
-        throw new ValidationError(`Account ${entry.accountId} does not exist.`);
-      }
-      totalDebit += entry.debit;
-      totalCredit += entry.credit;
-      resolved.push({ entry, account });
-    }
-
-    if (Math.abs(totalDebit - totalCredit) > 0.01 || totalDebit === 0) {
-      throw new ValidationError(
-        `Opening balances are not balanced: debit=${totalDebit.toFixed(2)}, credit=${totalCredit.toFixed(2)}.`,
-      );
-    }
-
-    const journalEntryId = await this.db.transaction(async () => {
-      const id = await this.accounting.postJournalEntry({
-        voucherType: "OPENING",
-        entryDate: today(),
-        lines: resolved.map(({ entry }) => ({
-          accountId: entry.accountId,
-          debit: entry.debit,
-          credit: entry.credit,
-          description: "Opening balance",
-        })),
-        narration: "Opening balances",
-        sourceTable: "accounts",
-        companyId: this.companyId,
-      });
-      for (const { entry, account } of resolved) {
-        const debitNormal = isDebitNormal(account.account_type);
-        const signed = debitNormal ? entry.debit - entry.credit : entry.credit - entry.debit;
-        await this.accounts.update(account.id, { opening_balance: signed });
-      }
-      return id;
-    });
-
-    return {
-      journalEntryId,
-      totalDebit,
-      totalCredit,
-      accountsUpdated: resolved.length,
-    };
-  }
-
-  /**
    * Validate a proposed parent: it must exist in this company, be active, be
    * of the same type, and not be the edited account itself or one of its
    * descendants (cycle-free tree).
@@ -368,87 +255,5 @@ export class AccountService {
           ? undefined
           : await this.accounts.findById(cursor.parent_account_id);
     }
-  }
-
-  /** OPENING entry: this account +/- against Retained Earnings (3100). */
-  private async postOpeningBalance(
-    account: {
-      id: number;
-      account_code: string;
-      account_name: string;
-      account_type: AccountType;
-      opening_balance: number;
-    },
-    openingBalance: number,
-  ): Promise<void> {
-    const equityAccountId = await this.systemAccounts.idFor(
-      SystemAccountCodes.RETAINED_EARNINGS,
-    );
-    // Skip when the account *is* the equity account, which would post a
-    // self-referencing entry while seeding equity's own opening balance.
-    if (account.id === equityAccountId) return;
-
-    await this.postAgainstEquity(
-      {
-        accountId: account.id,
-        accountType: account.account_type,
-        amount: Math.abs(openingBalance),
-        increases: openingBalance > 0,
-        equityAccountId,
-      },
-      account,
-      `Opening balance for ${account.account_code} - ${account.account_name}`,
-    );
-  }
-
-  private async adjustOpeningBalance(account: AccountRow, adjustment: number): Promise<void> {
-    if (Math.abs(adjustment) < 0.01) return;
-    const equityAccountId = await this.systemAccounts.idFor(
-      SystemAccountCodes.RETAINED_EARNINGS,
-    );
-    await this.postAgainstEquity(
-      {
-        accountId: account.id,
-        accountType: account.account_type,
-        amount: Math.abs(adjustment),
-        increases: adjustment > 0,
-        equityAccountId,
-      },
-      account,
-      `Adjustment to opening balance for ${account.account_code} - ${account.account_name}`,
-    );
-  }
-
-  private async postAgainstEquity(
-    args: {
-      accountId: number;
-      accountType: AccountType;
-      amount: number;
-      increases: boolean;
-      equityAccountId: number;
-    },
-    account: { account_code: string; account_name: string },
-    narration: string,
-  ): Promise<void> {
-    const { accountId, accountType, amount, increases, equityAccountId } = args;
-    const debitNormal = isDebitNormal(accountType);
-    const sameDebit = debitNormal === increases;
-
-    const thisLine: JournalLineInput = sameDebit
-      ? { accountId, debit: amount }
-      : { accountId, credit: amount };
-    const equityLine: JournalLineInput = sameDebit
-      ? { accountId: equityAccountId, credit: amount }
-      : { accountId: equityAccountId, debit: amount };
-
-    await this.accounting.postJournalEntry({
-      voucherType: "OPENING",
-      entryDate: today(),
-      lines: [thisLine, equityLine],
-      narration,
-      sourceTable: "accounts",
-      sourceId: accountId,
-      companyId: this.companyId,
-    });
   }
 }

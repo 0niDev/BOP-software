@@ -50,10 +50,8 @@ export class AccountRepository {
   }
 
   /**
-   * Current balance from posted journal lines only. `opening_balance` is a
-   * display field and is deliberately not added (the Python app posts every
-   * opening balance as its own OPENING journal entry, so adding it would
-   * double-count).
+   * Current balance: posted journal lines plus the account's stored opening
+   * balance (opening balances are not posted as entries any more).
    */
   async getCurrentBalance(accountId: number): Promise<number> {
     const account = await this.findById(accountId);
@@ -69,7 +67,7 @@ export class AccountRepository {
     const debit = Number(totals?.total_debit ?? 0);
     const credit = Number(totals?.total_credit ?? 0);
     const balance = isDebitNormal(account.account_type) ? debit - credit : credit - debit;
-    return round2(balance).toNumber();
+    return round2(balance + Number(account.opening_balance ?? 0)).toNumber();
   }
 
   /** Direct sub-accounts, used to block deactivating a parent with active children. */

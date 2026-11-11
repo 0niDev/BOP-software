@@ -208,14 +208,20 @@ async function main(): Promise<void> {
     cogs: await resolver.idFor("5000"),
   };
 
-  const opening = await accounts.postOpeningBalances([
-    { accountId: id.cash, debit: 500_000 },
-    { accountId: id.bank, debit: 1_000_000 },
-    { accountId: id.equity, credit: 1_500_000 },
-  ]);
-  eq("P1", "opening-balance entry debits", opening.totalDebit, 1_500_000);
-  eq("P1", "opening-balance entry credits", opening.totalCredit, 1_500_000);
-  info("P1", `opening balances posted as journal entry #${opening.journalEntryId} for ${opening.accountsUpdated} accounts`);
+  for (const [accountId, amount] of [
+    [id.cash, 500_000],
+    [id.bank, 1_000_000],
+    [id.equity, 1_500_000], // credit-normal, so stored as a positive value
+  ] as const) {
+    const row = await accounts.get(accountId);
+    await accounts.update(accountId, {
+      accountName: row.account_name,
+      openingBalance: amount,
+      parentAccountId: row.parent_account_id,
+      isActive: true,
+    });
+  }
+  info("P1", "opening balances stored on cash/bank/equity accounts (no journal entry)");
 
   const supplier = await parties.create({ name: "QA Supplier", partyType: "SUPPLIER" });
   const customer = await parties.create({ name: "QA Customer", partyType: "CUSTOMER" });

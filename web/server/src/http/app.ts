@@ -263,25 +263,6 @@ export function createApp(
     res.json({ ok: true });
   });
 
-  /** Bulk opening balances -> one balanced OPENING journal entry. */
-  app.post("/api/accounts/opening-balances", requireAuth, async (req, res) => {
-    const body = parseBody(
-      z.object({
-        entries: z
-          .array(
-            z.object({
-              accountId: z.number().int().positive(),
-              debit: z.number().optional(),
-              credit: z.number().optional(),
-            }),
-          )
-          .min(1),
-      }),
-      req.body,
-    );
-    res.status(201).json(await accounts.postOpeningBalances(body.entries));
-  });
-
   // --- backups -----------------------------------------------------------
   app.get("/api/backup/status", requireAuth, async (_req, res) => {
     res.json(await backups.status());

@@ -344,6 +344,7 @@ export class AccountingService {
       account_type: AccountType;
       parent_account_id: number | null;
       is_active: number;
+      opening_balance: number;
       period_debit: number;
       period_credit: number;
       opening_debit: number;
@@ -352,7 +353,7 @@ export class AccountingService {
       // Plain `?` placeholders only (the hosted SQLite Cloud driver is not
       // exercised by the local tests, and `?NNN` support there is unverified).
       `SELECT a.id, a.account_code, a.account_name, a.account_type, a.parent_account_id,
-              a.is_active,
+              a.is_active, a.opening_balance,
               COALESCE(SUM(CASE WHEN je.is_posted = 1
                   AND (? IS NULL OR je.entry_date >= ?)
                   AND (? IS NULL OR je.entry_date <= ?)
@@ -372,8 +373,9 @@ export class AccountingService {
        LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
        WHERE a.company_id = ?
        GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.parent_account_id,
-                a.is_active
+                a.is_active, a.opening_balance
        HAVING a.is_active = 1
+           OR a.opening_balance <> 0
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.debit ELSE 0 END) <> 0
            OR SUM(CASE WHEN je.is_posted = 1 THEN jel.credit ELSE 0 END) <> 0
        ORDER BY a.account_code`,
@@ -398,18 +400,21 @@ export class AccountingService {
         return debitNormal ? raw : raw.negated();
       };
 
-      const opening = place(
-        normalise(Number(row.opening_debit ?? 0), Number(row.opening_credit ?? 0)),
-        debitNormal,
-      );
+      // Opening balance is stored on the account (already in its normal sign)
+      // and is not posted as a journal entry, so it is added here directly.
+      const storedOpening = normalise(
+        Number(row.opening_debit ?? 0),
+        Number(row.opening_credit ?? 0),
+      ).plus(new Decimal(Number(row.opening_balance ?? 0)));
+
+      const opening = place(storedOpening, debitNormal);
       const period = place(
         normalise(Number(row.period_debit ?? 0), Number(row.period_credit ?? 0)),
         debitNormal,
       );
       const closing = place(
-        normalise(
-          Number(row.opening_debit ?? 0) + Number(row.period_debit ?? 0),
-          Number(row.opening_credit ?? 0) + Number(row.period_credit ?? 0),
+        storedOpening.plus(
+          normalise(Number(row.period_debit ?? 0), Number(row.period_credit ?? 0)),
         ),
         debitNormal,
       );

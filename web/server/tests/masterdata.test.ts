@@ -348,54 +348,6 @@ describe("PartyService", () => {
   });
 });
 
-describe("opening balances (bulk)", () => {
-  it("posts one balanced OPENING entry and refreshes the display column", async () => {
-    const reports = new ReportService(ctx.db);
-    const cash = await accountId(ctx.db, "1000");
-    const retained = await accountId(ctx.db, "3100");
-
-    const result = await accounts.postOpeningBalances([
-      { accountId: cash, debit: 1_000 },
-      { accountId: retained, credit: 1_000 },
-    ]);
-    expect(result.totalDebit).toBe(1_000);
-    expect(result.totalCredit).toBe(1_000);
-    expect(result.accountsUpdated).toBe(2);
-
-    const tb = await reports.trialBalance();
-    expect(tb.balanced).toBe(true);
-    const cashRow = tb.rows.find((r) => r.accountId === cash)!;
-    expect(cashRow.closingDebit).toBe(1_000);
-
-    // The display column is refreshed (signed by the account's normal balance).
-    const cashAccount = await accounts.get(cash);
-    expect(cashAccount.opening_balance).toBe(1_000);
-    const retainedAccount = await accounts.get(retained);
-    expect(retainedAccount.opening_balance).toBe(1_000);
-
-    const entries = await ctx.db.get<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM journal_entries WHERE voucher_type = 'OPENING'",
-    );
-    expect(Number(entries?.count)).toBe(1);
-  });
-
-  it("rejects unbalanced, empty and unknown-account input", async () => {
-    const cash = await accountId(ctx.db, "1000");
-    await expect(
-      accounts.postOpeningBalances([{ accountId: cash, debit: 100 }]),
-    ).rejects.toBeInstanceOf(ValidationError);
-    await expect(
-      accounts.postOpeningBalances([{ accountId: cash, debit: 0, credit: 0 }]),
-    ).rejects.toBeInstanceOf(ValidationError);
-    await expect(
-      accounts.postOpeningBalances([{ accountId: 999_999, debit: 100 }]),
-    ).rejects.toBeInstanceOf(ValidationError);
-    await expect(
-      accounts.postOpeningBalances([{ accountId: cash, debit: 5, credit: 5 }]),
-    ).rejects.toBeInstanceOf(ValidationError);
-  });
-});
-
 describe("opening stock", () => {
   it("creates a batch and an OPENING stock movement without touching the books", async () => {
     const result = await items.addOpeningStock({
@@ -584,7 +536,7 @@ describe("AccountService", () => {
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
-  it("posts a non-zero opening balance to Retained Earnings and stays balanced", async () => {
+  it("stores a non-zero opening balance on the account without posting an entry", async () => {
     const reports = new ReportService(ctx.db);
     const account = await accounts.create({
       accountCode: "1050",
@@ -593,39 +545,24 @@ describe("AccountService", () => {
       openingBalance: 250,
     });
 
-    // The ledger must stay balanced: the opening balance is posted, not stored
-    // as a bare column value.
-    const tb = await reports.trialBalance();
-    expect(tb.balanced).toBe(true);
-
+    // Nothing is posted: the value lives on the account only.
     const entry = await ctx.db.get<{ id: number }>(
       `SELECT id FROM journal_entries
-       WHERE source_table = 'accounts' AND source_id = ? AND voucher_type = 'OPENING'`,
+       WHERE source_table = 'accounts' AND source_id = ?`,
       [account.id],
     );
-    expect(entry).toBeDefined();
+    expect(entry).toBeUndefined();
+    expect((await accounts.get(account.id)).opening_balance).toBe(250);
 
-    const balance = await ctx.db.get<{ total_debit: number; total_credit: number }>(
-      `SELECT COALESCE(SUM(debit),0) AS total_debit, COALESCE(SUM(credit),0) AS total_credit
-       FROM journal_entry_lines WHERE account_id = ?`,
-      [account.id],
-    );
-    expect(Number(balance?.total_debit)).toBe(250);
-
-    // Zero opening balance posts nothing.
-    const plain = await accounts.create({
-      accountCode: "1051",
-      accountName: "No Opening",
-      accountType: "ASSET",
-    });
-    const none = await ctx.db.get<{ id: number }>(
-      "SELECT id FROM journal_entries WHERE source_table = 'accounts' AND source_id = ?",
-      [plain.id],
-    );
-    expect(none).toBeUndefined();
+    const tb = await reports.trialBalance();
+    const row = tb.rows.find((r) => r.accountId === account.id)!;
+    expect(row.closingDebit).toBe(250);
+    // Nothing offsets an opening balance entered on one side only, and that
+    // is reported instead of being hidden behind a Retained Earnings posting.
+    expect(tb.balanced).toBe(false);
   });
 
-  it("posts an adjusting entry when an opening balance changes", async () => {
+  it("updates the stored opening balance without posting an entry", async () => {
     const reports = new ReportService(ctx.db);
     const account = await accounts.create({
       accountCode: "1052",
@@ -640,18 +577,17 @@ describe("AccountService", () => {
       isActive: true,
     });
 
-    const total = await ctx.db.get<{ total_debit: number }>(
-      `SELECT COALESCE(SUM(debit),0) AS total_debit FROM journal_entry_lines WHERE account_id = ?`,
+    const lines = await ctx.db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM journal_entry_lines WHERE account_id = ?",
       [account.id],
     );
-    expect(Number(total?.total_debit)).toBe(175);
-    expect((await reports.trialBalance()).balanced).toBe(true);
+    expect(Number(lines?.count)).toBe(0);
+    expect((await accounts.get(account.id)).opening_balance).toBe(175);
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((r) => r.accountId === account.id)!.closingDebit).toBe(175);
   });
 
-  it("keeps the trial balance balanced when a funded account is deactivated", async () => {
-    // Regression: filtering the trial balance on is_active = 1 dropped the
-    // deactivated account but left its journal lines behind, so the report
-    // stopped balancing (the original Python app had this bug).
+  it("keeps a deactivated account with an opening balance in the trial balance", async () => {
     const reports = new ReportService(ctx.db);
     const account = await accounts.create({
       accountCode: "1053",
@@ -659,16 +595,14 @@ describe("AccountService", () => {
       accountType: "ASSET",
       openingBalance: 400,
     });
-    expect((await reports.trialBalance()).balanced).toBe(true);
 
     await accounts.deactivate(account.id);
 
     const tb = await reports.trialBalance();
-    expect(tb.balanced).toBe(true);
-    expect(tb.totalDebit).toBe(tb.totalCredit);
     // The deactivated account still shows up while it carries a balance.
-    expect(tb.rows.some((r) => r.accountCode === "1053")).toBe(true);
-    expect((await reports.balanceSheet()).balanced).toBe(true);
+    const row = tb.rows.find((r) => r.accountCode === "1053");
+    expect(row).toBeDefined();
+    expect(row!.closingDebit).toBe(400);
   });
 
   it("protects system accounts and accounts with active sub-accounts", async () => {
