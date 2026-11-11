@@ -64,6 +64,7 @@ describe("ReportService", () => {
       amount: 300,
       paymentDate: "2026-10-10",
       paymentMethod: "CASH",
+      notes: "Collected by hand",
     });
 
     const ledger = await reports.partyLedger(ctx.ids.customerId);
@@ -73,7 +74,7 @@ describe("ReportService", () => {
     expect(ledger[0]!.notes).toBe("Delivered to site A");
     expect(ledger[1]!.credit).toBe(300);
     expect(ledger[1]!.balance).toBe(0);
-    expect(ledger[1]!.notes).toBeNull();
+    expect(ledger[1]!.notes).toBe("Collected by hand");
   });
 
   it("reports each party's closing balance for the Chart of Accounts", async () => {

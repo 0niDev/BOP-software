@@ -172,7 +172,7 @@ export class ReportService {
     let sql = `
       SELECT je.entry_date AS date, je.id AS entry_id, je.voucher_number, je.voucher_type,
              COALESCE(jel.description, je.narration) AS description,
-             COALESCE(si.notes, pi.notes) AS notes,
+             COALESCE(si.notes, pi.notes, pay.notes, rc.notes) AS notes,
              jel.debit, jel.credit,
              CASE WHEN (si.payment_type IS NOT NULL AND si.payment_type <> 'CREDIT')
                     OR (pi.payment_type IS NOT NULL AND pi.payment_type <> 'CREDIT')
@@ -186,6 +186,14 @@ export class ReportService {
              ON je.source_table = 'purchase_invoices' AND pi.id = je.source_id
       LEFT JOIN expenses ex
              ON je.source_table = 'expenses' AND ex.id = je.source_id
+      -- Payment/receipt entries carry no source link; their voucher number is
+      -- unique per company and type, so it is the join key.
+      LEFT JOIN payments pay
+             ON je.voucher_type = 'PAYMENT' AND pay.company_id = je.company_id
+            AND pay.voucher_number = je.voucher_number
+      LEFT JOIN receipts rc
+             ON je.voucher_type = 'RECEIPT' AND rc.company_id = je.company_id
+            AND rc.voucher_number = je.voucher_number
       WHERE jel.party_id = ? AND je.is_posted = 1
         AND NOT (je.voucher_type = 'OPENING' AND je.source_table = 'parties')`;
     const params: Array<string | number> = [partyId];
