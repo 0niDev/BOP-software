@@ -33,6 +33,7 @@ import { ReportService } from "../services/reportService.js";
 import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
 import { SalesInvoiceService } from "../services/salesInvoiceService.js";
 import { SettingsService } from "../services/settingsService.js";
+import { StockLedgerService } from "../services/stockLedgerService.js";
 import type { MirrorService } from "../services/mirrorService.js";
 import type { ReplicaService } from "../services/replicaService.js";
 import { UserService } from "../services/userService.js";
@@ -101,6 +102,7 @@ export function createApp(
   const accounts = new AccountService(db, companyId);
   const parties = new PartyService(db, companyId);
   const items = new ItemService(db, companyId);
+  const stockLedger = new StockLedgerService(db, companyId);
   const sales = new SalesInvoiceService(db, companyId);
   const purchases = new PurchaseInvoiceService(db, companyId);
   const payments = new PaymentService(db, companyId);
@@ -586,6 +588,38 @@ export function createApp(
       req.body,
     );
     res.status(201).json(await items.addOpeningStock({ itemId: Number(req.params.id), ...body }));
+  });
+
+  // --- stock ledger reset ------------------------------------------------
+  /** Reset history, newest first (each row can be restored from the UI). */
+  app.get("/api/stock-ledger/resets", requireAuth, async (_req, res) => {
+    res.json(await stockLedger.list());
+  });
+
+  /**
+   * Zero every batch quantity. The database snapshot is taken FIRST: if it
+   * fails the request fails and nothing is zeroed, so a reset always has a
+   * recoverable copy behind it. Stock-only — no journal entry is posted.
+   */
+  app.post("/api/stock-ledger/zero", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    const body = parseBody(
+      z.object({ reason: z.string().max(500).nullish() }),
+      req.body ?? {},
+    );
+    const snapshot = await backups.run();
+    const result = await stockLedger.zero({
+      reason: body.reason ?? null,
+      createdBy: user?.userId ?? null,
+      snapshotFile: snapshot.file,
+    });
+    res.status(201).json({ ...result, snapshotPath: snapshot.path });
+  });
+
+  /** Undo a reset: put each batch's recorded quantity back. */
+  app.post("/api/stock-ledger/resets/:id/restore", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    res.json(await stockLedger.restore(Number(req.params.id), user?.userId ?? null));
   });
 
   app.get("/api/sales-invoices", requireAuth, async (req, res) => {

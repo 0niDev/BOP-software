@@ -42,6 +42,7 @@ import type {
   SettingsGroups,
   SettlementMethod,
   ShortcutEntry,
+  StockLedgerReset,
   TaxRate,
   TrialBalance,
   User,
@@ -341,6 +342,25 @@ export const api = {
       totalValue: number;
       journalEntryId: number | null;
     }>(`/api/items/${itemId}/opening-stock`, { method: "POST", body: JSON.stringify(body) }),
+  /** Reversible stock-ledger resets (a snapshot is taken before each one). */
+  stockLedgerResets: () => request<StockLedgerReset[]>("/api/stock-ledger/resets"),
+  zeroStockLedger: (reason?: string | null) =>
+    request<{
+      resetId: number;
+      batchCount: number;
+      totalQuantity: number;
+      totalValue: number;
+      snapshotFile: string | null;
+      snapshotPath: string;
+    }>("/api/stock-ledger/zero", {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? null }),
+    }),
+  restoreStockLedger: (id: number) =>
+    request<{ resetId: number; batchCount: number; restoredAt: string }>(
+      `/api/stock-ledger/resets/${id}/restore`,
+      { method: "POST" },
+    ),
   salesInvoices: (search?: string) =>
     request<SalesInvoice[]>(
       `/api/sales-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,

@@ -121,6 +121,21 @@ export interface ItemTag {
   name: string;
 }
 
+/** One reversible "zero out the stock ledger" run. */
+export interface StockLedgerReset {
+  id: number;
+  company_id: number;
+  reason: string | null;
+  batch_count: number;
+  total_quantity: number;
+  total_value: number;
+  snapshot_file: string | null;
+  created_by: number | null;
+  created_at: string;
+  restored_at: string | null;
+  restored_by: number | null;
+}
+
 export interface TaxRate {
   id: number;
   name: string;

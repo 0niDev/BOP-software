@@ -6,7 +6,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
 import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Item, Party, TaxRate } from "../types";
+import type { Item, Party, StockLedgerReset, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
 interface Draft {
@@ -78,9 +78,14 @@ export default function ItemsPage() {
   const [stockExpiry, setStockExpiry] = useState("");
   const [stockPartyId, setStockPartyId] = useState<number | null>(null);
 
+  // Stock ledger reset (clear every batch quantity, reversibly)
+  const [ledgerResets, setLedgerResets] = useState<StockLedgerReset[]>([]);
+  const [zeroReason, setZeroReason] = useState("");
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+
   async function refresh(): Promise<void> {
     try {
-      const [itemList, rates, supplierList] = await Promise.all([
+      const [itemList, rates, supplierList, resets] = await Promise.all([
         api.items({
           search: search || undefined,
           type: (typeFilter || undefined) as Item["item_type"] | undefined,
@@ -88,10 +93,12 @@ export default function ItemsPage() {
         }),
         api.taxRates(),
         api.parties({ type: "SUPPLIER" }),
+        api.stockLedgerResets(),
       ]);
       setItems(itemList);
       setTaxRates(rates);
       setSuppliers(supplierList);
+      setLedgerResets(resets);
       setStockItemId((current) => current ?? itemList[0]?.id ?? null);
     } catch (err) {
       setError(message(err, "Failed to load items."));
@@ -214,6 +221,59 @@ export default function ItemsPage() {
       setError(message(err, "Failed to add opening stock."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Zero every batch quantity. The server snapshots the database first, so the
+   * reset is always recoverable from the history below. Stock only — the
+   * accounting side of a stock rewrite is a separate dated adjustment.
+   */
+  async function zeroStockLedger(): Promise<void> {
+    const confirmed = window.confirm(
+      "Zero out the stock ledger?\n\n" +
+        "Every batch quantity becomes 0. A database snapshot is taken first and this " +
+        "reset can be undone from the history below.\n\n" +
+        "No journal entry is posted — only stock changes.",
+    );
+    if (!confirmed) return;
+    setLedgerBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.zeroStockLedger(zeroReason.trim() || null);
+      setNotice(
+        `Zeroed ${result.batchCount} batch(es) worth ${money(result.totalValue)}. ` +
+          `Snapshot: ${result.snapshotFile ?? "—"}.`,
+      );
+      setZeroReason("");
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to zero the stock ledger."));
+    } finally {
+      setLedgerBusy(false);
+    }
+  }
+
+  /** Undo a reset: each batch gets its recorded quantity back. */
+  async function restoreStockLedger(reset: StockLedgerReset): Promise<void> {
+    const confirmed = window.confirm(
+      `Restore the stock ledger to before ${reset.created_at}?\n\n` +
+        "Each batch gets its recorded quantity back. Do this BEFORE loading a new stock " +
+        "count, otherwise the restored batches are counted twice.",
+    );
+    if (!confirmed) return;
+    setLedgerBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await api.restoreStockLedger(reset.id);
+      setNotice(`Restored ${result.batchCount} batch(es).`);
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to restore the stock ledger."));
+    } finally {
+      setLedgerBusy(false);
     }
   }
 
@@ -426,6 +486,70 @@ export default function ItemsPage() {
           </tbody>
         </table>
       </div>
+
+      <section className="card">
+        <h2>Stock ledger</h2>
+        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label>Reason (optional)</label>
+            <input
+              value={zeroReason}
+              onChange={(e) => setZeroReason(e.target.value)}
+              placeholder="31 Oct stock count"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void zeroStockLedger()}
+            disabled={ledgerBusy}
+            title="Set every batch quantity to 0 — a snapshot is taken first and the reset can be undone"
+          >
+            {ledgerBusy ? "Working…" : "Zero out stock ledger"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12 }}>
+          Clears every batch quantity. A database snapshot is taken first, and the reset is listed
+          below where it can be undone. No journal entry is posted — stock only.
+        </p>
+        {ledgerResets.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Reason</th>
+                <th className="num">Batches</th>
+                <th className="num">Value</th>
+                <th>Snapshot</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledgerResets.map((reset) => (
+                <tr key={reset.id}>
+                  <td>{reset.created_at}</td>
+                  <td>{reset.reason ?? "—"}</td>
+                  <td className="num">{reset.batch_count}</td>
+                  <td className="num">{money(reset.total_value)}</td>
+                  <td>{reset.snapshot_file ?? "—"}</td>
+                  <td>
+                    {reset.restored_at ? (
+                      <span className="badge">Restored {reset.restored_at}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void restoreStockLedger(reset)}
+                        disabled={ledgerBusy}
+                      >
+                        Restore
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <form className="card" onSubmit={submitOpeningStock}>
         <h2>Opening stock</h2>

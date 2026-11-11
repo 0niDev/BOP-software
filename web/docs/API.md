@@ -177,6 +177,20 @@ Rules: maximum stock ≥ minimum stock; the tax rate must exist and be
 `SALES_TAX`; opening stock creates a batch, an `OPENING` stock movement, and —
 when a supplier is supplied — an `OPENING` entry crediting Accounts Payable.
 
+## Stock ledger reset
+
+| Method | Path | Body / query | Response |
+| --- | --- | --- | --- |
+| `GET` | `/api/stock-ledger/resets` | — | reset history, newest first |
+| `POST` | `/api/stock-ledger/zero` | `{ reason? }` | `201` `{ resetId, batchCount, totalQuantity, totalValue, snapshotFile, snapshotPath }` |
+| `POST` | `/api/stock-ledger/resets/:id/restore` | — | `{ resetId, batchCount, restoredAt }` |
+
+Zeroing sets every batch quantity to 0. A database snapshot is written
+**before** the reset (if it fails, nothing is zeroed) and the reset records every
+affected batch, so it can be undone exactly with the restore route. Stock only:
+no journal entry is posted. Restoring twice, or zeroing when everything is
+already zero, returns `400`.
+
 ## Sales invoices
 
 | Method | Path | Body / query | Response |
