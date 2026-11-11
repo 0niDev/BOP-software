@@ -93,6 +93,8 @@ export interface Item {
   maximum_stock: number;
   /** On-hand quantity across active batches (returned by the items list). */
   current_stock: number;
+  /** Comma-joined tag names, e.g. "bottle, cap". Null when untagged. */
+  tags: string | null;
   tax_rate_id: number | null;
   category_id: number | null;
   is_active: number;
@@ -112,6 +114,11 @@ export interface Asset {
   due_date: string | null;
   notes: string | null;
   current_balance: number;
+}
+
+export interface ItemTag {
+  id: number;
+  name: string;
 }
 
 export interface TaxRate {

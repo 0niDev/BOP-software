@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
+import ItemTagsDialog from "../components/ItemTagsDialog";
 import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
 import { saveBlob } from "../lib/download";
@@ -52,9 +53,11 @@ export default function ItemsPage() {
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [stockFilter, setStockFilter] = useState<"" | "in" | "zero">("");
   const [showInactive, setShowInactive] = useState(false);
   const [sort, setSort] = useState<SortState | null>(null);
+  const [tagsOpen, setTagsOpen] = useState(false);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Item | null>(null);
@@ -253,7 +256,15 @@ export default function ItemsPage() {
     stockFilter === "" || (stockFilter === "zero" ? item.current_stock === 0 : item.current_stock !== 0);
   const visibleItems = items.filter(stockMatches);
 
-  const sortedItems = sortRows(visibleItems, sort, (item, key) => {
+  /** Tags present on the loaded rows, so the filter needs no extra call. */
+  const tagOptions = [
+    ...new Set(items.flatMap((item) => (item.tags ? item.tags.split(", ") : []))),
+  ].sort((a, b) => a.localeCompare(b));
+  const taggedItems = visibleItems.filter(
+    (item) => tagFilter === "" || (item.tags ?? "").split(", ").includes(tagFilter),
+  );
+
+  const sortedItems = sortRows(taggedItems, sort, (item, key) => {
     switch (key) {
       case "code":
         return item.item_code;
@@ -300,6 +311,18 @@ export default function ItemsPage() {
             />
           </div>
           <div>
+            <label>Tag</label>
+            <SearchableSelect
+              value={tagFilter}
+              onChange={setTagFilter}
+              placeholder="All tags"
+              options={[
+                { value: "", label: "All tags" },
+                ...tagOptions.map((tag) => ({ value: tag, label: tag })),
+              ]}
+            />
+          </div>
+          <div>
             <label>Stock</label>
             <SearchableSelect
               value={stockFilter}
@@ -326,6 +349,13 @@ export default function ItemsPage() {
           </div>
           <button
             type="button"
+            onClick={() => setTagsOpen(true)}
+            title="Assign tags (e.g. bottle) to many products at once"
+          >
+            Tags
+          </button>
+          <button
+            type="button"
             onClick={() => void exportInventory()}
             disabled={exporting}
             title="Download the items shown above as an Excel workbook (id, code, name, stock…)"
@@ -350,6 +380,7 @@ export default function ItemsPage() {
               <SortTh label="Selling" sortKey="selling" sort={sort} setSort={setSort} className="num" />
               <th className="num">Min / Max</th>
               <SortTh label="Stock" sortKey="stock" sort={sort} setSort={setSort} className="num" />
+              <th>Tags</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -370,6 +401,13 @@ export default function ItemsPage() {
                   {item.current_stock} {item.unit}
                 </td>
                 <td>
+                  {(item.tags ? item.tags.split(", ") : []).map((tag) => (
+                    <span className="badge" key={tag} style={{ marginRight: 4 }}>
+                      {tag}
+                    </span>
+                  ))}
+                </td>
+                <td>
                   <span className="badge">{item.is_active ? "Active" : "Inactive"}</span>
                 </td>
                 <td>
@@ -380,9 +418,9 @@ export default function ItemsPage() {
                 </td>
               </tr>
             ))}
-            {visibleItems.length === 0 && !error && (
+            {taggedItems.length === 0 && !error && (
               <tr>
-                <td colSpan={10}>No items match the current filters.</td>
+                <td colSpan={11}>No items match the current filters.</td>
               </tr>
             )}
           </tbody>
@@ -589,6 +627,10 @@ export default function ItemsPage() {
           )}
         </div>
       </form>
+
+      {tagsOpen && (
+        <ItemTagsDialog onClose={() => setTagsOpen(false)} onSaved={() => void refresh()} />
+      )}
     </>
   );
 }

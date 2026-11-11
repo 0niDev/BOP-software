@@ -6,6 +6,8 @@ import { insertRow, type InsertData } from "./base.js";
 /** An item row plus its on-hand quantity (the list view's stock column). */
 export interface ItemListRow extends ItemRow {
   current_stock: number;
+  /** Comma-joined tag names, e.g. "bottle, cap". Null when untagged. */
+  tags: string | null;
 }
 
 export interface ItemRow {
@@ -73,7 +75,11 @@ export class ItemRepository {
       SELECT i.*,
              COALESCE((SELECT SUM(sb.quantity_in_stock)
                          FROM stock_batches sb
-                        WHERE sb.item_id = i.id AND sb.is_active = 1), 0) AS current_stock
+                        WHERE sb.item_id = i.id AND sb.is_active = 1), 0) AS current_stock,
+             (SELECT GROUP_CONCAT(t.name, ', ')
+                FROM item_tag_links l
+                JOIN item_tags t ON t.id = l.tag_id
+               WHERE l.item_id = i.id) AS tags
         FROM items i
        WHERE i.company_id = ?`;
     const params: Array<string | number> = [companyId];

@@ -25,6 +25,7 @@ import type {
   JournalEntryResult,
   ManualJournalEntry,
   Item,
+  ItemTag,
   OpeningBalanceChange,
   Party,
   PartyBalance,
@@ -264,6 +265,18 @@ export const api = {
     return request<Item[]>(`/api/items${suffix ? `?${suffix}` : ""}`);
   },
   taxRates: () => request<TaxRate[]>("/api/tax-rates"),
+  /** All tags plus their item assignments. */
+  itemTags: () =>
+    request<{ tags: ItemTag[]; links: { item_id: number; tag_id: number }[] }>(
+      "/api/item-tags",
+    ),
+  createItemTag: (name: string) =>
+    request<ItemTag>("/api/item-tags", { method: "POST", body: JSON.stringify({ name }) }),
+  updateItemTagItems: (tagId: number, body: { add?: number[]; remove?: number[] }) =>
+    request<{ added: number; removed: number }>(`/api/item-tags/${tagId}/items`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** Inventory report as an Excel workbook; same filters as `items()`. */
   inventoryXlsx: (
     opts: {

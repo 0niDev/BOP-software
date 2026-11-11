@@ -13,6 +13,11 @@ import {
   type ItemRow,
 } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
+import {
+  ItemTagRepository,
+  type ItemTagLinkRow,
+  type ItemTagRow,
+} from "../repositories/itemTagRepository.js";
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { TaxRateRepository, type TaxRateRow } from "../repositories/taxRateRepository.js";
@@ -128,6 +133,7 @@ export class ItemService {
   private readonly batches: StockBatchRepository;
   private readonly accounts: SystemAccountResolver;
   private readonly accounting: AccountingService;
+  private readonly tags: ItemTagRepository;
 
   constructor(
     private readonly db: SqlDatabase,
@@ -140,6 +146,7 @@ export class ItemService {
     this.batches = new StockBatchRepository(db);
     this.accounts = new SystemAccountResolver(db, companyId);
     this.accounting = new AccountingService(db, companyId);
+    this.tags = new ItemTagRepository(db);
   }
 
   async list(
@@ -245,6 +252,48 @@ export class ItemService {
     const item = await this.items.findById(id);
     if (!item) throw new NotFoundError("Item not found.");
     await this.items.deactivate(id);
+  }
+
+  /** Every tag plus every item assignment, in one round trip for the dialog. */
+  async listTags(): Promise<{ tags: ItemTagRow[]; links: ItemTagLinkRow[] }> {
+    const [tags, links] = await Promise.all([
+      this.tags.list(this.companyId),
+      this.tags.listLinks(this.companyId),
+    ]);
+    return { tags, links };
+  }
+
+  async createTag(name: string): Promise<ItemTagRow> {
+    const trimmed = name.trim();
+    if (!trimmed) throw new ValidationError("Tag name is required.");
+    if (await this.tags.findByName(trimmed, this.companyId)) {
+      throw new ValidationError(`Tag '${trimmed}' already exists.`);
+    }
+    const id = await this.tags.insert(this.companyId, trimmed);
+    return this.tags.findById(id) as Promise<ItemTagRow>;
+  }
+
+  /** Add and/or remove one tag on a set of items, in a single transaction. */
+  async setTagItems(
+    tagId: number,
+    input: { add?: number[]; remove?: number[] },
+  ): Promise<{ added: number; removed: number }> {
+    const tag = await this.tags.findById(tagId);
+    if (!tag || tag.company_id !== this.companyId) throw new NotFoundError("Tag not found.");
+
+    const add = [...new Set(input.add ?? [])];
+    const remove = [...new Set(input.remove ?? [])];
+    for (const itemId of [...add, ...remove]) {
+      const item = await this.items.findById(itemId);
+      if (!item || item.company_id !== this.companyId) {
+        throw new ValidationError(`Item ${itemId} not found.`);
+      }
+    }
+
+    return this.db.transaction(async () => ({
+      added: await this.tags.addLinks(tagId, add),
+      removed: await this.tags.removeLinks(tagId, remove),
+    }));
   }
 
   /**

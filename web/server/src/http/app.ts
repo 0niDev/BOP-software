@@ -548,6 +548,29 @@ export function createApp(
     res.json({ ok: true });
   });
 
+  // --- item tags ---------------------------------------------------------
+  /** All tags plus their item assignments (one call fills the tag dialog). */
+  app.get("/api/item-tags", requireAuth, async (_req, res) => {
+    res.json(await items.listTags());
+  });
+
+  app.post("/api/item-tags", requireAuth, async (req, res) => {
+    const body = parseBody(z.object({ name: z.string().min(1) }), req.body);
+    res.status(201).json(await items.createTag(body.name));
+  });
+
+  /** Add and/or remove one tag on the given items. */
+  app.post("/api/item-tags/:id/items", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        add: z.array(z.number().int().positive()).optional(),
+        remove: z.array(z.number().int().positive()).optional(),
+      }),
+      req.body,
+    );
+    res.json(await items.setTagItems(Number(req.params.id), body));
+  });
+
   /** Opening stock: creates the batch + OPENING movement, and an OPENING entry
    *  against A/P when a supplier is supplied. */
   app.post("/api/items/:id/opening-stock", requireAuth, async (req, res) => {
