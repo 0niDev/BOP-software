@@ -100,6 +100,8 @@ export default function ExpensesPage() {
   /** Amount to post for each account id (all rows start at 0). */
   const [amounts, setAmounts] = useState<Record<number, number>>({});
   const [busy, setBusy] = useState(false);
+  /** Live cash in hand (cash accounts 1000 + 1020), from the dashboard summary. */
+  const [cashInHand, setCashInHand] = useState(0);
 
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState("");
@@ -218,14 +220,16 @@ export default function ExpensesPage() {
 
   async function refresh() {
     try {
-      const [accountList, expenseList, partyList] = await Promise.all([
+      const [accountList, expenseList, partyList, dashboard] = await Promise.all([
         api.accounts(),
         api.expenses(),
         api.parties({ activeOnly: false }),
+        api.dashboard(),
       ]);
       setAccounts(accountList.filter((a) => a.account_type === "EXPENSE" && a.is_active));
       setExpenses(expenseList);
       setParties(partyList);
+      setCashInHand(dashboard.balances.cash);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load expenses.");
     }
@@ -478,7 +482,11 @@ export default function ExpensesPage() {
             </div>
 
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
-              <strong style={{ flex: 1 }}>Total: {money(selectedTotal)}</strong>
+              <strong style={{ flex: 1 }}>
+                Cash in hand: {money(cashInHand)} → {money(cashInHand - selectedTotal)} after
+                recording
+              </strong>
+              <strong>Total: {money(selectedTotal)}</strong>
               <button className="primary" type="button" disabled={busy} onClick={() => void submit()}>
                 {busy ? "Working…" : "Record"}
               </button>
