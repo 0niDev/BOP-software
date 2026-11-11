@@ -79,6 +79,12 @@ export interface TrialBalanceRow {
   /** Opening + period, placed in the account's normal column. */
   closingDebit: number;
   closingCredit: number;
+  /**
+   * Per-tag stock value for an inventory account (1200/1210/1220), valued as
+   * at the report end. Memo lines only: the account row still carries the GL
+   * balance, so these never feed the report totals.
+   */
+  tagBreakdown?: Array<{ name: string; value: number }>;
 }
 
 export interface DateRangeOptions {

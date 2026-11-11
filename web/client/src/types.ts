@@ -422,6 +422,8 @@ export interface TrialBalanceRow {
   credit: number;
   closingDebit: number;
   closingCredit: number;
+  /** Inventory-account memo lines: stock value per tag as at the report end. */
+  tagBreakdown?: Array<{ name: string; value: number }>;
 }
 
 export interface TrialBalance {

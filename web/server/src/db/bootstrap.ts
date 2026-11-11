@@ -144,6 +144,7 @@ export async function reconcileNumberingSequences(
 export async function bootstrapDatabase(db: SqlDatabase): Promise<void> {
   await db.exec(SCHEMA_SQL);
   await ensureColumns(db);
+  await backfillItemTagHistory(db);
   await ensureExpenseAccountSchema(db);
   await ensureStandaloneReturnsSchema(db);
   await seedDefaults(db);
@@ -175,6 +176,25 @@ async function ensureColumns(db: SqlDatabase): Promise<void> {
     if (columns.some((existing) => existing.name === column)) continue;
     await db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+}
+
+/**
+ * Links that predate item_tag_history get one ADD event. Tags shipped with the
+ * link table, so the tag's created_at is the earliest date the link can have
+ * existed. Idempotent: a link that already has any history row is left alone.
+ * Mirrors server/migrations/2026-11-11-item-tag-history.sql.
+ */
+async function backfillItemTagHistory(db: SqlDatabase): Promise<void> {
+  await db.run(
+    `INSERT INTO item_tag_history (item_id, tag_id, action, changed_at)
+     SELECT l.item_id, l.tag_id, 'ADD', t.created_at
+       FROM item_tag_links l
+       JOIN item_tags t ON t.id = l.tag_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM item_tag_history h
+         WHERE h.item_id = l.item_id AND h.tag_id = l.tag_id
+      )`,
+  );
 }
 
 /**

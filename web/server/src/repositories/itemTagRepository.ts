@@ -57,7 +57,10 @@ export class ItemTagRepository {
         "INSERT OR IGNORE INTO item_tag_links (item_id, tag_id) VALUES (?, ?)",
         [itemId, tagId],
       );
-      added += result.changes;
+      if (result.changes > 0) {
+        await this.record(itemId, tagId, "ADD");
+        added += 1;
+      }
     }
     return added;
   }
@@ -69,8 +72,23 @@ export class ItemTagRepository {
         "DELETE FROM item_tag_links WHERE item_id = ? AND tag_id = ?",
         [itemId, tagId],
       );
-      removed += result.changes;
+      if (result.changes > 0) {
+        await this.record(itemId, tagId, "REMOVE");
+        removed += 1;
+      }
     }
     return removed;
+  }
+
+  /** Append one assignment event; reports replay these to get tags as at a date. */
+  private async record(
+    itemId: number,
+    tagId: number,
+    action: "ADD" | "REMOVE",
+  ): Promise<void> {
+    await this.db.run(
+      "INSERT INTO item_tag_history (item_id, tag_id, action) VALUES (?, ?, ?)",
+      [itemId, tagId, action],
+    );
   }
 }

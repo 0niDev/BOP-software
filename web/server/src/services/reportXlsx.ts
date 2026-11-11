@@ -478,8 +478,8 @@ export class ReportXlsx {
       ],
       ...sections.flatMap((section): SheetData => [
         [text(`${section.label.toUpperCase()} (${section.rows.length})`, SECTION)],
-        ...section.rows.map(
-          (row): Cell[] => [
+        ...section.rows.flatMap((row): SheetData => [
+          [
             text(row.displayCode),
             text(row.accountName, {
               indent: row.depth * 2,
@@ -493,7 +493,20 @@ export class ReportXlsx {
             moneyOrBlank(row.closingDebit),
             moneyOrBlank(row.closingCredit),
           ],
-        ),
+          ...(row.tagBreakdown ?? []).map(
+            (tag): Cell[] => [
+              null,
+              text(`↳ ${tag.name}`, { ...MUTED, indent: row.depth * 2 + 2 }),
+              null,
+              null,
+              null,
+              null,
+              null,
+              money(tag.value, MUTED),
+              null,
+            ],
+          ),
+        ]),
         [
           null,
           text(`Total ${section.label}`, TOTAL),

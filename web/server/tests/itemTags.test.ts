@@ -70,4 +70,21 @@ describe("ItemService tags", () => {
       ValidationError,
     );
   });
+
+  it("records add/remove history so past membership can be replayed", async () => {
+    const tag = await items.createTag("bottle");
+    const item = await items.create({ itemName: "Bottle 30ml" });
+
+    await items.setTagItems(tag.id, { add: [item.id] });
+    // Re-applying an existing assignment is a no-op in both tables.
+    await items.setTagItems(tag.id, { add: [item.id] });
+    await items.setTagItems(tag.id, { remove: [item.id] });
+    await items.setTagItems(tag.id, { add: [item.id] });
+
+    const history = await ctx.db.all<{ action: string }>(
+      "SELECT action FROM item_tag_history WHERE item_id = ? AND tag_id = ? ORDER BY id",
+      [item.id, tag.id],
+    );
+    expect(history.map((row) => row.action)).toEqual(["ADD", "REMOVE", "ADD"]);
+  });
 });

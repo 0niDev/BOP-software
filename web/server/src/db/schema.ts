@@ -213,6 +213,18 @@ CREATE TABLE IF NOT EXISTS item_tag_links (
 );
 CREATE INDEX IF NOT EXISTS idx_item_tag_links_tag ON item_tag_links(tag_id);
 
+-- Append-only assignment history, so a report can rebuild which tags an item
+-- carried on a given date. item_tag_links remains the current state.
+CREATE TABLE IF NOT EXISTS item_tag_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id         INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    tag_id          INTEGER NOT NULL REFERENCES item_tags(id) ON DELETE CASCADE,
+    action          TEXT NOT NULL CHECK (action IN ('ADD','REMOVE')),
+    changed_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_item_tag_history_lookup
+    ON item_tag_history(item_id, tag_id, changed_at);
+
 CREATE TABLE IF NOT EXISTS stock_batches (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id             INTEGER NOT NULL REFERENCES items(id),

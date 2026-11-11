@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
@@ -255,24 +255,40 @@ function GroupedTbRows({ group }: GroupedTbRowsProps) {
         </td>
       </tr>
       {group.rows.map((row) => (
-        <tr key={row.accountId}>
-          <td style={{ whiteSpace: "nowrap" }} title={`Internal code: ${row.accountCode}`}>
-            <span className="coa-code">
-              {Array.from({ length: row.depth }, (_, index) => (
-                <span key={index} className="coa-rail" />
-              ))}
-              {row.depth > 0 && <span className="coa-elbow">└</span>}
-              {row.displayCode ?? row.accountCode}
-            </span>
-          </td>
-          <td style={row.hasChildren ? { fontWeight: 600 } : undefined}>{row.accountName}</td>
-          <td className="num">{amount(row.openingDebit)}</td>
-          <td className="num">{amount(row.openingCredit)}</td>
-          <td className="num">{amount(row.debit)}</td>
-          <td className="num">{amount(row.credit)}</td>
-          <td className="num">{amount(row.closingDebit)}</td>
-          <td className="num">{amount(row.closingCredit)}</td>
-        </tr>
+        <Fragment key={row.accountId}>
+          <tr>
+            <td style={{ whiteSpace: "nowrap" }} title={`Internal code: ${row.accountCode}`}>
+              <span className="coa-code">
+                {Array.from({ length: row.depth }, (_, index) => (
+                  <span key={index} className="coa-rail" />
+                ))}
+                {row.depth > 0 && <span className="coa-elbow">└</span>}
+                {row.displayCode ?? row.accountCode}
+              </span>
+            </td>
+            <td style={row.hasChildren ? { fontWeight: 600 } : undefined}>{row.accountName}</td>
+            <td className="num">{amount(row.openingDebit)}</td>
+            <td className="num">{amount(row.openingCredit)}</td>
+            <td className="num">{amount(row.debit)}</td>
+            <td className="num">{amount(row.credit)}</td>
+            <td className="num">{amount(row.closingDebit)}</td>
+            <td className="num">{amount(row.closingCredit)}</td>
+          </tr>
+          {(row.tagBreakdown ?? []).map((tag) => (
+            <tr key={`${row.accountId}-tag-${tag.name}`} style={{ opacity: 0.75 }}>
+              <td />
+              <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
+                ↳ {tag.name}
+              </td>
+              <td className="num" />
+              <td className="num" />
+              <td className="num" />
+              <td className="num" />
+              <td className="num">{amount(tag.value)}</td>
+              <td className="num" />
+            </tr>
+          ))}
+        </Fragment>
       ))}
       <tr className="total">
         <td colSpan={6}>Total {TYPE_LABELS[group.type]}</td>
@@ -711,6 +727,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             </tfoot>
           )}
         </table>
+        {tb && visibleTbRows.some((row) => row.tagBreakdown?.length) && (
+          <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+            Inventory tags are memo lines: stock valued at current unit cost, with tag
+            membership as at the report end. They do not change the account balances.
+          </p>
+        )}
       </div>
       )}
 

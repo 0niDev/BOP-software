@@ -1,6 +1,6 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
-import { SystemAccountCodes } from "../domain/enums.js";
+import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import { Decimal, toStorage } from "../domain/money.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
@@ -17,6 +17,13 @@ export interface TrialBalanceResult {
   totalCredit: number;
   balanced: boolean;
 }
+
+/** Inventory account code → the item type whose stock it holds. */
+const INVENTORY_ITEM_TYPE_BY_CODE: Record<string, ItemType> = {
+  [SystemAccountCodes.INVENTORY_RAW_MATERIALS]: "RAW_MATERIAL",
+  [SystemAccountCodes.INVENTORY_PACKING_MATERIALS]: "PACKING_MATERIAL",
+  [SystemAccountCodes.INVENTORY_FINISHED_GOODS]: "FINISHED_GOOD",
+};
 
 export interface ProfitAndLossResult {
   revenue: number;
@@ -83,6 +90,7 @@ export class ReportService {
    */
   async trialBalance(opts: DateRangeOptions = {}): Promise<TrialBalanceResult> {
     const rows = await this.accounting.getTrialBalance(this.companyId, opts);
+    await this.attachInventoryTags(rows, opts.to || null);
     const totalDebit = rows.reduce((acc, r) => acc.plus(r.closingDebit), new Decimal(0));
     const totalCredit = rows.reduce((acc, r) => acc.plus(r.closingCredit), new Decimal(0));
     return {
@@ -91,6 +99,103 @@ export class ReportService {
       totalCredit: toStorage(totalCredit),
       balanced: totalDebit.minus(totalCredit).abs().lessThan(new Decimal("0.01")),
     };
+  }
+
+  /**
+   * Attach the per-tag stock breakdown to the three inventory accounts. Tag
+   * membership is replayed from item_tag_history as at the report end, so a
+   * past report shows the tags an item carried then. The value uses the
+   * historical quantity but the batch's current unit cost (costs are not
+   * versioned). Memo data only: account balances and totals are untouched.
+   */
+  private async attachInventoryTags(
+    rows: TrialBalanceRow[],
+    to: string | null,
+  ): Promise<void> {
+    const inventoryRows = rows.filter((row) => INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode]);
+    if (inventoryRows.length === 0) return;
+
+    const values = await this.inventoryTagValues(to);
+    const byType = new Map<string, Map<string, number>>();
+    for (const row of values) {
+      const perTag = byType.get(row.item_type) ?? new Map<string, number>();
+      perTag.set(row.tag ?? "Untagged", toStorage(row.value));
+      byType.set(row.item_type, perTag);
+    }
+
+    for (const row of inventoryRows) {
+      const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
+      if (!itemType) continue;
+      const perTag = byType.get(itemType);
+      if (!perTag) continue;
+      row.tagBreakdown = [...perTag.entries()]
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => {
+          if (a.name === "Untagged") return 1;
+          if (b.name === "Untagged") return -1;
+          return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+        });
+    }
+  }
+
+  /** Stock value by item type and tag, as at `to` (null = current stock). */
+  private async inventoryTagValues(
+    to: string | null,
+  ): Promise<Array<{ item_type: string; tag: string | null; value: number }>> {
+    if (to === null) {
+      return this.db.all(
+        `SELECT i.item_type, t.name AS tag,
+                SUM(sb.quantity_in_stock *
+                    CASE WHEN (sb.raw_unit_cost + sb.packing_unit_cost) > 0
+                         THEN sb.raw_unit_cost + sb.packing_unit_cost
+                         ELSE sb.purchase_price END) AS value
+           FROM stock_batches sb
+           JOIN items i ON i.id = sb.item_id
+           LEFT JOIN item_tag_links l ON l.item_id = i.id
+           LEFT JOIN item_tags t ON t.id = l.tag_id
+          WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+          GROUP BY i.item_type, t.id`,
+        [this.companyId],
+      );
+    }
+
+    return this.db.all(
+      `WITH latest AS (
+         SELECT h.item_id, h.tag_id, h.action,
+                ROW_NUMBER() OVER (PARTITION BY h.item_id, h.tag_id
+                                   ORDER BY h.changed_at DESC, h.id DESC) AS rn
+           FROM item_tag_history h
+          WHERE date(h.changed_at) <= date(?)
+       ),
+       membership AS (
+         SELECT item_id, tag_id FROM latest WHERE rn = 1 AND action = 'ADD'
+       ),
+       qty AS (
+         SELECT sb.item_id,
+                CASE
+                  WHEN EXISTS (SELECT 1 FROM stock_movements m0 WHERE m0.batch_id = sb.id)
+                    THEN MAX(0, COALESCE((SELECT SUM(m.quantity)
+                                            FROM stock_movements m
+                                           WHERE m.batch_id = sb.id
+                                             AND date(m.movement_date) <= date(?)), 0))
+                  WHEN date(sb.received_date) <= date(?) THEN sb.quantity_in_stock
+                  ELSE 0
+                END AS quantity,
+                CASE WHEN (sb.raw_unit_cost + sb.packing_unit_cost) > 0
+                     THEN sb.raw_unit_cost + sb.packing_unit_cost
+                     ELSE sb.purchase_price END AS unit_cost
+           FROM stock_batches sb
+          WHERE sb.is_active = 1
+       )
+       SELECT i.item_type, t.name AS tag, SUM(q.quantity * q.unit_cost) AS value
+         FROM qty q
+         JOIN items i ON i.id = q.item_id
+         LEFT JOIN membership m ON m.item_id = i.id
+         LEFT JOIN item_tags t ON t.id = m.tag_id
+        WHERE i.is_active = 1 AND i.company_id = ?
+        GROUP BY i.item_type, t.id`,
+      [to, to, to, this.companyId],
+    );
   }
 
   /** Revenue and expenses for the period (P&L is a period statement). */
@@ -445,6 +550,21 @@ export class ReportService {
           row.closingCredit.toFixed(2),
         ].join(","),
       );
+      for (const tag of row.tagBreakdown ?? []) {
+        lines.push(
+          [
+            "",
+            escape(`  ↳ ${tag.name}`),
+            "",
+            "",
+            "",
+            "",
+            "",
+            tag.value.toFixed(2),
+            "",
+          ].join(","),
+        );
+      }
     }
     lines.push(
       ["", "", "TOTAL", "", "", "", "", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(
@@ -496,6 +616,21 @@ export class ReportService {
             row.closingCredit.toFixed(2),
           ].join(","),
         );
+        for (const tag of row.tagBreakdown ?? []) {
+          lines.push(
+            [
+              "",
+              csvEscape(`${"  ".repeat(row.depth + 1)}↳ ${tag.name}`),
+              "",
+              "",
+              "",
+              "",
+              "",
+              tag.value.toFixed(2),
+              "",
+            ].join(","),
+          );
+        }
       }
       lines.push(
         [

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ItemService } from "../src/services/itemService.js";
 import { PaymentService } from "../src/services/paymentService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -111,9 +112,10 @@ describe("ReportService", () => {
       "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
     );
     expect(lines[lines.length - 1]).toContain("TOTAL");
-    // One header + one line per account + the TOTAL line.
+    // One header + one line per account + any inventory tag memo line + the TOTAL line.
     const { rows } = await reports.trialBalance();
-    expect(lines).toHaveLength(rows.length + 2);
+    const memoLines = rows.reduce((count, row) => count + (row.tagBreakdown?.length ?? 0), 0);
+    expect(lines).toHaveLength(rows.length + memoLines + 2);
   });
 
   it("organizes the all-reports bundle's trial balance like the CoA", async () => {
@@ -129,6 +131,54 @@ describe("ReportService", () => {
     expect(lines.some((line) => line.startsWith(",Total Expenses,"))).toBe(true);
     // The grand total line is still the one the acceptance test reads.
     expect(lines.some((line) => line.startsWith(",,TOTAL,"))).toBe(true);
+  });
+
+  it("breaks inventory accounts down by tag, replaying membership as at the report end", async () => {
+    const items = new ItemService(ctx.db);
+    const tag = await items.createTag("bottle");
+    await items.setTagItems(tag.id, { add: [ctx.ids.itemId] });
+
+    const current = await reports.trialBalance();
+    expect(current.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 100_000 },
+    ]);
+
+    // Before the assignment the same stock is untagged.
+    const before = await reports.trialBalance({ to: "2024-06-30" });
+    expect(before.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
+      { name: "Untagged", value: 100_000 },
+    ]);
+
+    // Backdate the assignment: the report now sees the tag on that date.
+    await ctx.db.run(
+      "UPDATE item_tag_history SET changed_at = '2024-01-01 00:00:00' WHERE tag_id = ?",
+      [tag.id],
+    );
+    const backdated = await reports.trialBalance({ to: "2024-06-30" });
+    expect(backdated.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 100_000 },
+    ]);
+  });
+
+  it("shows a tag under every inventory account whose items carry it", async () => {
+    const items = new ItemService(ctx.db);
+    const raw = await items.create({
+      itemName: "Raw X",
+      unit: "KG",
+      itemType: "RAW_MATERIAL",
+    });
+    await items.addOpeningStock({ itemId: raw.id, quantity: 10, unitCost: 50 });
+    const tag = await items.createTag("bottle");
+    await items.setTagItems(tag.id, { add: [raw.id, ctx.ids.itemId] });
+
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((row) => row.accountCode === "1200")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 500 },
+    ]);
+    expect(tb.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 100_000 },
+    ]);
+    expect(await reports.trialBalanceCsv()).toContain("↳ bottle");
   });
 
   it("scopes the trial balance to a period and carries earlier entries as opening", async () => {
