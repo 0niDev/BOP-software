@@ -85,11 +85,25 @@ export interface TrialBalanceRow {
    * balance, so these never feed the report totals.
    */
   tagBreakdown?: Array<{ name: string; value: number }>;
+  /**
+   * Finished goods only: cost already relieved by sales as at the report end.
+   * The report shows it beside the stock figure as a memo line, because it is
+   * no longer stock and must not be added to the stock-vs-GL difference.
+   */
+  soldValue?: number;
+  /** Inventory accounts carrying material into production: the consumed side. */
+  usedValue?: number;
+  /** Items behind the account that carry no cost at all, so they value at zero. */
+  unpricedItems?: Array<{ name: string; quantity: number }>;
 }
 
 export interface DateRangeOptions {
   from?: string | null;
   to?: string | null;
+  /** Include memo rows that represent accounts with no posted movement. */
+  showZero?: boolean;
+  /** Include the "Unpriced items" breakdown under each inventory account. */
+  showUnpriced?: boolean;
 }
 
 /** Place a signed normal balance into the debit/credit columns. */

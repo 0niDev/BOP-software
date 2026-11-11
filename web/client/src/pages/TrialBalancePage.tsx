@@ -5,7 +5,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { AccountType, BalanceSheet, LedgerEntry, Party, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import type { AccountType, AllPartyLedgers, BalanceSheet, LedgerEntry, Party, PartyLedgerWithBalance, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -210,20 +210,7 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
       <tbody>
         {rows.map((row, index) => (
           <tr key={`${row.voucherNumber}-${index}`}>
-            <td>{formatDate(row.date)}</td>
-            <td>{row.voucherNumber}</td>
-            <td>{row.voucherType}</td>
-            <td>
-              {row.description ?? "—"}
-              {row.settled ? <span style={{ opacity: 0.6 }}> · settled</span> : null}
-              {row.beforeOpening ? (
-                <span style={{ opacity: 0.6 }}> · before opening</span>
-              ) : null}
-            </td>
-            <td>{row.notes ?? "—"}</td>
-            <td className="num">{amount(row.debit)}</td>
-            <td className="num">{amount(row.credit)}</td>
-            <td className="num">{money(row.balance)}</td>
+            <LedgerCells row={row} />
           </tr>
         ))}
       </tbody>
@@ -233,10 +220,102 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
 
 interface GroupedTbRowsProps {
   group: TbGroup;
+  showUnpriced: boolean;
+}
+
+/** One entry row, shared by the single-party and all-parties ledger tables. */
+function LedgerCells({ row }: { row: LedgerEntry }) {
+  return (
+    <>
+      <td>{formatDate(row.date)}</td>
+      <td>{row.voucherNumber}</td>
+      <td>{row.voucherType}</td>
+      <td>
+        {row.description ?? "—"}
+        {row.settled ? <span style={{ opacity: 0.6 }}> · settled</span> : null}
+        {row.beforeOpening ? (
+          <span style={{ opacity: 0.6 }}> · before opening</span>
+        ) : null}
+      </td>
+      <td>{row.notes ?? "—"}</td>
+      <td className="num">{amount(row.debit)}</td>
+      <td className="num">{amount(row.credit)}</td>
+      <td className="num">{money(row.balance)}</td>
+    </>
+  );
+}
+
+/** All parties in one table: a balance band per party, its entries beneath. */
+function AllPartyLedgerTable({
+  report,
+}: {
+  report: AllPartyLedgers;
+}) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Voucher</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Notes</th>
+          <th className="num">Debit</th>
+          <th className="num">Credit</th>
+          <th className="num">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {report.parties.map((party) => (
+          <Fragment key={party.partyId}>
+            <tr>
+              <td
+                colSpan={7}
+                style={{
+                  background: "var(--accent-soft)",
+                  fontWeight: 700,
+                }}
+              >
+                {party.name} ({party.code})
+              </td>
+              <td
+                className="num"
+                style={{
+                  background: "var(--accent-soft)",
+                  fontWeight: 700,
+                }}
+              >
+                {money(party.closingBalance)}
+              </td>
+            </tr>
+            {party.entries.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ opacity: 0.7 }}>
+                  No entries.
+                </td>
+              </tr>
+            ) : (
+              party.entries.map((row, index) => (
+                <tr key={`${party.partyId}-${row.voucherNumber}-${index}`}>
+                  <LedgerCells row={row} />
+                </tr>
+              ))
+            )}
+          </Fragment>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className="total">
+          <td colSpan={7}>Grand total (all parties)</td>
+          <td className="num">{money(report.grandTotal)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  );
 }
 
 /** COA section: type band, the account tree (sub-accounts indented), subtotal. */
-function GroupedTbRows({ group }: GroupedTbRowsProps) {
+function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
   return (
     <>
       <tr>
@@ -276,37 +355,102 @@ function GroupedTbRows({ group }: GroupedTbRowsProps) {
           </tr>
           {(() => {
             const tags = row.tagBreakdown ?? [];
-            if (tags.length === 0) return null;
+            const sold = row.soldValue;
+            const used = row.usedValue;
             const stockTotal = tags.reduce((total, tag) => total + tag.value, 0);
-            const difference = stockTotal - row.closingDebit;
+            // For finished goods the account is sold + on the shelf, so the gap
+            // is the stock value against what is left after the sold part.
+            const expectedInStock = sold == null ? row.closingDebit : row.closingDebit - sold;
+            const difference = stockTotal - expectedInStock;
+            if (tags.length === 0 && sold == null && used == null) return null;
+            const indent = { paddingLeft: 28 + row.depth * 12, fontSize: 12 };
+            // A line inside the memo block, with free text on the right.
+            const detailRow = (key: string, label: string, note: string, level: number) => (
+              <tr key={key} style={{ opacity: 0.6 }}>
+                <td />
+                <td
+                  style={{
+                    ...indent,
+                    paddingLeft: indent.paddingLeft + 16 * level,
+                    fontSize: 11,
+                  }}
+                >
+                  {label}
+                </td>
+                <td className="num" />
+                <td className="num" />
+                <td className="num" />
+                <td className="num" />
+                <td className="num" style={{ fontSize: 11 }}>
+                  {note}
+                </td>
+                <td className="num" />
+              </tr>
+            );
+            // Memo lines sit under the account and never feed the report totals.
+            // `nested` tucks a line under the memo line above it, e.g. a tag
+            // breaking down the "In stock" total.
+            const memoRow = (
+              key: string,
+              label: string,
+              value: number,
+              strong = false,
+              nested = false,
+            ) => (
+              <tr key={key} style={{ opacity: 0.75 }}>
+                <td />
+                <td style={nested ? { ...indent, paddingLeft: indent.paddingLeft + 16 } : indent}>
+                  {nested ? "·" : "↳"} {label}
+                </td>
+                <td className="num" />
+                <td className="num" />
+                <td className="num" />
+                <td className="num" />
+                <td className="num">{strong ? money(value) : amount(value)}</td>
+                <td className="num" />
+              </tr>
+            );
             return (
               <>
-                {tags.map((tag) => (
-                  <tr key={`${row.accountId}-tag-${tag.name}`} style={{ opacity: 0.75 }}>
-                    <td />
-                    <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
-                      ↳ {tag.name}
-                    </td>
-                    <td className="num" />
-                    <td className="num" />
-                    <td className="num" />
-                    <td className="num" />
-                    <td className="num">{amount(tag.value)}</td>
-                    <td className="num" />
-                  </tr>
-                ))}
-                <tr style={{ opacity: 0.75 }}>
-                  <td />
-                  <td style={{ paddingLeft: 28 + row.depth * 12, fontSize: 12 }}>
-                    Difference (stock - GL)
-                  </td>
-                  <td className="num" />
-                  <td className="num" />
-                  <td className="num" />
-                  <td className="num" />
-                  <td className="num">{money(difference)}</td>
-                  <td className="num" />
-                </tr>
+                {/* Finished goods: what the invoices sold, then what is left. */}
+                {sold != null ? (
+                  <>
+                    {memoRow(`${row.accountId}-sold`, "Sold FG (per invoices)", sold, true)}
+                    {memoRow(`${row.accountId}-stock`, "FG in stock", stockTotal, true)}
+                  </>
+                ) : used != null ? (
+                  <>
+                    {memoRow(`${row.accountId}-used`, "Used in production", used, true)}
+                    {memoRow(`${row.accountId}-stock`, "In stock", stockTotal, true)}
+                    {tags.map((tag) =>
+                      memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
+                    )}
+                  </>
+                ) : (
+                  tags.map((tag) =>
+                    memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
+                  )
+                )}
+                {memoRow(`${row.accountId}-difference`, "Difference (stock - GL)", difference, true)}
+                {/* Opt-in: what is behind the figure but carries no cost. */}
+                {showUnpriced && (row.unpricedItems?.length ?? 0) > 0
+                  ? [
+                      detailRow(
+                        `${row.accountId}-unpriced`,
+                        `Unpriced items (${row.unpricedItems!.length})`,
+                        "",
+                        1,
+                      ),
+                      ...row.unpricedItems!.map((item) =>
+                        detailRow(
+                          `${row.accountId}-unpriced-${item.name}`,
+                          item.name,
+                          amount(item.quantity),
+                          2,
+                        ),
+                      ),
+                    ]
+                  : null}
               </>
             );
           })()}
@@ -327,6 +471,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const showPl = showAll || section === "report-profit-loss";
   const showBs = showAll || section === "report-balance-sheet";
   const showParty = showAll || section === "report-party-ledger";
+  const showAllParties = showAll || section === "report-party-ledger-all";
   const showCash = showAll || section === "report-cash-book";
   const showExport = showAll || section === "report-export";
   const showPeriod = showAll || showTb || showPl || showBs;
@@ -338,6 +483,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [error, setError] = useState<string | null>(null);
   /** A trial balance is read for its balances: hide the empty chart lines by default. */
   const [showZero, setShowZero] = useState(false);
+  // Opt-in list of the items behind each inventory figure that cost nothing.
+  const [showUnpriced, setShowUnpriced] = useState(false);
 
   // Report period (trial balance + P&L) and the balance-sheet date.
   const [from, setFrom] = useState("");
@@ -358,6 +505,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [cashLoaded, setCashLoaded] = useState(false);
   const [cashBusy, setCashBusy] = useState(false);
 
+  const [allPartyLedgers, setAllPartyLedgers] = useState<AllPartyLedgers | null>(null);
+  const [allFrom, setAllFrom] = useState("");
+  const [allTo, setAllTo] = useState("");
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [allBusy, setAllBusy] = useState(false);
+
   const [csvBusy, setCsvBusy] = useState(false);
   // Which Excel export is preparing, so only the button that was pressed shows
   // "Preparing…" while the workbook is built.
@@ -365,7 +518,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
 
   const [exportFrequency, setExportFrequency] = useState<"Monthly" | "Yearly">("Monthly");
   const [exportIndex, setExportIndex] = useState(() =>
-    Math.max(exportPeriods("Monthly").length - 1, 0),
+    Math.min(2, exportPeriods("Monthly").length - 1),
   );
   const [exportBusy, setExportBusy] = useState(false);
 
@@ -437,11 +590,31 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     }
   }
 
+  async function loadAllPartyLedgers(): Promise<void> {
+    setAllBusy(true);
+    setError(null);
+    try {
+      setAllPartyLedgers(
+        await api.partyLedgerAll(allFrom || undefined, allTo || undefined),
+      );
+      setAllLoaded(true);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to load all party ledgers."));
+    } finally {
+      setAllBusy(false);
+    }
+  }
+
   async function exportCsv(): Promise<void> {
     setCsvBusy(true);
     setError(null);
     try {
-      const csv = await api.trialBalanceCsv(from || undefined, to || undefined);
+      const csv = await api.trialBalanceCsv(
+        from || undefined,
+        to || undefined,
+        showUnpriced,
+        showZero,
+      );
       saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), "trial-balance.csv");
     } catch (err) {
       setError(errorMessage(err, "CSV export failed."));
@@ -458,7 +631,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setExportBusy(true);
     setError(null);
     try {
-      const csv = await api.exportAllCsv(selectedPeriod.from, selectedPeriod.to);
+      const csv = await api.exportAllCsv(
+        selectedPeriod.from,
+        selectedPeriod.to,
+        showUnpriced,
+        showZero,
+      );
       saveBlob(
         new Blob([csv], { type: "text/csv;charset=utf-8" }),
         `all-reports_${selectedPeriod.from}_to_${selectedPeriod.to}.csv`,
@@ -586,7 +764,13 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             onClick={() =>
               void exportXlsx(
                 "all",
-                () => api.exportAllXlsx(selectedPeriod?.from, selectedPeriod?.to),
+                () =>
+                  api.exportAllXlsx(
+                    selectedPeriod?.from,
+                    selectedPeriod?.to,
+                    showUnpriced,
+                    showZero,
+                  ),
                 `all-reports_${selectedPeriod?.from ?? "start"}_to_${selectedPeriod?.to ?? "today"}.xlsx`,
               )
             }
@@ -700,6 +884,14 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             />
             Show zero balances
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={showUnpriced}
+              onChange={(event) => setShowUnpriced(event.target.checked)}
+            />
+            Show unpriced items
+          </label>
           <button onClick={() => void exportCsv()} disabled={csvBusy}>
             {csvBusy ? "Preparing…" : "Export CSV"}
           </button>
@@ -707,7 +899,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             onClick={() =>
               void exportXlsx(
                 "tb",
-                () => api.trialBalanceXlsx(from || undefined, to || undefined),
+                () =>
+                  api.trialBalanceXlsx(from || undefined, to || undefined, showUnpriced),
                 `trial-balance_${periodTag(from, to)}.xlsx`,
               )
             }
@@ -731,7 +924,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           </thead>
           <tbody>
             {groupTbRows(visibleTbRows).map((group) => (
-              <GroupedTbRows key={group.type} group={group} />
+              <GroupedTbRows key={group.type} group={group} showUnpriced={showUnpriced} />
             ))}
             {tb && visibleTbRows.length === 0 && (
               <tr>
@@ -804,6 +997,46 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           </button>
         </div>
         {ledgerLoaded && <LedgerTable rows={ledger} caption="for this party and period" />}
+      </div>
+      )}
+
+      {showAllParties && (
+      <div className="card" id="report-party-ledger-all">
+        <h2>All Party Ledgers</h2>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <div>
+            <label>From</label>
+            <input type="date" value={allFrom} onChange={(e) => setAllFrom(e.target.value)} />
+          </div>
+          <div>
+            <label>To</label>
+            <input type="date" value={allTo} onChange={(e) => setAllTo(e.target.value)} />
+          </div>
+          <button
+            className="primary"
+            onClick={() => void loadAllPartyLedgers()}
+            disabled={allBusy}
+          >
+            {allBusy ? "Loading…" : "Generate report"}
+          </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "all-parties",
+                () => api.partyLedgerAllXlsx(allFrom || undefined, allTo || undefined),
+                `all-party-ledgers_${periodTag(allFrom, allTo)}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null}
+          >
+            {xlsxBusy === "all-parties" ? "Preparing…" : "Export Excel"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 12 }}>
+          Every party's ledger with its closing balance; the last row totals all
+          parties. Leave the dates empty for full history.
+        </p>
+        {allLoaded && allPartyLedgers && <AllPartyLedgerTable report={allPartyLedgers} />}
       </div>
       )}
 

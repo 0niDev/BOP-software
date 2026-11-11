@@ -204,6 +204,22 @@ describe("xlsx report exports", () => {
     expect(strings(files)).toContain("Balance");
   });
 
+  it("prints every party's ledger with its closing balance and the grand total", async () => {
+    const report = await reports.allPartyLedgers();
+    const customer = report.parties.find((row) => row.partyId === ctx.ids.customerId);
+    if (!customer) throw new Error("the customer should appear in the all-parties report");
+    expect(customer.entries.length).toBeGreaterThan(0);
+    expect(customer.closingBalance).toBe(750); // the 5 × 150 credit sale
+
+    const sum = report.parties.reduce((total, row) => total + row.closingBalance, 0);
+    expect(report.grandTotal).toBe(sum);
+
+    const files = open((await xlsx.allPartyLedgers({})).buffer);
+    expect(sheetNames(files)).toEqual(["All Party Ledgers"]);
+    expect(strings(files)).toContain("Grand total (all parties)");
+    expect(worksheet(files)).toContain(`<v>${report.grandTotal}</v>`);
+  });
+
   it("exports the inventory report with every item's id, name and stock", async () => {
     const items = await new ItemService(ctx.db).list();
     const file = await xlsx.inventory({});

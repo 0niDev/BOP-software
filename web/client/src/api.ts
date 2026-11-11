@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountType,
+  AllPartyLedgers,
   Asset,
   BackupStatus,
   BalanceSheet,
@@ -65,11 +66,22 @@ export interface ReturnBody {
 
 const TOKEN_KEY = "bop-erp.token";
 
-/** `?from=&to=` for the report endpoints, omitting empty values. */
-function periodQuery(from?: string, to?: string): string {
+/**
+ * `?from=&to=` (plus extra flags) for the report endpoints, omitting empty
+ * values. Extras go through URLSearchParams too: appending them to the result
+ * by hand produced `.../trial-balance.csv&showZero=false` — a path with no
+ * query string — whenever the period was empty (the default), and the server
+ * answered 404 "Unknown endpoint."
+ */
+export function periodQuery(
+  from?: string,
+  to?: string,
+  extra: Record<string, string | boolean> = {},
+): string {
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  for (const [key, value] of Object.entries(extra)) params.set(key, String(value));
   const suffix = params.toString();
   return suffix ? `?${suffix}` : "";
 }
@@ -817,16 +829,52 @@ export const api = {
     const suffix = params.toString();
     return request<LedgerEntry[]>(`/api/reports/cash-book${suffix ? `?${suffix}` : ""}`);
   },
-  trialBalanceCsv: (from?: string, to?: string) =>
-    requestText(`/api/reports/trial-balance.csv${periodQuery(from, to)}`),
-  exportAllCsv: (from?: string, to?: string) =>
-    requestText(`/api/reports/export-all.csv${periodQuery(from, to)}`),
+  partyLedgerAll: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return request<AllPartyLedgers>(`/api/reports/party-ledger-all${suffix ? `?${suffix}` : ""}`);
+  },
+  trialBalanceCsv: (
+    from?: string,
+    to?: string,
+    showUnpriced = false,
+    showZero = false,
+  ) =>
+    requestText(
+      `/api/reports/trial-balance.csv${periodQuery(from, to, { showUnpriced, showZero })}`,
+    ),
+  exportAllCsv: (
+    from?: string,
+    to?: string,
+    showUnpriced = false,
+    showZero = false,
+  ) =>
+    requestText(
+      `/api/reports/export-all.csv${periodQuery(from, to, { showUnpriced, showZero })}`,
+    ),
 
   // --- Excel (.xlsx) exports of the same reports ------------------------
-  trialBalanceXlsx: (from?: string, to?: string) =>
-    requestBlob(`/api/reports/trial-balance.xlsx${periodQuery(from, to)}`),
+  trialBalanceXlsx: (
+    from?: string,
+    to?: string,
+    showUnpriced = false,
+  ) =>
+    requestBlob(
+      `/api/reports/trial-balance.xlsx${periodQuery(from, to, { showUnpriced })}`,
+    ),
   profitAndLossXlsx: (from?: string, to?: string) =>
     requestBlob(`/api/reports/profit-and-loss.xlsx${periodQuery(from, to)}`),
+  exportAllXlsx: (
+    from?: string,
+    to?: string,
+    showUnpriced = false,
+    showZero = false,
+  ) =>
+    requestBlob(
+      `/api/reports/export-all.xlsx${periodQuery(from, to, { showUnpriced, showZero })}`,
+    ),
   balanceSheetXlsx: (asAt?: string) =>
     requestBlob(
       `/api/reports/balance-sheet.xlsx${asAt ? `?asAt=${encodeURIComponent(asAt)}` : ""}`,
@@ -839,8 +887,14 @@ export const api = {
     if (to) params.set("to", to);
     return requestBlob(`/api/reports/party-ledger.xlsx?${params.toString()}`);
   },
-  exportAllXlsx: (from?: string, to?: string) =>
-    requestBlob(`/api/reports/export-all.xlsx${periodQuery(from, to)}`),
+  partyLedgerAllXlsx: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return requestBlob(`/api/reports/party-ledger-all.xlsx${suffix ? `?${suffix}` : ""}`);
+  },
+
   dashboard: () => request<DashboardData>("/api/dashboard"),
 
   // --- fixed assets -----------------------------------------------------

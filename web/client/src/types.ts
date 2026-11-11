@@ -439,6 +439,10 @@ export interface TrialBalanceRow {
   closingCredit: number;
   /** Inventory-account memo lines: stock value per tag as at the report end. */
   tagBreakdown?: Array<{ name: string; value: number }>;
+  /** Finished goods only: cost sales have already relieved (not stock any more). */
+  soldValue?: number;
+  usedValue?: number;
+  unpricedItems?: Array<{ name: string; quantity: number }>;
 }
 
 export interface TrialBalance {
@@ -475,6 +479,21 @@ export interface LedgerEntry {
   settled?: boolean;
   /** Dated before the party's opening date: shown, but the balance ignores it. */
   beforeOpening?: boolean;
+}
+
+/** One party's ledger + closing balance inside the all-parties report. */
+export interface PartyLedgerWithBalance {
+  partyId: number;
+  code: string;
+  name: string;
+  partyType: string;
+  entries: LedgerEntry[];
+  closingBalance: number;
+}
+
+export interface AllPartyLedgers {
+  parties: PartyLedgerWithBalance[];
+  grandTotal: number;
 }
 
 export interface UserRow {

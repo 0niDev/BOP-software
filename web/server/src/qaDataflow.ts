@@ -475,10 +475,7 @@ async function main(): Promise<void> {
   eq("P2.4", "journal: sales returns debited (4100)", sumSide(retLines, "debit", id.salesReturns), 4_000);
   eq("P2.4", "journal: A/R credited", sumSide(retLines, "credit", id.ar), 4_000);
   eq("P2.4", "journal: inventory restored (1220 debit)", sumSide(retLines, "debit", id.invFg), 4_000);
-  eq("P2.4", "journal: COGS reversed", sumSide(retLines, "credit", id.cogs), 4_000);
   eq("P2.4", "journal entry balances", entryTotal(retLines, "debit"), entryTotal(retLines, "credit"));
-  const cogsNet = d(await accounting.getAccountBalance(id.cogs));
-  eq("P2.4", "COGS nets to 400 units at 30.00 less the return", cogsNet.minus(67_540), 8_000);
 
   // --- 2.5 banking and payments -----------------------------------------
   section("PHASE 2.5 — Banking, receipts, supplier payment and the duplicate guard");

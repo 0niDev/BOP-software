@@ -39,6 +39,23 @@ export interface BalanceSheetResult {
   balanced: boolean;
 }
 
+/** One party's ledger with its closing balance, for the all-parties report. */
+export interface PartyLedgerWithBalance {
+  partyId: number;
+  code: string;
+  name: string;
+  partyType: string;
+  entries: LedgerEntry[];
+  /** Closing balance: the last entry's running balance, else zero. */
+  closingBalance: number;
+}
+
+export interface AllPartyLedgersResult {
+  parties: PartyLedgerWithBalance[];
+  /** Sum of every party's closing balance. */
+  grandTotal: number;
+}
+
 export interface LedgerEntry {
   date: string;
   voucherNumber: string;
@@ -136,6 +153,131 @@ export class ReportService {
           return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
         });
     }
+
+    // Finished goods are split on the report: everything the invoices sold,
+    // and what is physically left. A sold unit is sold whether or not the
+    // posting code remembered to relieve it, so the sold figure is built from
+    // the sales invoices themselves.
+    const fgRow = inventoryRows.find(
+      (row) => INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode] === "FINISHED_GOOD",
+    );
+    if (fgRow) fgRow.soldValue = await this.soldFinishedGoods(to);
+
+    // Raw and packing material get the mirror treatment: what manufacturing
+    // has already taken out of the account, and what is still in the store.
+    for (const row of inventoryRows) {
+      const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
+      if (itemType !== "RAW_MATERIAL" && itemType !== "PACKING_MATERIAL") continue;
+      row.usedValue = await this.issuedToProduction(row.accountId, to);
+    }
+
+    // What is behind each figure but carries no cost, so it values at zero.
+    for (const row of inventoryRows) {
+      const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
+      if (!itemType) continue;
+      row.unpricedItems =
+        itemType === "FINISHED_GOOD"
+          ? await this.unpricedProductionInputs()
+          : await this.unpricedStockItems(itemType);
+    }
+  }
+
+  /** Items held in the store whose every batch has no cost, so they value at zero. */
+  private async unpricedStockItems(
+    itemType: ItemType,
+  ): Promise<Array<{ name: string; quantity: number }>> {
+    return this.db.all<{ name: string; quantity: number }>(
+      `SELECT i.item_name AS name, SUM(sb.quantity_in_stock) AS quantity
+         FROM stock_batches sb
+         JOIN items i ON i.id = sb.item_id
+        WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+          AND i.item_type = ?
+          AND sb.quantity_in_stock > 0
+          AND sb.purchase_price = 0
+          AND (sb.raw_unit_cost + sb.packing_unit_cost) = 0
+        GROUP BY i.id, i.item_name
+        ORDER BY quantity DESC`,
+      [this.companyId, itemType],
+    );
+  }
+
+  /**
+   * Inputs pulled into production and packing runs that carry no cost anywhere:
+   * no purchase price and no costed batch. Their value never reached the
+   * finished goods made from them.
+   */
+  private async unpricedProductionInputs(): Promise<Array<{ name: string; quantity: number }>> {
+    return this.db.all<{ name: string; quantity: number }>(
+      `WITH runs AS (
+         SELECT bom_id, actual_quantity FROM production_orders WHERE actual_quantity > 0
+         UNION ALL
+         SELECT bom_id, actual_quantity FROM packing_orders WHERE actual_quantity > 0
+       )
+       SELECT i.item_name AS name,
+              SUM(bc.quantity_required * r.actual_quantity / NULLIF(b.output_quantity, 0)) AS quantity
+         FROM runs r
+         JOIN bill_of_materials b ON b.id = r.bom_id
+         JOIN bom_components bc ON bc.bom_id = b.id
+         JOIN items i ON i.id = bc.component_item_id
+        WHERE i.company_id = ?
+          AND NOT EXISTS (
+                SELECT 1 FROM purchase_invoice_items p
+                 WHERE p.item_id = i.id AND p.unit_cost > 0)
+          AND NOT EXISTS (
+                SELECT 1 FROM stock_batches sb
+                 WHERE sb.item_id = i.id
+                   AND (sb.purchase_price > 0 OR (sb.raw_unit_cost + sb.packing_unit_cost) > 0))
+        GROUP BY i.id, i.item_name
+        ORDER BY quantity DESC`,
+      [this.companyId],
+    );
+  }
+
+  /**
+   * Material taken out of an inventory account by manufacturing production, as
+   * at `to`. Stock has no issue movements in this dataset, so the manufacturing
+   * vouchers are the only record of what was consumed.
+   */
+  private async issuedToProduction(accountId: number, to: string | null): Promise<number> {
+    const row = await this.db.get<{ value: number }>(
+      `SELECT COALESCE(SUM(l.credit), 0) AS value
+         FROM journal_entry_lines l
+         JOIN journal_entries je ON je.id = l.journal_entry_id
+        WHERE l.account_id = ? AND je.voucher_type = 'MANUFACTURING'
+          ${to ? "AND date(je.entry_date) <= date(?)" : ""}`,
+      to ? [accountId, to] : [accountId],
+    );
+    return toStorage(row?.value ?? 0);
+  }
+
+  /**
+   * Cost of every finished good sold as at `to`, taken from the invoices: each
+   * sales-invoice line contributes its own quantity at that item's average
+   * intake cost (purchases, production runs and opening stock). Quantities come
+   * from the invoice, so sales posted without a stock movement are still
+   * counted; only the cost has to be looked up.
+   */
+  private async soldFinishedGoods(to: string | null): Promise<number> {
+    const row = await this.db.get<{ value: number }>(
+      `WITH intake AS (
+         SELECT m.item_id,
+                SUM(m.quantity * m.unit_cost) / NULLIF(SUM(m.quantity), 0) AS unit_cost
+           FROM stock_movements m
+          WHERE m.movement_type IN ('PURCHASE','PRODUCTION_IN','OPENING')
+            AND m.quantity > 0 AND m.unit_cost > 0
+            ${to ? "AND date(m.movement_date) <= date(?)" : ""}
+          GROUP BY m.item_id
+       )
+       SELECT COALESCE(SUM(sii.quantity * COALESCE(cost.unit_cost, 0)), 0) AS value
+         FROM sales_invoice_items sii
+         JOIN sales_invoices si ON si.id = sii.invoice_id
+         JOIN items it ON it.id = sii.item_id
+         LEFT JOIN intake cost ON cost.item_id = sii.item_id
+        WHERE it.item_type = 'FINISHED_GOOD' AND it.company_id = ?
+          ${to ? "AND date(si.invoice_date) <= date(?)" : ""}`,
+      to ? [to, this.companyId, to] : [this.companyId],
+    );
+    return toStorage(row?.value ?? 0);
   }
 
   /** Stock value by item type and tag, as at `to` (null = current stock). */
@@ -471,6 +613,34 @@ export class ReportService {
     });
   }
 
+  /**
+   * Every active party's full ledger in one report: per party the entries and
+   * closing balance, plus the grand total of all closing balances. Reuses
+   * partyLedger() so the figures match the single-party report exactly.
+   */
+  async allPartyLedgers(from?: string, to?: string): Promise<AllPartyLedgersResult> {
+    const parties = await this.parties.list(this.companyId, { activeOnly: true });
+    const result: PartyLedgerWithBalance[] = [];
+    let grandTotal = new Decimal(0);
+    for (const party of parties) {
+      const entries = await this.partyLedger(party.id, from, to);
+      // Parties with nothing on their ledger carry no information here.
+      if (entries.length === 0) continue;
+      const last = entries[entries.length - 1];
+      const closing = last ? new Decimal(last.balance) : new Decimal(0);
+      grandTotal = grandTotal.plus(closing);
+      result.push({
+        partyId: party.id,
+        code: party.code,
+        name: party.name,
+        partyType: party.party_type,
+        entries,
+        closingBalance: toStorage(closing),
+      });
+    }
+    return { parties: result, grandTotal: toStorage(grandTotal) };
+  }
+
   /** Cash book: every posted movement on the Cash in Hand account. */
   async cashBook(from?: string, to?: string): Promise<LedgerEntry[]> {
     let sql = `
@@ -546,6 +716,23 @@ export class ReportService {
     ];
   }
 
+  /** CSV lines for the "Unpriced items" breakdown under an inventory account. */
+  private unpricedCsvRows(
+    row: TrialBalanceRow,
+    label: (text: string) => string,
+  ): string[] {
+    const items = row.unpricedItems ?? [];
+    if (items.length === 0) return [];
+    const line = (name: string, qty: number): string =>
+      ["", label(`Unpriced items (${items.length})`), "", "", "", "", "", "", ""].join(",");
+    const itemLine = (item: { name: string; quantity: number }): string =>
+      ["", label(`  ${item.name}`), "", "", "", "", "", item.quantity.toFixed(2), ""].join(",");
+    return [
+      line("", items.length),
+      ...items.map(itemLine),
+    ];
+  }
+
   /**
    * Trial balance rendered as CSV for download/export, including the opening,
    * period and closing columns an accountant expects.
@@ -556,7 +743,15 @@ export class ReportService {
     const lines = [
       "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
     ];
+    const hasMovement = (row: TrialBalanceRow): boolean =>
+      row.openingDebit !== 0 ||
+      row.openingCredit !== 0 ||
+      row.debit !== 0 ||
+      row.credit !== 0 ||
+      row.closingDebit !== 0 ||
+      row.closingCredit !== 0;
     for (const row of rows) {
+      if (opts.showZero !== true && !hasMovement(row)) continue;
       lines.push(
         [
           escape(row.accountCode),
@@ -570,7 +765,12 @@ export class ReportService {
           row.closingCredit.toFixed(2),
         ].join(","),
       );
-      lines.push(...this.inventoryMemoCsv(row, (text) => escape(`  ${text}`)));
+      if (opts.showUnpriced === true) {
+        lines.push(...this.inventoryMemoCsv(row, (text) => escape(`  ${text}`)));
+        lines.push(...this.unpricedCsvRows(row, (text) => escape(`  ${text}`)));
+      } else {
+        lines.push(...this.inventoryMemoCsv(row, (text) => escape(`  ${text}`)));
+      }
     }
     lines.push(
       ["", "", "TOTAL", "", "", "", "", totalDebit.toFixed(2), totalCredit.toFixed(2)].join(
@@ -627,6 +827,13 @@ export class ReportService {
             csvEscape(`${"  ".repeat(row.depth + 1)}${text}`),
           ),
         );
+        if (opts.showUnpriced === true) {
+          lines.push(
+            ...this.unpricedCsvRows(row, (text) =>
+              csvEscape(`${"  ".repeat(row.depth + 1)}${text}`),
+            ),
+          );
+        }
       }
       lines.push(
         [

@@ -83,6 +83,18 @@ export class StockLedgerService {
         await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0 WHERE id = ?", [
           batch.batch_id,
         ]);
+        // Offset the batch in the movement ledger too, otherwise on-hand and
+        // SUM(stock_movements) disagree for every batch this reset touched.
+        await this.resets.insertAdjustment({
+          itemId: batch.item_id,
+          batchId: batch.batch_id,
+          warehouseId: batch.warehouse_id,
+          quantity: -batch.quantity,
+          unitCost: batch.unit_cost,
+          resetId,
+          notes: `Stock ledger zeroed (reset #${resetId})`,
+          createdBy: input.createdBy ?? null,
+        });
       }
       return {
         resetId,
@@ -120,6 +132,16 @@ export class StockLedgerService {
           "UPDATE stock_batches SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?",
           [line.quantity, line.batch_id],
         );
+        await this.resets.insertAdjustment({
+          itemId: line.item_id,
+          batchId: line.batch_id,
+          warehouseId: line.warehouse_id,
+          quantity: line.quantity,
+          unitCost: line.unit_cost,
+          resetId,
+          notes: `Stock ledger restored (reset #${resetId})`,
+          createdBy: restoredBy,
+        });
       }
       const updated = await this.resets.markRestored(resetId, this.companyId, restoredBy);
       return {

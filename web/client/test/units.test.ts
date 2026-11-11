@@ -316,3 +316,31 @@ test("expense form posts level-4 items, or the level-3 itself when it has none",
   expect(items["52"]).toBeUndefined();
   expect(Object.values(items).flat()).not.toContain("520111");
 });
+
+test("category picker offers level-4 items whose value is the level-3 category", async () => {
+  const { categoryOptions, expenseCategories } = await import("../src/pages/ExpensesPage");
+  const account = (id: number, code: string, parent: number | null) => ({
+    id,
+    account_code: code,
+    account_name: code,
+    account_type: "EXPENSE" as const,
+    account_subtype: null,
+    parent_account_id: parent,
+    opening_balance: 0,
+    is_system_account: 0,
+    is_active: 1,
+  });
+  const groups = expenseCategories([
+    account(1, "5", null),
+    account(2, "52", 1),
+    account(3, "5201", 2), // level 3 category
+    account(4, "52011", 3), // level 4 item
+    account(7, "5207", 2), // level 3 with no level 4
+  ]);
+  const options = categoryOptions(groups);
+  expect(options).toEqual([
+    { value: "3", label: "5201 - 5201" },
+    { value: "3", label: "52011 - 52011 (5201)" },
+    { value: "7", label: "5207 - 5207" },
+  ]);
+});

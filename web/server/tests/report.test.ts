@@ -44,6 +44,29 @@ describe("ReportService", () => {
     expect(result.totalDebit).toBe(result.totalCredit);
   });
 
+  it("splits finished goods into sold and in stock on the trial balance", async () => {
+    await seedActivity();
+    const { rows } = await reports.trialBalance();
+    const fg = rows.find((row) => row.accountCode === "1220");
+    // 5 + 2 units on the invoices, each at the demo stock's cost of 100.
+    expect(fg?.soldValue).toBeCloseTo(700, 2);
+
+    // A sale that never relieved stock still counts as sold: the invoice says so.
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 0");
+    const afterReset = await reports.trialBalance();
+    expect(afterReset.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(700, 2);
+    // Only finished goods get the sold memo line; material accounts get the
+    // consumed one instead (nothing issued in this fixture, so it is zero).
+    expect(rows.find((row) => row.accountCode === "1200")?.soldValue).toBeUndefined();
+    expect(rows.find((row) => row.accountCode === "1200")?.usedValue).toBe(0);
+    expect(rows.find((row) => row.accountCode === "1210")?.usedValue).toBe(0);
+    expect(fg?.usedValue).toBeUndefined();
+
+    // The memo line follows the report date.
+    const early = await reports.trialBalance({ to: "2026-10-08" });
+    expect(early.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(500, 2);
+  });
+
   it("produces a balance sheet that balances after trading activity", async () => {
     await seedActivity();
     const sheet = await reports.balanceSheet();
@@ -106,7 +129,7 @@ describe("ReportService", () => {
 
   it("renders a trial balance CSV with opening/period/closing columns and totals", async () => {
     await seedActivity();
-    const csv = await reports.trialBalanceCsv();
+    const csv = await reports.trialBalanceCsv({ showZero: true });
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
       "Account Code,Account Name,Type,Opening Debit,Opening Credit,Debit,Credit,Closing Debit,Closing Credit",
@@ -181,7 +204,7 @@ describe("ReportService", () => {
     expect(tb.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
       { name: "bottle", value: 100_000 },
     ]);
-    const csv = await reports.trialBalanceCsv();
+    const csv = await reports.trialBalanceCsv({ showZero: true });
     expect(csv).toContain("↳ bottle");
     // The memo block closes with the stock-vs-GL gap, using the account's own
     // (GL) closing balance rather than a second GL row.

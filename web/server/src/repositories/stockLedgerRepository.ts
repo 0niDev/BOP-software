@@ -19,6 +19,7 @@ export interface StockLedgerResetRow {
 export interface StockLedgerBatchRow {
   batch_id: number;
   item_id: number;
+  warehouse_id: number;
   quantity: number;
   unit_cost: number;
 }
@@ -46,6 +47,7 @@ export class StockLedgerRepository {
     return this.db.all<StockLedgerBatchRow>(
       `SELECT sb.id AS batch_id,
               sb.item_id,
+              sb.warehouse_id,
               sb.quantity_in_stock AS quantity,
               CASE WHEN (sb.raw_unit_cost + sb.packing_unit_cost) > 0
                    THEN sb.raw_unit_cost + sb.packing_unit_cost
@@ -96,12 +98,46 @@ export class StockLedgerRepository {
 
   async lines(resetId: number): Promise<StockLedgerBatchRow[]> {
     return this.db.all<StockLedgerBatchRow>(
-      `SELECT batch_id, item_id, quantity, unit_cost
-         FROM stock_ledger_reset_lines
-        WHERE reset_id = ?
-        ORDER BY id`,
+      `SELECT l.batch_id,
+              l.item_id,
+              sb.warehouse_id,
+              l.quantity,
+              l.unit_cost
+         FROM stock_ledger_reset_lines l
+         JOIN stock_batches sb ON sb.id = l.batch_id
+        WHERE l.reset_id = ?
+        ORDER BY l.id`,
       [resetId],
     );
+  }
+
+  /**
+   * A quantity change must also reach the movement ledger: on-hand stock is
+   * expected to equal SUM(stock_movements) for every item, and a reset that only
+   * edits batches would leave the two disagreeing forever.
+   */
+  async insertAdjustment(input: {
+    itemId: number;
+    batchId: number;
+    warehouseId: number;
+    quantity: number;
+    unitCost: number;
+    resetId: number;
+    notes: string;
+    createdBy: number | null;
+  }): Promise<void> {
+    await insertRow(this.db, "stock_movements", {
+      item_id: input.itemId,
+      batch_id: input.batchId,
+      warehouse_id: input.warehouseId,
+      movement_type: "ADJUSTMENT",
+      quantity: input.quantity,
+      unit_cost: input.unitCost,
+      reference_table: "stock_ledger_resets",
+      reference_id: input.resetId,
+      notes: input.notes,
+      created_by: input.createdBy,
+    });
   }
 
   /** Stamp the reset as undone; returns the stamped row. */

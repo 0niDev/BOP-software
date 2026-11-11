@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
-import SearchableSelect from "../components/SearchableSelect";
+import SearchableSelect, { type SelectOption } from "../components/SearchableSelect";
 import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
 import { formatDate } from "../lib/format";
 import { moveRowFocus } from "../lib/gridKeys";
@@ -55,6 +55,30 @@ export function expenseCategories(accounts: readonly Account[]): CategoryGroup[]
     }
   }
   return categories;
+}
+
+/**
+ * Category picker options: the level-3 category itself plus every level-4 item
+ * under it, so "kashif" can be searched directly. An item option carries its
+ * parent's id as the value, so picking it auto-fills the category.
+ */
+export function categoryOptions(categories: readonly CategoryGroup[]): SelectOption[] {
+  const options: SelectOption[] = [];
+  for (const group of categories) {
+    options.push({
+      value: String(group.account.id),
+      label: `${group.account.account_code} - ${group.account.account_name}`,
+    });
+    for (const item of group.items) {
+      // A childless category is its own item; that option would be a duplicate.
+      if (item.id === group.account.id) continue;
+      options.push({
+        value: String(group.account.id),
+        label: `${item.account_code} - ${item.account_name} (${group.account.account_name})`,
+      });
+    }
+  }
+  return options;
 }
 
 export default function ExpensesPage() {
@@ -326,8 +350,9 @@ export default function ExpensesPage() {
               </button>
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
-              Pick a category (level 3), then type an amount next to the items (level 4). A category
-              with no items below it is posted to directly. Zeros are skipped.
+              Pick a category (level 3) or search an item (level 4) directly — its category fills
+              in. Then type an amount next to the items. A category with no items below it is
+              posted to directly. Zeros are skipped.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -343,10 +368,7 @@ export default function ExpensesPage() {
                   placeholder="Select..."
                   emptyText="No matching category"
                   autoFocus
-                  options={categories.map((group) => ({
-                    value: String(group.account.id),
-                    label: `${group.account.account_code} - ${group.account.account_name}`,
-                  }))}
+                  options={categoryOptions(categories)}
                 />
               </div>
               <div>

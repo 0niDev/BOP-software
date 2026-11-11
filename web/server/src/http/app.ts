@@ -1527,9 +1527,19 @@ export function createApp(
     res.json(await reports.cashBook(from, to));
   });
 
+  app.get("/api/reports/party-ledger-all", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.allPartyLedgers(from, to));
+  });
+
   app.get("/api/reports/trial-balance.csv", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    res.type("text/csv").send(await reports.trialBalanceCsv({ from, to }));
+    const showUnpriced =
+      req.query.showUnpriced === "1" || req.query.showUnpriced === "true";
+    const showZero = req.query.showZero === "1" || req.query.showZero === "true";
+    res.type("text/csv").send(
+      await reports.trialBalanceCsv({ from, to, showUnpriced, showZero }),
+    );
   });
 
   // "Export all reports" for one period (trial balance + P&L + balance sheet +
@@ -1537,7 +1547,12 @@ export function createApp(
   // every report for a month/year.
   app.get("/api/reports/export-all.csv", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    res.type("text/csv").send(await reports.exportAllCsv({ from, to }));
+    const showUnpriced =
+      req.query.showUnpriced === "1" || req.query.showUnpriced === "true";
+    const showZero = req.query.showZero === "1" || req.query.showZero === "true";
+    res.type("text/csv").send(
+      await reports.exportAllCsv({ from, to, showUnpriced, showZero }),
+    );
   });
 
   // --- Excel (.xlsx) exports of the same reports --------------------------
@@ -1554,7 +1569,19 @@ export function createApp(
 
   app.get("/api/reports/trial-balance.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    const file = await reportXlsx.trialBalance({ from, to });
+    const showUnpriced =
+      req.query.showUnpriced === "1" || req.query.showUnpriced === "true";
+    const file = await reportXlsx.trialBalance({ from, to, showUnpriced });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/export-all.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const showUnpriced =
+      req.query.showUnpriced === "1" || req.query.showUnpriced === "true";
+    const showZero =
+      req.query.showZero === "1" || req.query.showZero === "true";
+    const file = await reportXlsx.trialBalance({ from, to, showUnpriced, showZero });
     sendXlsx(res, file.fileName, file.buffer);
   });
 
@@ -1597,6 +1624,12 @@ export function createApp(
   app.get("/api/reports/export-all.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     const file = await reportXlsx.all({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/party-ledger-all.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.allPartyLedgers({ from, to });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

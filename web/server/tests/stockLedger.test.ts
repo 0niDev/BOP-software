@@ -17,6 +17,23 @@ afterEach(async () => {
   await closeDb(ctx.db);
 });
 
+/**
+ * Per-item on-hand from the batch ledger and from the movement ledger. These
+ * must always agree, so every quantity change is checked both ways.
+ */
+async function ledgers(): Promise<{ batches: Map<number, number>; movements: Map<number, number> }> {
+  const batchRows = await ctx.db.all<{ item_id: number; total: number }>(
+    "SELECT item_id, SUM(quantity_in_stock) AS total FROM stock_batches WHERE is_active = 1 GROUP BY item_id",
+  );
+  const movementRows = await ctx.db.all<{ item_id: number; total: number }>(
+    "SELECT item_id, SUM(quantity) AS total FROM stock_movements GROUP BY item_id",
+  );
+  return {
+    batches: new Map(batchRows.map((row) => [row.item_id, Number(row.total)])),
+    movements: new Map(movementRows.map((row) => [row.item_id, Number(row.total)])),
+  };
+}
+
 /** Every batch quantity, keyed by batch id, so a restore can be compared exactly. */
 async function quantities(): Promise<Map<number, number>> {
   const rows = await ctx.db.all<{ id: number; quantity_in_stock: number }>(
@@ -46,6 +63,14 @@ describe("StockLedgerService", () => {
     expect(reset.totalValue).toBeGreaterThan(0);
     expect([...(await quantities()).values()].every((qty) => qty === 0)).toBe(true);
 
+    // The movement ledger has to follow: on-hand === SUM(stock_movements).
+    const zeroed = await ledgers();
+    expect(zeroed.movements).toEqual(zeroed.batches);
+    const adjustments = await ctx.db.get<{ total: number }>(
+      "SELECT COUNT(*) AS total FROM stock_movements WHERE movement_type = 'ADJUSTMENT'",
+    );
+    expect(Number(adjustments?.total)).toBe(liveBatches);
+
     const history = await ledger.list();
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({
@@ -59,6 +84,8 @@ describe("StockLedgerService", () => {
     expect(restored.batchCount).toBe(liveBatches);
     expect(restored.restoredAt).not.toBe("");
     expect(await quantities()).toEqual(before);
+    const restoredLedger = await ledgers();
+    expect(restoredLedger.movements).toEqual(restoredLedger.batches);
 
     const afterRestore = await ledger.list();
     expect(afterRestore[0].restored_at).not.toBeNull();

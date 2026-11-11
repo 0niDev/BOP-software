@@ -200,7 +200,8 @@ export default function SearchableSelect({
           {filtered.length === 0 && <div className="sselect-empty">{emptyText}</div>}
           {filtered.map((option, index) => (
             <div
-              key={option.value === "" ? "«empty»" : option.value}
+              // Value alone is not unique: an item option repeats its category's id.
+              key={option.value === "" ? "«empty»" : `${option.value}-${index}`}
               role="option"
               aria-selected={option.value === value}
               className={`sselect-option${index === highlight ? " active" : ""}${

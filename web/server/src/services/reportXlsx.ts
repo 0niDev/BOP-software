@@ -263,7 +263,7 @@ export class ReportXlsx {
     }
   }
 
-  async trialBalance(options: DateRangeOptions): Promise<XlsxFile> {
+  async trialBalance(options: DateRangeOptions & { showUnpriced?: boolean }): Promise<XlsxFile> {
     return {
       fileName: `trial-balance_${periodSlug(options.from, options.to)}.xlsx`,
       buffer: await this.write([await this.trialBalanceSheet(options)]),
@@ -301,6 +301,59 @@ export class ReportXlsx {
       fileName: `party-ledger_${party.code ?? request.partyId}_${periodSlug(request.from, request.to)}.xlsx`,
       buffer: await this.write([
         await this.partyLedgerSheet(request.partyId, party.name, party.code, request),
+      ]),
+    };
+  }
+
+  /**
+   * Every active party's ledger in one sheet: a party header row with its
+   * closing balance, its entries below, then the grand total of all parties.
+   * Same entries the on-screen all-parties report shows.
+   */
+  async allPartyLedgers(options: DateRangeOptions): Promise<XlsxFile> {
+    const report = await this.reports.allPartyLedgers(
+      options.from ?? undefined,
+      options.to ?? undefined,
+    );
+    const PARTY: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED" };
+    const data: SheetData = [
+      ...heading("All Party Ledgers", periodLabel(options.from, options.to)),
+      ledgerHeaderRow(),
+    ];
+    for (const party of report.parties) {
+      data.push([
+        text(`${party.name}${party.code ? ` (${party.code})` : ""}`, PARTY),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        money(party.closingBalance, PARTY),
+      ]);
+      data.push(...ledgerRows(party.entries));
+      data.push([]);
+    }
+    data.push([
+      text("Grand total (all parties)", TOTAL),
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      money(report.grandTotal, TOTAL),
+    ]);
+    return {
+      fileName: `all-party-ledgers_${periodSlug(options.from, options.to)}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "All Party Ledgers",
+          columns: LEDGER_COLUMNS,
+          stickyRowsCount: 6,
+          orientation: "landscape",
+        },
       ]),
     };
   }
@@ -458,7 +511,7 @@ export class ReportXlsx {
 
   // --- one builder per report, shared by the single and combined workbooks ---
 
-  private async trialBalanceSheet(options: DateRangeOptions): Promise<SheetSpec> {
+  private async trialBalanceSheet(options: DateRangeOptions & { showUnpriced?: boolean }): Promise<SheetSpec> {
     const report = await this.reports.trialBalance(options);
     // Same organization as the CoA page: type sections in CoA order, accounts
     // nested under their parent, and a closing subtotal per section.
@@ -480,9 +533,11 @@ export class ReportXlsx {
         [text(`${section.label.toUpperCase()} (${section.rows.length})`, SECTION)],
         ...section.rows.flatMap((row): SheetData => {
           const tags = row.tagBreakdown ?? [];
-          const memo = (label: string, value: number): Cell[] => [
+          // level 1 tucks a line under the memo line above it, e.g. a tag
+          // breaking down the "In stock" total.
+          const memo = (label: string, value: number, level = 0): Cell[] => [
             null,
-            text(label, { ...MUTED, indent: row.depth * 2 + 2 }),
+            text(label, { ...MUTED, indent: row.depth * 2 + 2 + level * 2 }),
             null,
             null,
             null,
@@ -492,6 +547,10 @@ export class ReportXlsx {
             null,
           ];
           const stock = tags.reduce((total, tag) => total + tag.value, 0);
+          const sold = row.soldValue;
+          const used = row.usedValue;
+          // Finished goods: the account should equal sold + still-on-shelf.
+          const expectedInStock = sold == null ? row.closingDebit : row.closingDebit - sold;
           return [
             [
               text(row.displayCode),
@@ -507,9 +566,34 @@ export class ReportXlsx {
               moneyOrBlank(row.closingDebit),
               moneyOrBlank(row.closingCredit),
             ],
-            ...tags.map((tag): Cell[] => memo(`↳ ${tag.name}`, tag.value)),
+            // Finished goods split into already-sold cost and what is on hand;
+            // the other inventory accounts keep their per-tag lines.
+            ...(sold != null
+              ? [
+                  memo("↳ Sold FG (per invoices)", sold),
+                  memo("↳ FG in stock", stock),
+                ]
+              : used != null
+                ? [
+                    memo("↳ Used in production", used),
+                    memo("↳ In stock", stock),
+                    ...tags.map((tag): Cell[] => memo(`· ${tag.name}`, tag.value, 1)),
+                  ]
+                : tags.map((tag): Cell[] => memo(`↳ ${tag.name}`, tag.value))),
             // The memo block ends with the stock-vs-GL gap, once per account.
-            ...(tags.length > 0 ? [memo("Difference (stock - GL)", stock - row.closingDebit)] : []),
+            ...(tags.length > 0 || sold != null || used != null
+              ? [              memo("Difference (stock - GL)", stock - expectedInStock)]
+              : []),
+            // Opt-in: items behind the figure whose unit costs nothing.
+            ...(options.showUnpriced === true && row.unpricedItems?.length
+              ? [
+                  memo(`Unpriced items (${row.unpricedItems!.length})`, 0),
+                  ...row.unpricedItems!.map(
+                    (item) =>
+                      memo(`  ${item.name}`, item.quantity, 1),
+                  ),
+                ]
+              : []),
           ];
         }),
         [
