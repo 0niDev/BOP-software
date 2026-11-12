@@ -92,6 +92,32 @@ interface StockConsumption {
   cost: Decimal;
 }
 
+/**
+ * Spread a line-level amount (discount, tax, line total) over that line's batch
+ * shares in proportion to the quantity each share took, rounding to cents and
+ * letting the last share absorb the remainder. A line stored as several rows
+ * therefore still sums back to what the invoice charges: report totals built
+ * from `sales_invoice_items.line_total` match the invoice header.
+ */
+function splitAcrossShares(
+  total: Decimal,
+  lineQuantity: Decimal,
+  shares: readonly { quantity: Decimal }[],
+): Decimal[] {
+  const parts: Decimal[] = [];
+  let allocated = new Decimal(0);
+  for (const [index, share] of shares.entries()) {
+    if (index === shares.length - 1) {
+      parts.push(round2(total.minus(allocated)));
+      break;
+    }
+    const part = round2(total.times(share.quantity).dividedBy(lineQuantity));
+    allocated = allocated.plus(part);
+    parts.push(part);
+  }
+  return parts;
+}
+
 /** COGS / inventory account codes by item type (mirrors the Python mapping). */
 const COGS_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   FINISHED_GOOD: "5000",
@@ -480,16 +506,22 @@ export class SalesInvoiceService {
         );
       }
 
-      for (const share of shares) {
+      // Values on the row are that share's slice of the line, not the whole
+      // line repeated: summing the rows must reproduce the invoice total.
+      const shareDiscounts = splitAcrossShares(line.discount, line.quantity, shares);
+      const shareTaxes = splitAcrossShares(line.tax, line.quantity, shares);
+      const shareTotals = splitAcrossShares(line.lineTotal, line.quantity, shares);
+
+      for (const [index, share] of shares.entries()) {
         await this.sales.insertItem({
           invoice_id: invoiceId,
           item_id: line.item.id,
           batch_id: share.batchId,
           quantity: toQuantity(share.quantity),
           unit_price: toStorage(line.unitPrice),
-          discount_amount: toStorage(line.discount),
-          tax_amount: toStorage(line.tax),
-          line_total: toStorage(line.lineTotal),
+          discount_amount: toStorage(shareDiscounts[index]!),
+          tax_amount: toStorage(shareTaxes[index]!),
+          line_total: toStorage(shareTotals[index]!),
         });
         if (share.batchId === null) continue;
         // Stock movement (negative: stock leaving the warehouse).

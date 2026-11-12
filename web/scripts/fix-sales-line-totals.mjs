@@ -5,6 +5,11 @@
 //   node scripts/fix-sales-line-totals.mjs data/fix-fixed-2026-11-11.db --apply
 //   node scripts/fix-sales-line-totals.mjs "sqlitecloud://...?apikey=..." --apply
 //
+// A SQLite Cloud database whose name contains a space cannot be put in the URL
+// (the driver looks it up literally), so connect without a database and name it:
+//   node scripts/fix-sales-line-totals.mjs "sqlitecloud://host:8860?apikey=..." \
+//     --database "sales report" --apply
+//
 // Dry-run shows every row it would change. --apply recomputes
 // line_total = quantity*unit_price - discount_amount + tax_amount for the bad
 // rows only, then verifies SUM(lines) == invoice header total for every invoice.
@@ -16,8 +21,12 @@ const require = createRequire(import.meta.url);
 
 const target = process.argv[2];
 const apply = process.argv.includes("--apply");
+const databaseIndex = process.argv.indexOf("--database");
+const database = databaseIndex > -1 ? process.argv[databaseIndex + 1] : undefined;
 if (!target) {
-  console.error("usage: node scripts/fix-sales-line-totals.mjs <db-file | sqlitecloud://url> [--apply]");
+  console.error(
+    "usage: node scripts/fix-sales-line-totals.mjs <db-file | sqlitecloud://url> [--database <name>] [--apply]",
+  );
   process.exit(1);
 }
 
@@ -25,6 +34,9 @@ const isCloud = target.startsWith("sqlitecloud://");
 const db = isCloud
   ? new (require("@sqlitecloud/drivers").Database)(target)
   : new (require("node:sqlite").DatabaseSync)(path.resolve(import.meta.dirname, "..", target));
+if (isCloud && database) {
+  await db.sql({ query: `USE DATABASE "${database.replace(/"/g, '""')}"`, parameters: [] });
+}
 const sql = (q, p = []) => (isCloud ? db.sql({ query: q, parameters: p }) : db.prepare(q).all(...p));
 const run = (q, p = []) => (isCloud ? db.sql({ query: q, parameters: p }) : db.prepare(q).run(...p));
 

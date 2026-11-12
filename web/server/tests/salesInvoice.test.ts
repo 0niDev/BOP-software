@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError, InsufficientStockError } from "../src/domain/errors.js";
+import { insertRow } from "../src/repositories/base.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -63,6 +64,62 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     expect(ledger[0]?.settled).toBe(true);
     expect(ledger[0]?.debit).toBe(750);
     expect(ledger[0]?.balance).toBe(0);
+  });
+
+  it("splits a line across batches without repeating the line total", async () => {
+    // Two batches so one line has to be consumed in two shares.
+    const demo = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM stock_batches WHERE item_id = ? AND warehouse_id = 1",
+      [ctx.ids.itemId],
+    );
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 2 WHERE id = ?", [demo!.id]);
+    await insertRow(ctx.db, "stock_batches", {
+      item_id: ctx.ids.itemId,
+      warehouse_id: 1,
+      batch_number: "SPLIT-B",
+      purchase_price: 100,
+      raw_unit_cost: 100,
+      packing_unit_cost: 0,
+      quantity_in_stock: 10,
+      is_active: 1,
+    });
+
+    const result = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [
+        { itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150, discountAmount: 10, taxAmount: 5 },
+      ],
+    });
+    expect(result.totalAmount).toBe(745);
+
+    const rows = await ctx.db.all<{
+      quantity: number;
+      line_total: number;
+      discount_amount: number;
+      tax_amount: number;
+    }>(
+      "SELECT quantity, line_total, discount_amount, tax_amount FROM sales_invoice_items WHERE invoice_id = ? ORDER BY id",
+      [result.id],
+    );
+    expect(rows.map((r) => Number(r.quantity))).toEqual([2, 3]);
+    const sum = (key: "line_total" | "discount_amount" | "tax_amount") =>
+      rows.reduce((acc, r) => acc + Number(r[key]), 0);
+    expect(sum("line_total")).toBe(745);
+    expect(sum("discount_amount")).toBe(10);
+    expect(sum("tax_amount")).toBe(5);
+    for (const row of rows) {
+      expect(Number(row.line_total)).toBeCloseTo(
+        Number(row.quantity) * 150 - Number(row.discount_amount) + Number(row.tax_amount),
+        2,
+      );
+    }
+
+    // The party product sales report sums these rows, so it must match the
+    // invoice instead of counting the line once per batch.
+    const report = await new ReportService(ctx.db).partyProductSales();
+    expect(report.grandTotal).toBe(745);
   });
 
   it("posts to accounts receivable (with the customer) for a credit sale", async () => {

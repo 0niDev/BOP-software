@@ -398,7 +398,9 @@ function main() {
   const counts = { wrong: 0, extra: 0, missing: 0, match: 0 }
 
   for (const [party, pdfKey] of [...partyMap].sort((a, b) => a[0].localeCompare(b[0]))) {
-    const oursLines = Object.fromEntries(Object.entries(ours[party]).filter(([, v]) => v > 0.5))
+    // Keep negative rows: a product can come back as a net return, and dropping
+    // those rows would understate the party total against the export.
+    const oursLines = Object.fromEntries(Object.entries(ours[party]).filter(([, v]) => Math.abs(v) > 0.5))
     const sumOurs = Object.values(ours[party]).reduce((s, v) => s + v, 0)
     if (Math.abs(sumOurs - totals[party]) > 0.5) {
       throw new Error(`${party}: product rows ${sumOurs} != declared party total ${totals[party]}`)
