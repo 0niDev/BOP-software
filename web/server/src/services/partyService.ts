@@ -10,9 +10,16 @@ import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { SystemAccountCodes, type PartyType } from "../domain/enums.js";
 import { AccountRepository } from "../repositories/accountRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
-import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
+import {
+  PartyRepository,
+  type PartyRow,
+} from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
-import { AccountingService, type JournalLineInput } from "./accountingService.js";
+import {
+  AccountingService,
+  type JournalLineInput,
+} from "./accountingService.js";
+import { AccountService } from "./accountService.js";
 import { deleteJournalById } from "./journalEffects.js";
 
 const PARTY_TYPES: readonly PartyType[] = ["CUSTOMER", "SUPPLIER", "BOTH"];
@@ -85,6 +92,7 @@ export class PartyService {
   private readonly accounts: AccountRepository;
   private readonly journal: JournalRepository;
   private readonly accounting: AccountingService;
+  private readonly accountService: AccountService;
   private readonly systemAccounts: SystemAccountResolver;
 
   constructor(
@@ -95,6 +103,7 @@ export class PartyService {
     this.accounts = new AccountRepository(db);
     this.journal = new JournalRepository(db);
     this.accounting = new AccountingService(db, companyId);
+    this.accountService = new AccountService(db, companyId);
     this.systemAccounts = new SystemAccountResolver(db, companyId);
   }
 
@@ -115,7 +124,8 @@ export class PartyService {
       throw new ValidationError(`Invalid party type: ${input.partyType}`);
     }
     const creditLimit = input.creditLimit ?? 0;
-    if (creditLimit < 0) throw new ValidationError("Credit limit cannot be negative.");
+    if (creditLimit < 0)
+      throw new ValidationError("Credit limit cannot be negative.");
 
     let code = input.code?.trim() || null;
     if (code !== null) {
@@ -132,16 +142,25 @@ export class PartyService {
 
     const id = await this.db.transaction(async () => {
       if (code === null) {
-        const documentType = input.partyType === "CUSTOMER" ? "CUSTOMER" : "SUPPLIER";
-        code = await this.journal.nextVoucherNumber(this.companyId, documentType);
+        const documentType =
+          input.partyType === "CUSTOMER" ? "CUSTOMER" : "SUPPLIER";
+        code = await this.journal.nextVoucherNumber(
+          this.companyId,
+          documentType,
+        );
       }
+      // Every party gets its own sub-ledger account, so a JV can post straight
+      // to "this party" under A/R or A/P.
+      const accountId =
+        input.accountId ??
+        (await this.createPartyAccount(name, code as string, input.partyType));
       return this.parties.insert({
         company_id: this.companyId,
         code: code as string,
         name,
         party_type: input.partyType,
         credit_limit: creditLimit,
-        account_id: input.accountId ?? null,
+        account_id: accountId,
         phone: input.phone ?? null,
         address: input.address ?? null,
         email: input.email ?? null,
@@ -154,16 +173,45 @@ export class PartyService {
     return this.parties.requireById(id);
   }
 
+  /**
+   * Sub-ledger account for a new party: a child of A/R (customers / both) or
+   * A/P (suppliers), the same fallback the posting code uses. The account code
+   * is auto-allocated by AccountService.
+   */
+  private async createPartyAccount(
+    name: string,
+    code: string,
+    partyType: PartyType,
+  ): Promise<number> {
+    const parentCode =
+      partyType === "SUPPLIER"
+        ? SystemAccountCodes.ACCOUNTS_PAYABLE
+        : SystemAccountCodes.ACCOUNTS_RECEIVABLE;
+    const parentId = await this.systemAccounts.idFor(parentCode);
+    const parent = await this.accounts.findById(parentId);
+    if (!parent)
+      throw new ValidationError(`Control account ${parentCode} is missing.`);
+    const account = await this.accountService.create({
+      accountName: `${name} (${code})`,
+      accountType: parent.account_type,
+      parentAccountId: parentId,
+    });
+    return account.id;
+  }
+
   async update(id: number, input: UpdatePartyInput): Promise<PartyRow> {
     const existing = await this.parties.findById(id);
     if (!existing) throw new NotFoundError("Party not found.");
     const name = input.name.trim();
     if (!name) throw new ValidationError("Party name is required.");
-    if (input.creditLimit < 0) throw new ValidationError("Credit limit cannot be negative.");
+    if (input.creditLimit < 0)
+      throw new ValidationError("Credit limit cannot be negative.");
 
     const isActive = input.isActive !== false;
     if (!isActive && (await this.hasOpenTransactions(id))) {
-      throw new ValidationError("Cannot deactivate party with open transactions.");
+      throw new ValidationError(
+        "Cannot deactivate party with open transactions.",
+      );
     }
 
     await this.parties.update(id, {
@@ -184,7 +232,9 @@ export class PartyService {
     const party = await this.parties.findById(id);
     if (!party) throw new NotFoundError("Party not found.");
     if (await this.hasOpenTransactions(id)) {
-      throw new ValidationError("Cannot deactivate party with open transactions.");
+      throw new ValidationError(
+        "Cannot deactivate party with open transactions.",
+      );
     }
     await this.parties.deactivate(id);
   }
@@ -211,27 +261,39 @@ export class PartyService {
       credit: Math.abs(entry.credit ?? 0),
     }));
 
-    if (clean.length === 0) throw new ValidationError("No opening balances to save.");
+    if (clean.length === 0)
+      throw new ValidationError("No opening balances to save.");
     if (new Set(clean.map((entry) => entry.partyId)).size !== clean.length) {
-      throw new ValidationError("A party can only appear once in opening balances.");
+      throw new ValidationError(
+        "A party can only appear once in opening balances.",
+      );
     }
 
-    const receivableId = await this.systemAccounts.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
-    const payableId = await this.systemAccounts.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
-    const earningsId = await this.systemAccounts.idFor(SystemAccountCodes.RETAINED_EARNINGS);
+    const receivableId = await this.systemAccounts.idFor(
+      SystemAccountCodes.ACCOUNTS_RECEIVABLE,
+    );
+    const payableId = await this.systemAccounts.idFor(
+      SystemAccountCodes.ACCOUNTS_PAYABLE,
+    );
+    const earningsId = await this.systemAccounts.idFor(
+      SystemAccountCodes.RETAINED_EARNINGS,
+    );
 
     const lines: JournalLineInput[] = [];
     const updated: Array<{ id: number; signed: number }> = [];
     for (const entry of clean) {
       if (entry.debit !== 0 && entry.credit !== 0) {
-        throw new ValidationError("An opening balance line cannot be both debit and credit.");
+        throw new ValidationError(
+          "An opening balance line cannot be both debit and credit.",
+        );
       }
       const party = await this.parties.findById(entry.partyId);
       if (!party || party.company_id !== this.companyId) {
         throw new ValidationError(`Party ${entry.partyId} does not exist.`);
       }
       const accountId =
-        party.account_id ?? (party.party_type === "SUPPLIER" ? payableId : receivableId);
+        party.account_id ??
+        (party.party_type === "SUPPLIER" ? payableId : receivableId);
       const prior = Number(party.opening_balance ?? 0);
       if (prior !== 0) {
         // shortcut: the contra uses the party's current linked account; changing
@@ -256,8 +318,14 @@ export class PartyService {
       updated.push({ id: party.id, signed: entry.debit - entry.credit });
     }
 
-    const sumDebit = lines.reduce((acc, line) => acc + Number(line.debit ?? 0), 0);
-    const sumCredit = lines.reduce((acc, line) => acc + Number(line.credit ?? 0), 0);
+    const sumDebit = lines.reduce(
+      (acc, line) => acc + Number(line.debit ?? 0),
+      0,
+    );
+    const sumCredit = lines.reduce(
+      (acc, line) => acc + Number(line.credit ?? 0),
+      0,
+    );
     const totalDebit = clean.reduce((acc, entry) => acc + entry.debit, 0);
     const totalCredit = clean.reduce((acc, entry) => acc + entry.credit, 0);
     const plug = Math.round((sumDebit - sumCredit) * 100) / 100;
@@ -343,7 +411,8 @@ export class PartyService {
       const partyId = Number(row.party_id);
       // Rows are newest first, so the first time a party appears is its latest
       // change; later appearances are superseded entries.
-      if (!latestByParty.has(partyId)) latestByParty.set(partyId, journalEntryId);
+      if (!latestByParty.has(partyId))
+        latestByParty.set(partyId, journalEntryId);
 
       let change = changes.get(journalEntryId);
       if (!change) {
@@ -371,12 +440,15 @@ export class PartyService {
         cleared: Number(row.has_opening ?? 0) === 0,
       });
       change.totalDebit = Math.round((change.totalDebit + debit) * 100) / 100;
-      change.totalCredit = Math.round((change.totalCredit + credit) * 100) / 100;
+      change.totalCredit =
+        Math.round((change.totalCredit + credit) * 100) / 100;
     }
 
     for (const change of changes.values()) {
       change.blockedBy = change.parties
-        .filter((party) => latestByParty.get(party.partyId) !== change.journalEntryId)
+        .filter(
+          (party) => latestByParty.get(party.partyId) !== change.journalEntryId,
+        )
         .map((party) => `${party.partyCode} ${party.partyName}`);
       change.deletable = change.blockedBy.length === 0;
     }
@@ -428,7 +500,9 @@ export class PartyService {
 
     const partyIds = [...new Set(lines.map((line) => Number(line.party_id)))];
     if (partyIds.length === 0) {
-      throw new ValidationError("This opening balance change has no party lines to revert.");
+      throw new ValidationError(
+        "This opening balance change has no party lines to revert.",
+      );
     }
 
     const blocked: string[] = [];
@@ -501,7 +575,8 @@ export class PartyService {
   ): Promise<void> {
     if (accountId == null) return;
     const account = await this.accounts.findById(accountId);
-    if (!account) throw new ValidationError("Specified account does not exist.");
+    if (!account)
+      throw new ValidationError("Specified account does not exist.");
     if (partyType === "CUSTOMER" && account.account_type !== "ASSET") {
       throw new ValidationError(
         "Customer accounts must link to asset-type accounts (e.g., A/R).",
@@ -519,7 +594,10 @@ export class PartyService {
    * zero-total invoices, or any receipt/payment already recorded for the party.
    */
   private async hasOpenTransactions(partyId: number): Promise<boolean> {
-    const count = async (sql: string, params: Array<string | number>): Promise<number> => {
+    const count = async (
+      sql: string,
+      params: Array<string | number>,
+    ): Promise<number> => {
       const row = await this.db.get<{ cnt: number }>(sql, params);
       return Number(row?.cnt ?? 0);
     };
@@ -540,14 +618,16 @@ export class PartyService {
     );
     if (openPurchases > 0) return true;
 
-    const receipts = await count("SELECT COUNT(*) AS cnt FROM receipts WHERE party_id = ?", [
-      partyId,
-    ]);
+    const receipts = await count(
+      "SELECT COUNT(*) AS cnt FROM receipts WHERE party_id = ?",
+      [partyId],
+    );
     if (receipts > 0) return true;
 
-    const payments = await count("SELECT COUNT(*) AS cnt FROM payments WHERE party_id = ?", [
-      partyId,
-    ]);
+    const payments = await count(
+      "SELECT COUNT(*) AS cnt FROM payments WHERE party_id = ?",
+      [partyId],
+    );
     return payments > 0;
   }
 }

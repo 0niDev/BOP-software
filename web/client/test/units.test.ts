@@ -164,6 +164,17 @@ test("jv account labels are names only", async () => {
   expect(filterOptions([{ value: "3", label: accountLabel(kashif) }], "kashif")).toHaveLength(1);
 });
 
+test("jv option labels include the account level", async () => {
+  const { accountLevelLabel, accountDepths } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_name: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const a = (id: number, parent: number | null, name: string) => ({ ...base, id, account_code: String(id), account_name: name, parent_account_id: parent });
+  const accounts = [a(1, null, "Assets"), a(2, 1, "Current Assets"), a(3, 2, "Cash")];
+  const depths = accountDepths(accounts);
+  expect(accountLevelLabel(accounts[0], depths)).toBe("[L1] 1 — Assets");
+  expect(accountLevelLabel(accounts[1], depths)).toBe("[L2] 2 — Current Assets");
+  expect(accountLevelLabel(accounts[2], depths)).toBe("[L3] 3 — Cash");
+});
+
 test("picking a group narrows the account list to that branch", async () => {
   const { subtreeIds } = await import("../src/pages/JournalVouchersPage");
   const base = { account_type: "ASSET" as const, account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
@@ -315,6 +326,44 @@ test("expense form posts level-4 items, or the level-3 itself when it has none",
   expect(items["5"]).toBeUndefined();
   expect(items["52"]).toBeUndefined();
   expect(Object.values(items).flat()).not.toContain("520111");
+});
+
+test("new categories go under a level-2 head, new items under a level-3 category", async () => {
+  const { expenseHeads, categoryHead, itemCategory } = await import("../src/pages/ExpensesPage");
+  const account = (id: number, code: string, parent: number | null) => ({
+    id,
+    account_code: code,
+    account_name: code,
+    account_type: "EXPENSE" as const,
+    account_subtype: null,
+    parent_account_id: parent,
+    opening_balance: 0,
+    is_system_account: 0,
+    is_active: 1,
+  });
+  const accounts = [
+    account(1, "5", null), // level 1
+    account(2, "52", 1), // level 2 head with categories
+    account(3, "5201", 2), // level 3 category
+    account(4, "52011", 3), // level 4 item
+    account(5, "520111", 4), // level 5, walks up to the category
+    account(6, "5207", 2), // level 3 with no level 4
+    account(7, "6000", null), // flat bootstrap root
+    account(8, "53", 1), // childless level 2 = its own category
+  ];
+  // Only heads that already hold categories may take new categories.
+  expect(expenseHeads(accounts).map((head) => head.id)).toEqual([2]);
+  // The head above a category, for pre-filling the "Under" choice.
+  expect(categoryHead(accounts, 3)).toBe(2);
+  expect(categoryHead(accounts, 6)).toBe(2);
+  expect(categoryHead(accounts, 7)).toBe(0);
+  // Items always resolve to a real level-3 category; roots take none.
+  expect(itemCategory(accounts, 3)).toBe(3);
+  expect(itemCategory(accounts, 4)).toBe(3);
+  expect(itemCategory(accounts, 5)).toBe(3);
+  expect(itemCategory(accounts, 6)).toBe(6);
+  expect(itemCategory(accounts, 7)).toBe(0);
+  expect(itemCategory(accounts, 8)).toBe(0);
 });
 
 test("category picker offers level-4 items whose value is the item's own id", async () => {

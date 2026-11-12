@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictError, NotFoundError, ValidationError } from "../src/domain/errors.js";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../src/domain/errors.js";
 import { AccountService } from "../src/services/accountService.js";
 import { ItemService } from "../src/services/itemService.js";
 import { PartyService } from "../src/services/partyService.js";
@@ -36,7 +40,10 @@ describe("ItemService", () => {
   });
 
   it("accepts a manual code and rejects a duplicate", async () => {
-    const created = await items.create({ itemName: "Vitamin C", itemCode: "VITC-1" });
+    const created = await items.create({
+      itemName: "Vitamin C",
+      itemCode: "VITC-1",
+    });
     expect(created.item_code).toBe("VITC-1");
     await expect(
       items.create({ itemName: "Vitamin C copy", itemCode: "VITC-1" }),
@@ -44,16 +51,18 @@ describe("ItemService", () => {
   });
 
   it("validates name, prices, stock bounds, unit and type", async () => {
-    await expect(items.create({ itemName: "   " })).rejects.toBeInstanceOf(ValidationError);
+    await expect(items.create({ itemName: "   " })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
     await expect(
       items.create({ itemName: "Bad price", purchasePrice: -1 }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       items.create({ itemName: "Bad max", minimumStock: 10, maximumStock: 5 }),
     ).rejects.toBeInstanceOf(ValidationError);
-    await expect(items.create({ itemName: "Bad unit", unit: "PACKET" })).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+    await expect(
+      items.create({ itemName: "Bad unit", unit: "PACKET" }),
+    ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       items.create({ itemName: "Bad type", itemType: "SERVICE" as never }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -92,32 +101,76 @@ describe("ItemService", () => {
     expect(all.some((i) => i.id === created.id)).toBe(true);
     // Search respects the active-only filter too.
     expect(await items.list({ search: "Cough" })).toEqual([]);
-    expect(await items.list({ search: "Cough", activeOnly: false })).toHaveLength(1);
+    expect(
+      await items.list({ search: "Cough", activeOnly: false }),
+    ).toHaveLength(1);
 
-    await expect(items.deactivate(999_999)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(items.deactivate(999_999)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 });
 
 describe("PartyService", () => {
   it("auto-generates CUST- / SUPP- codes", async () => {
-    const customer = await parties.create({ name: "Al-Noor Pharmacy", partyType: "CUSTOMER" });
-    const supplier = await parties.create({ name: "MediSupply Ltd", partyType: "SUPPLIER" });
+    const customer = await parties.create({
+      name: "Al-Noor Pharmacy",
+      partyType: "CUSTOMER",
+    });
+    const supplier = await parties.create({
+      name: "MediSupply Ltd",
+      partyType: "SUPPLIER",
+    });
     expect(customer.code).toMatch(/^CUST-\d{5}$/);
     expect(supplier.code).toMatch(/^SUPP-\d{5}$/);
   });
 
   it("rejects a blank name, a negative credit limit and a duplicate code", async () => {
-    await expect(parties.create({ name: "  ", partyType: "CUSTOMER" })).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+    await expect(
+      parties.create({ name: "  ", partyType: "CUSTOMER" }),
+    ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       parties.create({ name: "X", partyType: "CUSTOMER", creditLimit: -1 }),
     ).rejects.toBeInstanceOf(ValidationError);
 
-    await parties.create({ name: "Duplicate Test", partyType: "CUSTOMER", code: "P-1" });
+    await parties.create({
+      name: "Duplicate Test",
+      partyType: "CUSTOMER",
+      code: "P-1",
+    });
     await expect(
-      parties.create({ name: "Duplicate Test 2", partyType: "SUPPLIER", code: "P-1" }),
+      parties.create({
+        name: "Duplicate Test 2",
+        partyType: "SUPPLIER",
+        code: "P-1",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("gives every new party its own sub-account under A/R or A/P", async () => {
+    const customer = await parties.create({
+      name: "Ledger Customer",
+      partyType: "CUSTOMER",
+    });
+    const supplier = await parties.create({
+      name: "Ledger Supplier",
+      partyType: "SUPPLIER",
+    });
+
+    const customerAccount = await accounts.get(customer.account_id as number);
+    expect(customerAccount.account_name).toBe(
+      `Ledger Customer (${customer.code})`,
+    );
+    expect(customerAccount.parent_account_id).toBe(
+      await accountId(ctx.db, "1100"),
+    );
+    expect(customerAccount.account_type).toBe("ASSET");
+
+    const supplierAccount = await accounts.get(supplier.account_id as number);
+    expect(supplierAccount.parent_account_id).toBe(
+      await accountId(ctx.db, "2000"),
+    );
+    expect(supplierAccount.account_type).toBe("LIABILITY");
   });
 
   it("enforces account linkage: customers need an ASSET, suppliers a LIABILITY", async () => {
@@ -126,22 +179,45 @@ describe("PartyService", () => {
     const ap = await accountId(ctx.db, "2000"); // LIABILITY
 
     // Customer + ASSET is fine, customer + LIABILITY is not.
-    await parties.create({ name: "Ok Customer", partyType: "CUSTOMER", accountId: ar });
+    await parties.create({
+      name: "Ok Customer",
+      partyType: "CUSTOMER",
+      accountId: ar,
+    });
     await expect(
-      parties.create({ name: "Bad Customer", partyType: "CUSTOMER", accountId: ap }),
+      parties.create({
+        name: "Bad Customer",
+        partyType: "CUSTOMER",
+        accountId: ap,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      parties.create({ name: "Bad Supplier", partyType: "SUPPLIER", accountId: cash }),
+      parties.create({
+        name: "Bad Supplier",
+        partyType: "SUPPLIER",
+        accountId: cash,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
-    await parties.create({ name: "Ok Supplier", partyType: "SUPPLIER", accountId: ap });
+    await parties.create({
+      name: "Ok Supplier",
+      partyType: "SUPPLIER",
+      accountId: ap,
+    });
     await expect(
-      parties.create({ name: "Ghost Account", partyType: "CUSTOMER", accountId: 999_999 }),
+      parties.create({
+        name: "Ghost Account",
+        partyType: "CUSTOMER",
+        accountId: 999_999,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("blocks deactivation while the party has open transactions", async () => {
     const sales = new SalesInvoiceService(ctx.db);
-    const customer = await parties.create({ name: "Credit Buyer", partyType: "CUSTOMER" });
+    const customer = await parties.create({
+      name: "Credit Buyer",
+      partyType: "CUSTOMER",
+    });
 
     await sales.createSalesInvoice({
       customerId: customer.id,
@@ -150,23 +226,38 @@ describe("PartyService", () => {
       items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
     });
 
-    await expect(parties.deactivate(customer.id)).rejects.toBeInstanceOf(ValidationError);
+    await expect(parties.deactivate(customer.id)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
 
     // Deactivating through update() is guarded the same way.
     await expect(
-      parties.update(customer.id, { name: customer.name, creditLimit: 0, isActive: false }),
+      parties.update(customer.id, {
+        name: customer.name,
+        creditLimit: 0,
+        isActive: false,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
 
     // A party with no history deactivates cleanly.
-    const clean = await parties.create({ name: "Clean Party", partyType: "CUSTOMER" });
+    const clean = await parties.create({
+      name: "Clean Party",
+      partyType: "CUSTOMER",
+    });
     await parties.deactivate(clean.id);
     expect((await parties.list()).some((p) => p.id === clean.id)).toBe(false);
   });
 
   it("posts party opening balances as one OPENING entry the ledger picks up", async () => {
     const reports = new ReportService(ctx.db);
-    const customer = await parties.create({ name: "Advance Customer", partyType: "CUSTOMER" });
-    const supplier = await parties.create({ name: "Advance Supplier", partyType: "SUPPLIER" });
+    const customer = await parties.create({
+      name: "Advance Customer",
+      partyType: "CUSTOMER",
+    });
+    const supplier = await parties.create({
+      name: "Advance Supplier",
+      partyType: "SUPPLIER",
+    });
 
     const result = await parties.postOpeningBalances([
       { partyId: customer.id, debit: 500 },
@@ -184,13 +275,20 @@ describe("PartyService", () => {
     expect(supplierLedger.at(-1)!.balance).toBe(-300);
 
     expect((await reports.trialBalance()).balanced).toBe(true);
-    const ar = await accountId(ctx.db, "1100");
-    const ap = await accountId(ctx.db, "2000");
     const retained = await accountId(ctx.db, "3100");
     const tb = await reports.trialBalance();
-    expect(tb.rows.find((r) => r.accountId === ar)!.closingDebit).toBe(500);
-    expect(tb.rows.find((r) => r.accountId === ap)!.closingCredit).toBe(300);
-    expect(tb.rows.find((r) => r.accountId === retained)!.closingCredit).toBe(200);
+    // Openings post to each party's own sub-account under A/R / A/P.
+    expect(
+      tb.rows.find((r) => r.accountId === (customer.account_id as number))!
+        .closingDebit,
+    ).toBe(500);
+    expect(
+      tb.rows.find((r) => r.accountId === (supplier.account_id as number))!
+        .closingCredit,
+    ).toBe(300);
+    expect(tb.rows.find((r) => r.accountId === retained)!.closingCredit).toBe(
+      200,
+    );
 
     // Re-saving the same value is a no-op, a new value replaces the old one.
     await parties.postOpeningBalances([{ partyId: customer.id, debit: 500 }]);
@@ -202,7 +300,10 @@ describe("PartyService", () => {
   it("carries the opening from its date and ignores earlier invoices", async () => {
     const reports = new ReportService(ctx.db);
     const sales = new SalesInvoiceService(ctx.db);
-    const customer = await parties.create({ name: "Dated Opening", partyType: "CUSTOMER" });
+    const customer = await parties.create({
+      name: "Dated Opening",
+      partyType: "CUSTOMER",
+    });
 
     await sales.createSalesInvoice({
       customerId: customer.id,
@@ -229,7 +330,9 @@ describe("PartyService", () => {
     expect(before.beforeOpening).toBe(true);
     expect(before.balance).toBe(0);
 
-    const opening = ledger.find((row) => row.description === "Opening balance")!;
+    const opening = ledger.find(
+      (row) => row.description === "Opening balance",
+    )!;
     expect(opening.date).toBe("2026-10-01");
     expect(opening.balance).toBe(500);
 
@@ -240,7 +343,10 @@ describe("PartyService", () => {
   });
 
   it("lists opening-balance changes and restores prior balances when the newest is deleted", async () => {
-    const customer = await parties.create({ name: "Change Log Customer", partyType: "CUSTOMER" });
+    const customer = await parties.create({
+      name: "Change Log Customer",
+      partyType: "CUSTOMER",
+    });
     const first = await parties.postOpeningBalances(
       [{ partyId: customer.id, debit: 500 }],
       "2026-10-01",
@@ -272,7 +378,9 @@ describe("PartyService", () => {
       parties.deleteOpeningBalanceChange(first.journalEntryId),
     ).rejects.toBeInstanceOf(ValidationError);
 
-    const deleted = await parties.deleteOpeningBalanceChange(second.journalEntryId);
+    const deleted = await parties.deleteOpeningBalanceChange(
+      second.journalEntryId,
+    );
     expect(deleted.partiesUpdated).toBe(1);
     const restored = await parties.get(customer.id);
     expect(restored.opening_balance).toBe(500);
@@ -289,10 +397,19 @@ describe("PartyService", () => {
   });
 
   it("restores a cleared balance, and zero with no prior change", async () => {
-    const customer = await parties.create({ name: "Cleared Customer", partyType: "CUSTOMER" });
-    const fresh = await parties.create({ name: "Only Change", partyType: "CUSTOMER" });
+    const customer = await parties.create({
+      name: "Cleared Customer",
+      partyType: "CUSTOMER",
+    });
+    const fresh = await parties.create({
+      name: "Only Change",
+      partyType: "CUSTOMER",
+    });
 
-    await parties.postOpeningBalances([{ partyId: customer.id, debit: 500 }], "2026-10-01");
+    await parties.postOpeningBalances(
+      [{ partyId: customer.id, debit: 500 }],
+      "2026-10-01",
+    );
     // A zero entry clears the 500; the next change replaces the cleared state.
     await parties.postOpeningBalances([{ partyId: customer.id }], "2026-10-02");
     const replaced = await parties.postOpeningBalances(
@@ -305,7 +422,10 @@ describe("PartyService", () => {
     expect(cleared.opening_balance).toBe(0);
     expect(cleared.opening_balance_date).toBe("2026-10-02");
     expect(await parties.listOpeningBalanceChanges()).toHaveLength(2);
-    expect((await new ReportService(ctx.db).partyLedger(customer.id)).at(-1)!.balance).toBe(0);
+    expect(
+      (await new ReportService(ctx.db).partyLedger(customer.id)).at(-1)!
+        .balance,
+    ).toBe(0);
 
     // Deleting the only change on a party with no history puts it back to unset.
     const only = await parties.postOpeningBalances(
@@ -319,9 +439,14 @@ describe("PartyService", () => {
   });
 
   it("rejects both-sided, duplicate and unknown-party opening balances", async () => {
-    const customer = await parties.create({ name: "Bad Opening", partyType: "CUSTOMER" });
+    const customer = await parties.create({
+      name: "Bad Opening",
+      partyType: "CUSTOMER",
+    });
     await expect(
-      parties.postOpeningBalances([{ partyId: customer.id, debit: 5, credit: 5 }]),
+      parties.postOpeningBalances([
+        { partyId: customer.id, debit: 5, credit: 5 },
+      ]),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       parties.postOpeningBalances([
@@ -335,7 +460,10 @@ describe("PartyService", () => {
   });
 
   it("updates name, credit limit and status", async () => {
-    const created = await parties.create({ name: "Old Name", partyType: "CUSTOMER" });
+    const created = await parties.create({
+      name: "Old Name",
+      partyType: "CUSTOMER",
+    });
     const updated = await parties.update(created.id, {
       name: "New Name",
       creditLimit: 5000,
@@ -360,14 +488,20 @@ describe("opening stock", () => {
     expect(result.totalValue).toBe(3_000);
     expect(result.journalEntryId).toBeNull();
 
-    const batch = await ctx.db.get<{ quantity_in_stock: number; purchase_price: number }>(
+    const batch = await ctx.db.get<{
+      quantity_in_stock: number;
+      purchase_price: number;
+    }>(
       "SELECT quantity_in_stock, purchase_price FROM stock_batches WHERE id = ?",
       [result.batchId],
     );
     expect(Number(batch?.quantity_in_stock)).toBe(40);
     expect(Number(batch?.purchase_price)).toBe(75);
 
-    const movement = await ctx.db.get<{ movement_type: string; quantity: number }>(
+    const movement = await ctx.db.get<{
+      movement_type: string;
+      quantity: number;
+    }>(
       "SELECT movement_type, quantity FROM stock_movements WHERE batch_id = ?",
       [result.batchId],
     );
@@ -387,7 +521,12 @@ describe("opening stock", () => {
 
     const inventory = await accountId(ctx.db, "1220");
     const payable = await accountId(ctx.db, "2000");
-    const lines = await ctx.db.all<{ account_id: number; debit: number; credit: number; party_id: number | null }>(
+    const lines = await ctx.db.all<{
+      account_id: number;
+      debit: number;
+      credit: number;
+      party_id: number | null;
+    }>(
       "SELECT account_id, debit, credit, party_id FROM journal_entry_lines WHERE journal_entry_id = ?",
       [result.journalEntryId],
     );
@@ -418,7 +557,11 @@ describe("opening stock", () => {
       items.addOpeningStock({ itemId: ctx.ids.itemId, quantity: 0 }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      items.addOpeningStock({ itemId: ctx.ids.itemId, quantity: 5, unitCost: -1 }),
+      items.addOpeningStock({
+        itemId: ctx.ids.itemId,
+        quantity: 5,
+        unitCost: -1,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       items.addOpeningStock({ itemId: 999_999, quantity: 5 }),
@@ -457,19 +600,38 @@ describe("AccountService", () => {
   });
 
   it("auto-generates a code when blank and rejects bad input", async () => {
-    const first = await accounts.create({ accountName: "Auto One", accountType: "ASSET" });
+    const first = await accounts.create({
+      accountName: "Auto One",
+      accountType: "ASSET",
+    });
     expect(first.account_code).toMatch(/^AC-\d{5}$/);
-    const second = await accounts.create({ accountCode: "  ", accountName: "Auto Two", accountType: "ASSET" });
+    const second = await accounts.create({
+      accountCode: "  ",
+      accountName: "Auto Two",
+      accountType: "ASSET",
+    });
     expect(second.account_code).toMatch(/^AC-\d{5}$/);
     expect(second.account_code).not.toBe(first.account_code);
     await expect(
-      accounts.create({ accountCode: "7000", accountName: "  ", accountType: "ASSET" }),
+      accounts.create({
+        accountCode: "7000",
+        accountName: "  ",
+        accountType: "ASSET",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      accounts.create({ accountCode: "1000", accountName: "Duplicate", accountType: "ASSET" }),
+      accounts.create({
+        accountCode: "1000",
+        accountName: "Duplicate",
+        accountType: "ASSET",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      accounts.create({ accountCode: "7001", accountName: "Bad Type", accountType: "NOPE" }),
+      accounts.create({
+        accountCode: "7001",
+        accountName: "Bad Type",
+        accountType: "NOPE",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -584,7 +746,9 @@ describe("AccountService", () => {
     expect(Number(lines?.count)).toBe(0);
     expect((await accounts.get(account.id)).opening_balance).toBe(175);
     const tb = await reports.trialBalance();
-    expect(tb.rows.find((r) => r.accountId === account.id)!.closingDebit).toBe(175);
+    expect(tb.rows.find((r) => r.accountId === account.id)!.closingDebit).toBe(
+      175,
+    );
   });
 
   it("keeps a deactivated account with an opening balance in the trial balance", async () => {
@@ -608,9 +772,15 @@ describe("AccountService", () => {
   it("protects system accounts and accounts with active sub-accounts", async () => {
     const systemAccount = await accounts.list();
     const cash = systemAccount.find((a) => a.account_code === "1000")!;
-    await expect(accounts.deactivate(cash.id)).rejects.toBeInstanceOf(ValidationError);
+    await expect(accounts.deactivate(cash.id)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
     await expect(
-      accounts.update(cash.id, { accountName: "Cash", openingBalance: 0, isActive: false }),
+      accounts.update(cash.id, {
+        accountName: "Cash",
+        openingBalance: 0,
+        isActive: false,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
 
     const parent = await accounts.create({
@@ -624,10 +794,14 @@ describe("AccountService", () => {
       accountType: "ASSET",
       parentAccountId: parent.id,
     });
-    await expect(accounts.deactivate(parent.id)).rejects.toBeInstanceOf(ValidationError);
+    await expect(accounts.deactivate(parent.id)).rejects.toBeInstanceOf(
+      ValidationError,
+    );
 
     // Deactivating the child first makes the parent eligible.
-    const child = (await accounts.list()).find((a) => a.account_code === "1601")!;
+    const child = (await accounts.list()).find(
+      (a) => a.account_code === "1601",
+    )!;
     await accounts.deactivate(child.id);
     await accounts.deactivate(parent.id);
     expect((await accounts.list()).some((a) => a.id === parent.id)).toBe(false);

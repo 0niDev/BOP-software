@@ -56,6 +56,14 @@ export function accountLabel(account: Account): string {
   return `${account.account_code} — ${account.account_name}`;
 }
 
+/** Label with the account's tree level, e.g. "[L2] 1100 — Current Assets". */
+export function accountLevelLabel(
+  account: Account,
+  depths: ReadonlyMap<number, number>,
+): string {
+  return `[L${depths.get(account.id) ?? 1}] ${accountLabel(account)}`;
+}
+
 /** Tree depth of every account: 1 for a root, one more per parent link. */
 export function accountDepths(accounts: readonly Account[]): Map<number, number> {
   const byId = new Map(accounts.map((account) => [account.id, account]));
@@ -193,14 +201,17 @@ export default function JournalVouchersPage() {
   );
   const accountOptions = postable.map((account) => ({
     value: String(account.id),
-    label: accountLabel(account),
+    label: accountLevelLabel(account, depths),
   }));
 
   // Every category that has children — any level, any type — can be searched
   // and picked; it only narrows the account list to its branch.
   const groupOptions = accounts
     .filter((account) => parentIds.has(account.id))
-    .map((account) => ({ value: String(account.id), label: accountLabel(account) }));
+    .map((account) => ({
+      value: String(account.id),
+      label: accountLevelLabel(account, depths),
+    }));
   const optionsUnder = new Map<number, typeof accountOptions>();
   for (const group of groupOptions) {
     const ids = subtreeIds(accounts, Number(group.value));
@@ -389,6 +400,7 @@ export default function JournalVouchersPage() {
               Debit at least one account and credit at least one for the same total.
               Search any category at any level to narrow the account list to that branch — the
               account is optional, so a level-3 category can be posted to on its own.
+              [L1]/[L2]/[L3]… marks each account&apos;s level in the chart.
               Lines on Accounts Receivable / Payable also take a party, which moves that
               party&apos;s ledger. Posted vouchers cannot be edited — reverse one to correct it.
             </p>

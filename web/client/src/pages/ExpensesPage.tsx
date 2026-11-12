@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import BankSelect from "../components/BankSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import InlineAccountCreate from "../components/InlineAccountCreate";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect, { type SelectOption } from "../components/SearchableSelect";
 import { DateRange, SortTh, inDateRange, sortRows, type SortState } from "../components/Sort";
@@ -82,6 +83,42 @@ export function categoryOptions(categories: readonly CategoryGroup[]): SelectOpt
   return options;
 }
 
+/**
+ * Level-3 heads that already hold categories: the only parents a new level-3
+ * category may be created under. A childless shallow account is itself a
+ * category, so it is not offered as a parent.
+ */
+export function expenseHeads(accounts: readonly Account[]): Account[] {
+  const depths = accountDepths(accounts);
+  const hasChild = new Set(accounts.map((account) => account.parent_account_id));
+  return accounts
+    .filter((account) => depths.get(account.id) === 2 && hasChild.has(account.id))
+    .slice()
+    .sort(codeOrder);
+}
+
+/** The level-2 head above a category (0 when it is not two levels deep). */
+export function categoryHead(accounts: readonly Account[], categoryId: number): number {
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  const depths = accountDepths(accounts);
+  let current = byId.get(categoryId);
+  while (current && (depths.get(current.id) ?? 1) > 2) {
+    current = current.parent_account_id == null ? undefined : byId.get(current.parent_account_id);
+  }
+  return current && depths.get(current.id) === 2 ? current.id : 0;
+}
+
+/** The level-3 category an expense account posts under (0 for roots). */
+export function itemCategory(accounts: readonly Account[], accountId: number): number {
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  const depths = accountDepths(accounts);
+  let current = byId.get(accountId);
+  while (current && (depths.get(current.id) ?? 1) > 3) {
+    current = current.parent_account_id == null ? undefined : byId.get(current.parent_account_id);
+  }
+  return current && depths.get(current.id) === 3 ? current.id : 0;
+}
+
 export default function ExpensesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -100,6 +137,12 @@ export default function ExpensesPage() {
   /** Amount to post for each account id (all rows start at 0). */
   const [amounts, setAmounts] = useState<Record<number, number>>({});
   const [busy, setBusy] = useState(false);
+  /** Inline chart-of-accounts creation, straight from the voucher. */
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [creatingItem, setCreatingItem] = useState(false);
+  const [creatingEditItem, setCreatingEditItem] = useState(false);
+  /** Item just created in this dialog: focus its amount box. */
+  const [newItemId, setNewItemId] = useState(0);
   /** Live cash in hand (cash accounts 1000 + 1020), from the dashboard summary. */
   const [cashInHand, setCashInHand] = useState(0);
 
@@ -146,10 +189,32 @@ export default function ExpensesPage() {
       value: String(account.id),
       label: `${account.account_code} - ${account.account_name}`,
     }));
+  // Where a brand-new category may go: the level-2 expense heads only.
+  const heads = expenseHeads(accounts);
+  const headOptions = heads.map((head) => ({
+    value: String(head.id),
+    label: `${head.account_code} - ${head.account_name}`,
+  }));
+  const suggestedHead = categoryHead(accounts, categoryId);
+  const newCategoryParentId = heads.some((head) => head.id === suggestedHead)
+    ? suggestedHead
+    : (heads[0]?.id ?? 0);
+  // In the edit dialog an item can only be added under the picked account's
+  // category, so level 4 can never be filed at the wrong level.
+  const editItemCategoryId = editAccountId ? itemCategory(accounts, editAccountId) : 0;
+  const editItemCategory = accounts.find((account) => account.id === editItemCategoryId);
+
+  function openCreate(): void {
+    setCreatingCategory(false);
+    setCreatingItem(false);
+    setNewItemId(0);
+    setDialogOpen(true);
+  }
 
   function openEdit(expense: Expense): void {
     setError(null);
     setNotice(null);
+    setCreatingEditItem(false);
     setEditing(expense);
     setEditAccountId(expense.account_id ?? 0);
     setEditDate(expense.expense_date);
@@ -340,7 +405,7 @@ export default function ExpensesPage() {
       <div className="card">
         <div className="row" style={{ alignItems: "center" }}>
           <h2 style={{ flex: 1, margin: 0 }}>Expense Vouchers</h2>
-          <button className="primary" type="button" onClick={() => setDialogOpen(true)}>
+          <button className="primary" type="button" onClick={openCreate}>
             Add expense
           </button>
         </div>
@@ -370,7 +435,8 @@ export default function ExpensesPage() {
               Pick a category (level 3) or search an item (level 4) directly — its category fills
               in and only that item shows; pick the category itself to see all its items. Then
               type an amount next to the items. A category with no items below it is posted to
-              directly. Zeros are skipped.
+              directly. Missing something? Use ＋ New category or ＋ Add item below. Zeros are
+              skipped.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -391,12 +457,22 @@ export default function ExpensesPage() {
                       setPickedItemId(0);
                     }
                     setAmounts({});
+                    setNewItemId(0);
                   }}
                   placeholder="Select..."
-                  emptyText="No matching category"
+                  emptyText="No match — use ＋ New category"
                   autoFocus
                   options={categoryOptions(categories)}
                 />
+                {!creatingCategory && (
+                  <button
+                    type="button"
+                    style={{ marginTop: 4 }}
+                    onClick={() => setCreatingCategory(true)}
+                  >
+                    ＋ New category
+                  </button>
+                )}
               </div>
               <div>
                 <label>Date</label>
@@ -417,6 +493,24 @@ export default function ExpensesPage() {
               {method !== "CASH" && <BankSelect value={bankId} onChange={setBankId} />}
             </div>
 
+            {creatingCategory && (
+              <InlineAccountCreate
+                parents={headOptions}
+                defaultParentId={newCategoryParentId}
+                accountType="EXPENSE"
+                namePlaceholder="New category name, e.g. Salary - Admin"
+                onCreated={(account) => {
+                  setCreatingCategory(false);
+                  setCategoryId(account.id);
+                  setPickedItemId(0);
+                  setAmounts({});
+                  setNewItemId(0);
+                  void refresh();
+                }}
+                onCancel={() => setCreatingCategory(false)}
+              />
+            )}
+
             <table style={{ marginTop: 12 }} onKeyDown={moveRowFocus}>
               <thead>
                 <tr>
@@ -434,6 +528,7 @@ export default function ExpensesPage() {
                       <NumberInput
                         min="0"
                         step="0.01"
+                        autoFocus={item.id === newItemId}
                         aria-label={`Amount for ${item.account_name}`}
                         value={amounts[item.id] ?? 0}
                         onChange={(e) =>
@@ -447,12 +542,41 @@ export default function ExpensesPage() {
                     </td>
                   </tr>
                 ))}
+                {category && (
+                  <tr>
+                    <td colSpan={2}>
+                      {creatingItem ? (
+                        <InlineAccountCreate
+                          parents={[
+                            {
+                              value: String(category.account.id),
+                              label: `${category.account.account_code} - ${category.account.account_name}`,
+                            },
+                          ]}
+                          defaultParentId={category.account.id}
+                          accountType="EXPENSE"
+                          namePlaceholder="New item name, e.g. Kashif"
+                          onCreated={(account) => {
+                            setCreatingItem(false);
+                            setPickedItemId(0);
+                            setNewItemId(account.id);
+                            void refresh();
+                          }}
+                          onCancel={() => setCreatingItem(false)}
+                        />
+                      ) : (
+                        <button type="button" onClick={() => setCreatingItem(true)}>
+                          ＋ Add item to {category.account.account_name}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )}
                 {items.length === 0 && (
                   <tr>
                     <td colSpan={2}>
                       <span className="sub">
-                        No expense accounts found — add expense sub-accounts in the Chart of
-                        Accounts first.
+                        No expense accounts yet — use ＋ New category above.
                       </span>
                     </td>
                   </tr>
@@ -522,6 +646,15 @@ export default function ExpensesPage() {
                   placeholder="Search accounts…"
                   emptyText="No matching account"
                 />
+                {editItemCategory && !creatingEditItem && (
+                  <button
+                    type="button"
+                    style={{ marginTop: 4 }}
+                    onClick={() => setCreatingEditItem(true)}
+                  >
+                    ＋ Add item to {editItemCategory.account_name}
+                  </button>
+                )}
               </div>
               <div>
                 <label>Date</label>
@@ -549,6 +682,25 @@ export default function ExpensesPage() {
               </div>
               {editMethod !== "CASH" && <BankSelect value={editBankId} onChange={setEditBankId} />}
             </div>
+            {creatingEditItem && editItemCategory && (
+              <InlineAccountCreate
+                parents={[
+                  {
+                    value: String(editItemCategory.id),
+                    label: `${editItemCategory.account_code} - ${editItemCategory.account_name}`,
+                  },
+                ]}
+                defaultParentId={editItemCategory.id}
+                accountType="EXPENSE"
+                namePlaceholder="New item name, e.g. Kashif"
+                onCreated={(account) => {
+                  setCreatingEditItem(false);
+                  setEditAccountId(account.id);
+                  void refresh();
+                }}
+                onCancel={() => setCreatingEditItem(false)}
+              />
+            )}
             <div>
               <label>Party (optional)</label>
               <SearchableSelect
