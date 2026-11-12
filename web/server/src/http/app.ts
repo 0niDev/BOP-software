@@ -1646,6 +1646,14 @@ export function createApp(
     sendXlsx(res, file.fileName, file.buffer);
   });
 
+  /** The Chart of Accounts (accounts by type, with party sub-ledgers) as PDF. */
+  app.get("/api/reports/chart-of-accounts.pdf", requireAuth, async (_req, res) => {
+    const file = await reportPdf.chartOfAccounts();
+    res.attachment(file.fileName);
+    res.type(PDF_MIME);
+    res.send(file.buffer);
+  });
+
   // Inventory workbook: the item list (id, code, name, stock, prices) as Excel.
   // Takes the same filters as GET /api/items, plus `stock=in|zero` so the
   // exported rows match what the Items page is showing.

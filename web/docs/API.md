@@ -438,10 +438,15 @@ Download variants (same query parameters):
 | `/api/reports/profit-and-loss.xlsx`, `/api/reports/balance-sheet.xlsx`, `/api/reports/cash-book.xlsx` | Excel workbook, one sheet |
 | `/api/reports/party-ledger.xlsx?partyId=` | Excel workbook for one party |
 | `/api/reports/export-all.xlsx` | One workbook with trial balance, P&L, balance sheet and cash book sheets |
+| `/api/reports/chart-of-accounts.pdf` | Chart of accounts PDF, `application/pdf` |
 
 The `.xlsx` endpoints set `Content-Disposition: attachment` with a descriptive
 name (`trial-balance_2026-10-01_to_2026-10-31.xlsx`). CSV responses are plain
 text bodies; the client names the downloaded file itself.
+
+The chart of accounts PDF takes no parameters: it always prints the whole chart
+(every type, inactive accounts marked, parties under their control accounts and
+the zero-balance parties band), with page numbers and a generated-on stamp.
 
 ## Users, roles, settings
 

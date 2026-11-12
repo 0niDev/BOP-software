@@ -713,28 +713,52 @@ export class ReportService {
    * What every party bought: one row per product they appear on across all
    * their confirmed sale invoices, with the party's total spend and the grand
    * total. Repeated purchases of the same product collapse into one summed row.
+   * Sales returns are netted in: they reduce the same party/product row, so a
+   * product can carry a negative value when more came back than went out.
    */
   async partyProductSales(from?: string, to?: string): Promise<PartyProductSalesResult> {
-    let sql = `
-      SELECT p.id AS party_id, p.code AS party_code, p.name AS party_name,
-             i.id AS item_id, i.item_name,
-             SUM(sii.line_total) AS value
+    const salesParams: Array<string | number> = [this.companyId];
+    let salesSql = `
+      SELECT si.customer_id AS party_id, sii.item_id AS item_id,
+             sii.line_total AS value
       FROM sales_invoice_items sii
       JOIN sales_invoices si ON si.id = sii.invoice_id
-      JOIN parties p ON p.id = si.customer_id
-      JOIN items i ON i.id = sii.item_id
       WHERE si.company_id = ? AND si.status = 'CONFIRMED'`;
-    const params: Array<string | number> = [this.companyId];
     if (from) {
-      sql += " AND si.invoice_date >= ?";
-      params.push(from);
+      salesSql += " AND si.invoice_date >= ?";
+      salesParams.push(from);
     }
     if (to) {
-      sql += " AND si.invoice_date <= ?";
-      params.push(to);
+      salesSql += " AND si.invoice_date <= ?";
+      salesParams.push(to);
     }
-    sql += " GROUP BY p.id, i.id ORDER BY p.name, p.code, i.item_name";
-    const rows = await this.db.all<Row>(sql, params);
+
+    // A return gives value back, so it enters the union negated.
+    const returnParams: Array<string | number> = [this.companyId];
+    let returnSql = `
+      SELECT sr.party_id AS party_id, sri.item_id AS item_id,
+             -sri.line_total AS value
+      FROM sales_return_items sri
+      JOIN sales_returns sr ON sr.id = sri.return_id
+      WHERE sr.company_id = ?`;
+    if (from) {
+      returnSql += " AND sr.return_date >= ?";
+      returnParams.push(from);
+    }
+    if (to) {
+      returnSql += " AND sr.return_date <= ?";
+      returnParams.push(to);
+    }
+
+    const sql = `
+      SELECT p.id AS party_id, p.code AS party_code, p.name AS party_name,
+             i.id AS item_id, i.item_name,
+             SUM(lines.value) AS value
+      FROM (${salesSql} UNION ALL ${returnSql}) lines
+      JOIN parties p ON p.id = lines.party_id
+      JOIN items i ON i.id = lines.item_id
+      GROUP BY p.id, i.id ORDER BY p.name, p.code, i.item_name`;
+    const rows = await this.db.all<Row>(sql, [...salesParams, ...returnParams]);
 
     const parties = new Map<number, PartyProductSalesParty>();
     let grandTotal = new Decimal(0);

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { insertRow } from "../src/repositories/base.js";
 import { ItemService } from "../src/services/itemService.js";
 import { PartyService } from "../src/services/partyService.js";
 import { PaymentService } from "../src/services/paymentService.js";
@@ -316,6 +317,52 @@ describe("ReportService", () => {
     // The date window keeps only the first invoice.
     const firstDay = await reports.partyProductSales("2030-01-01", "2030-01-01");
     expect(firstDay.parties.find((p) => p.partyId === buyer.id)?.total).toBe(100);
+  });
+
+  it("nets sales returns against the party's product sales", async () => {
+    const parties = new PartyService(ctx.db);
+    const buyer = await parties.create({ name: "Returning Buyer", partyType: "CUSTOMER" });
+    await sales.createSalesInvoice({
+      customerId: buyer.id,
+      invoiceDate: "2030-01-01",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 3, unitPrice: 100 }],
+    });
+    const recordReturn = async (number: string, date: string, quantity: number) => {
+      const returnId = await insertRow(ctx.db, "sales_returns", {
+        company_id: 1,
+        return_number: number,
+        party_id: buyer.id,
+        return_date: date,
+        total_amount: quantity * 100,
+      });
+      await insertRow(ctx.db, "sales_return_items", {
+        return_id: returnId,
+        item_id: ctx.ids.itemId,
+        quantity,
+        unit_cost: 100,
+        destination: "INVENTORY",
+        line_total: quantity * 100,
+      });
+    };
+    await recordReturn("SR-TEST-1", "2030-01-02", 1);
+
+    const all = await reports.partyProductSales();
+    const party = all.parties.find((p) => p.partyId === buyer.id);
+    expect(party?.products).toHaveLength(1);
+    expect(party?.products[0]?.value).toBe(200); // 300 sold less 100 returned
+    expect(party?.total).toBe(200);
+    expect(all.grandTotal).toBe(200);
+
+    // Returning more than was sold in the window leaves a negative value.
+    await recordReturn("SR-TEST-2", "2030-01-03", 4);
+    const afterMore = await reports.partyProductSales();
+    expect(afterMore.parties.find((p) => p.partyId === buyer.id)?.total).toBe(-200);
+
+    // Each side follows its own date: a window over the returns alone is negative.
+    const returnsOnly = await reports.partyProductSales("2030-01-02", "2030-01-03");
+    expect(returnsOnly.parties.find((p) => p.partyId === buyer.id)?.total).toBe(-500);
+    expect(returnsOnly.grandTotal).toBe(-500);
   });
 
   it("values the balance sheet as at a date and stays balanced", async () => {

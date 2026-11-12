@@ -49,6 +49,11 @@ type, subtype, opening balance, system flag and active state.
   Payable (a liability), largest balance first. Parties with a zero net balance
   have no control account, so they are listed under a **Parties** band at the
   top of the chart.
+- **Print PDF** downloads the whole chart from
+  `GET /api/reports/chart-of-accounts.pdf` (`ReportPdf.chartOfAccounts`): every
+  type in order, inactive accounts marked, and each control account's parties
+  with their closing balances. The printout ignores the page's tab, search and
+  "show hidden" filters.
 - The bulk **Opening balances** form posts one `OPENING` entry for all entered
   accounts and requires total debit = total credit (tolerance 0.01).
 

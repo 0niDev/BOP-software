@@ -4,13 +4,17 @@
  * The journal voucher is the form that gets signed and filed, and an Excel
  * workbook does not print like the on-screen voucher. Numbers come from
  * AccountingService — the same call the view dialog and the workbook export use
- * — so a printed voucher can never disagree with the screen.
+ * — so a printed voucher can never disagree with the screen. The chart of
+ * accounts prints the same tree the page renders: accounts by type, each
+ * control account followed by its parties.
  *
  * Layout is A4 portrait with the base-14 Helvetica faces, wrapped and paginated
  * here so the file opens in every viewer without embedded fonts.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { AccountingService } from "./accountingService.js";
+import { AccountService, type AccountWithDeleteFlags } from "./accountService.js";
+import { ReportService, type PartyBalanceRow } from "./reportService.js";
 import { NotFoundError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
 import type { SqlDatabase } from "../db/types.js";
@@ -123,6 +127,25 @@ function paint(
     size,
     font,
     color,
+  });
+}
+
+/** Footer on every page: the company stamp left, "Page n of m" right. */
+function drawFooters(doc: PDFDocument, font: PDFFont): void {
+  const pages = doc.getPages();
+  pages.forEach((current, index) => {
+    paint(
+      current,
+      `${COMPANY_NAME} · generated ${todayIso()}`,
+      MARGIN,
+      PAGE_HEIGHT - FOOTER / 2,
+      8,
+      font,
+      MUTED,
+    );
+    const label = `Page ${index + 1} of ${pages.length}`;
+    const width = font.widthOfTextAtSize(label, 8);
+    paint(current, label, MARGIN + CONTENT_WIDTH - width, PAGE_HEIGHT - FOOTER / 2, 8, font, MUTED);
   });
 }
 
@@ -286,31 +309,266 @@ async function renderJournalVoucher(
   }
   top += 24;
 
-  // --- footer ------------------------------------------------------------
-  const pages = doc.getPages();
-  pages.forEach((current, index) => {
-    paint(
-      current,
-      `${COMPANY_NAME} · generated ${todayIso()}`,
-      MARGIN,
-      PAGE_HEIGHT - FOOTER / 2,
-      8,
-      regular,
-      MUTED,
+  drawFooters(doc, regular);
+  return doc.save();
+}
+
+/** One printed line of the chart of accounts: a type band, account or party. */
+interface CoaRow {
+  kind: "section" | "account" | "party";
+  /** Band caption for a section row. */
+  label?: string;
+  code?: string;
+  name?: string;
+  subtype?: string;
+  balance?: number;
+}
+
+/** Section order, matching the on-screen Chart of Accounts. */
+const COA_SECTIONS: ReadonlyArray<{ type: string; label: string }> = [
+  { type: "ASSET", label: "Assets" },
+  { type: "LIABILITY", label: "Liabilities" },
+  { type: "EQUITY", label: "Equity" },
+  { type: "REVENUE", label: "Revenue" },
+  { type: "EXPENSE", label: "Expenses" },
+];
+
+const COA_COLUMNS: readonly Column[] = [
+  { label: "Code", width: 80 },
+  { label: "Account", width: 230 },
+  { label: "Type / Subtype", width: 105 },
+  { label: "Balance", width: 88.28, align: "right" },
+];
+
+/**
+ * Flatten the account tree and the party sub-ledgers into printable rows, in
+ * the same order and grouping the page uses: zero/unattached parties in a
+ * "Parties" band first, then each account type, with a control account's
+ * parties directly beneath it.
+ */
+export function buildCoaRows(
+  accounts: readonly AccountWithDeleteFlags[],
+  parties: readonly PartyBalanceRow[],
+): CoaRow[] {
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  const codeOrder = (a: AccountWithDeleteFlags, b: AccountWithDeleteFlags): number =>
+    a.display_code.localeCompare(b.display_code, undefined, { numeric: true });
+
+  const childrenByParent = new Map<number, AccountWithDeleteFlags[]>();
+  const roots: AccountWithDeleteFlags[] = [];
+  for (const account of accounts) {
+    const parentId = account.parent_account_id;
+    if (parentId == null || !byId.has(parentId)) {
+      roots.push(account);
+      continue;
+    }
+    const list = childrenByParent.get(parentId) ?? [];
+    list.push(account);
+    childrenByParent.set(parentId, list);
+  }
+  roots.sort(codeOrder);
+  for (const list of childrenByParent.values()) list.sort(codeOrder);
+
+  const partiesByAccount = new Map<number, PartyBalanceRow[]>();
+  const unattached: PartyBalanceRow[] = [];
+  for (const party of parties) {
+    const account = byId.get(party.accountId);
+    if (!account) {
+      unattached.push(party);
+      continue;
+    }
+    const list = partiesByAccount.get(account.id) ?? [];
+    list.push(party);
+    partiesByAccount.set(account.id, list);
+  }
+  // Largest balance first, then name — the page's order.
+  for (const list of partiesByAccount.values()) {
+    list.sort(
+      (a, b) => Math.abs(b.balance) - Math.abs(a.balance) || a.name.localeCompare(b.name),
     );
-    const label = `Page ${index + 1} of ${pages.length}`;
-    const width = regular.widthOfTextAtSize(label, 8);
-    paint(current, label, MARGIN + CONTENT_WIDTH - width, PAGE_HEIGHT - FOOTER / 2, 8, regular, MUTED);
+  }
+  unattached.sort((a, b) => a.name.localeCompare(b.name));
+
+  const partyRow = (party: PartyBalanceRow): CoaRow => ({
+    kind: "party",
+    code: party.code,
+    name: party.name,
+    subtype: party.isActive === 1 ? "party" : "party · inactive",
+    balance: party.balance,
   });
 
+  const accountRow = (account: AccountWithDeleteFlags): CoaRow => ({
+    kind: "account",
+    code: account.display_code,
+    name: account.account_name,
+    subtype: [account.account_subtype ?? "", account.is_active === 1 ? "" : "inactive"]
+      .filter(Boolean)
+      .join(" · "),
+    balance: account.opening_balance,
+  });
+
+  const rows: CoaRow[] = [];
+  if (unattached.length > 0) {
+    rows.push({ kind: "section", label: "Parties" });
+    for (const party of unattached) rows.push(partyRow(party));
+  }
+
+  for (const section of COA_SECTIONS) {
+    const typeRoots = roots.filter((account) => account.account_type === section.type);
+    if (typeRoots.length === 0) continue;
+    rows.push({ kind: "section", label: section.label });
+    const walk = (account: AccountWithDeleteFlags): void => {
+      rows.push(accountRow(account));
+      for (const child of childrenByParent.get(account.id) ?? []) walk(child);
+      for (const party of partiesByAccount.get(account.id) ?? []) rows.push(partyRow(party));
+    };
+    for (const root of typeRoots) walk(root);
+  }
+  return rows;
+}
+
+/**
+ * The chart of accounts: type bands, every account (inactive marked) and each
+ * control account's parties with their closing balances. Long names wrap; the
+ * table header and the current band repeat on each page.
+ */
+async function renderChartOfAccounts(rows: readonly CoaRow[]): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const regular = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+
+  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let top = MARGIN;
+  let band: string | null = null;
+
+  const newPage = (): void => {
+    page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    top = MARGIN;
+  };
+
+  const drawTableHeader = (): void => {
+    page.drawRectangle({
+      x: MARGIN,
+      y: PAGE_HEIGHT - top - 20,
+      width: CONTENT_WIDTH,
+      height: 20,
+      color: BAND,
+    });
+    let x = MARGIN;
+    for (const column of COA_COLUMNS) {
+      const labelWidth = bold.widthOfTextAtSize(column.label, 9);
+      paint(
+        page,
+        column.label,
+        column.align === "right" ? x + column.width - 6 - labelWidth : x + 6,
+        top + 5,
+        9,
+        bold,
+        MUTED,
+      );
+      x += column.width;
+    }
+    top += 20;
+  };
+
+  const drawBand = (label: string): void => {
+    page.drawRectangle({
+      x: MARGIN,
+      y: PAGE_HEIGHT - top - 18,
+      width: CONTENT_WIDTH,
+      height: 18,
+      color: BAND,
+    });
+    paint(page, label.toUpperCase(), MARGIN + 6, top + 4, 9, bold, MUTED);
+    top += 18;
+  };
+
+  // --- title block -------------------------------------------------------
+  paint(page, COMPANY_NAME, MARGIN, top, 9, regular, MUTED);
+  top += 15;
+  paint(page, "CHART OF ACCOUNTS", MARGIN, top, 18, bold);
+  const stamp = `generated ${todayIso()}`;
+  paint(page, stamp, MARGIN + CONTENT_WIDTH - regular.widthOfTextAtSize(stamp, 9), top + 6, 9, regular, MUTED);
+  top += 28;
+  paint(
+    page,
+    "Account rows show the account's opening balance; party rows show the party's closing ledger balance.",
+    MARGIN,
+    top,
+    9,
+    regular,
+    MUTED,
+  );
+  top += 22;
+  drawTableHeader();
+
+  // --- rows ---------------------------------------------------------------
+  for (const row of rows) {
+    if (row.kind === "section") {
+      if (top + 36 > PAGE_HEIGHT - FOOTER) {
+        newPage();
+        drawTableHeader();
+      }
+      band = row.label ?? null;
+      drawBand(row.label ?? "");
+      continue;
+    }
+
+    const cells = [
+      row.code ?? "",
+      row.name ?? "",
+      row.subtype ?? "",
+      row.balance ? money(row.balance) : "",
+    ];
+    const wrapped = cells.map((cell, index) =>
+      wrap(cell, regular, 9, (COA_COLUMNS[index]?.width ?? 60) - 12),
+    );
+    const rowHeight = Math.max(18, Math.max(...wrapped.map((part) => part.length)) * 12 + 6);
+
+    if (top + rowHeight > PAGE_HEIGHT - FOOTER) {
+      newPage();
+      drawTableHeader();
+      if (band) drawBand(band);
+    }
+
+    let x = MARGIN;
+    for (const [index, column] of COA_COLUMNS.entries()) {
+      const part = wrapped[index] ?? [];
+      part.forEach((text, line) => {
+        const textWidth = regular.widthOfTextAtSize(text, 9);
+        paint(
+          page,
+          text,
+          column.align === "right" ? x + column.width - 6 - textWidth : x + 6,
+          top + 5 + line * 12,
+          9,
+          regular,
+        );
+      });
+      x += column.width;
+    }
+    page.drawLine({
+      start: { x: MARGIN, y: PAGE_HEIGHT - top - rowHeight },
+      end: { x: MARGIN + CONTENT_WIDTH, y: PAGE_HEIGHT - top - rowHeight },
+      thickness: 0.5,
+      color: RULE,
+    });
+    top += rowHeight;
+  }
+
+  drawFooters(doc, regular);
   return doc.save();
 }
 
 export class ReportPdf {
   private readonly accounting: AccountingService;
+  private readonly accounts: AccountService;
+  private readonly reports: ReportService;
 
   constructor(db: SqlDatabase, companyId = 1) {
     this.accounting = new AccountingService(db, companyId);
+    this.accounts = new AccountService(db, companyId);
+    this.reports = new ReportService(db, companyId);
   }
 
   /**
@@ -327,6 +585,22 @@ export class ReportPdf {
     return {
       fileName: `journal-voucher_${voucherNumber}.pdf`,
       buffer: Buffer.from(await renderJournalVoucher(entry, lines)),
+    };
+  }
+
+  /**
+   * The whole Chart of Accounts as a printable PDF: inactive accounts are
+   * included and marked, so the printout is the full chart, not just the tab
+   * and search the page happens to be showing.
+   */
+  async chartOfAccounts(): Promise<PdfFile> {
+    const [accounts, parties] = await Promise.all([
+      this.accounts.listWithDeleteFlags(false),
+      this.reports.partyBalances(),
+    ]);
+    return {
+      fileName: `chart-of-accounts_${todayIso()}.pdf`,
+      buffer: Buffer.from(await renderChartOfAccounts(buildCoaRows(accounts, parties))),
     };
   }
 }

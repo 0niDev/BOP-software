@@ -11,6 +11,7 @@ import { unzlibSync } from "fflate";
 import { PDFDocument } from "pdf-lib";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ReportPdf } from "../src/services/reportPdf.js";
+import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 /**
@@ -84,5 +85,46 @@ describe("pdf journal voucher", () => {
 
   it("rejects a voucher that does not exist", async () => {
     await expect(pdf.journalVoucher(9999)).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("pdf chart of accounts", () => {
+  let ctx: TestContext;
+  let pdf: ReportPdf;
+
+  beforeEach(async () => {
+    ctx = await freshDb();
+    pdf = new ReportPdf(ctx.db);
+  });
+  afterEach(async () => {
+    await ctx.db.close();
+  });
+
+  it("prints the type sections, the accounts and a party's balance", async () => {
+    const sales = new SalesInvoiceService(ctx.db);
+    const invoice = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-20",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
+    });
+    expect(invoice.id).toBeGreaterThan(0);
+
+    const file = await pdf.chartOfAccounts();
+    expect(file.fileName).toMatch(/^chart-of-accounts_\d{4}-\d{2}-\d{2}\.pdf$/);
+    expect(file.buffer.subarray(0, 5).toString()).toBe("%PDF-");
+    const parsed = await PDFDocument.load(file.buffer);
+    expect(parsed.getPageCount()).toBeGreaterThan(0);
+
+    const text = pageText(file.buffer);
+    expect(text).toContain("CHART OF ACCOUNTS");
+    expect(text).toContain("ASSETS");
+    expect(text).toContain("LIABILITIES");
+    expect(text).toContain("Cash in Hand");
+    // The demo customer is drawn under Accounts Receivable with the amount owed.
+    expect(text).toContain("Accounts Receivable");
+    expect(text).toContain("Demo Customer");
+    expect(text).toContain("300.00");
+    expect(text).toMatch(/Page 1 of \d+/);
   });
 });

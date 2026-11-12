@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
+import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, AccountType, PartyBalance } from "../types";
 
@@ -109,6 +110,7 @@ export default function AccountsPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   // Starts empty, so the tree opens collapsed to its roots.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -328,6 +330,21 @@ export default function AccountsPage() {
     return ids;
   }
 
+  /** Print the whole chart — every type, inactive accounts marked, parties
+   * under their control account — whatever the tab, search or hidden filter is. */
+  async function printCoa(): Promise<void> {
+    setError(null);
+    setNotice(null);
+    setPrinting(true);
+    try {
+      saveBlob(await api.chartOfAccountsPdf(), "chart-of-accounts.pdf");
+    } catch (err) {
+      setError(message(err, "Failed to print the chart of accounts."));
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   async function deactivate(account: Account): Promise<void> {
     setError(null);
     setNotice(null);
@@ -516,6 +533,14 @@ export default function AccountsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <h2 style={{ flex: 1, margin: 0 }}>Chart of Accounts</h2>
           <FilterBox value={query} onChange={setQuery} placeholder="Search code, name, type…" />
+          <button
+            type="button"
+            onClick={() => void printCoa()}
+            disabled={printing}
+            title="Download the full chart of accounts as a PDF"
+          >
+            {printing ? "Preparing…" : "Print PDF"}
+          </button>
           <button className="primary" type="button" onClick={() => openAdd(null)}>
             + Add account
           </button>

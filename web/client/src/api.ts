@@ -926,6 +926,9 @@ export const api = {
     );
   },
 
+  /** The Chart of Accounts as a printable PDF (accounts by type + parties). */
+  chartOfAccountsPdf: () => requestBlob("/api/reports/chart-of-accounts.pdf"),
+
   dashboard: () => request<DashboardData>("/api/dashboard"),
 
   // --- fixed assets -----------------------------------------------------
