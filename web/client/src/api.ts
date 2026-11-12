@@ -30,6 +30,7 @@ import type {
   OpeningBalanceChange,
   Party,
   PartyBalance,
+  PartyProductSales,
   PartyType,
   Payment,
   PaymentResult,
@@ -826,6 +827,15 @@ export const api = {
     if (showOpening) params.set("showOpening", "1");
     const suffix = params.toString();
     return request<AllPartyLedgers>(`/api/reports/party-ledger-all${suffix ? `?${suffix}` : ""}`);
+  },
+  partyProductSales: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return request<PartyProductSales>(
+      `/api/reports/party-product-sales${suffix ? `?${suffix}` : ""}`,
+    );
   },
   trialBalanceCsv: (
     from?: string,

@@ -1503,6 +1503,11 @@ export function createApp(
     res.json(await reports.partyLedger(query.partyId, dateRangeQuery(req).from, dateRangeQuery(req).to));
   });
 
+  app.get("/api/reports/party-product-sales", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.partyProductSales(from, to));
+  });
+
   app.get("/api/reports/cash-book", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     res.json(await reports.cashBook(from, to));

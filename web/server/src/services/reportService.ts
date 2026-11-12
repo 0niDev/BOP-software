@@ -56,6 +56,29 @@ export interface AllPartyLedgersResult {
   grandTotal: number;
 }
 
+/** One product a party bought, summed across all its sale invoices. */
+export interface PartyProductRow {
+  itemId: number;
+  itemName: string;
+  /** Total spent on this product (net of discounts and tax, as invoiced). */
+  value: number;
+}
+
+/** One party's product purchases inside the party-product-sales report. */
+export interface PartyProductSalesParty {
+  partyId: number;
+  code: string;
+  name: string;
+  products: PartyProductRow[];
+  /** Sum of every product's value for this party. */
+  total: number;
+}
+
+export interface PartyProductSalesResult {
+  parties: PartyProductSalesParty[];
+  grandTotal: number;
+}
+
 export interface LedgerEntry {
   date: string;
   voucherNumber: string;
@@ -662,6 +685,60 @@ export class ReportService {
       });
     }
     return { parties: result, grandTotal: toStorage(grandTotal) };
+  }
+
+  /**
+   * What every party bought: one row per product they appear on across all
+   * their confirmed sale invoices, with the party's total spend and the grand
+   * total. Repeated purchases of the same product collapse into one summed row.
+   */
+  async partyProductSales(from?: string, to?: string): Promise<PartyProductSalesResult> {
+    let sql = `
+      SELECT p.id AS party_id, p.code AS party_code, p.name AS party_name,
+             i.id AS item_id, i.item_name,
+             SUM(sii.line_total) AS value
+      FROM sales_invoice_items sii
+      JOIN sales_invoices si ON si.id = sii.invoice_id
+      JOIN parties p ON p.id = si.customer_id
+      JOIN items i ON i.id = sii.item_id
+      WHERE si.company_id = ? AND si.status = 'CONFIRMED'`;
+    const params: Array<string | number> = [this.companyId];
+    if (from) {
+      sql += " AND si.invoice_date >= ?";
+      params.push(from);
+    }
+    if (to) {
+      sql += " AND si.invoice_date <= ?";
+      params.push(to);
+    }
+    sql += " GROUP BY p.id, i.id ORDER BY p.name, p.code, i.item_name";
+    const rows = await this.db.all<Row>(sql, params);
+
+    const parties = new Map<number, PartyProductSalesParty>();
+    let grandTotal = new Decimal(0);
+    for (const row of rows) {
+      const partyId = Number(row.party_id);
+      let party = parties.get(partyId);
+      if (!party) {
+        party = {
+          partyId,
+          code: String(row.party_code ?? ""),
+          name: String(row.party_name ?? ""),
+          products: [],
+          total: 0,
+        };
+        parties.set(partyId, party);
+      }
+      const value = new Decimal(Number(row.value ?? 0));
+      party.products.push({
+        itemId: Number(row.item_id),
+        itemName: String(row.item_name ?? ""),
+        value: toStorage(value),
+      });
+      party.total = toStorage(new Decimal(party.total).plus(value));
+      grandTotal = grandTotal.plus(value);
+    }
+    return { parties: [...parties.values()], grandTotal: toStorage(grandTotal) };
   }
 
   /** Cash book: every posted movement on the Cash in Hand account. */

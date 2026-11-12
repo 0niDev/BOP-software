@@ -65,6 +65,13 @@ export default function AccountsPage() {
   const [editing, setEditing] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Starts empty, so the tree opens collapsed to its roots.
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [addParent, setAddParent] = useState<Account | null>(null);
+  const [addName, setAddName] = useState("");
+  const [addType, setAddType] = useState<AccountType>("ASSET");
+
   async function refresh(): Promise<void> {
     try {
       const [accountList, partyList] = await Promise.all([
@@ -89,15 +96,15 @@ export default function AccountsPage() {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  // Escape closes the edit dialog.
+  // Escape closes whichever dialog is open.
   useEffect(() => {
-    if (!pageVisible || !editing) return;
+    if (!pageVisible || (!editing && !adding)) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") cancel();
+      if (event.key === "Escape") (editing ? cancel() : closeAdd());
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, pageVisible]);
+  }, [editing, adding, pageVisible]);
 
   function startEdit(account: Account): void {
     setEditing(account);
@@ -123,6 +130,7 @@ export default function AccountsPage() {
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (!editing) return;
     setError(null);
     setNotice(null);
     if (!draft.accountName.trim()) {
@@ -131,31 +139,71 @@ export default function AccountsPage() {
     }
     setBusy(true);
     try {
-      if (editing) {
-        await api.updateAccount(editing.id, {
-          accountName: draft.accountName.trim(),
-          openingBalance: draft.openingBalance,
-          parentAccountId: draft.parentAccountId,
-          isActive: draft.isActive,
-        });
-        setNotice(`Updated ${editing.account_code}.`);
-      } else {
-        const created = await api.createAccount({
-          accountCode: draft.accountCode.trim(),
-          accountName: draft.accountName.trim(),
-          accountType: draft.accountType,
-          parentAccountId: draft.parentAccountId,
-          openingBalance: draft.openingBalance,
-          accountSubtype: draft.accountSubtype || null,
-        });
-        setNotice(`Created ${created.account_code} — ${created.account_name}.`);
-      }
+      await api.updateAccount(editing.id, {
+        accountName: draft.accountName.trim(),
+        openingBalance: draft.openingBalance,
+        parentAccountId: draft.parentAccountId,
+        isActive: draft.isActive,
+      });
+      setNotice(`Updated ${editing.account_code}.`);
       cancel();
     } catch (err) {
       setError(message(err, "Failed to save the account."));
     } finally {
       setBusy(false);
     }
+  }
+
+  // --- add dialog ---------------------------------------------------------
+  function openAdd(parent: Account | null): void {
+    setAddParent(parent);
+    setAddType(parent?.account_type ?? "ASSET");
+    setAddName("");
+    setAdding(true);
+    setError(null);
+    setNotice(null);
+  }
+
+  function closeAdd(): void {
+    setAdding(false);
+    setAddParent(null);
+    setAddName("");
+  }
+
+  async function submitAdd(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (!addName.trim()) {
+      setError("Account name is required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await api.createAccount({
+        accountCode: "",
+        accountName: addName.trim(),
+        accountType: addParent?.account_type ?? addType,
+        parentAccountId: addParent?.id ?? null,
+      });
+      if (addParent) setExpanded((current) => new Set(current).add(addParent.id));
+      setNotice(`Created ${created.account_code} — ${created.account_name}.`);
+      closeAdd();
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to add the account."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggle(id: number): void {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   // --- hierarchy ---------------------------------------------------------
@@ -261,9 +309,26 @@ export default function AccountsPage() {
   /** One tree row per account, indented by depth, children under their parent. */
   function treeRows(account: Account, depth: number): ReactNode[] {
     const children = childrenByParent.get(account.id) ?? [];
+    const childParties = (partiesByAccount.get(account.id) ?? []).filter(partyMatches);
+    const hasChildren = children.length > 0 || childParties.length > 0;
+    // A search always reveals its matches, so collapse only applies to the full list.
+    const open = Boolean(query) || expanded.has(account.id);
     const rows: ReactNode[] = [
       <tr key={account.id} className={`coa-row coa-l${Math.min(depth + 1, 3)}`}>
         <td style={{ whiteSpace: "nowrap" }} title={`Internal code: ${account.account_code}`}>
+          {hasChildren ? (
+            <button
+              type="button"
+              className="coa-toggle"
+              aria-expanded={open}
+              title={open ? "Collapse" : "Expand"}
+              onClick={() => toggle(account.id)}
+            >
+              {open ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="coa-toggle-spacer" />
+          )}
           <span className="coa-code">
             {Array.from({ length: depth }, (_, index) => (
               <span key={index} className="coa-rail" />
@@ -290,6 +355,13 @@ export default function AccountsPage() {
           </span>
         </td>
         <td style={{ whiteSpace: "nowrap" }}>
+          <button
+            type="button"
+            onClick={() => openAdd(account)}
+            title={`Add a child account under ${account.account_name}`}
+          >
+            +
+          </button>{" "}
           <button onClick={() => startEdit(account)}>Edit</button>{" "}
           {account.is_active === 1 && account.is_system_account === 0 && (
             <button onClick={() => void deactivate(account)}>Deactivate</button>
@@ -305,8 +377,9 @@ export default function AccountsPage() {
         </td>
       </tr>,
     ];
+    if (!open) return rows;
     for (const child of children) rows.push(...treeRows(child, depth + 1));
-    for (const party of (partiesByAccount.get(account.id) ?? []).filter(partyMatches)) {
+    for (const party of childParties) {
       rows.push(
         <tr key={`party-${party.partyId}`} className="coa-row coa-l3">
           <td style={{ whiteSpace: "nowrap" }} title={`Party code: ${party.code}`}>
@@ -343,30 +416,12 @@ export default function AccountsPage() {
     <>
       <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
         <div>
-          <label>Code (blank = auto)</label>
-          <input
-            value={draft.accountCode}
-            onChange={(e) => set("accountCode", e.target.value)}
-            disabled={Boolean(editing)}
-            placeholder="auto"
-          />
+          <label>Code</label>
+          <input value={draft.accountCode} disabled />
         </div>
         <div>
           <label>Name</label>
           <input value={draft.accountName} onChange={(e) => set("accountName", e.target.value)} />
-        </div>
-        <div>
-          <label>Type</label>
-          <SearchableSelect
-            value={draft.accountType}
-            onChange={(next) => {
-              set("accountType", next as AccountType);
-              set("parentAccountId", null);
-            }}
-            disabled={Boolean(editing)}
-            placeholder="Type"
-            options={ACCOUNT_TYPES.map((type) => ({ value: type, label: type }))}
-          />
         </div>
         <div>
           <label>Parent account</label>
@@ -387,46 +442,31 @@ export default function AccountsPage() {
         <div>
           <label>Opening balance</label>
           <NumberInput
-            
             step="0.01"
             value={draft.openingBalance}
             onChange={(e) => set("openingBalance", Number(e.target.value))}
             style={{ width: 130 }}
           />
         </div>
-        {!editing && (
-          <div>
-            <label>Subtype</label>
-            <input
-              value={draft.accountSubtype}
-              onChange={(e) => set("accountSubtype", e.target.value)}
-              placeholder="CURRENT_ASSET"
-            />
-          </div>
-        )}
-        {editing && (
-          <div>
-            <label>Status</label>
-            <SearchableSelect
-              value={draft.isActive ? "1" : "0"}
-              onChange={(next) => set("isActive", next === "1")}
-              disabled={editing.is_system_account === 1}
-              placeholder="Status"
-              options={[
-                { value: "1", label: "Active" },
-                { value: "0", label: "Inactive" },
-              ]}
-            />
-          </div>
-        )}
+        <div>
+          <label>Status</label>
+          <SearchableSelect
+            value={draft.isActive ? "1" : "0"}
+            onChange={(next) => set("isActive", next === "1")}
+            disabled={editing?.is_system_account === 1}
+            placeholder="Status"
+            options={[
+              { value: "1", label: "Active" },
+              { value: "0", label: "Inactive" },
+            ]}
+          />
+        </div>
         <button className="primary" type="submit" disabled={busy}>
-          {editing ? "Save changes" : "Add account"}
+          Save changes
         </button>
-        {editing && (
-          <button type="button" onClick={cancel}>
-            Cancel
-          </button>
-        )}
+        <button type="button" onClick={cancel}>
+          Cancel
+        </button>
       </div>
       <p style={{ opacity: 0.7, fontSize: 12 }}>
         A non-zero opening balance is stored on the account and counts toward its balance.
@@ -441,6 +481,9 @@ export default function AccountsPage() {
         <div className="row" style={{ alignItems: "flex-end" }}>
           <h2 style={{ flex: 1, margin: 0 }}>Chart of Accounts</h2>
           <FilterBox value={query} onChange={setQuery} placeholder="Search code, name, type…" />
+          <button className="primary" type="button" onClick={() => openAdd(null)}>
+            + Add account
+          </button>
           <div>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <input
@@ -525,7 +568,7 @@ export default function AccountsPage() {
         </table>
       </div>
 
-      {editing ? (
+      {editing && (
         <div
           className="modal-overlay"
           role="presentation"
@@ -538,11 +581,58 @@ export default function AccountsPage() {
             {formFields}
           </form>
         </div>
-      ) : (
-        <form className="card" onSubmit={submit}>
-          <h2>Add account</h2>
-          {formFields}
-        </form>
+      )}
+
+      {adding && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeAdd();
+          }}
+        >
+          <form className="modal" role="dialog" aria-modal="true" onSubmit={submitAdd}>
+            <h2>Add account</h2>
+            {addParent ? (
+              <p style={{ marginTop: 0 }}>
+                Under{" "}
+                <strong>
+                  {addParent.display_code ?? addParent.account_code} — {addParent.account_name}
+                </strong>{" "}
+                ({addParent.account_type})
+              </p>
+            ) : (
+              <div className="row" style={{ marginBottom: 8 }}>
+                <div>
+                  <label>Type</label>
+                  <SearchableSelect
+                    value={addType}
+                    onChange={(next) => setAddType(next as AccountType)}
+                    placeholder="Type"
+                    options={ACCOUNT_TYPES.map((type) => ({ value: type, label: type }))}
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <label>Name</label>
+              <input
+                autoFocus
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Account name"
+              />
+            </div>
+            <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
+              <button type="button" onClick={closeAdd}>
+                Cancel
+              </button>
+              <button className="primary" type="submit" disabled={busy}>
+                Add
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </>
   );

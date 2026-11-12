@@ -89,6 +89,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
           { id: "report-trial-balance", label: "Trial Balance" },
           { id: "report-party-ledger", label: "Party Ledger" },
           { id: "report-party-ledger-all", label: "All Party Ledgers" },
+          { id: "report-party-product-sales", label: "Party Product Sales" },
           { id: "report-cash-book", label: "Cash Book" },
           { id: "report-profit-loss", label: "Profit & Loss" },
           { id: "report-balance-sheet", label: "Balance Sheet" },

@@ -496,6 +496,26 @@ export interface AllPartyLedgers {
   grandTotal: number;
 }
 
+/** One product a party bought, summed across all its sale invoices. */
+export interface PartyProductRow {
+  itemId: number;
+  itemName: string;
+  value: number;
+}
+
+export interface PartyProductSalesParty {
+  partyId: number;
+  code: string;
+  name: string;
+  products: PartyProductRow[];
+  total: number;
+}
+
+export interface PartyProductSales {
+  parties: PartyProductSalesParty[];
+  grandTotal: number;
+}
+
 export interface UserRow {
   id: number;
   username: string;

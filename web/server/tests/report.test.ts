@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ItemService } from "../src/services/itemService.js";
+import { PartyService } from "../src/services/partyService.js";
 import { PaymentService } from "../src/services/paymentService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -267,6 +268,54 @@ describe("ReportService", () => {
     expect(all.revenue).toBe(firstDay.revenue + secondDay.revenue);
     expect(all.expenses).toBe(firstDay.expenses + secondDay.expenses);
     expect(all.netProfit).toBe(firstDay.netProfit + secondDay.netProfit);
+  });
+
+  it("sums each party's spend per product across its invoices", async () => {
+    const parties = new PartyService(ctx.db);
+    const buyer = await parties.create({ name: "Product Buyer", partyType: "CUSTOMER" });
+    await sales.createSalesInvoice({
+      customerId: buyer.id,
+      invoiceDate: "2030-01-01",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 1, unitPrice: 100 }],
+    });
+    await sales.createSalesInvoice({
+      customerId: buyer.id,
+      invoiceDate: "2030-01-02",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 100 }],
+    });
+
+    const all = await reports.partyProductSales();
+    const party = all.parties.find((p) => p.partyId === buyer.id);
+    expect(party?.code).toBe(buyer.code);
+    expect(party?.name).toBe("Product Buyer");
+    // The same product bought twice is one row, summed.
+    expect(party?.products).toHaveLength(1);
+    expect(party?.products[0]?.value).toBe(300);
+    expect(party?.total).toBe(300);
+    expect(all.grandTotal).toBeCloseTo(
+      all.parties.reduce((sum, p) => sum + p.total, 0),
+      2,
+    );
+
+    // A second party makes sure the report does not collapse into one row.
+    const other = await parties.create({ name: "Second Buyer", partyType: "CUSTOMER" });
+    await sales.createSalesInvoice({
+      customerId: other.id,
+      invoiceDate: "2030-01-03",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 100 }],
+    });
+    const withBoth = await reports.partyProductSales();
+    expect(withBoth.parties.map((p) => p.partyId).sort()).toEqual(
+      [buyer.id, other.id].sort(),
+    );
+    expect(withBoth.grandTotal).toBe(800);
+
+    // The date window keeps only the first invoice.
+    const firstDay = await reports.partyProductSales("2030-01-01", "2030-01-01");
+    expect(firstDay.parties.find((p) => p.partyId === buyer.id)?.total).toBe(100);
   });
 
   it("values the balance sheet as at a date and stays balanced", async () => {

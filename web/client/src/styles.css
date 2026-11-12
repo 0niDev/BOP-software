@@ -598,6 +598,25 @@ tr.total td {
   opacity: 0.45;
   margin: 0 6px 0 2px;
 }
+/* Expand/collapse chevron; the spacer keeps childless rows aligned. */
+.coa-toggle,
+.coa-toggle-spacer {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+}
+.coa-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 10px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.coa-toggle:hover {
+  opacity: 1;
+}
 
 /* Type filter tabs above the tree. */
 .coa-tabs {

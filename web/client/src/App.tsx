@@ -40,6 +40,7 @@ export type ReportPage =
   | "report-trial-balance"
   | "report-party-ledger"
   | "report-party-ledger-all"
+  | "report-party-product-sales"
   | "report-cash-book"
   | "report-profit-loss"
   | "report-balance-sheet"

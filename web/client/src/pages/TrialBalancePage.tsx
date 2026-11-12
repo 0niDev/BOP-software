@@ -5,7 +5,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { AccountType, AllPartyLedgers, BalanceSheet, LedgerEntry, Party, PartyLedgerWithBalance, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import type { AccountType, AllPartyLedgers, BalanceSheet, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -314,6 +314,49 @@ function AllPartyLedgerTable({
   );
 }
 
+/** Every party's product purchases: a band per party, its products beneath. */
+function PartyProductSalesTable({ report }: { report: PartyProductSales }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Party / Product</th>
+          <th className="num">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {report.parties.map((party) => (
+          <Fragment key={party.partyId}>
+            <tr>
+              <td style={{ background: "var(--accent-soft)", fontWeight: 700 }}>
+                {party.name} ({party.code})
+              </td>
+              <td
+                className="num"
+                style={{ background: "var(--accent-soft)", fontWeight: 700 }}
+              >
+                {money(party.total)}
+              </td>
+            </tr>
+            {party.products.map((product) => (
+              <tr key={`${party.partyId}-${product.itemId}`}>
+                <td style={{ paddingLeft: 24 }}>{product.itemName}</td>
+                <td className="num">{money(product.value)}</td>
+              </tr>
+            ))}
+          </Fragment>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className="total">
+          <td>Grand total (all parties)</td>
+          <td className="num">{money(report.grandTotal)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
 /** COA section: type band, the account tree (sub-accounts indented), subtotal. */
 function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
   return (
@@ -472,6 +515,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const showBs = showAll || section === "report-balance-sheet";
   const showParty = showAll || section === "report-party-ledger";
   const showAllParties = showAll || section === "report-party-ledger-all";
+  const showPartyProducts = showAll || section === "report-party-product-sales";
   const showCash = showAll || section === "report-cash-book";
   const showExport = showAll || section === "report-export";
   const showPeriod = showAll || showTb || showPl || showBs;
@@ -511,6 +555,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [allShowOpening, setAllShowOpening] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
   const [allBusy, setAllBusy] = useState(false);
+
+  const [partyProducts, setPartyProducts] = useState<PartyProductSales | null>(null);
+  const [ppFrom, setPpFrom] = useState("");
+  const [ppTo, setPpTo] = useState("");
+  const [ppLoaded, setPpLoaded] = useState(false);
+  const [ppBusy, setPpBusy] = useState(false);
 
   const [csvBusy, setCsvBusy] = useState(false);
   // Which Excel export is preparing, so only the button that was pressed shows
@@ -603,6 +653,19 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       setError(errorMessage(err, "Failed to load all party ledgers."));
     } finally {
       setAllBusy(false);
+    }
+  }
+
+  async function loadPartyProducts(): Promise<void> {
+    setPpBusy(true);
+    setError(null);
+    try {
+      setPartyProducts(await api.partyProductSales(ppFrom || undefined, ppTo || undefined));
+      setPpLoaded(true);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to load party product sales."));
+    } finally {
+      setPpBusy(false);
     }
   }
 
@@ -1047,6 +1110,31 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           dates empty for full history.
         </p>
         {allLoaded && allPartyLedgers && <AllPartyLedgerTable report={allPartyLedgers} />}
+      </div>
+      )}
+
+      {showPartyProducts && (
+      <div className="card" id="report-party-product-sales">
+        <h2>Party Product Sales</h2>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <div>
+            <label>From</label>
+            <input type="date" value={ppFrom} onChange={(e) => setPpFrom(e.target.value)} />
+          </div>
+          <div>
+            <label>To</label>
+            <input type="date" value={ppTo} onChange={(e) => setPpTo(e.target.value)} />
+          </div>
+          <button className="primary" onClick={() => void loadPartyProducts()} disabled={ppBusy}>
+            {ppBusy ? "Loading…" : "Generate report"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 12 }}>
+          What each party spent per product across all its confirmed sale
+          invoices; the party band shows that party's total. Leave the dates empty
+          for full history.
+        </p>
+        {ppLoaded && partyProducts && <PartyProductSalesTable report={partyProducts} />}
       </div>
       )}
 
