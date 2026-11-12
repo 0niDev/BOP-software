@@ -13,12 +13,6 @@ await sales.createSalesInvoice({
   paymentType: "CREDIT",
   items: [{ itemId: ids.itemId, quantity: 2, unitPrice: 150 }],
 });
-await sales.createSalesInvoice({
-  customerId: ids.supplierId,
-  invoiceDate: "2026-10-20",
-  paymentType: "CREDIT",
-  items: [{ itemId: ids.itemId, quantity: 1, unitPrice: 9 }],
-});
 const pdf = new ReportPdf(db);
 const file = await pdf.chartOfAccounts();
 writeFileSync("/tmp/coa-sample.pdf", file.buffer);
