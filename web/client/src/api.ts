@@ -641,8 +641,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  journalVoucherXlsx: (id: number) =>
-    requestBlob(`/api/journal-entries/${id}/export.xlsx`),
+  /** Rewrite an existing manual voucher; the voucher number is kept. */
+  updateJournalEntry: (
+    id: number,
+    body: {
+      entryDate: string;
+      narration?: string | null;
+      referenceNo?: string | null;
+      lines: Array<{
+        accountId: number;
+        partyId?: number | null;
+        description?: string | null;
+        debit?: number;
+        credit?: number;
+      }>;
+    },
+  ) =>
+    request<JournalEntryResult>(`/api/journal-entries/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  journalVoucherPdf: (id: number) =>
+    requestBlob(`/api/journal-entries/${id}/export.pdf`),
   boms: (activeOnly = true) =>
     request<Bom[]>(`/api/boms${activeOnly ? "" : "?activeOnly=false"}`),
   bom: (id: number) =>

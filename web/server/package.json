@@ -23,6 +23,7 @@
     "cors": "^2.8.6",
     "decimal.js": "^10.6.0",
     "express": "^5.2.1",
+    "pdf-lib": "^1.17.1",
     "write-excel-file": "^4.1.1",
     "zod": "^4.6.5"
   },

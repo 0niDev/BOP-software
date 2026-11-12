@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../api";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
@@ -50,6 +50,51 @@ function message(err: unknown, fallback: string): string {
 
 function amount(value: number): string {
   return value === 0 ? "—" : money(value);
+}
+
+/** Type band row style shared by the account-type sections and the Parties band. */
+const SECTION_STYLE: CSSProperties = {
+  background: "var(--accent-soft)",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  fontSize: 12,
+  opacity: 0.8,
+};
+
+/**
+ * One party sub-ledger row. `rails` is how deep the row sits in the tree: the
+ * control account's depth + 1 beneath an account, or 0 in the top Parties band.
+ */
+function partyRow(party: PartyBalance, rails: number): ReactNode {
+  return (
+    <tr key={`party-${party.partyId}`} className="coa-row coa-l3">
+      <td style={{ whiteSpace: "nowrap" }} title={`Party code: ${party.code}`}>
+        <span className="coa-code">
+          {Array.from({ length: rails }, (_, index) => (
+            <span key={index} className="coa-rail" />
+          ))}
+          {rails > 0 && <span className="coa-elbow">└</span>}
+          {party.code}
+        </span>
+      </td>
+      <td>
+        {party.name}
+        <span className="badge" style={{ marginLeft: 6, opacity: 0.7 }}>
+          party
+        </span>
+      </td>
+      <td>{party.partyType}</td>
+      <td>—</td>
+      <td className="num" title="Closing balance of this party's ledger">
+        {amount(party.balance)}
+      </td>
+      <td>
+        <span className="badge">{party.isActive ? "Active" : "Inactive"}</span>
+      </td>
+      <td />
+    </tr>
+  );
 }
 
 export default function AccountsPage() {
@@ -218,6 +263,25 @@ export default function AccountsPage() {
   const partyMatches = (party: PartyBalance): boolean =>
     matchesQuery(query, [party.code, party.name, party.partyType]);
 
+  // Parties are ordered by how much they move the ledger (largest balance
+  // first), then by name, so the accounts that matter sit at the top.
+  for (const list of partiesByAccount.values()) {
+    list.sort(
+      (a, b) => Math.abs(b.balance) - Math.abs(a.balance) || a.name.localeCompare(b.name),
+    );
+  }
+
+  const visibleAccountIds = new Set(accounts.map((account) => account.id));
+  // Zero-balance parties have no control account to sit under, and neither do
+  // parties whose control account is hidden. Both go in the top Parties band so
+  // the chart never drops a party.
+  const balancedParties = parties
+    .filter(
+      (party) =>
+        (party.accountId === 0 || !visibleAccountIds.has(party.accountId)) && partyMatches(party),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   // Filtering happens before the tree is built, so a matching child whose
   // parent is hidden simply surfaces as a root under its type section. An
   // account whose party matches the filter stays visible to carry that party.
@@ -379,36 +443,7 @@ export default function AccountsPage() {
     ];
     if (!open) return rows;
     for (const child of children) rows.push(...treeRows(child, depth + 1));
-    for (const party of childParties) {
-      rows.push(
-        <tr key={`party-${party.partyId}`} className="coa-row coa-l3">
-          <td style={{ whiteSpace: "nowrap" }} title={`Party code: ${party.code}`}>
-            <span className="coa-code">
-              {Array.from({ length: depth + 1 }, (_, index) => (
-                <span key={index} className="coa-rail" />
-              ))}
-              <span className="coa-elbow">└</span>
-              {party.code}
-            </span>
-          </td>
-          <td>
-            {party.name}
-            <span className="badge" style={{ marginLeft: 6, opacity: 0.7 }}>
-              party
-            </span>
-          </td>
-          <td>{party.partyType}</td>
-          <td>—</td>
-          <td className="num" title="Closing balance of this party's ledger">
-            {amount(party.balance)}
-          </td>
-          <td>
-            <span className="badge">{party.isActive ? "Active" : "Inactive"}</span>
-          </td>
-          <td />
-        </tr>,
-      );
-    }
+    for (const party of childParties) rows.push(partyRow(party, depth + 1));
     return rows;
   }
 
@@ -517,8 +552,9 @@ export default function AccountsPage() {
         </div>
         {parties.length > 0 && (
           <p style={{ opacity: 0.7, fontSize: 12, margin: "4px 0 8px" }}>
-            Accounts Receivable and Payable list their parties beneath them; the amount on a
-            party row is that party&apos;s ledger balance.
+            Accounts Receivable and Payable list their parties beneath them, largest balance
+            first, with each party&apos;s ledger balance in the Opening column. Parties with a
+            zero net balance are listed under Parties at the top.
           </p>
         )}
         <table>
@@ -534,23 +570,21 @@ export default function AccountsPage() {
             </tr>
           </thead>
           <tbody>
+            {activeType === "all" && balancedParties.length > 0 && [
+              <tr key="section-parties">
+                <td colSpan={7} style={SECTION_STYLE}>
+                  Parties
+                </td>
+              </tr>,
+              ...balancedParties.map((party) => partyRow(party, 0)),
+            ]}
             {ACCOUNT_TYPES.map((type) => {
               if (activeType !== "all" && activeType !== type) return null;
               const sectionRoots = roots.filter((account) => account.account_type === type);
               if (sectionRoots.length === 0) return null;
               return [
                 <tr key={`section-${type}`}>
-                  <td
-                    colSpan={7}
-                    style={{
-                      background: "var(--accent-soft)",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      fontSize: 12,
-                      opacity: 0.8,
-                    }}
-                  >
+                  <td colSpan={7} style={SECTION_STYLE}>
                     {TYPE_LABELS[type]}
                   </td>
                 </tr>,

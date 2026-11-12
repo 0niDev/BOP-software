@@ -51,6 +51,38 @@ export class JournalRepository {
       ...header,
       is_posted: header.is_posted ?? 1,
     });
+    await this.insertLines(entryId, lines);
+    return entryId;
+  }
+
+  /**
+   * Rewrite the header fields an edit may change. The voucher number and the
+   * source link stay as issued, so the entry still points at itself.
+   */
+  async updateHeader(
+    id: number,
+    header: { entry_date: string; narration: string | null; reference_no: string | null },
+  ): Promise<void> {
+    await this.db.run(
+      "UPDATE journal_entries SET entry_date = ?, narration = ?, reference_no = ? WHERE id = ?",
+      [header.entry_date, header.narration, header.reference_no, id],
+    );
+  }
+
+  /**
+   * Replace every line of an entry in one call. Explicit delete-then-insert
+   * because SQLite only honours ON DELETE CASCADE with foreign keys enabled,
+   * and the hosted driver's pragma is not guaranteed.
+   */
+  async replaceLines(entryId: number, lines: JournalLineRow[]): Promise<void> {
+    if (lines.length < 2) {
+      throw new ValidationError("A journal entry needs at least two lines.");
+    }
+    await this.db.run("DELETE FROM journal_entry_lines WHERE journal_entry_id = ?", [entryId]);
+    await this.insertLines(entryId, lines);
+  }
+
+  private async insertLines(entryId: number, lines: readonly JournalLineRow[]): Promise<void> {
     for (const [order, line] of lines.entries()) {
       const row: InsertData = {
         journal_entry_id: entryId,
@@ -65,7 +97,6 @@ export class JournalRepository {
       }
       await insertRow(this.db, "journal_entry_lines", row);
     }
-    return entryId;
   }
 
   /**
@@ -103,6 +134,36 @@ export class JournalRepository {
       [companyId, voucherNumber],
     );
     return row !== undefined;
+  }
+
+  /** A manual voucher with this exact number: the one a reversal points at. */
+  async findManualByVoucherNumber(
+    companyId: number,
+    voucherNumber: string,
+  ): Promise<Row | undefined> {
+    return this.db.get<Row>(
+      `SELECT id, voucher_number FROM journal_entries
+        WHERE company_id = ? AND voucher_number = ? AND voucher_type = 'JOURNAL'
+          AND source_table = 'journal_entries'`,
+      [companyId, voucherNumber],
+    );
+  }
+
+  /**
+   * A manual voucher that references `voucherNumber`. Reversal is the only
+   * path that sets a manual voucher's reference to another voucher number, so
+   * a hit means this entry has already been reversed.
+   */
+  async findManualReferencing(
+    companyId: number,
+    voucherNumber: string,
+  ): Promise<Row | undefined> {
+    return this.db.get<Row>(
+      `SELECT id, voucher_number FROM journal_entries
+        WHERE company_id = ? AND reference_no = ? AND voucher_type = 'JOURNAL'
+          AND source_table = 'journal_entries'`,
+      [companyId, voucherNumber],
+    );
   }
 
   /**

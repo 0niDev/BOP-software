@@ -97,7 +97,11 @@ export interface LedgerEntry {
 /** One party's sub-ledger balance, for the Chart of Accounts. */
 export interface PartyBalanceRow {
   partyId: number;
-  /** Control account (Accounts Receivable / Payable) the sub-ledger sits under. */
+  /**
+   * Control account the sub-ledger sits under, chosen by balance direction
+   * (asset when the party owes us, liability when we owe them), or 0 for a
+   * settled party — the page lists those under "Balanced Parties".
+   */
   accountId: number;
   code: string;
   name: string;
@@ -554,6 +558,11 @@ export class ReportService {
    * partyLedger(): the stored opening seeds the balance, OPENING entries are
    * excluded, and settled (cash/bank invoice or paid expense) or pre-opening
    * lines do not move it.
+   *
+   * Placement follows the balance, not the party type: debit (party owes us,
+   * or we pre-paid a supplier) is an asset, credit (we owe them — a customer
+   * advance, or a supplier payable) is a liability, and a zero balance gets
+   * accountId 0.
    */
   async partyBalances(): Promise<PartyBalanceRow[]> {
     const parties = await this.parties.list(this.companyId, { activeOnly: false });
@@ -562,6 +571,13 @@ export class ReportService {
     const resolver = new SystemAccountResolver(this.db, this.companyId);
     const receivableId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_RECEIVABLE);
     const payableId = await resolver.idFor(SystemAccountCodes.ACCOUNTS_PAYABLE);
+    // 1550002 is imported, not seeded: tolerate its absence by leaving a
+    // supplier advance on the payable side, as it was before.
+    const advanceAccount = await this.db.get<{ id: number }>(
+      "SELECT id FROM accounts WHERE account_code = '1550002' AND company_id = ?",
+      [this.companyId],
+    );
+    const advanceToSuppliersId = advanceAccount?.id ?? payableId;
 
     const lines = await this.db.all<{
       party_id: number;
@@ -623,7 +639,13 @@ export class ReportService {
           .minus(new Decimal(Number(line.credit ?? 0)));
       }
       const accountId =
-        party.account_id ?? (party.party_type === "SUPPLIER" ? payableId : receivableId);
+        balance.isZero()
+          ? 0
+          : balance.isNegative()
+            ? payableId
+            : party.party_type === "SUPPLIER"
+              ? advanceToSuppliersId
+              : receivableId;
       return {
         partyId: party.id,
         accountId,

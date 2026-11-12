@@ -159,6 +159,8 @@ export default function JournalVouchersPage() {
   const [busy, setBusy] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Set while the dialog is editing an existing voucher instead of posting one.
+  const [editing, setEditing] = useState<ManualJournalEntry | null>(null);
   const [date, setDate] = useState(today);
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<DraftLine[]>(() => [newLine(), newLine()]);
@@ -246,6 +248,7 @@ export default function JournalVouchersPage() {
 
   function closeDialog(): void {
     setDialogOpen(false);
+    setEditing(null);
     setDate(today());
     setNarration("");
     setLines([newLine(), newLine()]);
@@ -273,9 +276,12 @@ export default function JournalVouchersPage() {
     }
     setBusy(true);
     try {
-      const created = await api.createJournalEntry({
+      const body = {
         entryDate: date,
         narration: narration.trim() || null,
+        // The edit dialog has no reference field; keep whatever the voucher
+        // already carries instead of clearing it.
+        referenceNo: editing?.reference_no ?? null,
         lines: active.map((line) => ({
           accountId: journalLineAccountId(line, depths),
           partyId: line.partyId || null,
@@ -283,12 +289,23 @@ export default function JournalVouchersPage() {
           debit: Number(line.debit) || 0,
           credit: Number(line.credit) || 0,
         })),
-      });
-      setNotice(`Posted ${created.voucherNumber} (${money(totalDebit)}).`);
+      };
+      if (editing) {
+        await api.updateJournalEntry(editing.id, body);
+        setNotice(`Updated ${editing.voucher_number}.`);
+      } else {
+        const created = await api.createJournalEntry(body);
+        setNotice(`Posted ${created.voucherNumber} (${money(totalDebit)}).`);
+      }
       closeDialog();
       await refresh();
     } catch (err) {
-      setError(message(err, "Failed to post the journal voucher."));
+      setError(
+        message(
+          err,
+          editing ? "Failed to save the journal voucher." : "Failed to post the journal voucher.",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -307,12 +324,40 @@ export default function JournalVouchersPage() {
     }
   }
 
+  /** Load a voucher into the dialog, as an editable draft. */
+  async function edit(entry: ManualJournalEntry): Promise<void> {
+    setError(null);
+    setNotice(null);
+    try {
+      const full = await api.journalEntry(entry.id);
+      setEditing(entry);
+      // The expanded read-only copy would go stale when the edit is saved.
+      setDetail(null);
+      setDate(full.entry_date);
+      setNarration(full.narration ?? "");
+      setLines(
+        full.lines.map((line) => ({
+          accountId: line.account_id,
+          parentId: 0,
+          partyId: line.party_id ?? 0,
+          description: line.description ?? "",
+          debit: Number(line.debit) ? String(line.debit) : "",
+          credit: Number(line.credit) ? String(line.credit) : "",
+        })),
+      );
+      justAdded.current = false;
+      setDialogOpen(true);
+    } catch (err) {
+      setError(message(err, "Failed to load the entry."));
+    }
+  }
+
   async function exportVoucher(entry: ManualJournalEntry): Promise<void> {
     setError(null);
     setExporting(entry.id);
     try {
-      const blob = await api.journalVoucherXlsx(entry.id);
-      saveBlob(blob, `journal-voucher_${entry.voucher_number}.xlsx`);
+      const blob = await api.journalVoucherPdf(entry.id);
+      saveBlob(blob, `journal-voucher_${entry.voucher_number}.pdf`);
     } catch (err) {
       setError(message(err, "Failed to export the voucher."));
     } finally {
@@ -359,6 +404,7 @@ export default function JournalVouchersPage() {
             type="button"
             onClick={() => {
               justAdded.current = false;
+              setEditing(null);
               setDialogOpen(true);
             }}
           >
@@ -388,10 +434,12 @@ export default function JournalVouchersPage() {
             className="modal modal-wide"
             role="dialog"
             aria-modal="true"
-            aria-label="New journal voucher"
+            aria-label={editing ? `Edit ${editing.voucher_number}` : "New journal voucher"}
           >
             <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
-              <h2 style={{ flex: 1, margin: 0 }}>New journal voucher</h2>
+              <h2 style={{ flex: 1, margin: 0 }}>
+                {editing ? `Edit ${editing.voucher_number}` : "New journal voucher"}
+              </h2>
               <button type="button" onClick={closeDialog}>
                 Close
               </button>
@@ -402,7 +450,8 @@ export default function JournalVouchersPage() {
               account is optional, so a level-3 category can be posted to on its own.
               [L1]/[L2]/[L3]… marks each account&apos;s level in the chart.
               Lines on Accounts Receivable / Payable also take a party, which moves that
-              party&apos;s ledger. Posted vouchers cannot be edited — reverse one to correct it.
+              party&apos;s ledger. Editing a voucher rewrites its lines in the ledger; a voucher
+              that has already been reversed is frozen.
             </p>
             {error && <div className="error">{error}</div>}
 
@@ -557,7 +606,7 @@ export default function JournalVouchersPage() {
                 disabled={busy || !balanced}
                 onClick={() => void submit()}
               >
-                {busy ? "Posting…" : "Post voucher"}
+                {busy ? "Saving…" : editing ? "Save changes" : "Post voucher"}
               </button>
             </div>
           </div>
@@ -636,12 +685,15 @@ export default function JournalVouchersPage() {
                   <button type="button" onClick={() => void view(entry)}>
                     {detail?.id === entry.id ? "Hide" : "View"}
                   </button>{" "}
+                  <button type="button" onClick={() => void edit(entry)}>
+                    Edit
+                  </button>{" "}
                   <button
                     type="button"
                     disabled={exporting === entry.id}
                     onClick={() => void exportVoucher(entry)}
                   >
-                    {exporting === entry.id ? "Preparing…" : "Excel"}
+                    {exporting === entry.id ? "Preparing…" : "PDF"}
                   </button>{" "}
                   <button type="button" onClick={() => setReverseTarget(entry)}>
                     Reverse

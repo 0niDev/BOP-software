@@ -82,6 +82,82 @@ describe("manual journal vouchers", () => {
     expect(await accounting.listManualJournals()).toHaveLength(0);
   });
 
+  it("edits a manual voucher in place and keeps its number", async () => {
+    const created = await accounting.createManualJournal({
+      entryDate: "2026-10-20",
+      narration: "Accrual",
+      lines: [
+        { accountId: cashId, debit: 150 },
+        { accountId: revenueId, credit: 150 },
+      ],
+    });
+
+    const updated = await accounting.updateManualJournal(created.id, {
+      entryDate: "2026-10-25",
+      narration: "Corrected accrual",
+      lines: [
+        { accountId: cashId, debit: 90 },
+        { accountId: revenueId, credit: 90 },
+      ],
+    });
+    expect(updated.voucherNumber).toBe(created.voucherNumber);
+
+    const je = await accounting.getJournalEntry("journal_entries", created.id);
+    expect(je!.entry_date).toBe("2026-10-25");
+    expect(je!.narration).toBe("Corrected accrual");
+    expect((je!.lines as Line[]).length).toBe(2);
+
+    // The old lines are gone: the balance reflects the edited amount only.
+    expect(await accounting.getAccountBalance(cashId)).toBe(90);
+    const list = await accounting.listManualJournals();
+    expect(list).toHaveLength(1);
+    expect(Number(list[0]!.total_debit)).toBe(90);
+  });
+
+  it("refuses to edit a voucher that has already been reversed", async () => {
+    const created = await accounting.createManualJournal({
+      entryDate: "2026-10-20",
+      lines: [
+        { accountId: cashId, debit: 50 },
+        { accountId: revenueId, credit: 50 },
+      ],
+    });
+    await accounting.reverseManualJournal(created.id, { reversalDate: "2026-10-21" });
+
+    await expect(
+      accounting.updateManualJournal(created.id, {
+        entryDate: "2026-10-22",
+        lines: [
+          { accountId: cashId, debit: 10 },
+          { accountId: revenueId, credit: 10 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("refuses to edit a reversal voucher", async () => {
+    const created = await accounting.createManualJournal({
+      entryDate: "2026-10-20",
+      lines: [
+        { accountId: cashId, debit: 60 },
+        { accountId: revenueId, credit: 60 },
+      ],
+    });
+    const reversal = await accounting.reverseManualJournal(created.id, {
+      reversalDate: "2026-10-21",
+    });
+
+    await expect(
+      accounting.updateManualJournal(reversal.id, {
+        entryDate: "2026-10-22",
+        lines: [
+          { accountId: cashId, debit: 10 },
+          { accountId: revenueId, credit: 10 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it("reverses a manual voucher by posting the opposite lines", async () => {
     const created = await accounting.createManualJournal({
       entryDate: "2026-10-20",

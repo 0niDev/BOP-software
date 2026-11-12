@@ -383,7 +383,9 @@ the quantity guard is per request.
 | --- | --- | --- | --- |
 | `GET` | `/api/journal-entries` | `?from=&to=` | Manual `JV-` vouchers, newest first |
 | `POST` | `/api/journal-entries` | `{ entryDate, narration?, referenceNo?, voucherNumber?, lines: [{ accountId, partyId?, description?, debit?, credit? }] }` | `201` `{ id, voucherNumber }` |
+| `PUT` | `/api/journal-entries/:id` | `{ entryDate, narration?, referenceNo?, lines: [...] }` | `{ id, voucherNumber }` — the number is kept |
 | `POST` | `/api/journal-entries/:id/reverse` | `{ reversalDate?, narration? }` | `201` `{ id, voucherNumber }` |
+| `GET` | `/api/journal-entries/:id/export.pdf` | — | Printable PDF of that voucher (lines + totals) |
 | `GET` | `/api/journal-entries/:id/export.xlsx` | — | Excel workbook of that voucher (lines + totals) |
 | `GET` | `/api/journal-entries/:sourceTable/:sourceId` | — | The entry header plus its lines, or `null` |
 
@@ -394,11 +396,16 @@ There is no business document behind one — the entry is its own source, so
 from the `JOURNAL_VOUCHER` sequence (`JV-`). Group/header accounts (accounts with
 sub-accounts) are rejected as posting targets.
 
-Posted vouchers are immutable. `POST /api/journal-entries/:id/reverse` posts the
-opposite entry on the given date (defaults to today) and links it back through
-`reference_no`; the original stays in the ledger. Only manual vouchers can be
-reversed here — entries owned by a document are corrected through their own
-module.
+A posted voucher can be edited in place through `PUT`: the header and every line
+are rewritten in one transaction, so the ledger never holds a half-edited
+voucher. Its number is kept. Once a voucher has been reversed it is frozen, and
+a reversal voucher cannot be edited either.
+
+`POST /api/journal-entries/:id/reverse` is the other correction path: it posts
+the opposite entry on the given date (defaults to today) and links it back
+through `reference_no`; the original stays in the ledger. Only manual vouchers
+can be reversed here — entries owned by a document are corrected through their
+own module.
 
 `sourceTable` on the lookup route matches `journal_entries.source_table`
 (`sales_invoices`, `purchase_invoices`, `payments`, `receipts`, `expenses`,

@@ -56,6 +56,14 @@ export interface CreateManualJournalInput {
   createdBy?: number | null;
 }
 
+/** The voucher number is the entry's identity, so an edit never changes it. */
+export interface UpdateManualJournalInput {
+  entryDate: string;
+  narration?: string | null;
+  referenceNo?: string | null;
+  lines: ManualJournalLineInput[];
+}
+
 export interface ManualJournalResult {
   id: number;
   voucherNumber: string;
@@ -212,20 +220,7 @@ export class AccountingService {
       throw new ValidationError("A journal voucher needs at least two lines.");
     }
 
-    const lines: JournalLineInput[] = input.lines.map((line, index) => {
-      const debit = round2(line.debit ?? 0);
-      const credit = round2(line.credit ?? 0);
-      if (debit.isZero() && credit.isZero()) {
-        throw new ValidationError(`Line ${index + 1} needs a debit or a credit amount.`);
-      }
-      return {
-        accountId: line.accountId,
-        partyId: line.partyId ?? null,
-        description: line.description ?? null,
-        debit,
-        credit,
-      };
-    });
+    const prepared = this.prepareManualLines(input.lines);
 
     const voucherNumber = input.voucherNumber?.trim() || null;
     if (voucherNumber && (await this.journal.voucherExists(companyId, voucherNumber))) {
@@ -239,7 +234,13 @@ export class AccountingService {
         voucherNumber,
         referenceNo: input.referenceNo ?? null,
         narration: input.narration ?? null,
-        lines,
+        lines: prepared.map((line) => ({
+          accountId: line.account_id,
+          partyId: line.party_id ?? null,
+          description: line.description ?? null,
+          debit: line.debit,
+          credit: line.credit,
+        })),
         sourceTable: "journal_entries",
         companyId,
         createdBy: input.createdBy ?? null,
@@ -247,6 +248,90 @@ export class AccountingService {
       await this.db.run("UPDATE journal_entries SET source_id = ? WHERE id = ?", [id, id]);
       const row = await this.journal.findById(id);
       return { id, voucherNumber: String(row?.voucher_number ?? "") };
+    });
+  }
+
+  /**
+   * Round the lines, refuse malformed ones, and confirm the totals agree.
+   * Create and edit share this path so a saved voucher is validated exactly
+   * like one posted from the dialog.
+   */
+  private prepareManualLines(lines: readonly ManualJournalLineInput[]): JournalLineRow[] {
+    let totalDebit = new Decimal(0);
+    let totalCredit = new Decimal(0);
+    const rows = lines.map((line, index): JournalLineRow => {
+      const debit = round2(line.debit ?? 0);
+      const credit = round2(line.credit ?? 0);
+      if (debit.isZero() && credit.isZero()) {
+        throw new ValidationError(`Line ${index + 1} needs a debit or a credit amount.`);
+      }
+      if (debit.isNegative() || credit.isNegative()) {
+        throw new ValidationError("Journal line amounts cannot be negative.");
+      }
+      if (!debit.isZero() && !credit.isZero()) {
+        throw new ValidationError("A journal line cannot have both debit and credit.");
+      }
+      totalDebit = totalDebit.plus(debit);
+      totalCredit = totalCredit.plus(credit);
+      return {
+        account_id: line.accountId,
+        debit: toStorage(debit),
+        credit: toStorage(credit),
+        party_id: line.partyId ?? null,
+        description: line.description ?? null,
+      };
+    });
+    if (totalDebit.minus(totalCredit).abs().greaterThan(new Decimal(ROUNDING_TOLERANCE))) {
+      throw new UnbalancedJournalEntryError(
+        `Journal entry not balanced: debit=${totalDebit.toFixed(2)}, credit=${totalCredit.toFixed(2)}`,
+      );
+    }
+    return rows;
+  }
+
+  /**
+   * Edit a manual voucher in place: header and every line are rewritten in one
+   * transaction, so the ledger never holds a half-edited voucher. The voucher
+   * number stays as issued, and a voucher that has already been reversed is
+   * frozen — editing it would leave the reversal opposing lines that no longer
+   * exist. (A reversal voucher is frozen the same way.)
+   */
+  async updateManualJournal(
+    id: number,
+    input: UpdateManualJournalInput,
+  ): Promise<ManualJournalResult> {
+    const companyId = this.companyId;
+    const entry = await this.journal.findById(id);
+    if (!entry) throw new NotFoundError(`Journal entry ${id} not found.`);
+    if (entry.voucher_type !== "JOURNAL" || entry.source_table !== "journal_entries") {
+      throw new ValidationError(
+        "Only manual journal vouchers can be edited here — correct the source document instead.",
+      );
+    }
+    const voucherNumber = String(entry.voucher_number);
+    if (await this.journal.findManualReferencing(companyId, voucherNumber)) {
+      throw new ConflictError(`${voucherNumber} has already been reversed. Post a new voucher instead.`);
+    }
+    const referenceNo = entry.reference_no == null ? null : String(entry.reference_no);
+    if (referenceNo && (await this.journal.findManualByVoucherNumber(companyId, referenceNo))) {
+      throw new ValidationError(`${voucherNumber} is a reversal and cannot be edited.`);
+    }
+    if (!input.entryDate) throw new ValidationError("Entry date is required.");
+    if (input.lines.length < 2) {
+      throw new ValidationError("A journal voucher needs at least two lines.");
+    }
+    const lines = this.prepareManualLines(input.lines);
+
+    return this.db.transaction(async () => {
+      await this.journal.updateHeader(id, {
+        entry_date: input.entryDate,
+        narration: input.narration ?? null,
+        // Omitting the reference keeps the one already stored, so the edit
+        // dialog does not have to show a field it never had.
+        reference_no: input.referenceNo === undefined ? referenceNo : input.referenceNo,
+      });
+      await this.journal.replaceLines(id, lines);
+      return { id, voucherNumber };
     });
   }
 

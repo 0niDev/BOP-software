@@ -29,6 +29,7 @@ import { PaymentService } from "../services/paymentService.js";
 import { PurchaseInvoiceService } from "../services/purchaseInvoiceService.js";
 import { RestoreService } from "../services/restoreService.js";
 import { ReturnsService } from "../services/returnsService.js";
+import { ReportPdf, PDF_MIME } from "../services/reportPdf.js";
 import { ReportService } from "../services/reportService.js";
 import { ReportXlsx, SHEET_MIME } from "../services/reportXlsx.js";
 import { SalesInvoiceService } from "../services/salesInvoiceService.js";
@@ -113,6 +114,7 @@ export function createApp(
   const accounting = new AccountingService(db, companyId);
   const reports = new ReportService(db, companyId);
   const reportXlsx = new ReportXlsx(db, companyId);
+  const reportPdf = new ReportPdf(db, companyId);
   const users = new UserService(db);
   const settings = new SettingsService(db, companyId);
   const dashboard = new DashboardService(db, companyId);
@@ -1407,6 +1409,14 @@ export function createApp(
     res.send(file.buffer);
   });
 
+  /** One manual journal voucher as a printable PDF. */
+  app.get("/api/journal-entries/:id/export.pdf", requireAuth, async (req, res) => {
+    const file = await reportPdf.journalVoucher(Number(req.params.id));
+    res.attachment(file.fileName);
+    res.type(PDF_MIME);
+    res.send(file.buffer);
+  });
+
   /** Read any document's backing entry, e.g. sourceTable "expenses". */
   app.get("/api/journal-entries/:sourceTable/:sourceId", requireAuth, async (req, res) => {
     const entry = await accounting.getJournalEntry(
@@ -1449,6 +1459,15 @@ export function createApp(
       .json(
         await accounting.createManualJournal({ ...body, createdBy: user?.userId ?? null }),
       );
+  });
+
+  /**
+   * Edit a manual voucher in place. The voucher number is kept; the body only
+   * carries the date, narration, reference and replacement lines.
+   */
+  app.put("/api/journal-entries/:id", requireAuth, async (req, res) => {
+    const body = parseBody(manualJournalSchema, req.body);
+    res.json(await accounting.updateManualJournal(Number(req.params.id), body));
   });
 
   /** Correct a manual voucher by posting its opposite on a chosen date. */

@@ -44,6 +44,11 @@ type, subtype, opening balance, system flag and active state.
   Retained Earnings (`3100`), so the books stay balanced. Editing an opening
   balance posts the difference (a new adjusting entry), it does not rewrite
   history.
+- Party sub-ledgers hang under their control account on the same tree: a debit
+  balance under Accounts Receivable (an asset), a credit balance under Accounts
+  Payable (a liability), largest balance first. Parties with a zero net balance
+  have no control account, so they are listed under a **Parties** band at the
+  top of the chart.
 - The bulk **Opening balances** form posts one `OPENING` entry for all entered
   accounts and requires total debit = total credit (tolerance 0.01).
 
