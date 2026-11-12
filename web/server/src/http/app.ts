@@ -1621,6 +1621,12 @@ export function createApp(
     sendXlsx(res, file.fileName, file.buffer);
   });
 
+  app.get("/api/reports/party-product-sales.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.partyProductSales({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
   // Inventory workbook: the item list (id, code, name, stock, prices) as Excel.
   // Takes the same filters as GET /api/items, plus `stock=in|zero` so the
   // exported rows match what the Items page is showing.

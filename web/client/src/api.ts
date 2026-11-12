@@ -896,6 +896,15 @@ export const api = {
     const suffix = params.toString();
     return requestBlob(`/api/reports/party-ledger-all.xlsx${suffix ? `?${suffix}` : ""}`);
   },
+  partyProductSalesXlsx: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return requestBlob(
+      `/api/reports/party-product-sales.xlsx${suffix ? `?${suffix}` : ""}`,
+    );
+  },
 
   dashboard: () => request<DashboardData>("/api/dashboard"),
 

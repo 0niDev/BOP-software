@@ -1128,6 +1128,18 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           <button className="primary" onClick={() => void loadPartyProducts()} disabled={ppBusy}>
             {ppBusy ? "Loading…" : "Generate report"}
           </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "party-products",
+                () => api.partyProductSalesXlsx(ppFrom || undefined, ppTo || undefined),
+                `party-product-sales_${periodTag(ppFrom, ppTo)}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null}
+          >
+            {xlsxBusy === "party-products" ? "Preparing…" : "Export Excel"}
+          </button>
         </div>
         <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 12 }}>
           What each party spent per product across all its confirmed sale

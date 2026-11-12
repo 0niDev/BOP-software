@@ -224,6 +224,21 @@ describe("xlsx report exports", () => {
     expect(worksheet(files)).toContain(`<v>${report.grandTotal}</v>`);
   });
 
+  it("exports the party product sales report with per-party totals", async () => {
+    const file = await xlsx.partyProductSales({});
+    const files = open(file.buffer);
+    expect(file.fileName).toBe("party-product-sales_all-posted.xlsx");
+    expect(sheetNames(files)).toEqual(["Party Product Sales"]);
+
+    const text = strings(files);
+    const report = await reports.partyProductSales();
+    const party = report.parties.find((row) => row.partyId === ctx.ids.customerId);
+    if (!party) throw new Error("the customer should appear in the product sales report");
+    expect(text).toContain(party.code);
+    expect(text).toContain("Grand total (all parties)");
+    expect(worksheet(files)).toContain(`<v>${party.total}</v>`);
+  });
+
   it("exports the inventory report with every item's id, name and stock", async () => {
     const items = await new ItemService(ctx.db).list();
     const file = await xlsx.inventory({});
