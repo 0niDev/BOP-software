@@ -208,6 +208,37 @@ test("journal vouchers only offer COA accounts at level 3 or deeper", async () =
   expect(postableAccounts(accounts).map((account) => account.id)).toEqual([3, 6]);
 });
 
+test("journal groups are level-3 categories with their level-4 accounts", async () => {
+  const { journalGroups } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_name: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const a = (id: number, parent: number | null, code = String(id)) => ({ ...base, id, account_code: code, parent_account_id: parent });
+  const accounts = [
+    a(1, null), // L1 header
+    a(2, 1), //    L2 header
+    a(3, 2), //    L3 Cash and Bank — a group
+    a(4, 3), //      L4 Cash at Head Office
+    a(5, 3), //      L4 Cash at Mills
+    a(6, 2), //    L3 Rent, no children — posts on its own
+    a(7, null, "4000"), // a flat, childless L1 account — its own group too
+  ];
+  const groups = journalGroups(accounts);
+
+  expect(groups.map(({ group }) => group.id)).toEqual([3, 6, 7]);
+  expect(groups[0].items.map((item) => item.id)).toEqual([4, 5]);
+  expect(groups[1].items.map((item) => item.id)).toEqual([6]);
+  expect(groups[2].items.map((item) => item.id)).toEqual([7]);
+});
+
+test("a journal group skips a level-4 header for the accounts beneath it", async () => {
+  const { journalGroups } = await import("../src/pages/JournalVouchersPage");
+  const base = { account_type: "ASSET" as const, account_name: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };
+  const a = (id: number, parent: number | null) => ({ ...base, id, account_code: String(id), parent_account_id: parent });
+  const accounts = [a(1, null), a(2, 1), a(3, 2), a(4, 3), a(5, 4)];
+
+  // 3 (L3) > 4 (L4 header) > 5 (L5 ledger): only the ledger account is offered.
+  expect(journalGroups(accounts)[0].items.map((item) => item.id)).toEqual([5]);
+});
+
 test("a blank account falls back to the group only at level 3 or deeper", async () => {
   const { journalLineAccountId, accountDepths } = await import("../src/pages/JournalVouchersPage");
   const base = { account_type: "ASSET" as const, account_name: "x", account_code: "x", account_subtype: null, opening_balance: 0, is_system_account: 0, is_active: 1 };

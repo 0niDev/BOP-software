@@ -99,6 +99,52 @@ export function postableAccounts(
   );
 }
 
+/** A level-3 account (the Group column) and the accounts you may post under it. */
+export interface JournalGroup {
+  group: Account;
+  items: Account[];
+}
+
+/**
+ * The Group column's contents: level-3 accounts, each carrying the accounts a
+ * line may post to — its leaves at level 4 or deeper, so a header never takes a
+ * line. A level-3 account with no children is its own posting account, and a
+ * childless account above level 3 (the flat bootstrap chart) is offered the
+ * same way so it stays reachable.
+ */
+export function journalGroups(
+  accounts: readonly Account[],
+  depths: ReadonlyMap<number, number> = accountDepths(accounts),
+): JournalGroup[] {
+  const postable = postableAccounts(accounts, depths);
+  const byCode = (a: Account, b: Account): number =>
+    a.account_code.localeCompare(b.account_code, "en", { numeric: true });
+
+  const childrenOf = new Map<number, Account[]>();
+  for (const account of accounts) {
+    if (account.parent_account_id == null) continue;
+    const list = childrenOf.get(account.parent_account_id) ?? [];
+    list.push(account);
+    childrenOf.set(account.parent_account_id, list);
+  }
+
+  const groups: JournalGroup[] = [];
+  for (const account of accounts.slice().sort(byCode)) {
+    const depth = depths.get(account.id) ?? 1;
+    const kids = childrenOf.get(account.id) ?? [];
+    if (depth === 3) {
+      const below = subtreeIds(accounts, account.id);
+      const items = postable.filter((candidate) => below.has(candidate.id)).sort(byCode);
+      // Childless level 3 — or a branch with no ledger account left in it — posts
+      // to the group itself.
+      groups.push({ group: account, items: items.length > 0 ? items : [account] });
+    } else if (depth < 3 && kids.length === 0) {
+      groups.push({ group: account, items: [account] });
+    }
+  }
+  return groups;
+}
+
 /** The account a draft line posts to: the picked account, or — when the
  * account is left blank — the group itself, as long as that group is a
  * level-3-or-deeper account. Narrowing by "Assets" alone posts nowhere. */
@@ -195,33 +241,41 @@ export default function JournalVouchersPage() {
   }, [pageVisible]);
 
   // Only ledger accounts at level 3 or deeper can take journal lines (the
-  // server rejects groups too). Headers stay listable as the Group column.
+  // server rejects groups too).
   const depths = accountDepths(accounts);
   const postable = postableAccounts(accounts, depths);
-  const parentIds = new Set(
-    accounts.map((account) => account.parent_account_id).filter((id): id is number => id != null),
-  );
   const accountOptions = postable.map((account) => ({
     value: String(account.id),
     label: accountLevelLabel(account, depths),
   }));
 
-  // Every category that has children — any level, any type — can be searched
-  // and picked; it only narrows the account list to its branch.
-  const groupOptions = accounts
-    .filter((account) => parentIds.has(account.id))
-    .map((account) => ({
-      value: String(account.id),
-      label: accountLevelLabel(account, depths),
-    }));
+  // The Group column offers level-3 accounts only, and the Account column then
+  // offers what sits under the picked one — level-4 accounts, or the level-3
+  // itself when it has no children.
+  const groups = journalGroups(accounts, depths);
+  const groupOptions = groups.map(({ group }) => ({
+    value: String(group.id),
+    label: accountLevelLabel(group, depths),
+  }));
   const optionsUnder = new Map<number, typeof accountOptions>();
-  for (const group of groupOptions) {
-    const ids = subtreeIds(accounts, Number(group.value));
+  const groupOfAccount = new Map<number, number>();
+  for (const { group, items } of groups) {
     optionsUnder.set(
-      Number(group.value),
-      accountOptions.filter((option) => ids.has(Number(option.value))),
+      group.id,
+      items.map((account) => ({
+        value: String(account.id),
+        label: accountLevelLabel(account, depths),
+      })),
     );
+    for (const item of items) groupOfAccount.set(item.id, group.id);
   }
+  // A level-3 group with no level-4 children is the posting account itself, so
+  // its line has nothing left to pick but the amounts.
+  const postsOnItsOwn = (line: DraftLine): boolean => {
+    if (!line.parentId) return false;
+    const items = optionsUnder.get(line.parentId) ?? [];
+    return items.length === 1 && items[0]?.value === String(line.parentId);
+  };
 
   // A line's party belongs to its account, so the list only appears for the
   // accounts parties are linked to (A/R, A/P — see the Chart of Accounts).
@@ -338,7 +392,7 @@ export default function JournalVouchersPage() {
       setLines(
         full.lines.map((line) => ({
           accountId: line.account_id,
-          parentId: 0,
+          parentId: groupOfAccount.get(line.account_id) ?? 0,
           partyId: line.party_id ?? 0,
           description: line.description ?? "",
           debit: Number(line.debit) ? String(line.debit) : "",
@@ -446,8 +500,10 @@ export default function JournalVouchersPage() {
             </div>
             <p className="sub" style={{ marginTop: 0 }}>
               Debit at least one account and credit at least one for the same total.
-              Search any category at any level to narrow the account list to that branch — the
-              account is optional, so a level-3 category can be posted to on its own.
+              Group is the level-3 category and Account is the level-4 account under it.
+              A level-3 category with no level-4 children is posted to on its own, so picking
+              the group is enough and only the amounts are left to fill in. Searching
+              Accounts without a group finds any posting account.
               [L1]/[L2]/[L3]… marks each account&apos;s level in the chart.
               Lines on Accounts Receivable / Payable also take a party, which moves that
               party&apos;s ledger. Editing a voucher rewrites its lines in the ledger; a voucher
@@ -489,13 +545,18 @@ export default function JournalVouchersPage() {
                       <td style={{ minWidth: 200 }}>
                         <SearchableSelect
                           value={String(line.parentId)}
-                          onChange={(next) =>
+                          onChange={(next) => {
+                            const groupId = Number(next);
+                            // A childless level-3 is the posting account itself:
+                            // picking the group selects it and leaves the amounts.
+                            const items = optionsUnder.get(groupId) ?? [];
+                            const alone = items.length === 1 && items[0]?.value === String(groupId);
                             updateLine(index, {
-                              parentId: Number(next),
-                              accountId: 0,
+                              parentId: groupId,
+                              accountId: alone ? groupId : 0,
                               partyId: 0,
-                            })
-                          }
+                            });
+                          }}
                           placeholder="Any group..."
                           emptyText="No matching group"
                           options={groupOptions}
@@ -506,6 +567,7 @@ export default function JournalVouchersPage() {
                         <SearchableSelect
                           value={String(line.accountId)}
                           autoFocus={justAdded.current && index === lines.length - 1}
+                          disabled={postsOnItsOwn(line)}
                           onChange={(next) =>
                             updateLine(index, { accountId: Number(next), partyId: 0 })
                           }
