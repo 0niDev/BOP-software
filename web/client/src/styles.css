@@ -552,6 +552,7 @@ tbody tr:hover {
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 tr.total td {
   font-weight: 700;

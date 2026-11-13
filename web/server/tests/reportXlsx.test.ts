@@ -181,6 +181,16 @@ describe("xlsx report exports", () => {
     expect(part(files, "xl/styles.xml")).toContain('indent="2"');
   });
 
+  it("prints the custom P&L heading notes", async () => {
+    const files = open((await xlsx.custom("PL", {})).buffer);
+    const text = strings(files);
+
+    expect(text).toContain("Note");
+    expect(text).toContain("Sales - Net");
+    expect(text).toContain("Acc. Profit/(Loss) B/F (y/opening)");
+    expect(text).toContain("29");
+  });
+
   it("renders a party ledger with its running balances and the party on the file name", async () => {
     const file = await xlsx.partyLedger({
       kind: "party-ledger",

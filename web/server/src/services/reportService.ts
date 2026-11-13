@@ -134,7 +134,15 @@ export class ReportService {
    */
   async trialBalance(opts: DateRangeOptions = {}): Promise<TrialBalanceResult> {
     const rows = await this.accounting.getTrialBalance(this.companyId, opts);
-    await this.attachInventoryTags(rows, opts.to || null);
+    return this.trialBalanceFrom(rows, opts.to || null);
+  }
+
+  /** Trial balance from rows another report call already fetched. */
+  async trialBalanceFrom(
+    rows: TrialBalanceRow[],
+    to: string | null = null,
+  ): Promise<TrialBalanceResult> {
+    await this.attachInventoryTags(rows, to);
     const totalDebit = rows.reduce((acc, r) => acc.plus(r.closingDebit), new Decimal(0));
     const totalCredit = rows.reduce((acc, r) => acc.plus(r.closingCredit), new Decimal(0));
     return {
@@ -370,6 +378,11 @@ export class ReportService {
   /** Revenue and expenses for the period (P&L is a period statement). */
   async profitAndLoss(opts: DateRangeOptions = {}): Promise<ProfitAndLossResult> {
     const rows = await this.accounting.getTrialBalance(this.companyId, opts);
+    return this.profitAndLossFrom(rows);
+  }
+
+  /** Revenue and expenses from rows another report call already fetched. */
+  profitAndLossFrom(rows: readonly TrialBalanceRow[]): ProfitAndLossResult {
     let revenue = new Decimal(0);
     let expenses = new Decimal(0);
     for (const row of rows) {
@@ -389,6 +402,11 @@ export class ReportService {
    */
   async balanceSheet(asAt?: string | null): Promise<BalanceSheetResult> {
     const rows = await this.accounting.getTrialBalance(this.companyId, { to: asAt ?? null });
+    return this.balanceSheetFrom(rows);
+  }
+
+  /** Position as at a date, from rows another report call already fetched. */
+  balanceSheetFrom(rows: readonly TrialBalanceRow[]): BalanceSheetResult {
     let assets = new Decimal(0);
     let liabilities = new Decimal(0);
     let equity = new Decimal(0);

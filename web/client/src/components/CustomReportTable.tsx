@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { money } from "../lib/format";
 import type { CustomReport } from "../types";
 
@@ -10,8 +10,25 @@ function amount(value: number): string {
  * The custom P&L / balance sheet: one bold heading row with its total, the
  * picked accounts and their sub-accounts beneath, then the unassigned line and
  * the standard-report totals so the custom view can be checked against them.
+ * Each heading starts collapsed to its total and expands to show its accounts.
  */
-export default function CustomReportTable({ report }: { report: CustomReport }) {
+export default function CustomReportTable({
+  report,
+  showFooter = true,
+}: {
+  report: CustomReport;
+  showFooter?: boolean;
+}) {
+  // Empty = every heading collapsed, so the report opens compact.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string): void =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
     <table>
       <thead>
@@ -23,32 +40,52 @@ export default function CustomReportTable({ report }: { report: CustomReport }) 
         </tr>
       </thead>
       <tbody>
-        {report.headings.map((heading) => (
-          <Fragment key={heading.id}>
-            <tr className="total">
-              <td colSpan={2}>{heading.name}</td>
-              <td className="num">{amount(heading.value)}</td>
-              <td className="num">{heading.note ?? ""}</td>
-            </tr>
-            {heading.rows.map((row) => (
-              <tr key={`${heading.id}-${row.accountId}`}>
-                <td
-                  style={{
-                    paddingLeft: 16 + row.depth * 14,
-                    fontWeight: row.selected ? 600 : 400,
-                  }}
-                >
-                  {row.name}
+        {report.headings.map((heading) => {
+          const open = expanded.has(heading.id);
+          const hasRows = heading.rows.length > 0;
+          return (
+            <Fragment key={heading.id}>
+              <tr className="total">
+                <td colSpan={2}>
+                  {hasRows ? (
+                    <button
+                      type="button"
+                      className="coa-toggle"
+                      aria-expanded={open}
+                      title={open ? "Collapse" : "Expand"}
+                      onClick={() => toggle(heading.id)}
+                    >
+                      {open ? "▾" : "▸"}
+                    </button>
+                  ) : (
+                    <span className="coa-toggle-spacer" />
+                  )}
+                  {heading.name}
                 </td>
-                <td>
-                  <span className="coa-code">{row.code}</span>
-                </td>
-                <td className="num">{amount(row.value)}</td>
-                <td />
+                <td className="num">{amount(heading.value)}</td>
+                <td className="num">{heading.note ?? ""}</td>
               </tr>
-            ))}
-          </Fragment>
-        ))}
+              {open &&
+                heading.rows.map((row) => (
+                  <tr key={`${heading.id}-${row.accountId}`}>
+                    <td
+                      style={{
+                        paddingLeft: 16 + row.depth * 14,
+                        fontWeight: row.selected ? 600 : 400,
+                      }}
+                    >
+                      {row.name}
+                    </td>
+                    <td>
+                      <span className="coa-code">{row.code}</span>
+                    </td>
+                    <td className="num">{amount(row.value)}</td>
+                    <td />
+                  </tr>
+                ))}
+            </Fragment>
+          );
+        })}
         {report.unassigned.rows.length > 0 && (
           <>
             <tr className="total">
@@ -75,13 +112,14 @@ export default function CustomReportTable({ report }: { report: CustomReport }) 
         )}
       </tbody>
       <tfoot>
-        {report.footer.map((line) => (
-          <tr key={line.label} className="total">
-            <td colSpan={2}>{line.label}</td>
-            <td className="num">{money(line.value)}</td>
-            <td />
-          </tr>
-        ))}
+        {showFooter &&
+          report.footer.map((line) => (
+            <tr key={line.label} className="total">
+              <td colSpan={2}>{line.label}</td>
+              <td className="num">{money(line.value)}</td>
+              <td />
+            </tr>
+          ))}
         {report.balanced !== null && (
           <tr>
             <td colSpan={4}>

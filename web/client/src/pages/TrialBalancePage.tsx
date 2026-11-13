@@ -3,6 +3,7 @@ import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import CustomReportEditor from "../components/CustomReportEditor";
 import CustomReportTable from "../components/CustomReportTable";
+import ProfitLossSummary from "../components/ProfitLossSummary";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
@@ -531,12 +532,18 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [customEditor, setCustomEditor] = useState<CustomReportKind | null>(null);
   const [customBusy, setCustomBusy] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
+  // Custom-report exports show only heading totals unless this is ticked.
+  const [includeDetail, setIncludeDetail] = useState(false);
   const [parties, setParties] = useState<Party[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** A trial balance is read for its balances: hide the empty chart lines by default. */
   const [showZero, setShowZero] = useState(false);
   // Opt-in list of the items behind each inventory figure that cost nothing.
   const [showUnpriced, setShowUnpriced] = useState(false);
+  // Revenue / expenses / net-profit totals are hidden by default; remember it.
+  const [showTotals, setShowTotals] = useState(
+    () => localStorage.getItem("pl-show-totals") === "1",
+  );
 
   // Report period (trial balance + P&L) and the balance-sheet date.
   const [from, setFrom] = useState("");
@@ -592,18 +599,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setReportsBusy(true);
     setError(null);
     try {
-      const [balance, pnl, sheet, customPnl, customSheet] = await Promise.all([
-        api.trialBalance(f || undefined, t || undefined),
-        api.profitAndLoss(f || undefined, t || undefined),
-        api.balanceSheet(a || undefined),
-        api.customReport("PL", f || undefined, t || undefined),
-        api.customReport("BS", undefined, undefined, a || undefined),
-      ]);
-      setTb(balance);
-      setPl(pnl);
-      setBs(sheet);
-      setCustomPl(customPnl);
-      setCustomBs(customSheet);
+      const bundle = await api.reportsBundle(f || undefined, t || undefined, a || undefined);
+      setTb(bundle.trialBalance);
+      setPl(bundle.profitAndLoss);
+      setBs(bundle.balanceSheet);
+      setCustomPl(bundle.customPl);
+      setCustomBs(bundle.customBs);
     } catch (err) {
       setError(errorMessage(err, "Failed to load reports."));
     } finally {
@@ -743,13 +744,13 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     }
   }
 
-  async function exportCustomCsv(kind: CustomReportKind): Promise<void> {
+  async function exportCustomCsv(kind: CustomReportKind, detail = true): Promise<void> {
     setCsvBusy(true);
     setError(null);
     try {
       const csv =
         kind === "PL"
-          ? await api.customReportCsv("PL", from || undefined, to || undefined)
+          ? await api.customReportCsv("PL", from || undefined, to || undefined, undefined, detail)
           : await api.customReportCsv("BS", undefined, undefined, asAt || undefined);
       const name =
         kind === "PL"
@@ -920,6 +921,17 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                   {from || to ? "for the period" : "all posted entries"}
                 </span>
               </h2>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={showTotals}
+                  onChange={(event) => {
+                    setShowTotals(event.target.checked);
+                    localStorage.setItem("pl-show-totals", event.target.checked ? "1" : "0");
+                  }}
+                />
+                Show totals
+              </label>
               <button
                 onClick={() =>
                   void exportXlsx(
@@ -933,11 +945,19 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 {xlsxBusy === "pl" ? "Preparing…" : "Export Excel"}
               </button>
             </div>
-            <div className="row">
-              <Stat label="Revenue" value={pl.revenue} />
-              <Stat label="Expenses" value={pl.expenses} />
-              <Stat label="Net profit" value={pl.netProfit} />
-            </div>
+            {showTotals && (
+              <div className="row">
+                <Stat label="Revenue" value={pl.revenue} />
+                <Stat label="Expenses" value={pl.expenses} />
+                <Stat label="Net profit" value={pl.netProfit} />
+              </div>
+            )}
+            {customPl && (
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ margin: 0 }}>P&amp;L summary</h3>
+                <ProfitLossSummary report={customPl} />
+              </div>
+            )}
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
               <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>
               <button
@@ -948,11 +968,26 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               >
                 {customEditor === "PL" ? "Close editor" : "Edit headings"}
               </button>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={includeDetail}
+                  onChange={(event) => setIncludeDetail(event.target.checked)}
+                />
+                Include account detail in export
+              </label>
               <button
                 onClick={() =>
                   void exportXlsx(
                     "custom-pl",
-                    () => api.customReportXlsx("PL", from || undefined, to || undefined),
+                    () =>
+                      api.customReportXlsx(
+                        "PL",
+                        from || undefined,
+                        to || undefined,
+                        undefined,
+                        includeDetail,
+                      ),
                     `custom-profit-and-loss_${periodTag(from, to)}.xlsx`,
                   )
                 }
@@ -960,7 +995,10 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               >
                 {xlsxBusy === "custom-pl" ? "Preparing…" : "Export Excel"}
               </button>
-              <button onClick={() => void exportCustomCsv("PL")} disabled={csvBusy}>
+              <button
+                onClick={() => void exportCustomCsv("PL", includeDetail)}
+                disabled={csvBusy}
+              >
                 {csvBusy ? "Preparing…" : "Export CSV"}
               </button>
             </div>
@@ -975,7 +1013,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 onCancel={() => setCustomEditor(null)}
               />
             ) : customPl ? (
-              <CustomReportTable report={customPl} />
+              <CustomReportTable report={customPl} showFooter={showTotals} />
             ) : (
               <p style={{ opacity: 0.7, margin: 0 }}>Loading custom report…</p>
             )}

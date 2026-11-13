@@ -299,6 +299,7 @@ export class ReportXlsx {
   async custom(
     kind: CustomReportKind,
     options: { from?: string; to?: string; asAt?: string | null } = {},
+    includeDetail = true,
   ): Promise<XlsxFile> {
     const report = await this.customReports.build(kind, options);
     const title = kind === "PL" ? "Custom Profit & Loss" : "Custom Balance Sheet";
@@ -318,14 +319,16 @@ export class ReportXlsx {
       ],
       ...report.headings.flatMap((line): SheetData => [
         [text(line.name, TOTAL), null, money(line.value, TOTAL), text(line.note ?? "", TOTAL)],
-        ...line.rows.map(
-          (row): Cell[] => [
-            text(row.name, { indent: (row.depth + 1) * 2, ...(row.selected ? { fontWeight: "bold" } : {}) }),
-            text(row.code),
-            moneyOrBlank(row.value),
-            null,
-          ],
-        ),
+        ...(includeDetail
+          ? line.rows.map(
+              (row): Cell[] => [
+                text(row.name, { indent: (row.depth + 1) * 2, ...(row.selected ? { fontWeight: "bold" } : {}) }),
+                text(row.code),
+                moneyOrBlank(row.value),
+                null,
+              ],
+            )
+          : []),
       ]),
       ...(report.unassigned.rows.length > 0
         ? [

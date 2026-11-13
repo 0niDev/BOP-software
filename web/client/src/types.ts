@@ -484,6 +484,8 @@ export interface CustomHeading {
   /** P&L only: "opening" reads balances carried into the period. */
   basis?: "opening";
   accountIds: number[];
+  /** Account headings only: subtrees left out of this heading. */
+  excludedAccountIds?: number[];
   parts: CustomHeadingPart[];
 }
 
@@ -508,6 +510,15 @@ export interface CustomReport {
   unassigned: { value: number; rows: CustomReportRow[] };
   footer: Array<{ label: string; value: number }>;
   balanced: boolean | null;
+}
+
+/** Every report the reports page shows, from a single request. */
+export interface ReportsBundle {
+  trialBalance: TrialBalance;
+  profitAndLoss: ProfitAndLoss;
+  balanceSheet: BalanceSheet;
+  customPl: CustomReport;
+  customBs: CustomReport;
 }
 
 export interface LedgerEntry {

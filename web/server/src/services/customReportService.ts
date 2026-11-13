@@ -42,6 +42,8 @@ export interface CustomHeading {
   /** P&L only: "opening" reads balances carried into the period. */
   basis?: "opening";
   accountIds: number[];
+  /** Account headings only: subtrees left out of this heading. */
+  excludedAccountIds?: number[];
   /** Subtotal headings only: the account headings it adds and subtracts. */
   parts: CustomHeadingPart[];
 }
@@ -89,7 +91,7 @@ const SETTING_KEYS: Record<CustomReportKind, string> = {
   BS: "custom_bs_report",
 };
 
-export const MAX_CUSTOM_HEADINGS = 30;
+export const MAX_CUSTOM_HEADINGS = 50;
 const MAX_HEADING_NAME = 80;
 const MAX_HEADING_ID = 40;
 const MAX_NOTE = 20;
@@ -162,26 +164,118 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
     ];
   }
 
-  // Sales - Net is intentionally unmapped; the user will select its accounts.
-  const account = (id: string, name: string, note: string): CustomHeading => ({
-    id,
-    name,
-    note,
-    kind: "accounts",
-    accountIds: [],
-    parts: [],
-  });
+  const byCode = new Map(accounts.map((account) => [account.account_code, account.id]));
+  const ids = (...codes: string[]): number[] =>
+    codes.flatMap((code) => {
+      const id = byCode.get(code);
+      return id == null ? [] : [id];
+    });
+  const account = (
+    id: string,
+    name: string,
+    note: string,
+    codes: string[] = [],
+    excludedCodes: string[] = [],
+  ): CustomHeading => {
+    const excludedAccountIds = ids(...excludedCodes);
+    return {
+      id,
+      name,
+      note,
+      kind: "accounts",
+      accountIds: ids(...codes),
+      ...(excludedAccountIds.length > 0 ? { excludedAccountIds } : {}),
+      parts: [],
+    };
+  };
   const subtotal = (
     id: string,
     name: string,
     parts: Array<[string, 1 | -1]>,
+    note?: string,
   ): CustomHeading => ({
     id,
     name,
+    ...(note ? { note } : {}),
     kind: "subtotal",
     accountIds: [],
     parts: parts.map(([headingId, sign]) => ({ headingId, sign })),
   });
+
+  // Sales - Net is intentionally unmapped; the user will select its accounts.
+  const costCategories: CustomHeading[] = [
+    account("discount", "Discount", "21", ["512"]),
+    account("cost-of-goods-sold", "Cost of Goods Sold", "21", ["511"]),
+    account("waste", "Waste", "21", ["514"]),
+    account("selling-distribution-cost", "Selling & Distribution", "21", ["6100", "5206"]),
+    account(
+      "utility-expense",
+      "Utility Expense",
+      "21",
+      ["520901", "520902", "520903", "520904", "540"],
+    ),
+    account("advertisement", "Advertisement", "21", ["520905"]),
+    account("other-cost", "Other Expenses", "21", ["54"]),
+    account("raw-materials", "Raw Materials", "21", ["56"]),
+    account("packing-material", "Packing Material", "21", ["58"], ["33006"]),
+    account("misc-cost", "Miscellaneous Expenses", "21", ["33006"]),
+    account(
+      "repair-vehicle",
+      "Repair Vehicle",
+      "21",
+      ["59"],
+      [
+        "540",
+        "5203",
+        "34100",
+        "34350",
+        "52063",
+        "64008",
+        "ACCOUNT-00014",
+        "34550003",
+        "34550004",
+      ],
+    ),
+    account("depreciation", "Depreciation", "21", ["5203"]),
+    account("salaries-wages-mfg", "Salaries & Wages", "21", ["34100"]),
+    account("repair-maintenance", "Repair & Maintenance", "21", ["34350"]),
+    account("insurance", "Insurance", "21", ["52063"]),
+  ];
+  const costParts = costCategories.map((heading): [string, 1] => [heading.id, 1]);
+
+  const adminCategories: CustomHeading[] = [
+    account(
+      "salaries-wages-admin",
+      "Salaries & Wages",
+      "22",
+      ["52"],
+      ["5202", "5205", "5206", "5207", "5208", "5209", "5210", "ACCOUNT-00017"],
+    ),
+    account("fees", "Fees", "22", ["ACCOUNT-00017"]),
+    account("other-maintenance", "Other", "22", ["5202"], ["52022"]),
+    account("ho-furniture", "HO Furniture", "22", ["52022"]),
+    account("travel-conveyance", "Travel & Conveyance", "22", ["5205", "ACCOUNT-00014"]),
+    account("zakat", "Zakat", "22", ["5207", "520906"]),
+    account("fee-subscription", "Fee & Subscription", "22", ["5208"]),
+    account(
+      "other-overhead",
+      "Other",
+      "22",
+      ["5209"],
+      ["520901", "520902", "520903", "520904", "520905", "520906", "520910"],
+    ),
+    account("misc-admin", "Miscellaneous Expenses", "22", ["34550003", "64008"]),
+    account("vehicle-token-tax", "Vehicle Token Tax & Others", "22", ["34550004"]),
+  ];
+  const adminParts = adminCategories.map((heading): [string, 1] => [heading.id, 1]);
+
+  const financeCategories: CustomHeading[] = [
+    account("financial-expenses", "Financial Expenses", "25", ["5210"], ["52101", "52102", "ACCOUNT-00013"]),
+    account("bank-charges", "Bank Charges", "25", ["52102"]),
+    account("interest", "Interest", "25", ["52101", "ACCOUNT-00013"]),
+  ];
+  const financeParts = financeCategories.map((heading): [string, 1] => [heading.id, 1]);
+
   const profitParts: Array<[string, 1 | -1]> = [
     ["sales-net", 1],
     ["cost-of-sales", -1],
@@ -194,17 +288,19 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
 
   return [
     account("sales-net", "Sales - Net", "20"),
-    account("cost-of-sales", "Cost of Sales", "21"),
+    ...costCategories,
+    subtotal("cost-of-sales", "Cost of Sales", costParts, "21"),
     subtotal("gross-profit", "Gross Profit/(Loss)", [
       ["sales-net", 1],
       ["cost-of-sales", -1],
     ]),
+    ...adminCategories,
+    subtotal("administrative-expenses", "Administrative Expenses", adminParts, "22"),
+    account("selling-distribution", "Promotional & Public Relations", "23", ["520910"]),
     subtotal("operating-expenses", "Operating Expenses", [
       ["administrative-expenses", 1],
       ["selling-distribution", 1],
     ]),
-    account("administrative-expenses", "Administrative Expenses", "22"),
-    account("selling-distribution", "Selling & Distribution", "23"),
     subtotal("operating-profit", "Operating Profit/(Loss)", [
       ["sales-net", 1],
       ["cost-of-sales", -1],
@@ -212,10 +308,11 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
       ["selling-distribution", -1],
     ]),
     account("other-income", "Other Income", "24"),
-    account("financial-charges", "Financial Charges", "25"),
+    ...financeCategories,
+    subtotal("financial-charges", "Financial Charges", financeParts, "25"),
     account("others", "Others", "26"),
     subtotal("profit-before-tax", "Profit/(Loss) Before Taxation", profitParts),
-    account("taxation-current", "Taxation (Current)", "27"),
+    account("taxation-current", "Taxation (Current)", "27", ["53"]),
     subtotal("profit-after-tax", "Profit/(Loss) After Taxation", [
       ...profitParts,
       ["taxation-current", -1],
@@ -302,6 +399,16 @@ function readTemplate(
       const account = accountsById.get(accountId);
       if (account && allowed.has(account.account_type)) accountIds.push(accountId);
     }
+    const excludedAccountIds: number[] = [];
+    for (const rawId of Array.isArray(heading.excludedAccountIds)
+      ? heading.excludedAccountIds
+      : []) {
+      const accountId = Number(rawId);
+      if (!Number.isInteger(accountId) || accountId <= 0) continue;
+      if (accountIds.includes(accountId) || excludedAccountIds.includes(accountId)) continue;
+      const account = accountsById.get(accountId);
+      if (account && allowed.has(account.account_type)) excludedAccountIds.push(accountId);
+    }
     headings.push({
       id,
       name,
@@ -309,23 +416,32 @@ function readTemplate(
       ...(basis ? { basis } : {}),
       kind: "accounts",
       accountIds,
+      ...(excludedAccountIds.length > 0 ? { excludedAccountIds } : {}),
       parts: [],
     });
   }
 
-  // Subtotal parts may name a heading that appears later (or never); keep only
-  // the account headings that survived, and never the subtotal itself.
+  // Subtotal parts may name an account heading anywhere, or an earlier
+  // subtotal (never a later one, so the values stay acyclic), and never itself.
   const accountHeadingIds = new Set(
     headings.filter((heading) => heading.kind === "accounts").map((heading) => heading.id),
   );
-  for (const heading of headings) {
-    if (heading.kind !== "subtotal") continue;
+  const subtotalIndex = new Map(
+    headings.flatMap((heading, index) =>
+      heading.kind === "subtotal" ? [[heading.id, index] as const] : [],
+    ),
+  );
+  headings.forEach((heading, index) => {
+    if (heading.kind !== "subtotal") return;
     heading.parts = dedupeParts(
-      heading.parts.filter(
-        (part) => part.headingId !== heading.id && accountHeadingIds.has(part.headingId),
-      ),
+      heading.parts.filter((part) => {
+        if (part.headingId === heading.id) return false;
+        if (accountHeadingIds.has(part.headingId)) return true;
+        const partIndex = subtotalIndex.get(part.headingId);
+        return partIndex != null && partIndex < index;
+      }),
     );
-  }
+  });
   return headings;
 }
 
@@ -434,6 +550,27 @@ function validateTemplate(
       }
       if (!accountIds.includes(accountId)) accountIds.push(accountId);
     }
+    const excludedAccountIds: number[] = [];
+    for (const rawId of Array.isArray(heading.excludedAccountIds)
+      ? heading.excludedAccountIds
+      : []) {
+      const accountId = Number(rawId);
+      if (!Number.isInteger(accountId) || accountId <= 0) {
+        throw new ValidationError(`Heading '${name}' has an invalid excluded account.`);
+      }
+      if (accountIds.includes(accountId)) {
+        throw new ValidationError(`Heading '${name}' both includes and excludes the same account.`);
+      }
+      if (excludedAccountIds.includes(accountId)) continue;
+      const account = accountsById.get(accountId);
+      if (!account) continue;
+      if (!allowed.has(account.account_type)) {
+        throw new ValidationError(
+          `Account '${account.account_code}' cannot be used on this report.`,
+        );
+      }
+      excludedAccountIds.push(accountId);
+    }
     return {
       id,
       name,
@@ -441,6 +578,7 @@ function validateTemplate(
       ...(basis ? { basis } : {}),
       kind: "accounts",
       accountIds,
+      ...(excludedAccountIds.length > 0 ? { excludedAccountIds } : {}),
       parts: [],
     };
   });
@@ -448,17 +586,73 @@ function validateTemplate(
   const accountHeadingIds = new Set(
     headings.filter((heading) => heading.kind === "accounts").map((heading) => heading.id),
   );
-  for (const heading of headings) {
-    if (heading.kind !== "subtotal") continue;
+  const subtotalIndex = new Map(
+    headings.flatMap((heading, index) =>
+      heading.kind === "subtotal" ? [[heading.id, index] as const] : [],
+    ),
+  );
+  headings.forEach((heading, index) => {
+    if (heading.kind !== "subtotal") return;
     for (const part of heading.parts) {
-      if (!accountHeadingIds.has(part.headingId)) {
-        throw new ValidationError(
-          `Heading '${heading.name}' adds '${part.headingId}', which is not an account heading.`,
-        );
-      }
+      if (accountHeadingIds.has(part.headingId)) continue;
+      const partIndex = subtotalIndex.get(part.headingId);
+      if (partIndex != null && partIndex < index) continue;
+      throw new ValidationError(
+        `Heading '${heading.name}' adds '${part.headingId}', which is not an account heading or an earlier subtotal.`,
+      );
     }
-  }
+  });
   return headings;
+}
+
+/** The original, unmapped P&L defaults, saved before the CoA was mapped. */
+const LEGACY_DEFAULT_HEADING_IDS = [
+  "sales-net",
+  "cost-of-sales",
+  "gross-profit",
+  "operating-expenses",
+  "administrative-expenses",
+  "selling-distribution",
+  "operating-profit",
+  "other-income",
+  "financial-charges",
+  "others",
+  "profit-before-tax",
+  "taxation-current",
+  "profit-after-tax",
+  "prior-year-adjustment",
+  "accumulated-profit-bf",
+  "profit-cf",
+];
+
+function isLegacyDefaultTemplate(headings: readonly CustomHeading[]): boolean {
+  if (headings.length !== LEGACY_DEFAULT_HEADING_IDS.length) return false;
+  if (!headings.every((heading, index) => heading.id === LEGACY_DEFAULT_HEADING_IDS[index])) {
+    return false;
+  }
+  // Any real account selection means the user made the template their own.
+  return headings.every(
+    (heading) =>
+      heading.kind === "subtotal" ||
+      heading.accountIds.every((id) => id === OPENING_PROFIT_ACCOUNT_ID),
+  );
+}
+
+/** Keep names/notes, replace the unmapped layout with the mapped defaults. */
+function upgradeLegacyDefault(
+  saved: readonly CustomHeading[],
+  accounts: readonly AccountRow[],
+): CustomHeading[] {
+  const oldById = new Map(saved.map((heading) => [heading.id, heading]));
+  return defaultTemplate("PL", accounts).map((heading) => {
+    const old = oldById.get(heading.id);
+    if (!old) return heading;
+    return {
+      ...heading,
+      name: old.name,
+      ...(old.note ? { note: old.note } : {}),
+    };
+  });
 }
 
 /** Account value in its natural sign for the statement. */
@@ -536,6 +730,9 @@ export class CustomReportService {
       SETTINGS_GROUP,
     );
     const saved = readTemplate(stored, kind, accounts);
+    if (saved && kind === "PL" && isLegacyDefaultTemplate(saved)) {
+      return upgradeLegacyDefault(saved, accounts);
+    }
     return saved ?? defaultTemplate(kind, accounts);
   }
 
@@ -556,19 +753,31 @@ export class CustomReportService {
     kind: CustomReportKind,
     options: CustomReportOptions = {},
   ): Promise<CustomReportResult> {
-    const template = await this.getTemplate(kind);
-    const accounts = await this.accountRows();
     const rows = await this.accounting.getTrialBalance(
       this.companyId,
       kind === "PL"
         ? { from: options.from, to: options.to }
         : { to: options.asAt ?? options.to ?? null },
     );
+    return this.buildFromRows(kind, rows);
+  }
+
+  /** Render from trial-balance rows another report call already fetched. */
+  async buildFromRows(
+    kind: CustomReportKind,
+    rows: readonly TrialBalanceRow[],
+  ): Promise<CustomReportResult> {
+    const template = await this.getTemplate(kind);
+    const accounts = await this.accountRows();
     return this.render(kind, template, accounts, rows);
   }
 
-  /** CSV of the same lines the screen and workbook show. */
-  async customCsv(kind: CustomReportKind, options: CustomReportOptions = {}): Promise<string> {
+  /** CSV of the same lines the screen and workbook show; `includeDetail` adds the account rows. */
+  async customCsv(
+    kind: CustomReportKind,
+    options: CustomReportOptions = {},
+    includeDetail = true,
+  ): Promise<string> {
     const report = await this.build(kind, options);
     const title =
       kind === "PL"
@@ -586,6 +795,7 @@ export class CustomReportService {
 
     for (const heading of report.headings) {
       lines.push(line(heading.name, "", "", heading.value, heading.note));
+      if (!includeDetail) continue;
       for (const row of heading.rows) {
         lines.push(line("", row.code, `${"  ".repeat(row.depth)}${row.name}`, row.value));
       }
@@ -659,14 +869,6 @@ export class CustomReportService {
     const childrenOf = (accountId: number): AccountRow[] =>
       accountId <= 0 ? [] : (childrenByParent.get(accountId) ?? []);
 
-    /** Ids of a node and everything under it (cycles are not possible in the CoA). */
-    const subtreeIds = (accountId: number, into: Set<number> = new Set()): Set<number> => {
-      if (into.has(accountId)) return into;
-      into.add(accountId);
-      for (const child of childrenOf(accountId)) subtreeIds(child.id, into);
-      return into;
-    };
-
     const assigned = new Set<number>();
     const accountResults = new Map<string, CustomReportHeadingResult>();
 
@@ -674,6 +876,7 @@ export class CustomReportService {
       if (heading.kind !== "accounts") continue;
       const opening = heading.basis === "opening";
       const selected = new Set(heading.accountIds);
+      const excluded = new Set(heading.excludedAccountIds ?? []);
 
       // A picked node covered by another picked node in the same heading is
       // printed once, under its parent, and never counted twice.
@@ -687,12 +890,27 @@ export class CustomReportService {
         }
         return false;
       };
+      const hasExcludedAncestor = (accountId: number): boolean => {
+        const seen = new Set<number>();
+        let cursor: number | null = accountId;
+        while (cursor != null && !seen.has(cursor)) {
+          if (excluded.has(cursor)) return true;
+          seen.add(cursor);
+          cursor = accountsById.get(cursor)?.parent_account_id ?? null;
+        }
+        return false;
+      };
       const roots = [...selected]
-        .filter((accountId) => !hasSelectedAncestor(accountId))
+        .filter((accountId) => !hasSelectedAncestor(accountId) && !hasExcludedAncestor(accountId))
         .sort((a, b) => compareAccountCode(codeOf(a), codeOf(b)));
 
       const covered = new Set<number>();
-      for (const root of roots) subtreeIds(root, covered);
+      const addSubtree = (accountId: number): void => {
+        if (excluded.has(accountId) || covered.has(accountId)) return;
+        covered.add(accountId);
+        for (const child of childrenOf(accountId)) addSubtree(child.id);
+      };
+      for (const root of roots) addSubtree(root);
       if (!opening) {
         for (const accountId of covered) assigned.add(accountId);
       }
@@ -701,6 +919,7 @@ export class CustomReportService {
       for (const accountId of covered) value = value.plus(valueOf(accountId, opening));
 
       const buildRows = (accountId: number, depth: number): CustomReportRow[] => {
+        if (excluded.has(accountId)) return [];
         const childRows = childrenOf(accountId).flatMap((child) => buildRows(child.id, depth + 1));
         const own = valueOf(accountId, opening);
         const isSelected = selected.has(accountId);
@@ -728,17 +947,26 @@ export class CustomReportService {
       });
     }
 
+    // Account headings are all known now, so subtotals can read them (and any
+    // earlier subtotal) in one pass while still allowing forward account refs.
+    const subtotalValues = new Map<string, number>();
+    for (const heading of headings) {
+      if (heading.kind !== "subtotal") continue;
+      let value = new Decimal(0);
+      for (const part of heading.parts) {
+        const referenced =
+          accountResults.get(part.headingId)?.value ?? subtotalValues.get(part.headingId);
+        if (referenced == null) continue;
+        value = part.sign === 1 ? value.plus(referenced) : value.minus(referenced);
+      }
+      subtotalValues.set(heading.id, toStorage(value));
+    }
+
     const results = headings.map((heading): CustomReportHeadingResult => {
       if (heading.kind === "accounts") {
         return accountResults.get(heading.id) ?? { ...heading, value: 0, rows: [] };
       }
-      let value = new Decimal(0);
-      for (const part of heading.parts) {
-        const referenced = accountResults.get(part.headingId);
-        if (!referenced) continue;
-        value = part.sign === 1 ? value.plus(referenced.value) : value.minus(referenced.value);
-      }
-      return { ...heading, value: toStorage(value), rows: [] };
+      return { ...heading, value: subtotalValues.get(heading.id) ?? 0, rows: [] };
     });
 
     const unassignedRows: CustomReportRow[] = [...values.entries()]

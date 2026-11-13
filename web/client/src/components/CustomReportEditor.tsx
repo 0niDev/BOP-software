@@ -73,6 +73,7 @@ export default function CustomReportEditor({
     update(heading.id, {
       kind: value,
       accountIds: [],
+      excludedAccountIds: undefined,
       parts: [],
       ...(value === "subtotal" ? { basis: undefined } : {}),
     });
@@ -88,11 +89,9 @@ export default function CustomReportEditor({
     update(heading.id, { parts });
   }
 
-  const accountHeadings = draft.filter((heading) => heading.kind === "accounts");
-
   return (
     <div>
-      {draft.map((heading) => (
+      {draft.map((heading, headingIndex) => (
         <div key={heading.id} className="card" style={{ marginBottom: 8 }}>
           <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 200 }}>
@@ -137,7 +136,11 @@ export default function CustomReportEditor({
               >
                 {pickerFor === heading.id
                   ? "Hide accounts"
-                  : `Select accounts (${heading.accountIds.length} picked)`}
+                  : `Select accounts (${heading.accountIds.length} picked${
+                      heading.excludedAccountIds?.length
+                        ? `, ${heading.excludedAccountIds.length} excluded`
+                        : ""
+                    })`}
               </button>
               {pickerFor === heading.id && (
                 <div style={{ marginTop: 8 }}>
@@ -146,6 +149,10 @@ export default function CustomReportEditor({
                     types={heading.basis === "opening" ? ["EQUITY"] : TYPES[kind]}
                     selected={heading.accountIds}
                     onChange={(accountIds) => update(heading.id, { accountIds })}
+                    excluded={heading.excludedAccountIds ?? []}
+                    onExcludedChange={(excludedAccountIds) =>
+                      update(heading.id, { excludedAccountIds })
+                    }
                     netProfit={kind === "BS"}
                     openingProfit={heading.basis === "opening"}
                   />
@@ -159,31 +166,41 @@ export default function CustomReportEditor({
             </>
           ) : (
             <div className="row" style={{ flexWrap: "wrap", gap: 12, marginTop: 8 }}>
-              {accountHeadings.filter((other) => other.id !== heading.id).map((other) => {
-                const sign = signOf(heading, other.id);
-                return (
-                  <div key={other.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span>{other.name}</span>
-                    <button
-                      className={sign === 1 ? "primary" : undefined}
-                      onClick={() => setSign(heading, other.id, sign === 1 ? 0 : 1)}
-                      disabled={busy}
-                      title={`Add ${other.name}`}
-                    >
-                      +
-                    </button>
-                    <button
-                      className={sign === -1 ? "primary" : undefined}
-                      onClick={() => setSign(heading, other.id, sign === -1 ? 0 : -1)}
-                      disabled={busy}
-                      title={`Subtract ${other.name}`}
-                    >
-                      −
-                    </button>
-                  </div>
-                );
-              })}
-              {accountHeadings.filter((other) => other.id !== heading.id).length === 0 && (
+              {draft
+                .filter(
+                  (other, otherIndex) =>
+                    other.id !== heading.id &&
+                    (other.kind === "accounts" || otherIndex < headingIndex),
+                )
+                .map((other) => {
+                  const sign = signOf(heading, other.id);
+                  return (
+                    <div key={other.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span>{other.name}</span>
+                      <button
+                        className={sign === 1 ? "primary" : undefined}
+                        onClick={() => setSign(heading, other.id, sign === 1 ? 0 : 1)}
+                        disabled={busy}
+                        title={`Add ${other.name}`}
+                      >
+                        +
+                      </button>
+                      <button
+                        className={sign === -1 ? "primary" : undefined}
+                        onClick={() => setSign(heading, other.id, sign === -1 ? 0 : -1)}
+                        disabled={busy}
+                        title={`Subtract ${other.name}`}
+                      >
+                        −
+                      </button>
+                    </div>
+                  );
+                })}
+              {draft.filter(
+                (other, otherIndex) =>
+                  other.id !== heading.id &&
+                  (other.kind === "accounts" || otherIndex < headingIndex),
+              ).length === 0 && (
                 <p style={{ opacity: 0.7, margin: 0 }}>
                   Add an account heading first, then come back to build the subtotal.
                 </p>

@@ -1,11 +1,58 @@
 import { test, expect } from "vitest";
 import { formatDate } from "../src/lib/format";
 import { defaultPackUnit, packsToBulk } from "../src/lib/units";
+import type { CustomReport } from "../src/types";
 
 test("dates always display day/month/year", () => {
   expect(formatDate("2026-10-25")).toBe("25/10/2026");
   expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");
   expect(formatDate("")).toBe("");
+});
+
+test("P&L summary prints notes 20-29 in statement order", async () => {
+  const { plSummaryRows } = await import("../src/components/ProfitLossSummary");
+  const values: Record<string, number> = {
+    "sales-net": 1000,
+    "cost-of-sales": 300,
+    "gross-profit": 700,
+    "operating-expenses": 150,
+    "administrative-expenses": 100,
+    "selling-distribution": 50,
+    "operating-profit": 550,
+    "other-income": 40,
+    "financial-charges": 20,
+    others: 10,
+    "profit-before-tax": 560,
+    "taxation-current": 30,
+    "profit-after-tax": 530,
+    "prior-year-adjustment": 0,
+    "accumulated-profit-bf": 260,
+    "profit-cf": 790,
+  };
+  const report: CustomReport = {
+    kind: "PL",
+    headings: Object.entries(values).map(([id, value]) => ({
+      id,
+      name: id,
+      kind: "accounts",
+      accountIds: [],
+      parts: [],
+      value,
+      rows: [],
+    })),
+    unassigned: { value: 0, rows: [] },
+    footer: [],
+    balanced: null,
+  };
+  const rows = plSummaryRows(report);
+
+  expect(rows).toHaveLength(16);
+  expect(rows.map((row) => row.note ?? "")).toEqual([
+    "20", "21", "", "", "22", "23", "", "24", "25", "26", "", "27", "", "28", "29", "",
+  ]);
+  expect(rows.slice(4, 6).map((row) => row.depth)).toEqual([1, 1]);
+  expect(rows.find((row) => row.name === "gross-profit")?.value).toBe(700);
+  expect(rows.at(-1)?.value).toBe(790);
 });
 
 test("trial balance rows group by COA type with closing subtotals", async () => {
