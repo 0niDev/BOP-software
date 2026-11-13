@@ -70,7 +70,12 @@ export default function CustomReportEditor({
 
   function setKind(heading: CustomHeading, value: "accounts" | "subtotal"): void {
     if (value === heading.kind) return;
-    update(heading.id, { kind: value, accountIds: [], parts: [] });
+    update(heading.id, {
+      kind: value,
+      accountIds: [],
+      parts: [],
+      ...(value === "subtotal" ? { basis: undefined } : {}),
+    });
   }
 
   function signOf(heading: CustomHeading, partId: string): 0 | 1 | -1 {
@@ -95,6 +100,17 @@ export default function CustomReportEditor({
               <input
                 value={heading.name}
                 onChange={(event) => update(heading.id, { name: event.target.value })}
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div style={{ width: 70 }}>
+              <label>Note</label>
+              <input
+                value={heading.note ?? ""}
+                maxLength={20}
+                onChange={(event) =>
+                  update(heading.id, { note: event.target.value.trim() || undefined })
+                }
                 style={{ width: "100%" }}
               />
             </div>
@@ -127,11 +143,17 @@ export default function CustomReportEditor({
                 <div style={{ marginTop: 8 }}>
                   <AccountTreePicker
                     accounts={accounts}
-                    types={TYPES[kind]}
+                    types={heading.basis === "opening" ? ["EQUITY"] : TYPES[kind]}
                     selected={heading.accountIds}
                     onChange={(accountIds) => update(heading.id, { accountIds })}
                     netProfit={kind === "BS"}
+                    openingProfit={heading.basis === "opening"}
                   />
+                  {heading.basis === "opening" && (
+                    <p style={{ opacity: 0.7, fontSize: 12, margin: "6px 0 0" }}>
+                      Uses balances carried into the selected From date.
+                    </p>
+                  )}
                 </div>
               )}
             </>

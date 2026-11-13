@@ -5,6 +5,8 @@
 //
 //   node scripts/coa-expenses-deactivate.mjs <db> [--dry]
 //   node scripts/coa-expenses-deactivate.mjs --allow-main [--dry]   # SQLITE_CLOUD_URL
+//   node scripts/coa-expenses-deactivate.mjs --url <cloud-url> [--dry]
+//   node scripts/coa-expenses-deactivate.mjs --cloud <db-name> [--dry]  # host/key from .env
 //
 // Codes are the stored account_code values, not the CoA page display_code.
 
@@ -16,7 +18,17 @@ const webRoot = path.resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
 const dry = args.includes("--dry");
 const allowMain = args.includes("--allow-main");
-const dbArg = args.find((a) => !a.startsWith("--"));
+const urlFlag = args.indexOf("--url");
+const cloudFlag = args.indexOf("--cloud");
+const cloudName = cloudFlag >= 0 ? args[cloudFlag + 1] : null;
+let explicitUrl = urlFlag >= 0 ? args[urlFlag + 1] : null;
+if (cloudName) {
+  const base = process.env.SQLITE_CLOUD_URL || envValue("SQLITE_CLOUD_URL");
+  if (!base) { console.error("SQLITE_CLOUD_URL not set in .env"); process.exit(1); }
+  explicitUrl = base.replace(/\/[^/?]+(\?|$)/, `/${cloudName}$1`);
+}
+const valueIndexes = new Set([urlFlag >= 0 ? urlFlag + 1 : -1, cloudFlag >= 0 ? cloudFlag + 1 : -1]);
+const dbArg = args.find((a, i) => !a.startsWith("--") && !valueIndexes.has(i));
 const COMPANY = 1;
 
 // Display code -> stored code in the comments for cross-checking the CoA page.
@@ -86,8 +98,8 @@ async function connect(target) {
 
 async function main() {
   const mainUrl = process.env.SQLITE_CLOUD_URL || envValue("SQLITE_CLOUD_URL");
-  if (!allowMain && (!dbArg || dbArg.startsWith("sqlitecloud://"))) {
-    console.error("usage: node scripts/coa-expenses-deactivate.mjs <db> [--dry]  |  --allow-main");
+  if (!explicitUrl && !allowMain && (!dbArg || dbArg.startsWith("sqlitecloud://"))) {
+    console.error("usage: node scripts/coa-expenses-deactivate.mjs <db> [--dry]  |  --allow-main  |  --url <cloud-url>");
     process.exit(1);
   }
   if (allowMain && !mainUrl) {
@@ -95,7 +107,8 @@ async function main() {
     process.exit(1);
   }
 
-  const db = await connect(allowMain ? mainUrl : dbArg);
+  const target = explicitUrl ?? (allowMain ? mainUrl : dbArg);
+  let db = await connect(target);
   const load = async () =>
     new Map((await db.all("SELECT * FROM accounts WHERE company_id = ?", [COMPANY])).map((a) => [a.account_code, a]));
 
@@ -139,24 +152,24 @@ async function main() {
 
   const before = (await db.all("SELECT COUNT(*) AS n FROM journal_entry_lines WHERE account_id = ?", [cogs.id]))[0].n;
 
-  await db.exec("BEGIN");
-  try {
-    if (moveCogs) {
-      await db.run("UPDATE accounts SET parent_account_id = ? WHERE id = ?", [cogsParent.id, cogs.id]);
-    }
-    await db.run(
-      `UPDATE accounts SET is_active = 0
-        WHERE company_id = ? AND account_code IN (${present.map(() => "?").join(",")})`,
-      [COMPANY, ...present],
-    );
-    await db.exec("COMMIT");
-    console.log(`deactivated ${present.length} accounts`);
-  } catch (err) {
-    try { await db.exec("ROLLBACK"); } catch { /* best effort */ }
-    throw err;
+  // Autocommit statements only: the cloud driver's BEGIN/COMMIT ran on separate
+  // pooled connections and never committed. Each UPDATE is atomic on its own.
+  if (moveCogs) {
+    await db.run("UPDATE accounts SET parent_account_id = ? WHERE id = ?", [cogsParent.id, cogs.id]);
   }
+  await db.run(
+    `UPDATE accounts SET is_active = 0
+      WHERE company_id = ? AND account_code IN (${present.map(() => "?").join(",")})`,
+    [COMPANY, ...present],
+  );
+  console.log(`deactivated ${present.length} accounts`);
 
   // --- verify -------------------------------------------------------------------
+  // A cloud connection reports its own uncommitted view, so re-read fresh.
+  if (db.cloud) {
+    await db.close();
+    db = await connect(target);
+  }
   map = await load();
   for (const c of KEEP) if (map.get(c)?.is_active !== 1) throw new Error(`${c} was deactivated`);
   const stillOn = TARGETS.filter((c) => map.get(c)?.is_active === 1);

@@ -310,32 +310,50 @@ export class ReportXlsx {
           : "as at today (all posted entries)";
     const data: SheetData = [
       ...heading(title, subtitle),
-      [text("Heading / Account", HEADER), text("Code", HEADER), text("Amount", HEADER)],
+      [
+        text("Heading / Account", HEADER),
+        text("Code", HEADER),
+        text("Amount", HEADER),
+        text("Note", HEADER),
+      ],
       ...report.headings.flatMap((line): SheetData => [
-        [text(line.name, TOTAL), null, money(line.value, TOTAL)],
+        [text(line.name, TOTAL), null, money(line.value, TOTAL), text(line.note ?? "", TOTAL)],
         ...line.rows.map(
           (row): Cell[] => [
             text(row.name, { indent: (row.depth + 1) * 2, ...(row.selected ? { fontWeight: "bold" } : {}) }),
             text(row.code),
             moneyOrBlank(row.value),
+            null,
           ],
         ),
       ]),
       ...(report.unassigned.rows.length > 0
         ? [
-            [text("Unassigned (not in any heading)", TOTAL), null, money(report.unassigned.value, TOTAL)] as Cell[],
+            [
+              text("Unassigned (not in any heading)", TOTAL),
+              null,
+              money(report.unassigned.value, TOTAL),
+              null,
+            ] as Cell[],
             ...report.unassigned.rows.map(
-              (row): Cell[] => [text(row.name), text(row.code), moneyOrBlank(row.value)],
+              (row): Cell[] => [text(row.name), text(row.code), moneyOrBlank(row.value), null],
             ),
           ]
         : ([] as Cell[][])),
       [],
       ...report.footer.map(
-        (line): Cell[] => [text(line.label, TOTAL), null, money(line.value, TOTAL)],
+        (line): Cell[] => [text(line.label, TOTAL), null, money(line.value, TOTAL), null],
       ),
       ...(report.balanced === null
         ? ([] as Cell[][])
-        : [[text("Balanced", TOTAL), null, text(report.balanced ? "YES" : "NO", TOTAL)] as Cell[]]),
+        : [
+            [
+              text("Balanced", TOTAL),
+              null,
+              text(report.balanced ? "YES" : "NO", TOTAL),
+              null,
+            ] as Cell[],
+          ]),
     ];
     const scope =
       kind === "PL"
@@ -349,7 +367,7 @@ export class ReportXlsx {
         {
           data,
           sheet: title,
-          columns: [{ width: 46 }, { width: 12 }, { width: 16 }],
+          columns: [{ width: 46 }, { width: 12 }, { width: 16 }, { width: 8 }],
           stickyRowsCount: 6,
         },
       ]),

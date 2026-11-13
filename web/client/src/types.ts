@@ -477,8 +477,12 @@ export interface CustomHeadingPart {
 export interface CustomHeading {
   id: string;
   name: string;
+  /** Printed note/reference number, e.g. 20-29 on the printed P&L. */
+  note?: string;
   /** "accounts" sums CoA nodes; "subtotal" adds/subtracts other headings. */
   kind: "accounts" | "subtotal";
+  /** P&L only: "opening" reads balances carried into the period. */
+  basis?: "opening";
   accountIds: number[];
   parts: CustomHeadingPart[];
 }

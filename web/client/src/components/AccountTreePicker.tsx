@@ -12,6 +12,8 @@ import type { Account, AccountType } from "../types";
 
 export const NET_PROFIT_ACCOUNT_ID = 0;
 const NET_PROFIT_LABEL = "Net profit (P&L)";
+const OPENING_PROFIT_ACCOUNT_ID = -1;
+const OPENING_PROFIT_LABEL = "Opening profit/(loss) before period";
 
 const TYPE_LABELS: Record<AccountType, string> = {
   ASSET: "Assets",
@@ -29,6 +31,8 @@ interface Props {
   onChange: (ids: number[]) => void;
   /** Offer the balance sheet's unposted-profit pseudo account. */
   netProfit?: boolean;
+  /** Offer profit earned before the selected P&L period. */
+  openingProfit?: boolean;
 }
 
 function byCode(a: Account, b: Account): number {
@@ -41,6 +45,7 @@ export default function AccountTreePicker({
   selected,
   onChange,
   netProfit = false,
+  openingProfit = false,
 }: Props) {
   const [query, setQuery] = useState("");
 
@@ -150,6 +155,8 @@ export default function AccountTreePicker({
   }
 
   const showNetProfit = netProfit && (!visible || matchesQuery(query, [NET_PROFIT_LABEL]));
+  const showOpeningProfit =
+    openingProfit && (!visible || matchesQuery(query, [OPENING_PROFIT_LABEL]));
 
   return (
     <div>
@@ -193,7 +200,7 @@ export default function AccountTreePicker({
             </div>
           );
         })}
-        {showNetProfit && (
+        {(showNetProfit || showOpeningProfit) && (
           <div style={{ marginBottom: 6 }}>
             <div
               style={{
@@ -207,20 +214,37 @@ export default function AccountTreePicker({
             >
               Computed
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-              <input
-                type="checkbox"
-                checked={selectedSet.has(NET_PROFIT_ACCOUNT_ID)}
-                onChange={() => toggle(NET_PROFIT_ACCOUNT_ID)}
-              />
-              <span>{NET_PROFIT_LABEL}</span>
-              <span className="badge" style={{ opacity: 0.7 }}>
-                keeps the sheet balanced
-              </span>
-            </label>
+            {showNetProfit && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(NET_PROFIT_ACCOUNT_ID)}
+                  onChange={() => toggle(NET_PROFIT_ACCOUNT_ID)}
+                />
+                <span>{NET_PROFIT_LABEL}</span>
+                <span className="badge" style={{ opacity: 0.7 }}>
+                  keeps the sheet balanced
+                </span>
+              </label>
+            )}
+            {showOpeningProfit && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(OPENING_PROFIT_ACCOUNT_ID)}
+                  onChange={() => toggle(OPENING_PROFIT_ACCOUNT_ID)}
+                />
+                <span>{OPENING_PROFIT_LABEL}</span>
+                <span className="badge" style={{ opacity: 0.7 }}>
+                  carried into the period
+                </span>
+              </label>
+            )}
           </div>
         )}
-        {types.every((type) => roots(type).length === 0) && !showNetProfit && (
+        {types.every((type) => roots(type).length === 0) &&
+          !showNetProfit &&
+          !showOpeningProfit && (
           <p style={{ opacity: 0.7, margin: 0 }}>No matching accounts.</p>
         )}
       </div>

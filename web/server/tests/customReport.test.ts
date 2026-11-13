@@ -6,6 +6,7 @@ import { AccountingService } from "../src/services/accountingService.js";
 import {
   CustomReportService,
   NET_PROFIT_ACCOUNT_ID,
+  OPENING_PROFIT_ACCOUNT_ID,
 } from "../src/services/customReportService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
@@ -41,24 +42,148 @@ async function seedSale(): Promise<void> {
 }
 
 describe("CustomReportService", () => {
-  it("defaults to five P&L headings whose net profit ties to the standard report", async () => {
-    await seedSale();
-    const standard = await reports.profitAndLoss();
+  it("defaults to the printed P&L layout with its note numbers", async () => {
     const result = await custom.build("PL");
 
     expect(result.headings.map((heading) => heading.name)).toEqual([
-      "Revenue",
+      "Sales - Net",
       "Cost of Sales",
+      "Gross Profit/(Loss)",
       "Operating Expenses",
+      "Administrative Expenses",
+      "Selling & Distribution",
+      "Operating Profit/(Loss)",
       "Other Income",
-      "Net Profit",
+      "Financial Charges",
+      "Others",
+      "Profit/(Loss) Before Taxation",
+      "Taxation (Current)",
+      "Profit/(Loss) After Taxation",
+      "Prior Year Adjustment",
+      "Acc. Profit/(Loss) B/F (y/opening)",
+      "Profit/(Loss) C/F to B/Sheet",
     ]);
-    const byName = new Map(result.headings.map((heading) => [heading.name, heading.value]));
-    expect(byName.get("Revenue")).toBe(standard.revenue);
-    expect(byName.get("Operating Expenses")).toBe(standard.expenses);
-    expect(byName.get("Net Profit")).toBe(standard.netProfit);
-    expect(result.unassigned.value).toBe(0);
+    expect(result.headings.filter((heading) => heading.note).map((heading) => heading.note)).toEqual([
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+    ]);
     expect(result.balanced).toBeNull();
+  });
+
+  it("calculates the P&L subtotals from selected accounts and opening B/F", async () => {
+    const revenue = await accountId(ctx.db, "4000");
+    const costOfSales = await accountId(ctx.db, "5000");
+    const admin = await accountId(ctx.db, "6000");
+    const selling = await accountId(ctx.db, "6100");
+    const retained = await accountId(ctx.db, "3100");
+    const cash = await accountId(ctx.db, "1000");
+    const otherIncome = await accountService.create({
+      accountName: "Other Income Test",
+      accountType: "REVENUE",
+    });
+    const finance = await accountService.create({
+      accountName: "Finance Cost Test",
+      accountType: "EXPENSE",
+    });
+    const others = await accountService.create({
+      accountName: "Other Expense Test",
+      accountType: "EXPENSE",
+    });
+    const tax = await accountService.create({
+      accountName: "Current Tax Test",
+      accountType: "EXPENSE",
+    });
+
+    const post = (entryDate: string, accountIdValue: number, amount: number) =>
+      accounting.createManualJournal({
+        entryDate,
+        narration: "custom P&L test",
+        lines: [
+          { accountId: accountIdValue, debit: amount, credit: 0 },
+          { accountId: cash, debit: 0, credit: amount },
+        ],
+      });
+    const postCredit = (entryDate: string, accountIdValue: number, amount: number) =>
+      accounting.createManualJournal({
+        entryDate,
+        narration: "custom P&L test",
+        lines: [
+          { accountId: cash, debit: amount, credit: 0 },
+          { accountId: accountIdValue, debit: 0, credit: amount },
+        ],
+      });
+
+    // Opening balances at 30 September: retained earnings 200, plus net profit 60.
+    await postCredit("2026-09-30", retained, 200);
+    await postCredit("2026-09-30", revenue, 100);
+    await post("2026-09-30", costOfSales, 40);
+
+    // October movement.
+    await postCredit("2026-10-10", revenue, 1000);
+    await post("2026-10-10", costOfSales, 300);
+    await post("2026-10-10", admin, 100);
+    await post("2026-10-10", selling, 50);
+    await postCredit("2026-10-10", otherIncome.id, 40);
+    await post("2026-10-10", finance.id, 20);
+    await post("2026-10-10", others.id, 10);
+    await post("2026-10-10", tax.id, 30);
+
+    const template = await custom.getTemplate("PL");
+    const assign = (headingId: string, accountIds: number[]): void => {
+      const heading = template.find((item) => item.id === headingId);
+      if (!heading) throw new Error(`missing default heading ${headingId}`);
+      heading.accountIds = accountIds;
+    };
+    assign("sales-net", [revenue]);
+    assign("cost-of-sales", [costOfSales]);
+    assign("administrative-expenses", [admin]);
+    assign("selling-distribution", [selling]);
+    assign("other-income", [otherIncome.id]);
+    assign("financial-charges", [finance.id]);
+    assign("others", [others.id]);
+    assign("taxation-current", [tax.id]);
+    assign("accumulated-profit-bf", [OPENING_PROFIT_ACCOUNT_ID, retained]);
+    await custom.saveTemplate("PL", { headings: template });
+
+    const result = await custom.build("PL", {
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+    const values = Object.fromEntries(
+      result.headings.map((heading) => [heading.id, heading.value]),
+    );
+    expect(values).toMatchObject({
+      "sales-net": 1000,
+      "cost-of-sales": 300,
+      "gross-profit": 700,
+      "administrative-expenses": 100,
+      "selling-distribution": 50,
+      "operating-expenses": 150,
+      "operating-profit": 550,
+      "other-income": 40,
+      "financial-charges": 20,
+      others: 10,
+      "profit-before-tax": 560,
+      "taxation-current": 30,
+      "profit-after-tax": 530,
+      "prior-year-adjustment": 0,
+      "accumulated-profit-bf": 260,
+      "profit-cf": 790,
+    });
+    const bf = result.headings.find((heading) => heading.id === "accumulated-profit-bf");
+    expect(bf?.rows.map((row) => [row.name, row.value])).toEqual([
+      ["Opening profit/(loss) before period", 60],
+      ["Retained Earnings", 200],
+    ]);
+    expect(result.unassigned.value).toBe(0);
   });
 
   it("counts a picked parent and its sub-accounts once", async () => {
@@ -217,8 +342,10 @@ describe("CustomReportService", () => {
     await seedSale();
     const csv = await custom.customCsv("PL");
     expect(csv).toContain("Custom Profit & Loss");
-    expect(csv).toContain("Net Profit");
-    expect(csv).toContain("Revenue");
+    expect(csv).toContain("Sales - Net");
+    expect(csv).toContain("Profit/(Loss) C/F to B/Sheet");
+    expect(csv).toContain("Heading,Account Code,Account,Amount,Note");
+    expect(csv).toContain("Sales - Net,,,0.00,20");
 
     const file = await new ReportXlsx(ctx.db).custom("PL");
     expect(file.fileName).toMatch(/^custom-profit-and-loss_/);
@@ -262,7 +389,7 @@ describe("custom report routes", () => {
 
     const initial = await get("/api/reports/custom/pl");
     expect(initial.status).toBe(200);
-    expect(((await initial.json()) as { headings: unknown[] }).headings).toHaveLength(5);
+    expect(((await initial.json()) as { headings: unknown[] }).headings).toHaveLength(16);
 
     const saved = await fetch(`${baseUrl}/api/reports/custom/pl`, {
       method: "PUT",

@@ -35,8 +35,12 @@ export interface CustomHeadingPart {
 export interface CustomHeading {
   id: string;
   name: string;
+  /** Printed note/reference number, e.g. 20-29 on the printed P&L. */
+  note?: string;
   /** "accounts" sums CoA nodes; "subtotal" adds/subtracts other headings. */
   kind: "accounts" | "subtotal";
+  /** P&L only: "opening" reads balances carried into the period. */
+  basis?: "opening";
   accountIds: number[];
   /** Subtotal headings only: the account headings it adds and subtracts. */
   parts: CustomHeadingPart[];
@@ -88,15 +92,24 @@ const SETTING_KEYS: Record<CustomReportKind, string> = {
 export const MAX_CUSTOM_HEADINGS = 30;
 const MAX_HEADING_NAME = 80;
 const MAX_HEADING_ID = 40;
+const MAX_NOTE = 20;
 /** Virtual account id for the balance sheet's unposted profit line. */
 export const NET_PROFIT_ACCOUNT_ID = 0;
 const NET_PROFIT_LABEL = "Net profit (P&L)";
+/** Virtual account id for profit earned before the selected P&L period. */
+export const OPENING_PROFIT_ACCOUNT_ID = -1;
+const OPENING_PROFIT_LABEL = "Opening profit/(loss) before period";
 
 /** Account types each statement may reference. */
 const REPORT_TYPES: Record<CustomReportKind, readonly AccountType[]> = {
   PL: ["REVENUE", "EXPENSE"],
   BS: ["ASSET", "LIABILITY", "EQUITY"],
 };
+
+/** Account types a heading may reference, including the opening-profit exception. */
+function allowedTypes(kind: CustomReportKind, basis?: "opening"): ReadonlySet<AccountType> {
+  return new Set(basis === "opening" ? (["EQUITY"] as const) : REPORT_TYPES[kind]);
+}
 
 function byAccountCode(a: { account_code: string }, b: { account_code: string }): number {
   return compareAccountCode(a.account_code, b.account_code);
@@ -133,7 +146,7 @@ function rootAccounts(accounts: readonly AccountRow[], type: AccountType): Accou
     .sort(byAccountCode);
 }
 
-/** Five coherent starting headings so the editor is never a blank page. */
+/** Starting headings: the printed "Profit and Loss (Spinning)" layout. */
 function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]): CustomHeading[] {
   if (kind === "BS") {
     return [
@@ -148,23 +161,81 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
       },
     ];
   }
+
+  // Sales - Net is intentionally unmapped; the user will select its accounts.
+  const account = (id: string, name: string, note: string): CustomHeading => ({
+    id,
+    name,
+    note,
+    kind: "accounts",
+    accountIds: [],
+    parts: [],
+  });
+  const subtotal = (
+    id: string,
+    name: string,
+    parts: Array<[string, 1 | -1]>,
+  ): CustomHeading => ({
+    id,
+    name,
+    kind: "subtotal",
+    accountIds: [],
+    parts: parts.map(([headingId, sign]) => ({ headingId, sign })),
+  });
+  const profitParts: Array<[string, 1 | -1]> = [
+    ["sales-net", 1],
+    ["cost-of-sales", -1],
+    ["administrative-expenses", -1],
+    ["selling-distribution", -1],
+    ["other-income", 1],
+    ["financial-charges", -1],
+    ["others", -1],
+  ];
+
   return [
-    { id: "revenue", name: "Revenue", kind: "accounts", accountIds: rootAccounts(accounts, "REVENUE").map((a) => a.id), parts: [] },
-    { id: "cost-of-sales", name: "Cost of Sales", kind: "accounts", accountIds: [], parts: [] },
-    { id: "operating-expenses", name: "Operating Expenses", kind: "accounts", accountIds: rootAccounts(accounts, "EXPENSE").map((a) => a.id), parts: [] },
-    { id: "other-income", name: "Other Income", kind: "accounts", accountIds: [], parts: [] },
+    account("sales-net", "Sales - Net", "20"),
+    account("cost-of-sales", "Cost of Sales", "21"),
+    subtotal("gross-profit", "Gross Profit/(Loss)", [
+      ["sales-net", 1],
+      ["cost-of-sales", -1],
+    ]),
+    subtotal("operating-expenses", "Operating Expenses", [
+      ["administrative-expenses", 1],
+      ["selling-distribution", 1],
+    ]),
+    account("administrative-expenses", "Administrative Expenses", "22"),
+    account("selling-distribution", "Selling & Distribution", "23"),
+    subtotal("operating-profit", "Operating Profit/(Loss)", [
+      ["sales-net", 1],
+      ["cost-of-sales", -1],
+      ["administrative-expenses", -1],
+      ["selling-distribution", -1],
+    ]),
+    account("other-income", "Other Income", "24"),
+    account("financial-charges", "Financial Charges", "25"),
+    account("others", "Others", "26"),
+    subtotal("profit-before-tax", "Profit/(Loss) Before Taxation", profitParts),
+    account("taxation-current", "Taxation (Current)", "27"),
+    subtotal("profit-after-tax", "Profit/(Loss) After Taxation", [
+      ...profitParts,
+      ["taxation-current", -1],
+    ]),
+    account("prior-year-adjustment", "Prior Year Adjustment", "28"),
     {
-      id: "net-profit",
-      name: "Net Profit",
-      kind: "subtotal",
-      accountIds: [],
-      parts: [
-        { headingId: "revenue", sign: 1 },
-        { headingId: "cost-of-sales", sign: -1 },
-        { headingId: "operating-expenses", sign: -1 },
-        { headingId: "other-income", sign: 1 },
-      ],
+      id: "accumulated-profit-bf",
+      name: "Acc. Profit/(Loss) B/F (y/opening)",
+      note: "29",
+      kind: "accounts",
+      basis: "opening",
+      accountIds: [OPENING_PROFIT_ACCOUNT_ID],
+      parts: [],
     },
+    subtotal("profit-cf", "Profit/(Loss) C/F to B/Sheet", [
+      ...profitParts,
+      ["taxation-current", -1],
+      ["prior-year-adjustment", 1],
+      ["accumulated-profit-bf", 1],
+    ]),
   ];
 }
 
@@ -181,7 +252,6 @@ function readTemplate(
   const record = asRecord(raw);
   if (!record || !Array.isArray(record.headings)) return null;
 
-  const allowed = new Set(REPORT_TYPES[kind]);
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   const headings: CustomHeading[] = [];
   const ids = new Set<string>();
@@ -191,6 +261,8 @@ function readTemplate(
     if (!heading) continue;
     const id = typeof heading.id === "string" ? heading.id.trim().slice(0, MAX_HEADING_ID) : "";
     const name = typeof heading.name === "string" ? heading.name.trim().slice(0, MAX_HEADING_NAME) : "";
+    const note =
+      typeof heading.note === "string" ? heading.note.trim().slice(0, MAX_NOTE) || undefined : undefined;
     if (!id || !name || ids.has(id)) continue;
     ids.add(id);
 
@@ -202,10 +274,19 @@ function readTemplate(
             return [{ headingId: part.headingId.trim(), sign: part.sign === -1 ? -1 : 1 }];
           })
         : [];
-      headings.push({ id, name, kind: "subtotal", accountIds: [], parts: dedupeParts(parts) });
+      headings.push({
+        id,
+        name,
+        ...(note ? { note } : {}),
+        kind: "subtotal",
+        accountIds: [],
+        parts: dedupeParts(parts),
+      });
       continue;
     }
 
+    const basis = kind === "PL" && heading.basis === "opening" ? "opening" : undefined;
+    const allowed = allowedTypes(kind, basis);
     const accountIds: number[] = [];
     for (const rawId of Array.isArray(heading.accountIds) ? heading.accountIds : []) {
       const accountId = Number(rawId);
@@ -214,10 +295,22 @@ function readTemplate(
         if (kind === "BS") accountIds.push(accountId);
         continue;
       }
+      if (accountId === OPENING_PROFIT_ACCOUNT_ID) {
+        if (basis === "opening") accountIds.push(accountId);
+        continue;
+      }
       const account = accountsById.get(accountId);
       if (account && allowed.has(account.account_type)) accountIds.push(accountId);
     }
-    headings.push({ id, name, kind: "accounts", accountIds, parts: [] });
+    headings.push({
+      id,
+      name,
+      ...(note ? { note } : {}),
+      ...(basis ? { basis } : {}),
+      kind: "accounts",
+      accountIds,
+      parts: [],
+    });
   }
 
   // Subtotal parts may name a heading that appears later (or never); keep only
@@ -250,7 +343,6 @@ function validateTemplate(
     throw new ValidationError(`A custom report can have at most ${MAX_CUSTOM_HEADINGS} headings.`);
   }
 
-  const allowed = new Set(REPORT_TYPES[kind]);
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   const ids = new Set<string>();
   const headings: CustomHeading[] = record.headings.map((item, index) => {
@@ -266,8 +358,23 @@ function validateTemplate(
     }
     if (ids.has(id)) throw new ValidationError(`Duplicate heading id '${id}'.`);
     ids.add(id);
+    if (heading.note != null && typeof heading.note !== "string") {
+      throw new ValidationError(`Heading '${name}' has an invalid note.`);
+    }
+    const note = typeof heading.note === "string" ? heading.note.trim() : "";
+    if (note.length > MAX_NOTE) {
+      throw new ValidationError(`Heading '${name}' has a note longer than ${MAX_NOTE} characters.`);
+    }
+    if (heading.basis != null && heading.basis !== "opening") {
+      throw new ValidationError(`Heading '${name}' has an invalid value basis.`);
+    }
+    const basis = heading.basis === "opening" ? "opening" : undefined;
+    if (basis && kind !== "PL") {
+      throw new ValidationError("Only the profit & loss can use opening balances.");
+    }
 
     if (heading.kind === "subtotal") {
+      if (basis) throw new ValidationError(`Heading '${name}' cannot be a subtotal and use opening balances.`);
       const rawParts = Array.isArray(heading.parts) ? heading.parts : [];
       const parts: CustomHeadingPart[] = rawParts.map((rawPart, partIndex) => {
         const part = asRecord(rawPart);
@@ -286,21 +393,36 @@ function validateTemplate(
       if (parts.some((part) => part.headingId === id)) {
         throw new ValidationError(`Heading '${name}' cannot add itself.`);
       }
-      return { id, name, kind: "subtotal", accountIds: [], parts };
+      return {
+        id,
+        name,
+        ...(note ? { note } : {}),
+        kind: "subtotal",
+        accountIds: [],
+        parts,
+      };
     }
 
     if (heading.kind !== "accounts") {
       throw new ValidationError(`Heading '${name}' is neither an accounts nor a subtotal heading.`);
     }
+    const allowed = allowedTypes(kind, basis);
     const accountIds: number[] = [];
     for (const rawId of Array.isArray(heading.accountIds) ? heading.accountIds : []) {
       const accountId = Number(rawId);
-      if (!Number.isInteger(accountId) || accountId < 0) {
+      if (!Number.isInteger(accountId)) {
         throw new ValidationError(`Heading '${name}' has an invalid account.`);
       }
       if (accountId === NET_PROFIT_ACCOUNT_ID) {
         if (kind === "BS") accountIds.push(accountId);
         continue;
+      }
+      if (accountId === OPENING_PROFIT_ACCOUNT_ID) {
+        if (basis === "opening") accountIds.push(accountId);
+        continue;
+      }
+      if (accountId < 0) {
+        throw new ValidationError(`Heading '${name}' has an invalid account.`);
       }
       // A CoA row deleted after the template was saved is dropped, not an error.
       const account = accountsById.get(accountId);
@@ -312,7 +434,15 @@ function validateTemplate(
       }
       if (!accountIds.includes(accountId)) accountIds.push(accountId);
     }
-    return { id, name, kind: "accounts", accountIds, parts: [] };
+    return {
+      id,
+      name,
+      ...(note ? { note } : {}),
+      ...(basis ? { basis } : {}),
+      kind: "accounts",
+      accountIds,
+      parts: [],
+    };
   });
 
   const accountHeadingIds = new Set(
@@ -332,11 +462,17 @@ function validateTemplate(
 }
 
 /** Account value in its natural sign for the statement. */
-function accountValue(row: TrialBalanceRow, kind: CustomReportKind): number {
-  const debit = new Decimal(row.debit);
-  const credit = new Decimal(row.credit);
+function accountValue(
+  row: TrialBalanceRow,
+  kind: CustomReportKind,
+  opening = false,
+): number {
   if (kind === "PL") {
-    if (row.accountType === "REVENUE") return toStorage(credit.minus(debit));
+    const debit = new Decimal(opening ? row.openingDebit : row.debit);
+    const credit = new Decimal(opening ? row.openingCredit : row.credit);
+    if (row.accountType === "REVENUE" || (opening && row.accountType === "EQUITY")) {
+      return toStorage(credit.minus(debit));
+    }
     if (row.accountType === "EXPENSE") return toStorage(debit.minus(credit));
     return 0;
   }
@@ -347,6 +483,20 @@ function accountValue(row: TrialBalanceRow, kind: CustomReportKind): number {
     return toStorage(closingCredit.minus(closingDebit));
   }
   return 0;
+}
+
+/** Revenue less expenses earned before the selected period starts. */
+function openingNetProfit(rows: readonly TrialBalanceRow[]): Decimal {
+  let revenue = new Decimal(0);
+  let expenses = new Decimal(0);
+  for (const row of rows) {
+    if (row.accountType === "REVENUE") {
+      revenue = revenue.plus(row.openingCredit).minus(row.openingDebit);
+    } else if (row.accountType === "EXPENSE") {
+      expenses = expenses.plus(row.openingDebit).minus(row.openingCredit);
+    }
+  }
+  return revenue.minus(expenses);
 }
 
 /** Revenue less expenses as at the balance-sheet date, from the closing columns. */
@@ -424,12 +574,18 @@ export class CustomReportService {
       kind === "PL"
         ? `Custom Profit & Loss (${formatDayMonthYear(options.from) || "start"} to ${formatDayMonthYear(options.to) || "today"})`
         : `Custom Balance Sheet (as at ${formatDayMonthYear(options.asAt ?? options.to ?? "") || "today"})`;
-    const lines = [title, "Heading,Account Code,Account,Amount"];
-    const line = (heading: string, code: string, account: string, value: number): string =>
-      [csvEscape(heading), csvEscape(code), csvEscape(account), value.toFixed(2)].join(",");
+    const lines = [title, "Heading,Account Code,Account,Amount,Note"];
+    const line = (
+      heading: string,
+      code: string,
+      account: string,
+      value: number,
+      note = "",
+    ): string =>
+      [csvEscape(heading), csvEscape(code), csvEscape(account), value.toFixed(2), csvEscape(note)].join(",");
 
     for (const heading of report.headings) {
-      lines.push(line(heading.name, "", "", heading.value));
+      lines.push(line(heading.name, "", "", heading.value, heading.note));
       for (const row of heading.rows) {
         lines.push(line("", row.code, `${"  ".repeat(row.depth)}${row.name}`, row.value));
       }
@@ -462,11 +618,17 @@ export class CustomReportService {
     accounts: readonly AccountRow[],
     rows: readonly TrialBalanceRow[],
   ): CustomReportResult {
-    const allowed = new Set(REPORT_TYPES[kind]);
+    const allowed = new Set<AccountType>(REPORT_TYPES[kind]);
+    if (kind === "PL") allowed.add("EQUITY");
     const accountsById = new Map(accounts.map((account) => [account.id, account]));
     const values = new Map<number, number>();
-    for (const row of rows) values.set(row.accountId, accountValue(row, kind));
+    const openingValues = new Map<number, number>();
+    for (const row of rows) {
+      values.set(row.accountId, accountValue(row, kind));
+      if (kind === "PL") openingValues.set(row.accountId, accountValue(row, kind, true));
+    }
     const netProfit = balanceSheetNetProfit(rows);
+    const openingProfit = openingNetProfit(rows);
 
     const childrenByParent = new Map<number, AccountRow[]>();
     for (const account of accounts) {
@@ -479,18 +641,23 @@ export class CustomReportService {
     }
     for (const siblings of childrenByParent.values()) siblings.sort(byAccountCode);
 
-    const valueOf = (accountId: number): Decimal =>
-      new Decimal(accountId === NET_PROFIT_ACCOUNT_ID ? netProfit : (values.get(accountId) ?? 0));
+    const valueOf = (accountId: number, opening = false): Decimal => {
+      if (accountId === OPENING_PROFIT_ACCOUNT_ID) return openingProfit;
+      if (accountId === NET_PROFIT_ACCOUNT_ID) return new Decimal(netProfit);
+      const source = opening ? openingValues : values;
+      return new Decimal(source.get(accountId) ?? 0);
+    };
 
     const codeOf = (accountId: number): string =>
-      accountId === NET_PROFIT_ACCOUNT_ID ? "" : (accountsById.get(accountId)?.account_code ?? "");
-    const nameOf = (accountId: number): string =>
-      accountId === NET_PROFIT_ACCOUNT_ID
-        ? NET_PROFIT_LABEL
-        : (accountsById.get(accountId)?.account_name ?? "");
+      accountId <= 0 ? "" : (accountsById.get(accountId)?.account_code ?? "");
+    const nameOf = (accountId: number): string => {
+      if (accountId === OPENING_PROFIT_ACCOUNT_ID) return OPENING_PROFIT_LABEL;
+      if (accountId === NET_PROFIT_ACCOUNT_ID) return NET_PROFIT_LABEL;
+      return accountsById.get(accountId)?.account_name ?? "";
+    };
 
     const childrenOf = (accountId: number): AccountRow[] =>
-      accountId === NET_PROFIT_ACCOUNT_ID ? [] : (childrenByParent.get(accountId) ?? []);
+      accountId <= 0 ? [] : (childrenByParent.get(accountId) ?? []);
 
     /** Ids of a node and everything under it (cycles are not possible in the CoA). */
     const subtreeIds = (accountId: number, into: Set<number> = new Set()): Set<number> => {
@@ -505,6 +672,7 @@ export class CustomReportService {
 
     for (const heading of headings) {
       if (heading.kind !== "accounts") continue;
+      const opening = heading.basis === "opening";
       const selected = new Set(heading.accountIds);
 
       // A picked node covered by another picked node in the same heading is
@@ -525,14 +693,16 @@ export class CustomReportService {
 
       const covered = new Set<number>();
       for (const root of roots) subtreeIds(root, covered);
-      for (const accountId of covered) assigned.add(accountId);
+      if (!opening) {
+        for (const accountId of covered) assigned.add(accountId);
+      }
 
       let value = new Decimal(0);
-      for (const accountId of covered) value = value.plus(valueOf(accountId));
+      for (const accountId of covered) value = value.plus(valueOf(accountId, opening));
 
       const buildRows = (accountId: number, depth: number): CustomReportRow[] => {
         const childRows = childrenOf(accountId).flatMap((child) => buildRows(child.id, depth + 1));
-        const own = valueOf(accountId);
+        const own = valueOf(accountId, opening);
         const isSelected = selected.has(accountId);
         // Zero lines the user did not pick are noise; a picked node stays.
         if (!isSelected && own.isZero() && childRows.length === 0) return [];
