@@ -130,9 +130,17 @@ describe("xlsx report exports", () => {
 
     const profitAndLoss = await reports.profitAndLoss({});
     expect(profitAndLoss.revenue).toBe(750);
+    // The single-report workbook is the compact summary (notes 20-29), so its
+    // labels come from the custom report rather than the standard 3-line sheet.
     const plFiles = open((await xlsx.profitAndLoss({})).buffer);
-    expect(worksheet(plFiles)).toContain(`<v>${profitAndLoss.netProfit}</v>`);
-    expect(strings(plFiles)).toContain("Revenue (net of returns)");
+    const plStrings = strings(plFiles);
+    expect(plStrings).toContain("Heading");
+    expect(plStrings).toContain("Sales - Net");
+    expect(plStrings).toContain("Profit/(Loss) C/F to B/Sheet");
+    // The standard 3-line P&L still rides in the combined workbook.
+    const allFiles = open((await xlsx.all({})).buffer);
+    expect(worksheet(allFiles, 2)).toContain(`<v>${profitAndLoss.netProfit}</v>`);
+    expect(strings(allFiles)).toContain("Revenue (net of returns)");
 
     const balanceSheet = await reports.balanceSheet(null);
     const bsFiles = open((await xlsx.balanceSheet({ kind: "balance-sheet" })).buffer);
