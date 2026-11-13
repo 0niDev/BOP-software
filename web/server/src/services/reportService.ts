@@ -111,7 +111,7 @@ export interface PartyBalanceRow {
   balance: number;
 }
 
-function csvEscape(value: string): string {
+export function csvEscape(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 

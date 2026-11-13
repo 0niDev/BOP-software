@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useState } from "react";
 import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
+import CustomReportEditor from "../components/CustomReportEditor";
+import CustomReportTable from "../components/CustomReportTable";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { AccountType, AllPartyLedgers, BalanceSheet, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -523,6 +525,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [tb, setTb] = useState<TrialBalance | null>(null);
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
   const [bs, setBs] = useState<BalanceSheet | null>(null);
+  const [customPl, setCustomPl] = useState<CustomReport | null>(null);
+  const [customBs, setCustomBs] = useState<CustomReport | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [customEditor, setCustomEditor] = useState<CustomReportKind | null>(null);
+  const [customBusy, setCustomBusy] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** A trial balance is read for its balances: hide the empty chart lines by default. */
@@ -584,14 +592,18 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setReportsBusy(true);
     setError(null);
     try {
-      const [balance, pnl, sheet] = await Promise.all([
+      const [balance, pnl, sheet, customPnl, customSheet] = await Promise.all([
         api.trialBalance(f || undefined, t || undefined),
         api.profitAndLoss(f || undefined, t || undefined),
         api.balanceSheet(a || undefined),
+        api.customReport("PL", f || undefined, t || undefined),
+        api.customReport("BS", undefined, undefined, a || undefined),
       ]);
       setTb(balance);
       setPl(pnl);
       setBs(sheet);
+      setCustomPl(customPnl);
+      setCustomBs(customSheet);
     } catch (err) {
       setError(errorMessage(err, "Failed to load reports."));
     } finally {
@@ -603,14 +615,16 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
 
   useEffect(() => {
     void loadReports({ from: "", to: "", asAt: "" });
-    api
-      .parties()
-      .then((partyList) => {
+    // Inactive accounts too: a heading may already reference one, and it must
+    // still be visible (and removable) in the tree.
+    Promise.all([api.parties(), api.accounts(false)])
+      .then(([partyList, accountList]) => {
+        setAccounts(accountList);
         setParties(partyList);
         const first = partyList[0];
         if (first) setPartyId(first.id);
       })
-      .catch((err) => setError(errorMessage(err, "Failed to load parties.")));
+      .catch((err) => setError(errorMessage(err, "Failed to load parties and accounts.")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageVisible]);
 
@@ -709,6 +723,43 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       setError(errorMessage(err, "Export failed."));
     } finally {
       setExportBusy(false);
+    }
+  }
+
+  async function saveCustomHeadings(
+    kind: CustomReportKind,
+    headings: CustomHeading[],
+  ): Promise<void> {
+    setCustomBusy(true);
+    setCustomError(null);
+    try {
+      await api.saveCustomReport(kind, headings);
+      setCustomEditor(null);
+      await loadReports();
+    } catch (err) {
+      setCustomError(errorMessage(err, "Failed to save the headings."));
+    } finally {
+      setCustomBusy(false);
+    }
+  }
+
+  async function exportCustomCsv(kind: CustomReportKind): Promise<void> {
+    setCsvBusy(true);
+    setError(null);
+    try {
+      const csv =
+        kind === "PL"
+          ? await api.customReportCsv("PL", from || undefined, to || undefined)
+          : await api.customReportCsv("BS", undefined, undefined, asAt || undefined);
+      const name =
+        kind === "PL"
+          ? `custom-profit-and-loss_${periodTag(from, to)}.csv`
+          : `custom-balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.csv`;
+      saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), name);
+    } catch (err) {
+      setError(errorMessage(err, "CSV export failed."));
+    } finally {
+      setCsvBusy(false);
     }
   }
 
@@ -887,6 +938,47 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               <Stat label="Expenses" value={pl.expenses} />
               <Stat label="Net profit" value={pl.netProfit} />
             </div>
+            <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
+              <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>
+              <button
+                onClick={() => {
+                  setCustomError(null);
+                  setCustomEditor(customEditor === "PL" ? null : "PL");
+                }}
+              >
+                {customEditor === "PL" ? "Close editor" : "Edit headings"}
+              </button>
+              <button
+                onClick={() =>
+                  void exportXlsx(
+                    "custom-pl",
+                    () => api.customReportXlsx("PL", from || undefined, to || undefined),
+                    `custom-profit-and-loss_${periodTag(from, to)}.xlsx`,
+                  )
+                }
+                disabled={xlsxBusy !== null}
+              >
+                {xlsxBusy === "custom-pl" ? "Preparing…" : "Export Excel"}
+              </button>
+              <button onClick={() => void exportCustomCsv("PL")} disabled={csvBusy}>
+                {csvBusy ? "Preparing…" : "Export CSV"}
+              </button>
+            </div>
+            {customEditor === "PL" ? (
+              <CustomReportEditor
+                kind="PL"
+                accounts={accounts}
+                headings={customPl?.headings ?? []}
+                busy={customBusy}
+                error={customError}
+                onSave={(headings) => void saveCustomHeadings("PL", headings)}
+                onCancel={() => setCustomEditor(null)}
+              />
+            ) : customPl ? (
+              <CustomReportTable report={customPl} />
+            ) : (
+              <p style={{ opacity: 0.7, margin: 0 }}>Loading custom report…</p>
+            )}
           </>
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
@@ -925,6 +1017,47 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               <Stat label="Equity (incl. profit)" value={bs.equity} />
               <Stat label="Net profit" value={bs.netProfit} />
             </div>
+            <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
+              <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>
+              <button
+                onClick={() => {
+                  setCustomError(null);
+                  setCustomEditor(customEditor === "BS" ? null : "BS");
+                }}
+              >
+                {customEditor === "BS" ? "Close editor" : "Edit headings"}
+              </button>
+              <button
+                onClick={() =>
+                  void exportXlsx(
+                    "custom-bs",
+                    () => api.customReportXlsx("BS", undefined, undefined, asAt || undefined),
+                    `custom-balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
+                  )
+                }
+                disabled={xlsxBusy !== null}
+              >
+                {xlsxBusy === "custom-bs" ? "Preparing…" : "Export Excel"}
+              </button>
+              <button onClick={() => void exportCustomCsv("BS")} disabled={csvBusy}>
+                {csvBusy ? "Preparing…" : "Export CSV"}
+              </button>
+            </div>
+            {customEditor === "BS" ? (
+              <CustomReportEditor
+                kind="BS"
+                accounts={accounts}
+                headings={customBs?.headings ?? []}
+                busy={customBusy}
+                error={customError}
+                onSave={(headings) => void saveCustomHeadings("BS", headings)}
+                onCancel={() => setCustomEditor(null)}
+              />
+            ) : customBs ? (
+              <CustomReportTable report={customBs} />
+            ) : (
+              <p style={{ opacity: 0.7, margin: 0 }}>Loading custom report…</p>
+            )}
           </>
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading balance sheet…</p>

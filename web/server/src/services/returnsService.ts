@@ -149,22 +149,8 @@ export class ReturnsService {
       const resolver = new SystemAccountResolver(this.db, companyId);
       const prepared = await this.prepareLines(input.items);
       let netTotal = new Decimal(0);
-      let wasteTotal = new Decimal(0);
-      const inventoryDebits = new Map<number, Decimal>();
-
       for (const line of prepared) {
         netTotal = netTotal.plus(line.amount);
-        if (line.destination === "WASTE") {
-          wasteTotal = wasteTotal.plus(line.amount);
-        } else {
-          const inventoryId = await resolver.idFor(
-            INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type],
-          );
-          inventoryDebits.set(
-            inventoryId,
-            (inventoryDebits.get(inventoryId) ?? new Decimal(0)).plus(line.amount),
-          );
-        }
       }
 
       const returnId = await this.returns.insertSalesReturn({

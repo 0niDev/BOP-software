@@ -114,6 +114,7 @@ export default function AccountsPage() {
 
   // Starts empty, so the tree opens collapsed to its roots.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [partiesOpen, setPartiesOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const [addParent, setAddParent] = useState<Account | null>(null);
   const [addName, setAddName] = useState("");
@@ -283,6 +284,8 @@ export default function AccountsPage() {
         (party.accountId === 0 || !visibleAccountIds.has(party.accountId)) && partyMatches(party),
     )
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Same rule as account rows: a search always reveals its matches.
+  const showParties = Boolean(query) || partiesOpen;
 
   // Filtering happens before the tree is built, so a matching child whose
   // parent is hidden simply surfaces as a root under its type section. An
@@ -598,10 +601,19 @@ export default function AccountsPage() {
             {activeType === "all" && balancedParties.length > 0 && [
               <tr key="section-parties">
                 <td colSpan={7} style={SECTION_STYLE}>
+                  <button
+                    type="button"
+                    className="coa-toggle"
+                    aria-expanded={showParties}
+                    title={showParties ? "Collapse" : "Expand"}
+                    onClick={() => setPartiesOpen((open) => !open)}
+                  >
+                    {showParties ? "▾" : "▸"}
+                  </button>{" "}
                   Parties
                 </td>
               </tr>,
-              ...balancedParties.map((party) => partyRow(party, 0)),
+              ...(showParties ? balancedParties.map((party) => partyRow(party, 0)) : []),
             ]}
             {ACCOUNT_TYPES.map((type) => {
               if (activeType !== "all" && activeType !== type) return null;

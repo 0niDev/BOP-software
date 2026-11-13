@@ -17,6 +17,9 @@ import type {
   CreatedSalesInvoice,
   CreatePurchaseInvoiceRequest,
   CreateSalesInvoiceRequest,
+  CustomHeading,
+  CustomReport,
+  CustomReportKind,
   DashboardData,
   DatabaseInfo,
   DeletedRecord,
@@ -83,6 +86,16 @@ export function periodQuery(
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   for (const [key, value] of Object.entries(extra)) params.set(key, String(value));
+  const suffix = params.toString();
+  return suffix ? `?${suffix}` : "";
+}
+
+/** `?from=&to=&asAt=` for the custom P&L / balance-sheet endpoints. */
+function customReportQuery(from?: string, to?: string, asAt?: string): string {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (asAt) params.set("asAt", asAt);
   const suffix = params.toString();
   return suffix ? `?${suffix}` : "";
 }
@@ -827,6 +840,15 @@ export const api = {
     request<BalanceSheet>(
       `/api/reports/balance-sheet${asAt ? `?asAt=${encodeURIComponent(asAt)}` : ""}`,
     ),
+  customReport: (kind: CustomReportKind, from?: string, to?: string, asAt?: string) =>
+    request<CustomReport>(
+      `/api/reports/custom/${kind.toLowerCase()}${customReportQuery(from, to, asAt)}`,
+    ),
+  saveCustomReport: (kind: CustomReportKind, headings: CustomHeading[]) =>
+    request<{ headings: CustomHeading[] }>(`/api/reports/custom/${kind.toLowerCase()}`, {
+      method: "PUT",
+      body: JSON.stringify({ headings }),
+    }),
   partyLedger: (partyId: number, from?: string, to?: string) => {
     const params = new URLSearchParams({ partyId: String(partyId) });
     if (from) params.set("from", from);
@@ -899,6 +921,14 @@ export const api = {
   balanceSheetXlsx: (asAt?: string) =>
     requestBlob(
       `/api/reports/balance-sheet.xlsx${asAt ? `?asAt=${encodeURIComponent(asAt)}` : ""}`,
+    ),
+  customReportCsv: (kind: CustomReportKind, from?: string, to?: string, asAt?: string) =>
+    requestText(
+      `/api/reports/custom/${kind.toLowerCase()}.csv${customReportQuery(from, to, asAt)}`,
+    ),
+  customReportXlsx: (kind: CustomReportKind, from?: string, to?: string, asAt?: string) =>
+    requestBlob(
+      `/api/reports/custom/${kind.toLowerCase()}.xlsx${customReportQuery(from, to, asAt)}`,
     ),
   cashBookXlsx: (from?: string, to?: string) =>
     requestBlob(`/api/reports/cash-book.xlsx${periodQuery(from, to)}`),

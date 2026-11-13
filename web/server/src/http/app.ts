@@ -16,6 +16,7 @@ import {
 import { isoDateSchema, optionalIsoDateSchema, validateIsoDate } from "../domain/dateValidation.js";
 import { AccountingService } from "../services/accountingService.js";
 import { AccountService } from "../services/accountService.js";
+import { CustomReportService, type CustomReportKind } from "../services/customReportService.js";
 import { AssetService } from "../services/assetService.js";
 import { BackupService } from "../services/backupService.js";
 import { AuthService } from "../services/authService.js";
@@ -113,6 +114,7 @@ export function createApp(
   const returns = new ReturnsService(db, companyId);
   const accounting = new AccountingService(db, companyId);
   const reports = new ReportService(db, companyId);
+  const customReports = new CustomReportService(db, companyId);
   const reportXlsx = new ReportXlsx(db, companyId);
   const reportPdf = new ReportPdf(db, companyId);
   const users = new UserService(db);
@@ -1559,6 +1561,63 @@ export function createApp(
     res.type("text/csv").send(
       await reports.exportAllCsv({ from, to, showUnpriced, showZero }),
     );
+  });
+
+  // --- custom P&L / balance sheet headings --------------------------------
+  // `:kind` is `pl` or `bs`; templates live in settings (no migration).
+  const customReportKind = (raw: unknown): CustomReportKind => {
+    const value = String(raw ?? "").toLowerCase();
+    if (value === "pl") return "PL";
+    if (value === "bs") return "BS";
+    throw new ValidationError("Unknown custom report. Use 'pl' or 'bs'.");
+  };
+  const customTemplateSchema = z.object({
+    headings: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1).max(40),
+          name: z.string().trim().min(1).max(80),
+          kind: z.enum(["accounts", "subtotal"]),
+          accountIds: z.array(z.coerce.number().int().nonnegative()).max(500).default([]),
+          parts: z
+            .array(
+              z.object({
+                headingId: z.string().trim().min(1).max(40),
+                sign: z.union([z.literal(1), z.literal(-1)]),
+              }),
+            )
+            .max(100)
+            .default([]),
+        }),
+      )
+      .max(30),
+  });
+  const customReportOptions = (req: Request): { from?: string; to?: string; asAt?: string | null } => {
+    const { from, to } = dateRangeQuery(req);
+    return { from, to, asAt: asAtQuery(req) };
+  };
+
+  // Suffixed routes first: `/custom/:kind` would otherwise swallow `pl.csv`.
+  app.get("/api/reports/custom/:kind.csv", requireAuth, async (req, res) => {
+    const kind = customReportKind(req.params.kind);
+    res.type("text/csv").send(await customReports.customCsv(kind, customReportOptions(req)));
+  });
+
+  app.get("/api/reports/custom/:kind.xlsx", requireAuth, async (req, res) => {
+    const kind = customReportKind(req.params.kind);
+    const file = await reportXlsx.custom(kind, customReportOptions(req));
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/custom/:kind", requireAuth, async (req, res) => {
+    const kind = customReportKind(req.params.kind);
+    res.json(await customReports.build(kind, customReportOptions(req)));
+  });
+
+  app.put("/api/reports/custom/:kind", requireAuth, async (req, res) => {
+    const kind = customReportKind(req.params.kind);
+    const body = parseBody(customTemplateSchema, req.body);
+    res.json({ headings: await customReports.saveTemplate(kind, body) });
   });
 
   // --- Excel (.xlsx) exports of the same reports --------------------------

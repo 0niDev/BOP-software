@@ -22,6 +22,7 @@ import { PartyRepository } from "../repositories/partyRepository.js";
 import type { ItemListRow } from "../repositories/itemRepository.js";
 import { ItemService } from "./itemService.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
+import { CustomReportService, type CustomReportKind } from "./customReportService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
 /** Reports that can be printed as a workbook. */
@@ -232,12 +233,14 @@ const INVENTORY_COLUMNS: Columns = [
 
 export class ReportXlsx {
   private readonly reports: ReportService;
+  private readonly customReports: CustomReportService;
   private readonly parties: PartyRepository;
   private readonly accounting: AccountingService;
   private readonly items: ItemService;
 
   constructor(db: SqlDatabase, companyId = 1) {
     this.reports = new ReportService(db, companyId);
+    this.customReports = new CustomReportService(db, companyId);
     this.parties = new PartyRepository(db);
     this.accounting = new AccountingService(db, companyId);
     this.items = new ItemService(db, companyId);
@@ -289,6 +292,67 @@ export class ReportXlsx {
     return {
       fileName: `cash-book_${periodSlug(options.from, options.to)}.xlsx`,
       buffer: await this.write([await this.cashBookSheet(options)]),
+    };
+  }
+
+  /** The editable-heading P&L / balance sheet, printed exactly as the screen lays it out. */
+  async custom(
+    kind: CustomReportKind,
+    options: { from?: string; to?: string; asAt?: string | null } = {},
+  ): Promise<XlsxFile> {
+    const report = await this.customReports.build(kind, options);
+    const title = kind === "PL" ? "Custom Profit & Loss" : "Custom Balance Sheet";
+    const subtitle =
+      kind === "PL"
+        ? periodLabel(options.from, options.to)
+        : options.asAt
+          ? `as at ${formatDayMonthYear(options.asAt)}`
+          : "as at today (all posted entries)";
+    const data: SheetData = [
+      ...heading(title, subtitle),
+      [text("Heading / Account", HEADER), text("Code", HEADER), text("Amount", HEADER)],
+      ...report.headings.flatMap((line): SheetData => [
+        [text(line.name, TOTAL), null, money(line.value, TOTAL)],
+        ...line.rows.map(
+          (row): Cell[] => [
+            text(row.name, { indent: (row.depth + 1) * 2, ...(row.selected ? { fontWeight: "bold" } : {}) }),
+            text(row.code),
+            moneyOrBlank(row.value),
+          ],
+        ),
+      ]),
+      ...(report.unassigned.rows.length > 0
+        ? [
+            [text("Unassigned (not in any heading)", TOTAL), null, money(report.unassigned.value, TOTAL)] as Cell[],
+            ...report.unassigned.rows.map(
+              (row): Cell[] => [text(row.name), text(row.code), moneyOrBlank(row.value)],
+            ),
+          ]
+        : ([] as Cell[][])),
+      [],
+      ...report.footer.map(
+        (line): Cell[] => [text(line.label, TOTAL), null, money(line.value, TOTAL)],
+      ),
+      ...(report.balanced === null
+        ? ([] as Cell[][])
+        : [[text("Balanced", TOTAL), null, text(report.balanced ? "YES" : "NO", TOTAL)] as Cell[]]),
+    ];
+    const scope =
+      kind === "PL"
+        ? periodSlug(options.from, options.to)
+        : options.asAt
+          ? `as-at_${options.asAt}`
+          : "as-at-today";
+    return {
+      fileName: `${kind === "PL" ? "custom-profit-and-loss" : "custom-balance-sheet"}_${scope}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: title,
+          columns: [{ width: 46 }, { width: 12 }, { width: 16 }],
+          stickyRowsCount: 6,
+        },
+      ]),
     };
   }
 

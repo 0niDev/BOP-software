@@ -466,6 +466,46 @@ export interface BalanceSheet {
   balanced: boolean;
 }
 
+/** Which statement a custom heading template belongs to. */
+export type CustomReportKind = "PL" | "BS";
+
+export interface CustomHeadingPart {
+  headingId: string;
+  sign: 1 | -1;
+}
+
+export interface CustomHeading {
+  id: string;
+  name: string;
+  /** "accounts" sums CoA nodes; "subtotal" adds/subtracts other headings. */
+  kind: "accounts" | "subtotal";
+  accountIds: number[];
+  parts: CustomHeadingPart[];
+}
+
+export interface CustomReportRow {
+  accountId: number;
+  code: string;
+  name: string;
+  depth: number;
+  value: number;
+  selected: boolean;
+  isHeader: boolean;
+}
+
+export interface CustomReportHeading extends CustomHeading {
+  value: number;
+  rows: CustomReportRow[];
+}
+
+export interface CustomReport {
+  kind: CustomReportKind;
+  headings: CustomReportHeading[];
+  unassigned: { value: number; rows: CustomReportRow[] };
+  footer: Array<{ label: string; value: number }>;
+  balanced: boolean | null;
+}
+
 export interface LedgerEntry {
   date: string;
   voucherNumber: string;

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { UnbalancedJournalEntryError, ValidationError } from "../src/domain/errors.js";
+import {
+  ConflictError,
+  UnbalancedJournalEntryError,
+  ValidationError,
+} from "../src/domain/errors.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
@@ -137,5 +141,49 @@ describe("AccountingService", () => {
         ],
       }),
     ).resolves.toBeGreaterThan(0);
+  });
+
+  it("rewrites a manual voucher in place and freezes it once reversed", async () => {
+    const cash = await accountId(ctx.db, "1000");
+    const revenue = await accountId(ctx.db, "4000");
+    const svc = new AccountingService(ctx.db);
+    const created = await svc.createManualJournal({
+      entryDate: "2026-10-08",
+      lines: [
+        { accountId: cash, debit: 100 },
+        { accountId: revenue, credit: 100 },
+      ],
+    });
+
+    const edited = await svc.updateManualJournal(created.id, {
+      entryDate: "2026-10-09",
+      narration: "Corrected",
+      lines: [
+        { accountId: cash, debit: 40 },
+        { accountId: revenue, credit: 40 },
+      ],
+    });
+    // The voucher number is the entry's identity, so the edit keeps it.
+    expect(edited.voucherNumber).toBe(created.voucherNumber);
+
+    const entry = await svc.getJournalEntry("journal_entries", created.id);
+    expect(entry?.entry_date).toBe("2026-10-09");
+    expect((entry?.lines as unknown[]).length).toBe(2);
+    // Old lines are replaced, not added to: the balance follows the edit.
+    const tb = await svc.getTrialBalance();
+    expect(tb.find((r) => r.accountCode === "1000")?.debit).toBe(40);
+    expect(tb.find((r) => r.accountCode === "4000")?.credit).toBe(40);
+
+    // A reversal opposes lines that no longer exist, so the voucher freezes.
+    await svc.reverseManualJournal(created.id);
+    await expect(
+      svc.updateManualJournal(created.id, {
+        entryDate: "2026-10-09",
+        lines: [
+          { accountId: cash, debit: 40 },
+          { accountId: revenue, credit: 40 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
