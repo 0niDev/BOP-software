@@ -75,6 +75,13 @@ const INVENTORY_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
   FINISHED_GOOD: SystemAccountCodes.INVENTORY_FINISHED_GOODS,
 };
 
+/** COGS accounts by item type, identical to the sales-invoice mapping. */
+const COGS_ACCOUNT_BY_TYPE: Record<ItemType, string> = {
+  FINISHED_GOOD: "5000",
+  PACKING_MATERIAL: "5001",
+  RAW_MATERIAL: "5002",
+};
+
 interface PreparedLine {
   item: ItemRow;
   quantity: Decimal;
@@ -149,8 +156,27 @@ export class ReturnsService {
       const resolver = new SystemAccountResolver(this.db, companyId);
       const prepared = await this.prepareLines(input.items);
       let netTotal = new Decimal(0);
+      let wasteTotal = new Decimal(0);
+      const cogsByType = new Map<ItemType, Decimal>();
+      const inventoryDebits = new Map<number, Decimal>();
+
       for (const line of prepared) {
         netTotal = netTotal.plus(line.amount);
+        cogsByType.set(
+          line.item.item_type,
+          (cogsByType.get(line.item.item_type) ?? new Decimal(0)).plus(line.amount),
+        );
+        if (line.destination === "WASTE") {
+          wasteTotal = wasteTotal.plus(line.amount);
+        } else {
+          const inventoryId = await resolver.idFor(
+            INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type],
+          );
+          inventoryDebits.set(
+            inventoryId,
+            (inventoryDebits.get(inventoryId) ?? new Decimal(0)).plus(line.amount),
+          );
+        }
       }
 
       const returnId = await this.returns.insertSalesReturn({
@@ -210,6 +236,14 @@ export class ReturnsService {
           description: `Sales return ${returnNumber}`,
         },
       ];
+      for (const [itemType, amount] of cogsByType) {
+        if (amount.lessThanOrEqualTo(0)) continue;
+        journalLines.push({
+          accountId: await this.cogsAccountId(resolver, itemType),
+          credit: amount,
+          description: `Reverse COGS (${itemType})`,
+        });
+      }
       for (const [inventoryId, amount] of inventoryDebits) {
         journalLines.push({ accountId: inventoryId, debit: amount, description: "Restore inventory" });
       }
@@ -561,6 +595,18 @@ export class ReturnsService {
       referenceTable,
       referenceId,
     ]);
+  }
+
+  /** COGS account for an item type, falling back to 5000 when it is not seeded. */
+  private async cogsAccountId(
+    resolver: SystemAccountResolver,
+    itemType: ItemType,
+  ): Promise<number> {
+    try {
+      return await resolver.idFor(COGS_ACCOUNT_BY_TYPE[itemType]);
+    } catch {
+      return resolver.idFor(SystemAccountCodes.COST_OF_GOODS_SOLD);
+    }
   }
 
   /** Allocate the next document number, or reject a duplicate manual one. */
