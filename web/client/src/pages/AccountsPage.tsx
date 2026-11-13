@@ -290,11 +290,13 @@ export default function AccountsPage() {
   // Filtering happens before the tree is built, so a matching child whose
   // parent is hidden simply surfaces as a root under its type section. An
   // account whose party matches the filter stays visible to carry that party.
+  // Search the code the table shows (the tree display code), not the stored
+  // account_code the cleanup renumbering left behind.
   const visibleAccounts = query
     ? accounts.filter(
         (account) =>
           matchesQuery(query, [
-            account.account_code,
+            account.display_code ?? account.account_code,
             account.account_name,
             account.account_type,
             account.account_subtype,
