@@ -39,7 +39,8 @@ const PAGES: PageUnderAudit[] = [
   { nav: "Inventory", expectData: true },
   { nav: "Fixed Assets", expectData: true },
   { nav: "Chart of Accounts", expectData: true },
-  { nav: "Reports", expectData: true },
+  { nav: "Reports" },
+  { nav: "Listing", expectData: true },
   { nav: "Users", expectData: true },
   { nav: "Settings" },
   { nav: "Deleted Records" },
@@ -594,11 +595,12 @@ test("no page overflows horizontally at 1280 or 1024 px", async ({ page }) => {
  * path — React -> Vite proxy -> Express -> workbook bytes -> file on disk —
  * rather than the endpoint alone.
  */
-test("reports download as Excel workbooks from the Reports page", async ({ page }) => {
+test("reports download as Excel workbooks from the Listing and Reports pages", async ({ page }) => {
   const watched = monitor(page);
   await signIn(page);
-  await openPage(page, "Reports");
 
+  // Trial balance now lives under Listing.
+  await openPage(page, "Listing");
   const trialBalanceCard = page
     .locator(".card")
     .filter({ has: page.getByRole("heading", { name: /^Trial Balance/ }) });
@@ -612,19 +614,6 @@ test("reports download as Excel workbooks from the Reports page", async ({ page 
   const singleSize = fs.statSync(singlePath as string).size;
   expect(singleSize).toBeGreaterThan(1000);
 
-  const exportAllCard = page
-    .locator(".card")
-    .filter({ has: page.getByRole("heading", { name: "Export all reports" }) });
-  const allExport = exportAllCard.getByRole("button", { name: "Download all reports (Excel)" });
-  await expect(allExport).toBeEnabled();
-
-  const [combined] = await Promise.all([page.waitForEvent("download"), allExport.click()]);
-  expect(combined.suggestedFilename()).toMatch(/^all-reports_.*\.xlsx$/);
-  const combinedPath = await combined.path();
-  expect(combinedPath, "the combined workbook should reach disk").toBeTruthy();
-  // Four sheets weigh more than one.
-  expect(fs.statSync(combinedPath as string).size).toBeGreaterThan(singleSize);
-
   // The CSV exports now share the same download helper, so keep them covered.
   const [tbCsv] = await Promise.all([
     page.waitForEvent("download"),
@@ -635,6 +624,23 @@ test("reports download as Excel workbooks from the Reports page", async ({ page 
   expect(fs.readFileSync(csvPath as string, "utf8")).toContain(
     "Account Code,Account Name,Type,Opening Debit",
   );
+
+  // "Export all reports" stays under Reports.
+  await openPage(page, "Reports");
+  const exportAllCard = page
+    .locator(".card")
+    .filter({ has: page.getByRole("heading", { name: "Export all reports" }) });
+  const allExport = exportAllCard.getByRole("button", { name: "Download all reports (Excel)" });
+  await expect(allExport).toBeEnabled();
+
+  const [combined] = await Promise.all([page.waitForEvent("download"), allExport.click()]);
+  expect(combined.suggestedFilename()).toMatch(/^all-reports_.*\.xlsx$/);
+  const combinedPath = await combined.path();
+  expect(combinedPath, "the combined workbook should reach disk").toBeTruthy();
+  // The export-all period can be empty while the single TB covers all entries,
+  // so only check the workbook is a real (non-trivial) file, not that it beats
+  // the single's size.
+  expect(fs.statSync(combinedPath as string).size).toBeGreaterThan(1000);
 
   const [allCsv] = await Promise.all([
     page.waitForEvent("download"),

@@ -37,10 +37,12 @@ function loadUser(): User | null {
 
 export type ReportPage =
   | "reports"
+  | "listing"
   | "report-trial-balance"
   | "report-party-ledger"
   | "report-party-ledger-all"
   | "report-party-product-sales"
+  | "report-party-product-purchases"
   | "report-cash-book"
   | "report-profit-loss"
   | "report-balance-sheet"
@@ -66,7 +68,7 @@ export type Page =
   | "deleted";
 
 function isReportPage(page: Page): page is ReportPage {
-  return page === "reports" || page.startsWith("report-");
+  return page === "reports" || page === "listing" || page.startsWith("report-");
 }
 
 export default function App() {

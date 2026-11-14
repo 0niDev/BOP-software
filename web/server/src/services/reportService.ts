@@ -805,6 +805,84 @@ export class ReportService {
     return { parties: [...parties.values()], grandTotal: toStorage(grandTotal) };
   }
 
+  /**
+   * What every party supplied: one row per product across all their confirmed
+   * purchase invoices, with the party's total spend and the grand total. The
+   * mirror of partyProductSales() for the buying side. Purchase returns are
+   * netted in: they reduce the same party/product row, so a product can carry a
+   * negative value when more came back than went in.
+   */
+  async partyProductPurchases(from?: string, to?: string): Promise<PartyProductSalesResult> {
+    const purchaseParams: Array<string | number> = [this.companyId];
+    let purchaseSql = `
+      SELECT pi.supplier_id AS party_id, pii.item_id AS item_id,
+             pii.line_total AS value
+      FROM purchase_invoice_items pii
+      JOIN purchase_invoices pi ON pi.id = pii.invoice_id
+      WHERE pi.company_id = ? AND pi.status = 'CONFIRMED'`;
+    if (from) {
+      purchaseSql += " AND pi.invoice_date >= ?";
+      purchaseParams.push(from);
+    }
+    if (to) {
+      purchaseSql += " AND pi.invoice_date <= ?";
+      purchaseParams.push(to);
+    }
+
+    // A return gives value back, so it enters the union negated.
+    const returnParams: Array<string | number> = [this.companyId];
+    let returnSql = `
+      SELECT pr.party_id AS party_id, pri.item_id AS item_id,
+             -pri.line_total AS value
+      FROM purchase_return_items pri
+      JOIN purchase_returns pr ON pr.id = pri.return_id
+      WHERE pr.company_id = ?`;
+    if (from) {
+      returnSql += " AND pr.return_date >= ?";
+      returnParams.push(from);
+    }
+    if (to) {
+      returnSql += " AND pr.return_date <= ?";
+      returnParams.push(to);
+    }
+
+    const sql = `
+      SELECT p.id AS party_id, p.code AS party_code, p.name AS party_name,
+             i.id AS item_id, i.item_name,
+             SUM(lines.value) AS value
+      FROM (${purchaseSql} UNION ALL ${returnSql}) lines
+      JOIN parties p ON p.id = lines.party_id
+      JOIN items i ON i.id = lines.item_id
+      GROUP BY p.id, i.id ORDER BY p.name, p.code, i.item_name`;
+    const rows = await this.db.all<Row>(sql, [...purchaseParams, ...returnParams]);
+
+    const parties = new Map<number, PartyProductSalesParty>();
+    let grandTotal = new Decimal(0);
+    for (const row of rows) {
+      const partyId = Number(row.party_id);
+      let party = parties.get(partyId);
+      if (!party) {
+        party = {
+          partyId,
+          code: String(row.party_code ?? ""),
+          name: String(row.party_name ?? ""),
+          products: [],
+          total: 0,
+        };
+        parties.set(partyId, party);
+      }
+      const value = new Decimal(Number(row.value ?? 0));
+      party.products.push({
+        itemId: Number(row.item_id),
+        itemName: String(row.item_name ?? ""),
+        value: toStorage(value),
+      });
+      party.total = toStorage(new Decimal(party.total).plus(value));
+      grandTotal = grandTotal.plus(value);
+    }
+    return { parties: [...parties.values()], grandTotal: toStorage(grandTotal) };
+  }
+
   /** Cash book: every posted movement on the Cash in Hand account. */
   async cashBook(from?: string, to?: string): Promise<LedgerEntry[]> {
     let sql = `

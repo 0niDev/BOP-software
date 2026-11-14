@@ -1540,6 +1540,11 @@ export function createApp(
     res.json(await reports.partyProductSales(from, to));
   });
 
+  app.get("/api/reports/party-product-purchases", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.partyProductPurchases(from, to));
+  });
+
   app.get("/api/reports/cash-book", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     res.json(await reports.cashBook(from, to));
@@ -1724,6 +1729,12 @@ export function createApp(
   app.get("/api/reports/party-product-sales.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     const file = await reportXlsx.partyProductSales({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/party-product-purchases.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.partyProductPurchases({ from, to });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

@@ -15,6 +15,8 @@ import { ItemService } from "../src/services/itemService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
+import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.js";
+import { insertRow } from "../src/repositories/base.js";
 import { accountId, closeDb, freshDb, type TestContext } from "./helpers/db.js";
 
 const SHEET_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -252,6 +254,41 @@ describe("xlsx report exports", () => {
     const report = await reports.partyProductSales();
     const party = report.parties.find((row) => row.partyId === ctx.ids.customerId);
     if (!party) throw new Error("the customer should appear in the product sales report");
+    expect(text).toContain(party.code);
+    expect(text).toContain("Grand total (all parties)");
+    expect(worksheet(files)).toContain(`<v>${party.total}</v>`);
+  });
+
+  it("exports the party product purchases report with per-party totals", async () => {
+    // A fresh raw material so the purchase does not disturb the demo finished
+    // good's stock (the inventory test asserts its count).
+    const rawItemId = await insertRow(ctx.db, "items", {
+      company_id: 1,
+      item_code: "PUR-REPORT",
+      item_name: "Purchase Report Item",
+      unit: "pcs",
+      item_type: "RAW_MATERIAL",
+      purchase_price: 80,
+      selling_price: 0,
+      is_active: 1,
+    });
+    const purchases = new PurchaseInvoiceService(ctx.db);
+    await purchases.createPurchaseInvoice({
+      supplierId: ctx.ids.supplierId,
+      invoiceDate: saleDate,
+      paymentType: "CREDIT",
+      items: [{ itemId: rawItemId, quantity: 3, unitCost: 80 }],
+    });
+
+    const file = await xlsx.partyProductPurchases({});
+    const files = open(file.buffer);
+    expect(file.fileName).toBe("party-product-purchases_all-posted.xlsx");
+    expect(sheetNames(files)).toEqual(["Party Product Purchases"]);
+
+    const text = strings(files);
+    const report = await reports.partyProductPurchases();
+    const party = report.parties.find((row) => row.partyId === ctx.ids.supplierId);
+    if (!party) throw new Error("the supplier should appear in the product purchases report");
     expect(text).toContain(party.code);
     expect(text).toContain("Grand total (all parties)");
     expect(worksheet(files)).toContain(`<v>${party.total}</v>`);

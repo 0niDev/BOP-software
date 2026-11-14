@@ -534,6 +534,57 @@ export class ReportXlsx {
   }
 
   /**
+   * Every supplier's product purchases in one sheet: a party band with that
+   * party's total, its products below, then the grand total. The mirror of
+   * partyProductSales() for the buying side.
+   */
+  async partyProductPurchases(options: DateRangeOptions): Promise<XlsxFile> {
+    const report = await this.reports.partyProductPurchases(
+      options.from ?? undefined,
+      options.to ?? undefined,
+    );
+    const PARTY: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED" };
+    const data: SheetData = [
+      ...heading("Party Product Purchases", periodLabel(options.from, options.to)),
+      [
+        text("Party", HEADER),
+        text("Code", HEADER),
+        text("Product", HEADER),
+        text("Value", HEADER),
+      ],
+    ];
+    for (const party of report.parties) {
+      data.push([
+        text(party.name, PARTY),
+        text(party.code, PARTY),
+        text("Party total", PARTY),
+        money(party.total, PARTY),
+      ]);
+      for (const product of party.products) {
+        data.push([null, null, text(product.itemName), money(product.value)]);
+      }
+      data.push([]);
+    }
+    data.push([
+      text("Grand total (all parties)", TOTAL),
+      null,
+      null,
+      money(report.grandTotal, TOTAL),
+    ]);
+    return {
+      fileName: `party-product-purchases_${periodSlug(options.from, options.to)}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "Party Product Purchases",
+          columns: [{ width: 32 }, { width: 14 }, { width: 40 }, { width: 16 }],
+          stickyRowsCount: 6,
+        },
+      ]),
+    };
+  }
+
+  /**
    * One workbook holding the four period reports, one sheet each — the Excel
    * counterpart of reportService.exportAllCsv(). The balance sheet is printed
    * as at the period end, exactly like that CSV.

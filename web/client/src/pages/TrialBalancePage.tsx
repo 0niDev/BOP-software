@@ -318,7 +318,7 @@ function AllPartyLedgerTable({
 }
 
 /** Every party's product purchases: a band per party, its products beneath. */
-function PartyProductSalesTable({ report }: { report: PartyProductSales }) {
+function PartyProductTable({ report }: { report: PartyProductSales }) {
   return (
     <table>
       <thead>
@@ -513,15 +513,17 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
 
 export default function TrialBalancePage({ section = "reports" }: { section?: ReportPage }) {
   const showAll = section === "reports";
-  const showTb = showAll || section === "report-trial-balance";
-  const showPl = showAll || section === "report-profit-loss";
-  const showBs = showAll || section === "report-balance-sheet";
+  const showListing = section === "listing";
+  const showTb = showListing || section === "report-trial-balance";
+  const showPl = showListing || section === "report-profit-loss";
+  const showBs = showListing || section === "report-balance-sheet";
   const showParty = showAll || section === "report-party-ledger";
   const showAllParties = showAll || section === "report-party-ledger-all";
   const showPartyProducts = showAll || section === "report-party-product-sales";
+  const showPartyPurchases = showAll || section === "report-party-product-purchases";
   const showCash = showAll || section === "report-cash-book";
   const showExport = showAll || section === "report-export";
-  const showPeriod = showAll || showTb || showPl || showBs;
+  const showPeriod = showListing || showTb || showPl || showBs;
 
   const [tb, setTb] = useState<TrialBalance | null>(null);
   const [pl, setPl] = useState<ProfitAndLoss | null>(null);
@@ -576,6 +578,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [ppTo, setPpTo] = useState("");
   const [ppLoaded, setPpLoaded] = useState(false);
   const [ppBusy, setPpBusy] = useState(false);
+
+  const [partyPurchases, setPartyPurchases] = useState<PartyProductSales | null>(null);
+  const [puFrom, setPuFrom] = useState("");
+  const [puTo, setPuTo] = useState("");
+  const [puLoaded, setPuLoaded] = useState(false);
+  const [puBusy, setPuBusy] = useState(false);
 
   const [csvBusy, setCsvBusy] = useState(false);
   // Which Excel export is preparing, so only the button that was pressed shows
@@ -681,6 +689,21 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       setError(errorMessage(err, "Failed to load party product sales."));
     } finally {
       setPpBusy(false);
+    }
+  }
+
+  async function loadPartyPurchases(): Promise<void> {
+    setPuBusy(true);
+    setError(null);
+    try {
+      setPartyPurchases(
+        await api.partyProductPurchases(puFrom || undefined, puTo || undefined),
+      );
+      setPuLoaded(true);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to load party product purchases."));
+    } finally {
+      setPuBusy(false);
     }
   }
 
@@ -1317,7 +1340,44 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           invoices; the party band shows that party's total. Leave the dates empty
           for full history.
         </p>
-        {ppLoaded && partyProducts && <PartyProductSalesTable report={partyProducts} />}
+        {ppLoaded && partyProducts && <PartyProductTable report={partyProducts} />}
+      </div>
+      )}
+
+      {showPartyPurchases && (
+      <div className="card" id="report-party-product-purchases">
+        <h2>Party Product Purchases</h2>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          <div>
+            <label>From</label>
+            <input type="date" value={puFrom} onChange={(e) => setPuFrom(e.target.value)} />
+          </div>
+          <div>
+            <label>To</label>
+            <input type="date" value={puTo} onChange={(e) => setPuTo(e.target.value)} />
+          </div>
+          <button className="primary" onClick={() => void loadPartyPurchases()} disabled={puBusy}>
+            {puBusy ? "Loading…" : "Generate report"}
+          </button>
+          <button
+            onClick={() =>
+              void exportXlsx(
+                "party-purchases",
+                () => api.partyProductPurchasesXlsx(puFrom || undefined, puTo || undefined),
+                `party-product-purchases_${periodTag(puFrom, puTo)}.xlsx`,
+              )
+            }
+            disabled={xlsxBusy !== null}
+          >
+            {xlsxBusy === "party-purchases" ? "Preparing…" : "Export Excel"}
+          </button>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 12 }}>
+          What each party supplied per product across all its confirmed purchase
+          invoices; the party band shows that party's total. Leave the dates empty
+          for full history.
+        </p>
+        {puLoaded && partyPurchases && <PartyProductTable report={partyPurchases} />}
       </div>
       )}
 

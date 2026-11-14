@@ -17,6 +17,7 @@ import {
   ScrollText,
   Settings,
   ShoppingCart,
+  Table,
   UserCog,
   Users,
   Wallet,
@@ -82,17 +83,25 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
     title: "Insights",
     items: [
       {
+        id: "listing",
+        label: "Listing",
+        icon: Table,
+        children: [
+          { id: "report-trial-balance", label: "Trial Balance" },
+          { id: "report-profit-loss", label: "Profit & Loss" },
+          { id: "report-balance-sheet", label: "Balance Sheet" },
+        ],
+      },
+      {
         id: "reports",
         label: "Reports",
         icon: FileBarChart,
         children: [
-          { id: "report-trial-balance", label: "Trial Balance" },
           { id: "report-party-ledger", label: "Party Ledger" },
           { id: "report-party-ledger-all", label: "All Party Ledgers" },
           { id: "report-party-product-sales", label: "Party Product Sales" },
+          { id: "report-party-product-purchases", label: "Party Product Purchases" },
           { id: "report-cash-book", label: "Cash Book" },
-          { id: "report-profit-loss", label: "Profit & Loss" },
-          { id: "report-balance-sheet", label: "Balance Sheet" },
           { id: "report-export", label: "Export Reports" },
         ],
       },
@@ -133,11 +142,18 @@ export default function Sidebar({
 }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // Keep the Reports submenu open while that module or any report page is selected.
+  // Keep the owning submenu open while its module or one of its pages is selected.
   useEffect(() => {
-    if (page === "reports" || page.startsWith("report-")) {
-      setExpanded((prev) => (prev.reports ? prev : { ...prev, reports: true }));
-    }
+    const listingChildren = new Set([
+      "report-trial-balance",
+      "report-profit-loss",
+      "report-balance-sheet",
+    ]);
+    let owner: string | null = null;
+    if (page === "listing") owner = "listing";
+    else if (page === "reports") owner = "reports";
+    else if (page.startsWith("report-")) owner = listingChildren.has(page) ? "listing" : "reports";
+    if (owner) setExpanded((prev) => (prev[owner] ? prev : { ...prev, [owner]: true }));
   }, [page]);
 
   return (
