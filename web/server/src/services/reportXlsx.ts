@@ -217,42 +217,6 @@ const TRIAL_BALANCE_COLUMNS: Columns = [
 
 const TWO_COLUMN: Columns = [{ width: 32 }, { width: 18 }];
 
-/**
- * Printed-order rows of the compact P&L summary (notes 20-29), matching the
- * on-screen ProfitLossSummary. Names/notes are fallbacks; the saved report's
- * own heading wins, exactly like the screen.
- */
-const PL_SUMMARY_ROWS: Array<{
-  id: string;
-  name: string;
-  note?: string;
-  depth: 0 | 1;
-  bold: boolean;
-}> = [
-  { id: "sales-net", name: "Sales - Net", note: "20", depth: 0, bold: false },
-  { id: "cost-of-sales", name: "Cost of Sales", note: "21", depth: 0, bold: false },
-  { id: "gross-profit", name: "Gross Profit/(Loss)", depth: 0, bold: true },
-  { id: "operating-expenses", name: "Operating Expenses", depth: 0, bold: true },
-  { id: "administrative-expenses", name: "Administrative Expenses", note: "22", depth: 1, bold: false },
-  { id: "selling-distribution", name: "Selling & Distribution", note: "23", depth: 1, bold: false },
-  { id: "operating-profit", name: "Operating Profit/(Loss)", depth: 0, bold: true },
-  { id: "other-income", name: "Other Income", note: "24", depth: 0, bold: false },
-  { id: "financial-charges", name: "Financial Charges", note: "25", depth: 0, bold: false },
-  { id: "others", name: "Others", note: "26", depth: 0, bold: false },
-  { id: "profit-before-tax", name: "Profit/(Loss) Before Taxation", depth: 0, bold: true },
-  { id: "taxation-current", name: "Taxation (Current)", note: "27", depth: 0, bold: false },
-  { id: "profit-after-tax", name: "Profit/(Loss) After Taxation", depth: 0, bold: true },
-  { id: "prior-year-adjustment", name: "Prior Year Adjustment", note: "28", depth: 0, bold: false },
-  {
-    id: "accumulated-profit-bf",
-    name: "Acc. Profit/(Loss) B/F (y/opening)",
-    note: "29",
-    depth: 0,
-    bold: false,
-  },
-  { id: "profit-cf", name: "Profit/(Loss) C/F to B/Sheet", depth: 0, bold: true },
-];
-
 const INVENTORY_COLUMNS: Columns = [
   { width: 8 },
   { width: 16 },
@@ -863,20 +827,18 @@ export class ReportXlsx {
     };
   }
 
-  /** The compact printed P&L: notes 20-29 only. Same rows/values as the screen. */
+  /** The compact printed P&L: a flat copy of the edited headings, same as the screen. */
   private async plSummarySheet(options: DateRangeOptions): Promise<SheetSpec> {
     const report = await this.customReports.build("PL", options);
-    const byId = new Map(report.headings.map((line) => [line.id, line]));
     const data: SheetData = [
       ...heading("Profit & Loss", periodLabel(options.from, options.to)),
       [text("Heading", HEADER), text("Note", HEADER), text("Amount", HEADER)],
-      ...PL_SUMMARY_ROWS.map((row): Cell[] => {
-        const line = byId.get(row.id);
-        const style: Style = row.bold ? TOTAL : {};
+      ...report.headings.map((line): Cell[] => {
+        const style: Style = line.kind === "subtotal" ? TOTAL : {};
         return [
-          text(line?.name ?? row.name, { indent: row.depth * 2, ...style }),
-          text(line?.note ?? row.note ?? "", style),
-          money(line?.value ?? 0, style),
+          text(line.name, style),
+          text(line.note ?? "", style),
+          money(line.value, style),
         ];
       }),
     ];

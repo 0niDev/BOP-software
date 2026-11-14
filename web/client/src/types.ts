@@ -93,6 +93,8 @@ export interface Item {
   maximum_stock: number;
   /** On-hand quantity across active batches (returned by the items list). */
   current_stock: number;
+  /** Latest production/packing order date that consumed this item. Null = never used. */
+  last_consumed_at: string | null;
   /** Comma-joined tag names, e.g. "bottle, cap". Null when untagged. */
   tags: string | null;
   tax_rate_id: number | null;

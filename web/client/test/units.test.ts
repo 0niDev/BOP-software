@@ -23,35 +23,20 @@ test("dates always display day/month/year", () => {
   expect(formatDate("")).toBe("");
 });
 
-test("P&L summary prints notes 20-29 in statement order", async () => {
+test("P&L summary mirrors the edited custom headings", async () => {
   const { plSummaryRows } = await import("../src/components/ProfitLossSummary");
-  const values: Record<string, number> = {
-    "sales-net": 1000,
-    "cost-of-sales": 300,
-    "gross-profit": 700,
-    "operating-expenses": 150,
-    "administrative-expenses": 100,
-    "selling-distribution": 50,
-    "operating-profit": 550,
-    "other-income": 40,
-    "financial-charges": 20,
-    others: 10,
-    "profit-before-tax": 560,
-    "taxation-current": 30,
-    "profit-after-tax": 530,
-    "prior-year-adjustment": 0,
-    "accumulated-profit-bf": 260,
-    "profit-cf": 790,
-  };
+  const headings = [
+    { id: "sales-net", name: "Sales - Net", note: "20", kind: "accounts" as const, value: 1000 },
+    { id: "my-extra", name: "My Extra Heading", note: "21", kind: "accounts" as const, value: 25 },
+    { id: "cost-of-sales", name: "Cost Total", note: "21", kind: "subtotal" as const, value: 300 },
+    { id: "gross-profit", name: "Gross Profit/(Loss)", kind: "subtotal" as const, value: 700 },
+  ];
   const report: CustomReport = {
     kind: "PL",
-    headings: Object.entries(values).map(([id, value]) => ({
-      id,
-      name: id,
-      kind: "accounts",
+    headings: headings.map((heading) => ({
+      ...heading,
       accountIds: [],
       parts: [],
-      value,
       rows: [],
     })),
     unassigned: { value: 0, rows: [] },
@@ -60,13 +45,17 @@ test("P&L summary prints notes 20-29 in statement order", async () => {
   };
   const rows = plSummaryRows(report);
 
-  expect(rows).toHaveLength(16);
-  expect(rows.map((row) => row.note ?? "")).toEqual([
-    "20", "21", "", "", "22", "23", "", "24", "25", "26", "", "27", "", "28", "29", "",
+  // Order, names, notes and values all come straight from the saved headings.
+  expect(rows.map((row) => row.name)).toEqual([
+    "Sales - Net",
+    "My Extra Heading",
+    "Cost Total",
+    "Gross Profit/(Loss)",
   ]);
-  expect(rows.slice(4, 6).map((row) => row.depth)).toEqual([1, 1]);
-  expect(rows.find((row) => row.name === "gross-profit")?.value).toBe(700);
-  expect(rows.at(-1)?.value).toBe(790);
+  expect(rows.map((row) => row.note ?? "")).toEqual(["20", "21", "21", ""]);
+  expect(rows.map((row) => row.value)).toEqual([1000, 25, 300, 700]);
+  // Subtotals print bold, account headings do not.
+  expect(rows.map((row) => row.bold)).toEqual([false, false, true, true]);
 });
 
 test("trial balance rows group by COA type with closing subtotals", async () => {

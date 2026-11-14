@@ -75,4 +75,60 @@ describe("ItemService.list unpriced", () => {
     const ids = listed.map((row) => row.id).sort((a, b) => a - b);
     expect(ids).toEqual([rawUsed.id, rawOpening.id].sort((a, b) => a - b));
   });
+
+  it("reports the latest production/packing date that consumed the item", async () => {
+    const raw = await items.create({ itemName: "Raw Consumed", itemType: "RAW_MATERIAL" });
+    // Opening stock makes it qualify for the unpriced list.
+    await items.addOpeningStock({ itemId: raw.id, quantity: 10 });
+    const batch = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM stock_batches WHERE item_id = ? LIMIT 1",
+      [raw.id],
+    );
+
+    const fg = await items.create({ itemName: "FG Output", itemType: "FINISHED_GOOD" });
+    const bomId = await insertRow(ctx.db, "bill_of_materials", {
+      company_id: 1,
+      finished_item_id: fg.id,
+      bom_name: "Consumption BOM",
+    });
+
+    const productionOrderId = await insertRow(ctx.db, "production_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PO-1",
+      bom_id: bomId,
+      planned_quantity: 1,
+      manufacturing_date: "2026-05-01",
+    });
+    await insertRow(ctx.db, "production_consumption", {
+      production_order_id: productionOrderId,
+      component_item_id: raw.id,
+      batch_id: batch!.id,
+      quantity_consumed: 1,
+    });
+
+    const packingOrderId = await insertRow(ctx.db, "packing_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PK-1",
+      bom_id: bomId,
+      planned_quantity: 1,
+      manufacturing_date: "2026-06-02",
+    });
+    await insertRow(ctx.db, "packing_consumption", {
+      packing_order_id: packingOrderId,
+      component_item_id: raw.id,
+      batch_id: batch!.id,
+      quantity_consumed: 1,
+    });
+
+    const listed = await items.list({ unpricedOnly: true });
+    expect(listed.find((row) => row.id === raw.id)?.last_consumed_at).toBe("2026-06-02");
+
+    // An item that was never consumed reports null.
+    const never = await items.create({ itemName: "Raw Never", itemType: "RAW_MATERIAL" });
+    await items.addOpeningStock({ itemId: never.id, quantity: 1 });
+    const after = await items.list({ unpricedOnly: true });
+    expect(after.find((row) => row.id === never.id)?.last_consumed_at).toBeNull();
+  });
 });

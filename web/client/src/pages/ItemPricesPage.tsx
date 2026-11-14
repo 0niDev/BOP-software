@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { api, ApiError } from "../api";
+import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
+import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Item } from "../types";
 
@@ -23,6 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
  */
 export default function ItemPricesPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [search, setSearch] = useState("");
   const [prices, setPrices] = useState<Record<number, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,13 +47,20 @@ export default function ItemPricesPage() {
 
   const unpriced = items;
 
+  // Search only narrows what is shown; saving and counting still cover the full
+  // unpriced list, so a typed price is never silently dropped by a filter.
+  const visible = useMemo(
+    () => unpriced.filter((item) => matchesQuery(search, [item.item_name, item.item_code])),
+    [unpriced, search],
+  );
+
   const grouped = useMemo(
     () =>
       TYPE_ORDER.map((type) => ({
         type,
-        items: unpriced.filter((item) => item.item_type === type),
+        items: visible.filter((item) => item.item_type === type),
       })).filter((group) => group.items.length > 0),
-    [unpriced],
+    [visible],
   );
 
   const firstId = grouped[0]?.items[0]?.id;
@@ -94,6 +104,10 @@ export default function ItemPricesPage() {
     <div className="card">
       <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
         <h2 style={{ flex: 1, margin: 0 }}>Missing prices</h2>
+        <div>
+          <label>Search</label>
+          <FilterBox value={search} onChange={setSearch} placeholder="Search item or code…" />
+        </div>
         <button
           type="button"
           onClick={() => void save()}
@@ -115,6 +129,8 @@ export default function ItemPricesPage() {
       )}
       {unpriced.length === 0 && !error ? (
         <p>All active items have a purchase price. Nothing to do here.</p>
+      ) : unpriced.length > 0 && visible.length === 0 ? (
+        <p>No items match the search.</p>
       ) : (
         grouped.map((group) => (
           <section key={group.type}>
@@ -126,6 +142,7 @@ export default function ItemPricesPage() {
                 <tr>
                   <th>Item</th>
                   <th>Unit</th>
+                  <th>Last consumed</th>
                   <th className="num">Purchase price</th>
                 </tr>
               </thead>
@@ -134,6 +151,7 @@ export default function ItemPricesPage() {
                   <tr key={item.id}>
                     <td>{item.item_name}</td>
                     <td>{item.unit}</td>
+                    <td>{formatDate(item.last_consumed_at) || "—"}</td>
                     <td className="num">
                       <NumberInput
                         value={prices[item.id] ?? 0}

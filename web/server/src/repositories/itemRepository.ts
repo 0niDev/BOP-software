@@ -8,6 +8,8 @@ export interface ItemListRow extends ItemRow {
   current_stock: number;
   /** Comma-joined tag names, e.g. "bottle, cap". Null when untagged. */
   tags: string | null;
+  /** Latest production/packing order date that consumed this item. Null = never used. */
+  last_consumed_at: string | null;
 }
 
 export interface ItemRow {
@@ -79,7 +81,18 @@ export class ItemRepository {
              (SELECT GROUP_CONCAT(t.name, ', ')
                 FROM item_tag_links l
                 JOIN item_tags t ON t.id = l.tag_id
-               WHERE l.item_id = i.id) AS tags
+               WHERE l.item_id = i.id) AS tags,
+             (SELECT MAX(d) FROM (
+                SELECT po.manufacturing_date AS d
+                  FROM production_consumption pc
+                  JOIN production_orders po ON po.id = pc.production_order_id
+                 WHERE pc.component_item_id = i.id
+                UNION ALL
+                SELECT pk.manufacturing_date AS d
+                  FROM packing_consumption pkc
+                  JOIN packing_orders pk ON pk.id = pkc.packing_order_id
+                 WHERE pkc.component_item_id = i.id
+             )) AS last_consumed_at
         FROM items i
        WHERE i.company_id = ?`;
     const params: Array<string | number> = [companyId];

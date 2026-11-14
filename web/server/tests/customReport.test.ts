@@ -50,7 +50,6 @@ describe("CustomReportService", () => {
       "Discount",
       "Cost of Goods Sold",
       "Waste",
-      "Selling & Distribution",
       "Utility Expense",
       "Advertisement",
       "Other Expenses",
@@ -75,6 +74,7 @@ describe("CustomReportService", () => {
       "Miscellaneous Expenses",
       "Vehicle Token Tax & Others",
       "Administrative Expenses",
+      "Selling & Distribution",
       "Promotional & Public Relations",
       "Operating Expenses",
       "Operating Profit/(Loss)",
@@ -136,7 +136,8 @@ describe("CustomReportService", () => {
 
     expect(codesOf("discount")).toEqual(["512"]);
     expect(codesOf("cost-of-goods-sold")).toEqual(["511"]);
-    expect(codesOf("selling-distribution-cost")).toEqual(["5206", "6100"]);
+    expect(codesOf("selling-distribution")).toEqual(["5206", "6100"]);
+    expect(codesOf("promotional-public-relations")).toEqual(["520910"]);
     expect(codesOf("utility-expense")).toEqual([
       "520901", "520902", "520903", "520904", "540",
     ]);
@@ -155,7 +156,8 @@ describe("CustomReportService", () => {
     expect(excludedOf("financial-expenses")).toEqual([
       "52101", "52102", "ACCOUNT-00013",
     ]);
-    expect(codesOf("selling-distribution")).toEqual(["520910"]);
+    expect(codesOf("selling-distribution")).toEqual(["5206", "6100"]);
+    expect(codesOf("promotional-public-relations")).toEqual(["520910"]);
     expect(codesOf("taxation-current")).toEqual(["53"]);
   });
 
