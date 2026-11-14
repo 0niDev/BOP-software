@@ -150,7 +150,7 @@ export class ItemService {
   }
 
   async list(
-    opts: { activeOnly?: boolean; search?: string; itemType?: ItemType } = {},
+    opts: { activeOnly?: boolean; search?: string; itemType?: ItemType; unpricedOnly?: boolean } = {},
   ): Promise<ItemListRow[]> {
     return this.items.list(this.companyId, opts);
   }
@@ -252,6 +252,24 @@ export class ItemService {
     const item = await this.items.findById(id);
     if (!item) throw new NotFoundError("Item not found.");
     await this.items.deactivate(id);
+  }
+
+  /** Bulk-set the purchase price of many items (the missing-prices tool). */
+  async setPrices(
+    entries: readonly { id: number; purchasePrice: number }[],
+  ): Promise<{ updated: number }> {
+    for (const entry of entries) {
+      const item = await this.items.findById(entry.id);
+      if (!item) throw new NotFoundError(`Item ${entry.id} not found.`);
+    }
+    return this.db.transaction(async () => {
+      let updated = 0;
+      for (const entry of entries) {
+        await this.items.update(entry.id, { purchase_price: entry.purchasePrice });
+        updated += 1;
+      }
+      return { updated };
+    });
   }
 
   /** Every tag plus every item assignment, in one round trip for the dialog. */

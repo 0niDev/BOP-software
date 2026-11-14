@@ -8,6 +8,7 @@ import BankingPage from "./pages/BankingPage";
 import DashboardPage from "./pages/DashboardPage";
 import DeletedRecordsPage from "./pages/DeletedRecordsPage";
 import ExpensesPage from "./pages/ExpensesPage";
+import ItemPricesPage from "./pages/ItemPricesPage";
 import ItemsPage from "./pages/ItemsPage";
 import JournalVouchersPage from "./pages/JournalVouchersPage";
 import LoginPage from "./pages/LoginPage";
@@ -54,6 +55,7 @@ export type Page =
   | "purchases"
   | "parties"
   | "items"
+  | "item-prices"
   | "payments"
   | "manufacturing"
   | "expenses"
@@ -169,6 +171,7 @@ function renderPage(target: Page, onNavigate: (page: Page) => void) {
     case "purchases": return <PurchaseInvoicesPage />;
     case "parties": return <PartiesPage />;
     case "items": return <ItemsPage />;
+    case "item-prices": return <ItemPricesPage />;
     case "payments": return <PaymentsPage />;
     case "manufacturing": return <ManufacturingPage />;
     case "expenses": return <ExpensesPage />;

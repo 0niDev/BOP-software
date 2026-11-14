@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { InsufficientStockError, ValidationError } from "../src/domain/errors.js";
+import { ValidationError } from "../src/domain/errors.js";
 import { insertRow } from "../src/repositories/base.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ManufacturingService } from "../src/services/manufacturingService.js";
@@ -345,7 +345,7 @@ describe("ManufacturingService — production", () => {
     );
   });
 
-  it("refuses to produce with insufficient stock unless Ignore stock is set", async () => {
+  it("produces into negative stock when raw material is insufficient", async () => {
     const bom = await mfg.createBom({
       bomName: "Huge batch",
       outputQuantity: 1,
@@ -357,11 +357,25 @@ describe("ManufacturingService — production", () => {
       manufacturingDate: DATE,
     });
     await mfg.startProduction(order.id);
-    await expect(
-      mfg.produceProduction(order.id, { actualQuantity: 1 }),
-    ).rejects.toBeInstanceOf(InsufficientStockError);
-    expect(await batchQty("RM-1-BATCH")).toBe(100);
+    const produced = await mfg.produceProduction(order.id, { actualQuantity: 1 });
+    expect(produced.productionCost).toBe(20_000);
+    expect(await batchQty("RM-1-BATCH")).toBe(100 - 1000); // -900
+    const { consumptions } = await mfg.getProductionOrder(order.id);
+    expect(consumptions).toHaveLength(1);
+  });
 
+  it("skips the stock deduction when Ignore stock is set", async () => {
+    const bom = await mfg.createBom({
+      bomName: "Ignore stock run",
+      outputQuantity: 1,
+      components: [{ componentItemId: rawItemId, quantityRequired: 1000 }],
+    });
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 1,
+      manufacturingDate: DATE,
+    });
+    await mfg.startProduction(order.id);
     const forced = await mfg.produceProduction(order.id, {
       actualQuantity: 1,
       ignoreStock: true,
@@ -652,7 +666,7 @@ describe("ManufacturingService — packing", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it("refuses packing with insufficient stock unless Ignore stock is set", async () => {
+  it("packs into negative stock when packing material is insufficient", async () => {
     const { bom } = await producedBulk();
     const order = await mfg.createPackingOrder({
       packingBomName: "Too many bottles",
@@ -664,9 +678,24 @@ describe("ManufacturingService — packing", () => {
       materials: [{ componentItemId: packingItemId, quantityRequired: 500 }],
     });
     await mfg.startPacking(order.id);
-    await expect(mfg.packPackingOrder(order.id)).rejects.toBeInstanceOf(InsufficientStockError);
-    expect(await batchQty("PM-1-BATCH")).toBe(100);
+    const packed = await mfg.packPackingOrder(order.id);
+    expect(packed.productionCost).toBe(1100); // 10 @10 + 500 @2
+    expect(await batchQty("PM-1-BATCH")).toBe(100 - 500); // -400
+    expect((await mfg.getPackingOrder(order.id)).consumptions).toHaveLength(2);
+  });
 
+  it("skips the packing stock deduction when Ignore stock is set", async () => {
+    const { bom } = await producedBulk();
+    const order = await mfg.createPackingOrder({
+      packingBomName: "Too many bottles",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 500 }],
+    });
+    await mfg.startPacking(order.id);
     const forced = await mfg.packPackingOrder(order.id, { ignoreStock: true });
     expect(forced.productionCost).toBe(1100); // 10 @10 + 500 @2
     expect(await batchQty("PM-1-BATCH")).toBe(100);

@@ -3,6 +3,7 @@ import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import CustomReportEditor from "../components/CustomReportEditor";
 import CustomReportTable from "../components/CustomReportTable";
+import PLNotes from "../components/PLNotes";
 import ProfitLossSummary from "../components/ProfitLossSummary";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
@@ -517,6 +518,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const showTb = showListing || section === "report-trial-balance";
   const showPl = showListing || section === "report-profit-loss";
   const showBs = showListing || section === "report-balance-sheet";
+  const showNotes = showListing;
   const showParty = showAll || section === "report-party-ledger";
   const showAllParties = showAll || section === "report-party-ledger-all";
   const showPartyProducts = showAll || section === "report-party-product-sales";
@@ -1043,6 +1045,17 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           </>
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
+        )}
+      </div>
+      )}
+
+      {showNotes && (
+      <div className="card" id="report-notes">
+        <h2>Notes</h2>
+        {customPl ? (
+          <PLNotes report={customPl} />
+        ) : (
+          <p style={{ opacity: 0.7, margin: 0 }}>Loading notes…</p>
         )}
       </div>
       )}

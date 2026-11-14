@@ -280,11 +280,12 @@ export const api = {
       `/api/parties/opening-balances/changes/${journalEntryId}`,
       { method: "DELETE" },
     ),
-  items: (opts: { search?: string; type?: Item["item_type"]; activeOnly?: boolean } = {}) => {
+  items: (opts: { search?: string; type?: Item["item_type"]; activeOnly?: boolean; unpriced?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (opts.search) params.set("search", opts.search);
     if (opts.type) params.set("type", opts.type);
     if (opts.activeOnly === false) params.set("activeOnly", "false");
+    if (opts.unpriced) params.set("unpriced", "true");
     const suffix = params.toString();
     return request<Item[]>(`/api/items${suffix ? `?${suffix}` : ""}`);
   },
@@ -349,6 +350,12 @@ export const api = {
   ) => request<Item>(`/api/items/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deactivateItem: (id: number) =>
     request<{ ok: boolean }>(`/api/items/${id}/deactivate`, { method: "POST" }),
+  /** Bulk-set purchase prices on many items (the missing-prices tool). */
+  setItemPrices: (items: { id: number; purchasePrice: number }[]) =>
+    request<{ updated: number }>("/api/items/prices", {
+      method: "PUT",
+      body: JSON.stringify({ items }),
+    }),
   addOpeningStock: (
     itemId: number,
     body: {

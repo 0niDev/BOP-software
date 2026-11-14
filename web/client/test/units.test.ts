@@ -3,6 +3,20 @@ import { formatDate } from "../src/lib/format";
 import { defaultPackUnit, packsToBulk } from "../src/lib/units";
 import type { CustomReport } from "../src/types";
 
+test("PL notes subtotal each header to its nested accounts", async () => {
+  const { headerTotals } = await import("../src/components/PLNotes");
+  const rows = [
+    { accountId: 1, code: "5100", name: "COGS", depth: 0, value: 0, selected: true, isHeader: true },
+    { accountId: 2, code: "5110", name: "Raw Material", depth: 1, value: 0, selected: false, isHeader: true },
+    { accountId: 3, code: "5111", name: "Raw A", depth: 2, value: 800, selected: false, isHeader: false },
+    { accountId: 4, code: "5120", name: "Direct Labour", depth: 1, value: 600, selected: false, isHeader: false },
+  ];
+  const totals = headerTotals(rows);
+  expect(totals.get(1)).toBe(1400);
+  expect(totals.get(2)).toBe(800);
+  expect(totals.has(3)).toBe(false);
+});
+
 test("dates always display day/month/year", () => {
   expect(formatDate("2026-10-25")).toBe("25/10/2026");
   expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");

@@ -14,7 +14,7 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
-import { InsufficientStockError, NotFoundError, ValidationError } from "../domain/errors.js";
+import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
 import { insertRow } from "../repositories/base.js";
 import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
@@ -579,29 +579,18 @@ export class ManufacturingService {
       const wastageQty = requiredQty.times(dec(component.wastage_percent).dividedBy(100));
       const totalRequired = requiredQty.plus(wastageQty);
 
-      const batch = await this.batches.findByItemAndWarehouse(
+      const { batchId, unitCost } = await this.resolveConsumptionBatch(
         component.component_item_id,
         order.warehouse_id,
+        item.purchase_price,
+        Boolean(input.ignoreStock),
       );
-      if (!input.ignoreStock) {
-        if (!batch) {
-          throw new InsufficientStockError(
-            `No stock batch found for ${item.item_name}. Required: ${totalRequired.toFixed(2)}`,
-          );
-        }
-        if (dec(batch.quantity_in_stock).lessThan(totalRequired)) {
-          throw new InsufficientStockError(
-            `Insufficient stock for ${item.item_name}. Required: ${totalRequired.toFixed(2)}, available: ${dec(batch.quantity_in_stock).toFixed(2)}`,
-          );
-        }
-      }
-      const unitCost = dec(batch?.purchase_price ?? item.purchase_price);
       const cost = round2(totalRequired.times(unitCost));
       rawCost = rawCost.plus(cost);
       materials.push({
         itemId: component.component_item_id,
         itemType: item.item_type,
-        batchId: batch?.id ?? null,
+        batchId,
         quantity: totalRequired,
         unitCost,
         cost,
@@ -984,26 +973,18 @@ export class ManufacturingService {
     ];
     for (const entry of toConsume) {
       const item = await this.items.requireById(entry.itemId);
-      const batch = await this.batches.findByItemAndWarehouse(entry.itemId, order.warehouse_id);
-      if (!input.ignoreStock) {
-        if (!batch) {
-          throw new InsufficientStockError(
-            `No stock batch found for ${item.item_name}. Required: ${entry.quantity.toFixed(2)}`,
-          );
-        }
-        if (dec(batch.quantity_in_stock).lessThan(entry.quantity)) {
-          throw new InsufficientStockError(
-            `Insufficient stock for ${item.item_name}. Required: ${entry.quantity.toFixed(2)}, available: ${dec(batch.quantity_in_stock).toFixed(2)}`,
-          );
-        }
-      }
-      const unitCost = dec(batch?.purchase_price ?? item.purchase_price);
+      const { batchId, unitCost } = await this.resolveConsumptionBatch(
+        entry.itemId,
+        order.warehouse_id,
+        item.purchase_price,
+        Boolean(input.ignoreStock),
+      );
       const cost = round2(entry.quantity.times(unitCost));
       totalCost = totalCost.plus(cost);
       consumed.push({
         itemId: entry.itemId,
         itemType: item.item_type,
-        batchId: batch?.id ?? null,
+        batchId,
         quantity: entry.quantity,
         unitCost,
         cost,
@@ -1233,6 +1214,37 @@ export class ManufacturingService {
       await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(batch.quantity_in_stock)));
       await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0, is_active = 0 WHERE id = ?", [row.batch_id]);
     }
+  }
+
+  /** Find (or create) the batch a component is consumed from, so manufacturing
+   *  can drive stock negative instead of blocking. `ignoreStock` skips entirely. */
+  private async resolveConsumptionBatch(
+    itemId: number,
+    warehouseId: number,
+    purchasePrice: number,
+    ignoreStock: boolean,
+  ): Promise<{ batchId: number | null; unitCost: Decimal }> {
+    if (ignoreStock) {
+      const batch = await this.batches.findByItemAndWarehouse(itemId, warehouseId);
+      return { batchId: null, unitCost: dec(batch?.purchase_price ?? purchasePrice) };
+    }
+    const positive = await this.batches.findByItemAndWarehouse(itemId, warehouseId);
+    if (positive) {
+      return { batchId: positive.id, unitCost: dec(positive.purchase_price ?? purchasePrice) };
+    }
+    const any = await this.batches.findByItemAndWarehouseAny(itemId, warehouseId);
+    if (any) {
+      return { batchId: any.id, unitCost: dec(any.purchase_price ?? purchasePrice) };
+    }
+    const batchId = await this.batches.insert({
+      item_id: itemId,
+      warehouse_id: warehouseId,
+      batch_number: `NEG-${itemId}-${Date.now().toString()}`,
+      purchase_price: toStorage(purchasePrice),
+      quantity_in_stock: 0,
+      is_active: 1,
+    });
+    return { batchId, unitCost: dec(purchasePrice) };
   }
 
   /** Dr the output inventory account, Cr each consumed item's inventory account. */

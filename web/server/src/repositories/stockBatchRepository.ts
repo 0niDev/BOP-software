@@ -56,6 +56,21 @@ export class StockBatchRepository {
     return batches[0];
   }
 
+  /** First active batch regardless of on-hand quantity, so a zero/negative
+   *  batch is reused instead of spawning a new one each consumption. */
+  async findByItemAndWarehouseAny(
+    itemId: number,
+    warehouseId: number,
+  ): Promise<StockBatchRow | undefined> {
+    return this.db.get<StockBatchRow>(
+      `SELECT * FROM stock_batches
+       WHERE item_id = ? AND warehouse_id = ? AND is_active = 1
+       ORDER BY received_date, id
+       LIMIT 1`,
+      [itemId, warehouseId],
+    );
+  }
+
   async findByNumber(
     itemId: number,
     warehouseId: number,

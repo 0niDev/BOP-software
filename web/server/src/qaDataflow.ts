@@ -772,23 +772,21 @@ async function main(): Promise<void> {
     `drift = ${driftA.toFixed(2)} (batch cost is not re-weighted when a batch receives stock at a new price)`,
   );
 
-  // Probe B: manufacturing consumption across batches.
+  // Probe B: manufacturing consumption when the first FIFO batch is short.
   const shortOrder = await db.transaction(() =>
     manufacturing.createProductionOrder({ bomId: bom.id, plannedQuantity: 10_000, manufacturingDate: TODAY, expiryDate: "2027-03-31" }),
   );
   await db.transaction(() => manufacturing.startProduction(shortOrder.id));
-  const shortError = await expectError(() =>
-    manufacturing.produceProduction(shortOrder.id, { actualQuantity: 10_000, outputBatchNumber: "PRD-UNPACKED-A-002" }),
-  );
+  await manufacturing.produceProduction(shortOrder.id, { actualQuantity: 10_000, outputBatchNumber: "PRD-UNPACKED-A-002" });
   const rmAvailable = await db.get<{ total: number }>(
     "SELECT SUM(quantity_in_stock) AS total FROM stock_batches WHERE item_id = ? AND is_active = 1",
     [rmA.id],
   );
-  check(
+  eq(
     "P5",
-    "probe B: production consuming more than the first FIFO batch but less than total stock",
-    shortError.includes("Insufficient stock"),
-    `${shortError} (total on hand ${d(rmAvailable?.total).toFixed(2)} KG is enough, but consumption never spans batches)`,
+    "probe B: production consumes into negative rather than blocking (total stays correct)",
+    d(rmAvailable?.total),
+    216.4,
   );
 
   // Probe D: an invoice that fails *after* its number was allocated.

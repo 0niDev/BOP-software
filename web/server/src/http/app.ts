@@ -483,6 +483,7 @@ export function createApp(
       await items.list({
         activeOnly: activeOnlyFlag(req),
         search: searchFlag(req),
+        unpricedOnly: req.query.unpriced === "true",
         itemType:
           type === "RAW_MATERIAL" || type === "PACKING_MATERIAL" || type === "FINISHED_GOOD"
             ? type
@@ -513,6 +514,24 @@ export function createApp(
       req.body,
     );
     res.status(201).json(await items.create(body));
+  });
+
+  /** Bulk-set the purchase price of many items (the missing-prices tool). */
+  app.put("/api/items/prices", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        items: z
+          .array(
+            z.object({
+              id: z.number().int().positive(),
+              purchasePrice: z.number().nonnegative(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.json(await items.setPrices(body.items));
   });
 
   app.put("/api/items/:id", requireAuth, async (req, res) => {

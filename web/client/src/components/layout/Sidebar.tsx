@@ -18,6 +18,7 @@ import {
   Settings,
   ShoppingCart,
   Table,
+  Tag,
   UserCog,
   Users,
   Wallet,
@@ -59,6 +60,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
     title: "Inventory & Production",
     items: [
       { id: "items", label: "Inventory", icon: Package },
+      { id: "item-prices", label: "Item Prices", icon: Tag },
       { id: "manufacturing", label: "Manufacturing", icon: Factory },
     ],
   },

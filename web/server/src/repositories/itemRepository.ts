@@ -69,7 +69,7 @@ export class ItemRepository {
    */
   async list(
     companyId = 1,
-    opts: { activeOnly?: boolean; search?: string; itemType?: ItemType } = {},
+    opts: { activeOnly?: boolean; search?: string; itemType?: ItemType; unpricedOnly?: boolean } = {},
   ): Promise<ItemListRow[]> {
     let sql = `
       SELECT i.*,
@@ -84,6 +84,17 @@ export class ItemRepository {
        WHERE i.company_id = ?`;
     const params: Array<string | number> = [companyId];
     if (opts.activeOnly !== false) sql += " AND i.is_active = 1";
+    if (opts.unpricedOnly) {
+      // Missing-prices tool: raw/packing items with no cost anywhere (no master
+      // price, no purchase invoice) that are actually used — a BOM component or
+      // opening stock. Finished goods are produced, not bought, so they're out.
+      sql +=
+        " AND i.item_type IN ('RAW_MATERIAL','PACKING_MATERIAL')" +
+        " AND i.purchase_price = 0" +
+        " AND NOT EXISTS (SELECT 1 FROM purchase_invoice_items pii WHERE pii.item_id = i.id)" +
+        " AND (EXISTS (SELECT 1 FROM bom_components bc WHERE bc.component_item_id = i.id)" +
+        "   OR EXISTS (SELECT 1 FROM stock_movements m WHERE m.item_id = i.id AND m.movement_type = 'OPENING'))";
+    }
     if (opts.itemType) {
       sql += " AND i.item_type = ?";
       params.push(opts.itemType);
