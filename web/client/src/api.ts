@@ -30,6 +30,7 @@ import type {
   ManualJournalEntry,
   Item,
   ItemTag,
+  MaterialsConsumption,
   OpeningBalanceChange,
   Party,
   PartyBalance,
@@ -871,6 +872,10 @@ export const api = {
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     return request<LedgerEntry[]>(`/api/reports/party-ledger?${params.toString()}`);
+  },
+  materialsConsumption: (from?: string) => {
+    const suffix = from ? `?from=${encodeURIComponent(from)}` : "";
+    return request<MaterialsConsumption>(`/api/reports/materials-consumption${suffix}`);
   },
   cashBook: (from?: string, to?: string) => {
     const params = new URLSearchParams();

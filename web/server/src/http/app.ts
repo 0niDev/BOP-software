@@ -1528,6 +1528,11 @@ export function createApp(
     res.json(await reports.balanceSheet(asAtQuery(req)));
   });
 
+  /** Materials consumed on the periodic basis: opening + purchases − closing stock. */
+  app.get("/api/reports/materials-consumption", requireAuth, async (req, res) => {
+    res.json(await reports.materialsConsumption(dateRangeQuery(req).from));
+  });
+
   /** All five page reports from one trial-balance read (the page's load path). */
   app.get("/api/reports/all", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);

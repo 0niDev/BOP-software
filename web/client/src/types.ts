@@ -575,6 +575,24 @@ export interface PartyProductSales {
   grandTotal: number;
 }
 
+/** One inventory account in the periodic-consumption report. */
+export interface MaterialsConsumptionRow {
+  itemType: "RAW_MATERIAL" | "PACKING_MATERIAL" | "TOTAL";
+  opening: number;
+  purchases: number;
+  otherIn: number;
+  counted: number;
+  consumed: number;
+  bookClosing: number;
+  difference: number;
+}
+
+export interface MaterialsConsumption {
+  from: string | null;
+  rows: MaterialsConsumptionRow[];
+  total: MaterialsConsumptionRow;
+}
+
 export interface UserRow {
   id: number;
   username: string;

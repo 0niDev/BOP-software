@@ -62,6 +62,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
       { id: "items", label: "Inventory", icon: Package },
       { id: "item-prices", label: "Item Prices", icon: Tag },
       { id: "manufacturing", label: "Manufacturing", icon: Factory },
+      { id: "materials-consumption", label: "Materials Consumption", icon: FileBarChart },
     ],
   },
   {

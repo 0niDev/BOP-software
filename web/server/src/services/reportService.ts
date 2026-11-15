@@ -1,7 +1,7 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
-import { Decimal, toStorage } from "../domain/money.js";
+import { Decimal, round2, toStorage } from "../domain/money.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import {
@@ -37,6 +37,34 @@ export interface BalanceSheetResult {
   equity: number;
   netProfit: number;
   balanced: boolean;
+}
+
+/**
+ * One inventory account in the periodic-consumption report: what was on hand at
+ * the start, what came in, what the count says is left, and the difference.
+ */
+export interface MaterialsConsumptionRow {
+  itemType: ItemType | "TOTAL";
+  /** Inventory balance before `from` (what the books carried in). */
+  opening: number;
+  /** Purchase-invoice debits dated on/after `from`. */
+  purchases: number;
+  /** Other debits (stock returned from reversed production orders, adjustments). */
+  otherIn: number;
+  /** Physical stock value right now — the closing figure. */
+  counted: number;
+  /** opening + purchases + otherIn − counted. */
+  consumed: number;
+  /** What the inventory account says is left, for comparison with `counted`. */
+  bookClosing: number;
+  /** bookClosing − counted: how far the ledger has drifted from the shelf. */
+  difference: number;
+}
+
+export interface MaterialsConsumptionResult {
+  from: string | null;
+  rows: MaterialsConsumptionRow[];
+  total: MaterialsConsumptionRow;
 }
 
 /** One party's ledger with its closing balance, for the all-parties report. */
@@ -444,6 +472,100 @@ export class ReportService {
         .abs()
         .lessThan(new Decimal("0.01")),
     };
+  }
+
+  /**
+   * Materials consumed on the old software's periodic basis:
+   * `opening + purchases − closing`. Closing is the physical count (live
+   * stock), not the ledger, so the number cannot be fooled by a BOM line that
+   * is missing or a price left at zero. Covers `from` up to now.
+   *
+   * `bookClosing` and `difference` are there to show whether the inventory
+   * account still agrees with the shelf; the consumed figure ignores them.
+   */
+  async materialsConsumption(from?: string | null): Promise<MaterialsConsumptionResult> {
+    const start = from || "0001-01-01";
+    const ledger = await this.db.all<{
+      account_code: string;
+      opening: number;
+      purchases: number;
+      other_in: number;
+      credits: number;
+    }>(
+      `SELECT a.account_code,
+              ROUND(SUM(CASE WHEN je.entry_date < ? THEN jel.debit - jel.credit ELSE 0 END), 2) opening,
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type = 'PURCHASE' THEN jel.debit ELSE 0 END), 2) purchases,
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE' THEN jel.debit ELSE 0 END), 2) other_in,
+              ROUND(SUM(CASE WHEN je.entry_date >= ? THEN jel.credit ELSE 0 END), 2) credits
+       FROM journal_entry_lines jel
+       JOIN accounts a ON a.id = jel.account_id
+       JOIN journal_entries je ON je.id = jel.journal_entry_id
+       WHERE je.company_id = ? AND a.account_code IN (?, ?)
+       GROUP BY a.id`,
+      [
+        start,
+        start,
+        start,
+        start,
+        this.companyId,
+        SystemAccountCodes.INVENTORY_RAW_MATERIALS,
+        SystemAccountCodes.INVENTORY_PACKING_MATERIALS,
+      ],
+    );
+
+    const counted = new Map<string, number>();
+    for (const row of await this.db.all<{ item_type: string; counted: number }>(
+      `SELECT i.item_type,
+              ROUND(SUM(sb.quantity_in_stock
+                        * COALESCE(NULLIF(sb.purchase_price, 0), i.purchase_price, 0)), 2) counted
+       FROM stock_batches sb
+       JOIN items i ON i.id = sb.item_id
+       WHERE i.company_id = ? AND sb.quantity_in_stock > 0 AND sb.is_active = 1
+         AND i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
+       GROUP BY i.item_type`,
+      [this.companyId],
+    )) {
+      counted.set(row.item_type, Number(row.counted));
+    }
+
+    const rows: MaterialsConsumptionRow[] = (
+      [
+        [SystemAccountCodes.INVENTORY_RAW_MATERIALS, "RAW_MATERIAL"],
+        [SystemAccountCodes.INVENTORY_PACKING_MATERIALS, "PACKING_MATERIAL"],
+      ] as const
+    ).map(([code, itemType]) => {
+      const found = ledger.find((row) => row.account_code === code);
+      const opening = Number(found?.opening ?? 0);
+      const purchases = Number(found?.purchases ?? 0);
+      const otherIn = Number(found?.other_in ?? 0);
+      const closing = counted.get(itemType) ?? 0;
+      const bookClosing = toStorage(round2(opening + purchases + otherIn - Number(found?.credits ?? 0)));
+      return {
+        itemType,
+        opening,
+        purchases,
+        otherIn,
+        counted: closing,
+        consumed: toStorage(round2(opening + purchases + otherIn - closing)),
+        bookClosing,
+        difference: toStorage(round2(bookClosing - closing)),
+      };
+    });
+
+    const sum = (pick: (row: MaterialsConsumptionRow) => number): number =>
+      toStorage(round2(rows.reduce((acc, row) => acc + pick(row), 0)));
+    const total: MaterialsConsumptionRow = {
+      itemType: "TOTAL",
+      opening: sum((row) => row.opening),
+      purchases: sum((row) => row.purchases),
+      otherIn: sum((row) => row.otherIn),
+      counted: sum((row) => row.counted),
+      consumed: sum((row) => row.consumed),
+      bookClosing: sum((row) => row.bookClosing),
+      difference: sum((row) => row.difference),
+    };
+
+    return { from: from ?? null, rows, total };
   }
 
   /**
