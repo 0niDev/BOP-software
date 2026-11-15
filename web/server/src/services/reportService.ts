@@ -234,6 +234,19 @@ export class ReportService {
       row.usedValue = await this.issuedToProduction(row.accountId, to);
     }
 
+    // The periodic figure (opening + purchases − stock) beside the posted one:
+    // they are different measures, and the gap between them is material that
+    // left the store without a manufacturing voucher. Today only — closing
+    // stock in the past cannot be rebuilt from the movement table.
+    if (to === null) {
+      const periodic = await this.materialsConsumption(null);
+      for (const row of inventoryRows) {
+        const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
+        if (itemType !== "RAW_MATERIAL" && itemType !== "PACKING_MATERIAL") continue;
+        row.consumedValue = periodic.rows.find((line) => line.itemType === itemType)?.consumed ?? 0;
+      }
+    }
+
     // What is behind each figure but carries no cost, so it values at zero.
     for (const row of inventoryRows) {
       const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];

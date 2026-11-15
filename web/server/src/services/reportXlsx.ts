@@ -752,6 +752,7 @@ export class ReportXlsx {
           const stock = tags.reduce((total, tag) => total + tag.value, 0);
           const sold = row.soldValue;
           const used = row.usedValue;
+          const consumed = row.consumedValue;
           // Finished goods: the account should equal sold + still-on-shelf.
           const expectedInStock = sold == null ? row.closingDebit : row.closingDebit - sold;
           return [
@@ -779,6 +780,9 @@ export class ReportXlsx {
               : used != null
                 ? [
                     memo("↳ Used in production", used),
+                    ...(consumed != null
+                      ? [memo("↳ Consumed (opening + purchases − stock)", consumed)]
+                      : []),
                     memo("↳ In stock", stock),
                     ...tags.map((tag): Cell[] => memo(`· ${tag.name}`, tag.value, 1)),
                   ]

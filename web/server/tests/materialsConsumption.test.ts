@@ -108,4 +108,23 @@ describe("ReportService.materialsConsumption", () => {
     expect(result.rows[1]?.purchases).toBe(100);
     expect(result.total.purchases).toBe(600);
   });
+
+  it("puts the periodic figure on the trial balance, per material type", async () => {
+    await buy(rawItemId, 10, 50);
+    await buy(packingItemId, 4, 25);
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
+      "T-" + rawItemId + "-2026-10-08",
+    ]);
+
+    const tb = await reports.trialBalance();
+    expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBe(200);
+    expect(tb.rows.find((row) => row.accountCode === "1210")?.consumedValue).toBe(0);
+  });
+
+  it("leaves it off a dated trial balance, where closing stock cannot be rebuilt", async () => {
+    await buy(rawItemId, 10, 50);
+
+    const tb = await reports.trialBalance({ to: "2026-10-31" });
+    expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBeUndefined();
+  });
 });

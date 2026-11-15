@@ -444,6 +444,8 @@ export interface TrialBalanceRow {
   /** Finished goods only: cost sales have already relieved (not stock any more). */
   soldValue?: number;
   usedValue?: number;
+  /** Raw/packing: periodic consumption (opening + purchases − stock), today only. */
+  consumedValue?: number;
   unpricedItems?: Array<{ name: string; quantity: number }>;
 }
 

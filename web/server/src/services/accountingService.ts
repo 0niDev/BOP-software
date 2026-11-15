@@ -101,6 +101,12 @@ export interface TrialBalanceRow {
   soldValue?: number;
   /** Inventory accounts carrying material into production: the consumed side. */
   usedValue?: number;
+  /**
+   * Raw/packing only: the periodic consumption (`opening + purchases − stock`)
+   * as the old software reported it. Derived, not a balance, and only on a
+   * report that ends today — see `ReportService.materialsConsumption`.
+   */
+  consumedValue?: number;
   /** Items behind the account that carry no cost at all, so they value at zero. */
   unpricedItems?: Array<{ name: string; quantity: number }>;
 }

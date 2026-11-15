@@ -468,6 +468,13 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
                 ) : used != null ? (
                   <>
                     {memoRow(`${row.accountId}-used`, "Used in production", used, true)}
+                    {row.consumedValue != null &&
+                      memoRow(
+                        `${row.accountId}-consumed`,
+                        "Consumed (opening + purchases − stock)",
+                        row.consumedValue,
+                        true,
+                      )}
                     {memoRow(`${row.accountId}-stock`, "In stock", stockTotal, true)}
                     {tags.map((tag) =>
                       memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
