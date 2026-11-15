@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { insertRow } from "../src/repositories/base.js";
+import { AccountingService } from "../src/services/accountingService.js";
 import { PurchaseInvoiceService } from "../src/services/purchaseInvoiceService.js";
 import { ReportService } from "../src/services/reportService.js";
-import { freshDb, type TestContext } from "./helpers/db.js";
+import { accountId, freshDb, type TestContext } from "./helpers/db.js";
 
 let ctx: TestContext;
 let reports: ReportService;
 let purchases: PurchaseInvoiceService;
+let accounting: AccountingService;
 let supplierId: number;
 let rawItemId: number;
 let packingItemId: number;
@@ -28,6 +30,7 @@ beforeEach(async () => {
   ctx = await freshDb();
   reports = new ReportService(ctx.db);
   purchases = new PurchaseInvoiceService(ctx.db);
+  accounting = new AccountingService(ctx.db);
   supplierId = await insertRow(ctx.db, "parties", {
     company_id: 1,
     code: "SUP-1",
@@ -119,6 +122,34 @@ describe("ReportService.materialsConsumption", () => {
     const tb = await reports.trialBalance();
     expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBe(200);
     expect(tb.rows.find((row) => row.accountCode === "1210")?.consumedValue).toBe(0);
+  });
+
+  it("does not count a stock correction as material coming in", async () => {
+    await buy(rawItemId, 10, 50);
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
+      "T-" + rawItemId + "-2026-10-08",
+    ]);
+    const before = await reports.materialsConsumption();
+
+    // What the periodic fix posts: debit the account up to the count.
+    await accounting.postJournalEntry({
+      voucherType: "JOURNAL",
+      entryDate: "2026-10-31",
+      narration: "Stock correction",
+      referenceNo: "PERIODIC-STOCK-CORR",
+      lines: [
+        { accountId: await accountId(ctx.db, "1200"), debit: 100 },
+        { accountId: await accountId(ctx.db, "5000"), credit: 100 },
+      ],
+    });
+
+    const after = await reports.materialsConsumption();
+    // Same consumption: the correction restates the books, it is not an intake.
+    expect(after.total.consumed).toBe(before.total.consumed);
+    expect(after.total.otherIn).toBe(before.total.otherIn);
+    // The books moved though, so they are 100 closer to the count.
+    expect(after.total.bookClosing).toBe(before.total.bookClosing + 100);
+    expect(after.total.difference).toBe(before.total.difference + 100);
   });
 
   it("leaves it off a dated trial balance, where closing stock cannot be rebuilt", async () => {

@@ -716,7 +716,7 @@ export class ManufacturingService {
         orderId,
         `Reversal - production order ${order.order_number}`,
       );
-      await this.returnConsumptions("production_consumption", "production_order_id", orderId, order.warehouse_id, order.order_number);
+      await this.returnConsumptions("production_consumption", "production_order_id", orderId);
       await this.removeOutputBatches("production_orders", orderId, order.order_number);
       await this.db.run("DELETE FROM production_consumption WHERE production_order_id = ?", [orderId]);
       await this.manufacturing.updateOrder(orderId, {
@@ -1106,7 +1106,7 @@ export class ManufacturingService {
 
     await this.db.transaction(async () => {
       await this.reverseJournalEntry("packing_orders", orderId, `Reversal - packing order ${order.order_number}`);
-      await this.returnConsumptions("packing_consumption", "packing_order_id", orderId, order.warehouse_id, order.order_number);
+      await this.returnConsumptions("packing_consumption", "packing_order_id", orderId);
       await this.removeOutputBatches("packing_orders", orderId, order.order_number);
       await this.db.run("DELETE FROM packing_consumption WHERE packing_order_id = ?", [orderId]);
       await this.manufacturing.updatePackingOrder(orderId, {
@@ -1150,13 +1150,15 @@ export class ManufacturingService {
     }
   }
 
-  /** Return every consumption row of an order to stock, with a reversing movement each. */
+  /**
+   * Return every consumption row of an order to stock. The order's consume
+   * movements are removed rather than reversed, so the batches it drew from
+   * are free again (same as undoing a return or an invoice).
+   */
   private async returnConsumptions(
     table: string,
     orderColumn: string,
     orderId: number,
-    warehouseId: number,
-    orderNumber: string,
   ): Promise<void> {
     const rows = await this.db.all<{ batch_id: number; component_item_id: number; quantity_consumed: number; unit_cost: number }>(
       `SELECT batch_id, component_item_id, quantity_consumed, unit_cost FROM ${table} WHERE ${orderColumn} = ?`,
@@ -1165,26 +1167,21 @@ export class ManufacturingService {
     const stage = table === "production_consumption" ? "production" : "packing";
     for (const row of rows) {
       if (!row.batch_id) continue;
-      const quantity = toQuantity(dec(row.quantity_consumed));
-      await this.batches.adjustQuantity(Number(row.batch_id), quantity);
-      await insertRow(this.db, "stock_movements", {
-        item_id: row.component_item_id,
-        batch_id: Number(row.batch_id),
-        warehouse_id: warehouseId,
-        movement_type: "PRODUCTION_CONSUME",
-        quantity: quantity,
-        unit_cost: row.unit_cost,
-        reference_table: `${stage}_orders`,
-        reference_id: orderId,
-        movement_date: new Date().toISOString().slice(0, 10),
-        notes: `Reversal - ${stage} order ${orderNumber}`,
-      });
+      await this.batches.adjustQuantity(
+        Number(row.batch_id),
+        toQuantity(dec(row.quantity_consumed)),
+      );
     }
+    await this.db.run(
+      `DELETE FROM stock_movements
+       WHERE reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_CONSUME'`,
+      [`${stage}_orders`, orderId],
+    );
   }
 
   /**
    * Undo an order's PRODUCTION_IN movements: each output batch must have no
-   * other movements (i.e. nothing was sold, packed or adjusted from it), then
+   * live movements (i.e. nothing was sold, packed or adjusted from it), then
    * its movements are removed and the batch is zeroed and deactivated.
    */
   private async removeOutputBatches(
@@ -1200,20 +1197,64 @@ export class ManufacturingService {
     for (const row of batches) {
       const batch = await this.batches.findById(row.batch_id);
       if (!batch) continue;
-      const others = await this.db.get<{ n: number }>(
-        `SELECT COUNT(*) AS n FROM stock_movements
-         WHERE batch_id = ? AND NOT (reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN')`,
+      await this.dropUndoneConsumptions(row.batch_id);
+      const blocker = await this.db.get<{ reference_table: string | null; reference_id: number | null }>(
+        `SELECT reference_table, reference_id FROM stock_movements
+         WHERE batch_id = ? AND NOT (reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN')
+         LIMIT 1`,
         [row.batch_id, sourceTable, orderId],
       );
-      if (Number(others?.n ?? 0) > 0) {
+      if (blocker) {
         throw new ValidationError(
-          `Batch '${batch.batch_number}' (${orderNumber}) has already been used — reopen needs the output batch untouched.`,
+          `Batch '${batch.batch_number}' (${orderNumber}) ${await this.describeBlocker(blocker)} — reopen that order first.`,
         );
       }
       await this.db.run("DELETE FROM stock_movements WHERE batch_id = ?", [row.batch_id]);
       await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(batch.quantity_in_stock)));
       await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0, is_active = 0 WHERE id = ?", [row.batch_id]);
     }
+  }
+
+  /**
+   * Drop consume movements left on a batch by orders that are DRAFT (already
+   * undone, stock returned) or deleted, so an old undone run never blocks.
+   */
+  private async dropUndoneConsumptions(batchId: number): Promise<void> {
+    const rows = await this.db.all<{ id: number; reference_table: string; reference_id: number | null }>(
+      `SELECT id, reference_table, reference_id FROM stock_movements
+       WHERE batch_id = ? AND movement_type = 'PRODUCTION_CONSUME'
+         AND reference_table IN ('production_orders', 'packing_orders')`,
+      [batchId],
+    );
+    for (const row of rows) {
+      if (!row.reference_id) continue;
+      const order = await this.db.get<{ status: string }>(
+        `SELECT status FROM ${row.reference_table} WHERE id = ?`,
+        [row.reference_id],
+      );
+      if (order && order.status !== "DRAFT") continue;
+      await this.db.run("DELETE FROM stock_movements WHERE id = ?", [row.id]);
+    }
+  }
+
+  /** "was already packed into PCO-4 (COMPLETED)" for an order movement. */
+  private async describeBlocker(blocker: {
+    reference_table: string | null;
+    reference_id: number | null;
+  }): Promise<string> {
+    if (
+      blocker.reference_id &&
+      (blocker.reference_table === "packing_orders" || blocker.reference_table === "production_orders")
+    ) {
+      const order = await this.db.get<{ order_number: string; status: string }>(
+        `SELECT order_number, status FROM ${blocker.reference_table} WHERE id = ?`,
+        [blocker.reference_id],
+      );
+      if (order) {
+        return `was already ${blocker.reference_table === "packing_orders" ? "packed into" : "consumed by"} ${order.order_number} (${order.status})`;
+      }
+    }
+    return "has other stock movements";
   }
 
   /** Find (or create) the batch a component is consumed from, so manufacturing

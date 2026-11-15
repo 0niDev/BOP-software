@@ -49,7 +49,7 @@ export interface MaterialsConsumptionRow {
   opening: number;
   /** Purchase-invoice debits dated on/after `from`. */
   purchases: number;
-  /** Other debits (stock returned from reversed production orders, adjustments). */
+  /** Other debits (stock returned from reversed production orders, adjustments), stock corrections excluded. */
   otherIn: number;
   /** Physical stock value right now — the closing figure. */
   counted: number;
@@ -503,6 +503,7 @@ export class ReportService {
       opening: number;
       purchases: number;
       other_in: number;
+      correction_in: number;
       credits: number;
     }>(
       `SELECT a.account_code,
@@ -523,6 +524,7 @@ export class ReportService {
        WHERE je.company_id = ? AND a.account_code IN (?, ?)
        GROUP BY a.id`,
       [
+        start,
         start,
         start,
         start,
@@ -557,16 +559,20 @@ export class ReportService {
       const found = ledger.find((row) => row.account_code === code);
       const opening = Number(found?.opening ?? 0);
       const purchases = Number(found?.purchases ?? 0);
-      const otherIn = Number(found?.other_in ?? 0);
+      // Stock corrections are excluded from what counts as material coming in,
+      // but they still move the account: `bookClosing` keeps them so the
+      // difference against the count reads zero once the books are fixed.
+      const allDebits = Number(found?.other_in ?? 0) + Number(found?.correction_in ?? 0);
+      const otherIn = toStorage(round2(Number(found?.other_in ?? 0)));
       const closing = counted.get(itemType) ?? 0;
-      const bookClosing = toStorage(round2(opening + purchases + otherIn - Number(found?.credits ?? 0)));
+      const bookClosing = toStorage(round2(opening + purchases + allDebits - Number(found?.credits ?? 0)));
       return {
         itemType,
         opening,
         purchases,
         otherIn,
         counted: closing,
-        consumed: toStorage(round2(opening + purchases + otherIn - closing)),
+        consumed: toStorage(round2(opening + purchases + Number(otherIn) - closing)),
         bookClosing,
         difference: toStorage(round2(bookClosing - closing)),
       };
