@@ -519,7 +519,7 @@ describe("ManufacturingService — packing", () => {
   });
 
   it("reopens a completed packing order and undoes its output batch", async () => {
-    const { bom } = await producedBulk();
+    const { bom, order } = await producedBulk();
     const packing = await mfg.createPackingOrder({
       packingBomName: "Reopen pack",
       plannedQuantity: 10,
@@ -537,10 +537,10 @@ describe("ManufacturingService — packing", () => {
 
     await mfg.reopenPackingOrder(packing.id);
 
-    const { order } = await mfg.getPackingOrder(packing.id);
-    expect(order.status).toBe("DRAFT");
-    expect(order.actual_quantity).toBe(0);
-    expect(order.output_batch_number).toBeNull();
+    const { order: reopened } = await mfg.getPackingOrder(packing.id);
+    expect(reopened.status).toBe("DRAFT");
+    expect(reopened.actual_quantity).toBe(0);
+    expect(reopened.output_batch_number).toBeNull();
     expect(await batchQty("PM-1-BATCH")).toBe(100);
     expect(await batchQty("BULK-1")).toBe(10);
     const batch = await ctx.db.get<{ active: number; movements: number }>(
@@ -550,12 +550,58 @@ describe("ManufacturingService — packing", () => {
     );
     expect(batch?.active).toBe(0);
     expect(Number(batch?.movements)).toBe(0);
+    // The unpacked batch is free again, so the production run behind it edits too.
+    const bulk = await ctx.db.get<{ movements: number }>(
+      `SELECT COUNT(*) AS movements FROM stock_movements WHERE batch_id =
+         (SELECT id FROM stock_batches WHERE batch_number = 'BULK-1')`,
+    );
+    expect(Number(bulk?.movements)).toBe(1); // only its own PRODUCTION_IN
+    await mfg.reopenProductionOrder(order.id);
+    await mfg.updateProductionOrder(order.id, {
+      bomId: bom.id,
+      plannedQuantity: 5,
+      manufacturingDate: DATE,
+    });
 
     // Can be packed again after reopening.
     await mfg.startPacking(packing.id);
     const again = await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-REOPEN-PCO-B" });
     expect(again.productionCost).toBe(120);
     expect((await mfg.getPackingOrder(packing.id)).order.production_cost).toBe(120);
+  });
+
+  it("reopens a production order whose pack was already undone", async () => {
+    const { bom, order } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Undone pack",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id);
+    const bulkBatchId = (
+      await ctx.db.get<{ id: number }>(
+        "SELECT id FROM stock_batches WHERE batch_number = 'BULK-1'",
+      )
+    )!.id;
+    // Older builds left the pack's consume movement on the batch after undoing it.
+    await ctx.db.run(
+      "INSERT INTO stock_movements (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, reference_table, reference_id, movement_date, notes) VALUES (?, ?, 1, 'PRODUCTION_CONSUME', -10, 10, 'packing_orders', ?, ?, 'leftover')",
+      [bom.finishedItemId, bulkBatchId, packing.id, DATE],
+    );
+    await mfg.reopenPackingOrder(packing.id);
+    await ctx.db.run(
+      "INSERT INTO stock_movements (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, reference_table, reference_id, movement_date, notes) VALUES (?, ?, 1, 'PRODUCTION_CONSUME', -10, 10, 'packing_orders', ?, ?, 'leftover')",
+      [bom.finishedItemId, bulkBatchId, packing.id, DATE],
+    );
+
+    await mfg.reopenProductionOrder(order.id);
+    expect((await mfg.getProductionOrder(order.id)).order.status).toBe("DRAFT");
+    expect(await batchQty("RM-1-BATCH")).toBe(105);
   });
 
   it("re-aims a reopened packing order at a brand-new manual-run BOM", async () => {
