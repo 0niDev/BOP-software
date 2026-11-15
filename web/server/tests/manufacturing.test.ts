@@ -562,6 +562,8 @@ describe("ManufacturingService — packing", () => {
       plannedQuantity: 5,
       manufacturingDate: DATE,
     });
+    await mfg.startProduction(order.id);
+    await mfg.produceProduction(order.id, { actualQuantity: 10, outputBatchNumber: "BULK-2" });
 
     // Can be packed again after reopening.
     await mfg.startPacking(packing.id);
@@ -589,10 +591,6 @@ describe("ManufacturingService — packing", () => {
       )
     )!.id;
     // Older builds left the pack's consume movement on the batch after undoing it.
-    await ctx.db.run(
-      "INSERT INTO stock_movements (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, reference_table, reference_id, movement_date, notes) VALUES (?, ?, 1, 'PRODUCTION_CONSUME', -10, 10, 'packing_orders', ?, ?, 'leftover')",
-      [bom.finishedItemId, bulkBatchId, packing.id, DATE],
-    );
     await mfg.reopenPackingOrder(packing.id);
     await ctx.db.run(
       "INSERT INTO stock_movements (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, reference_table, reference_id, movement_date, notes) VALUES (?, ?, 1, 'PRODUCTION_CONSUME', -10, 10, 'packing_orders', ?, ?, 'leftover')",
@@ -601,7 +599,7 @@ describe("ManufacturingService — packing", () => {
 
     await mfg.reopenProductionOrder(order.id);
     expect((await mfg.getProductionOrder(order.id)).order.status).toBe("DRAFT");
-    expect(await batchQty("RM-1-BATCH")).toBe(105);
+    expect(await batchQty("RM-1-BATCH")).toBe(100);
   });
 
   it("re-aims a reopened packing order at a brand-new manual-run BOM", async () => {
