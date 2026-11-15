@@ -583,7 +583,6 @@ export class ManufacturingService {
         component.component_item_id,
         order.warehouse_id,
         item.purchase_price,
-        Boolean(input.ignoreStock),
       );
       const cost = round2(totalRequired.times(unitCost));
       rawCost = rawCost.plus(cost);
@@ -626,7 +625,7 @@ export class ManufacturingService {
       });
 
       for (const material of materials) {
-        if (input.ignoreStock || material.batchId === null) continue;
+        if (material.batchId === null) continue;
         await this.manufacturing.insertConsumption({
           production_order_id: orderId,
           component_item_id: material.itemId,
@@ -977,7 +976,6 @@ export class ManufacturingService {
         entry.itemId,
         order.warehouse_id,
         item.purchase_price,
-        Boolean(input.ignoreStock),
       );
       const cost = round2(entry.quantity.times(unitCost));
       totalCost = totalCost.plus(cost);
@@ -1006,7 +1004,7 @@ export class ManufacturingService {
 
     return this.db.transaction(async () => {
       for (const material of consumed) {
-        if (input.ignoreStock || material.batchId === null) continue;
+        if (material.batchId === null) continue;
         await this.manufacturing.insertPackingConsumption({
           packing_order_id: orderId,
           component_item_id: material.itemId,
@@ -1257,18 +1255,17 @@ export class ManufacturingService {
     return "has other stock movements";
   }
 
-  /** Find (or create) the batch a component is consumed from, so manufacturing
-   *  can drive stock negative instead of blocking. `ignoreStock` skips entirely. */
+  /**
+   * Find (or create) the batch a component is consumed from. Stock is allowed to
+   * go negative: a component that is not in the store still left it, and the
+   * ledger has to say so. Either way the batch moves, or the inventory account
+   * and the stock ledger drift apart with nothing to reconcile them.
+   */
   private async resolveConsumptionBatch(
     itemId: number,
     warehouseId: number,
     purchasePrice: number,
-    ignoreStock: boolean,
   ): Promise<{ batchId: number | null; unitCost: Decimal }> {
-    if (ignoreStock) {
-      const batch = await this.batches.findByItemAndWarehouse(itemId, warehouseId);
-      return { batchId: null, unitCost: dec(batch?.purchase_price ?? purchasePrice) };
-    }
     const positive = await this.batches.findByItemAndWarehouse(itemId, warehouseId);
     if (positive) {
       return { batchId: positive.id, unitCost: dec(positive.purchase_price ?? purchasePrice) };

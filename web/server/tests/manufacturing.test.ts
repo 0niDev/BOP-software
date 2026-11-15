@@ -364,7 +364,7 @@ describe("ManufacturingService — production", () => {
     expect(consumptions).toHaveLength(1);
   });
 
-  it("skips the stock deduction when Ignore stock is set", async () => {
+  it("deducts stock even with Ignore stock set, driving the batch negative", async () => {
     const bom = await mfg.createBom({
       bomName: "Ignore stock run",
       outputQuantity: 1,
@@ -381,9 +381,11 @@ describe("ManufacturingService — production", () => {
       ignoreStock: true,
     });
     expect(forced.productionCost).toBe(20_000);
-    expect(await batchQty("RM-1-BATCH")).toBe(100);
+    // 100 on hand, 1000 consumed: the material left the store either way, so the
+    // batch goes negative instead of silently keeping its quantity.
+    expect(await batchQty("RM-1-BATCH")).toBe(-900);
     const { consumptions } = await mfg.getProductionOrder(order.id);
-    expect(consumptions).toHaveLength(0);
+    expect(consumptions).toHaveLength(1);
     expect(await accounting.getJournalEntry("production_orders", order.id)).not.toBeNull();
   });
 
@@ -728,7 +730,7 @@ describe("ManufacturingService — packing", () => {
     expect((await mfg.getPackingOrder(order.id)).consumptions).toHaveLength(2);
   });
 
-  it("skips the packing stock deduction when Ignore stock is set", async () => {
+  it("deducts packing stock even with Ignore stock set, driving the batch negative", async () => {
     const { bom } = await producedBulk();
     const order = await mfg.createPackingOrder({
       packingBomName: "Too many bottles",
@@ -742,8 +744,9 @@ describe("ManufacturingService — packing", () => {
     await mfg.startPacking(order.id);
     const forced = await mfg.packPackingOrder(order.id, { ignoreStock: true });
     expect(forced.productionCost).toBe(1100); // 10 @10 + 500 @2
-    expect(await batchQty("PM-1-BATCH")).toBe(100);
-    expect((await mfg.getPackingOrder(order.id)).consumptions).toHaveLength(0);
+    // 100 on hand, 500 consumed: negative rather than unchanged.
+    expect(await batchQty("PM-1-BATCH")).toBe(-400);
+    expect((await mfg.getPackingOrder(order.id)).consumptions).toHaveLength(2);
   });
 
   it("deletes a draft packing order and refuses to delete its BOM while it exists", async () => {
