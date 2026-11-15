@@ -74,6 +74,8 @@ const REPORT_TITLE: Style = { fontWeight: "bold", fontSize: 12 };
 const SUBTITLE: Style = { textColor: "#6B7280" };
 const HEADER: Style = { fontWeight: "bold", backgroundColor: "#EEF2F7", borderStyle: "thin" };
 const TOTAL: Style = { fontWeight: "bold", borderStyle: "thin" };
+/** A heading line the user chose not to bold: same rule, normal weight. */
+const HEADING_PLAIN: Style = { borderStyle: "thin" };
 /** Type band that opens each CoA section of the trial balance. */
 const SECTION: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED", columnSpan: 9 };
 const MUTED: Style = { textColor: "#6B7280", fontStyle: "italic" };
@@ -317,19 +319,25 @@ export class ReportXlsx {
         text("Amount", HEADER),
         text("Note", HEADER),
       ],
-      ...report.headings.flatMap((line): SheetData => [
-        [text(line.name, TOTAL), null, money(line.value, TOTAL), text(line.note ?? "", TOTAL)],
-        ...(includeDetail
-          ? line.rows.map(
-              (row): Cell[] => [
-                text(row.name, { indent: (row.depth + 1) * 2, ...(row.selected ? { fontWeight: "bold" } : {}) }),
-                text(row.code),
-                moneyOrBlank(row.value),
-                null,
-              ],
-            )
-          : []),
-      ]),
+      ...report.headings.flatMap((line): SheetData => {
+        const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
+        return [
+          [text(line.name, style), null, money(line.value, style), text(line.note ?? "", style)],
+          ...(includeDetail
+            ? line.rows.map(
+                (row): Cell[] => [
+                  text(row.name, {
+                    indent: (row.depth + 1) * 2,
+                    ...(row.selected || row.isHeader ? { fontWeight: "bold" } : {}),
+                  }),
+                  text(row.code),
+                  moneyOrBlank(row.value),
+                  null,
+                ],
+              )
+            : []),
+        ];
+      }),
       ...(report.unassigned.rows.length > 0
         ? [
             [
@@ -339,7 +347,12 @@ export class ReportXlsx {
               null,
             ] as Cell[],
             ...report.unassigned.rows.map(
-              (row): Cell[] => [text(row.name), text(row.code), moneyOrBlank(row.value), null],
+              (row): Cell[] => [
+                text(row.name, { indent: (row.depth + 1) * 2 }),
+                text(row.code),
+                moneyOrBlank(row.value),
+                null,
+              ],
             ),
           ]
         : ([] as Cell[][])),

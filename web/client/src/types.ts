@@ -481,6 +481,8 @@ export interface CustomHeading {
   name: string;
   /** Printed note/reference number, e.g. 20-29 on the printed P&L. */
   note?: string;
+  /** Print this heading's line in bold. */
+  bold?: boolean;
   /** "accounts" sums CoA nodes; "subtotal" adds/subtracts other headings. */
   kind: "accounts" | "subtotal";
   /** P&L only: "opening" reads balances carried into the period. */

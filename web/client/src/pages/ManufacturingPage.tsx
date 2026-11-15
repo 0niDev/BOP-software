@@ -74,7 +74,6 @@ export default function ManufacturingPage() {
   const [productionLines, setProductionLines] = useState<ComponentDraft[]>([newComponent()]);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [orderQuery, setOrderQuery] = useState("");
-  const [ignoreStockOrders, setIgnoreStockOrders] = useState<Record<number, boolean>>({});
   const addedProduction = useRef(false);
 
   // Packing form
@@ -89,7 +88,6 @@ export default function ManufacturingPage() {
   const [packingLines, setPackingLines] = useState<ComponentDraft[]>([newComponent()]);
   const [editingPackingOrderId, setEditingPackingOrderId] = useState<number | null>(null);
   const [packingOrderQuery, setPackingOrderQuery] = useState("");
-  const [ignoreStockPacking, setIgnoreStockPacking] = useState<Record<number, boolean>>({});
   const addedPacking = useRef(false);
 
   // Pack dialog
@@ -479,7 +477,6 @@ export default function ManufacturingPage() {
       const result = await api.produceProduction(order.id, {
         actualQuantity: actual,
         outputBatchNumber: batch || undefined,
-        ignoreStock: ignoreStockOrders[order.id] || undefined,
       });
       setNotice(
         `Produced ${quantity(actual)} unpacked (${result.outputBatchNumber}) — raw cost ${money(result.productionCost)}`,
@@ -715,7 +712,6 @@ export default function ManufacturingPage() {
         unpackedQuantity: packUnpackedQty,
         materials,
         outputBatchNumber: batch || undefined,
-        ignoreStock: ignoreStockPacking[packOrderId] || undefined,
       });
       setNotice(
         `Packed ${quantity(packUnits)} (${result.outputBatchNumber}) — cost ${money(result.productionCost)}`,
@@ -1211,22 +1207,7 @@ export default function ManufacturingPage() {
                         </>
                       )}
                       {order.status === "IN_PROGRESS" && order.actual_quantity <= 0 && (
-                        <>
-                          <button onClick={() => void produce(order)}>Produce</button>
-                          <label style={{ marginLeft: 8, whiteSpace: "nowrap" }}>
-                            <input
-                              type="checkbox"
-                              checked={ignoreStockOrders[order.id] ?? false}
-                              onChange={(e) =>
-                                setIgnoreStockOrders((prev) => ({
-                                  ...prev,
-                                  [order.id]: e.target.checked,
-                                }))
-                              }
-                            />{" "}
-                            Ignore stock
-                          </label>
-                        </>
+                        <button onClick={() => void produce(order)}>Produce</button>
                       )}
                       {order.status === "COMPLETED" && (
                         <>
@@ -1458,7 +1439,7 @@ export default function ManufacturingPage() {
               <h2>Pack order {packOrder.order_number}</h2>
               <p style={{ opacity: 0.7, fontSize: 12 }}>
                 Consumes the unpacked bulk and the packing materials, then puts the finished goods
-                into stock. Tick Ignore stock to skip the stock check and deduction.
+                into stock.
               </p>
               <div className="row" style={{ marginBottom: 12, alignItems: "flex-end" }}>
                 <div>
@@ -1551,19 +1532,6 @@ export default function ManufacturingPage() {
                   Add packing material
                 </button>
                 <div className="row">
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={ignoreStockPacking[packOrder.id] ?? false}
-                      onChange={(e) =>
-                        setIgnoreStockPacking((prev) => ({
-                          ...prev,
-                          [packOrder.id]: e.target.checked,
-                        }))
-                      }
-                    />
-                    Ignore stock
-                  </label>
                   <button type="button" onClick={() => setPackOrderId(null)}>
                     Cancel
                   </button>

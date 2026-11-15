@@ -275,8 +275,8 @@ invoice before returning twice.
 - Producing takes `actualQuantity` (> 0) and `wastageQuantity` (≥ 0), consumes
   raw stock FIFO scaled by `actualQuantity ÷ BOM outputQuantity`, and creates
   the unpacked output batch (the requested number, or the order number when
-  blank). Insufficient stock aborts the whole run unless **Ignore stock** is
-  ticked, which skips the check and the deduction.
+  blank). Stock is deducted FIFO and may go negative; the run never blocks on
+  stock.
 - Wastage is capitalised into the output cost; account `5200` is seeded but not
   posted.
 
@@ -295,7 +295,7 @@ Cr 1200 Inventory — Raw Materials       raw component cost
   be partial: each call records what it used, and the order completes once
   `actualQuantity ≥ plannedQuantity`.
 - Consumes the unpacked batch and the packing materials FIFO, then creates the
-  finished-goods batch. **Ignore stock** skips the check and deduction.
+  finished-goods batch.
 
 ```
 Dr 1220 Inventory — Finished Goods      packed finished-goods cost

@@ -376,9 +376,7 @@ test("the Manufacturing page creates a formulation BOM and produces an unpacked 
   expect(watched.apiFailures).toEqual([]);
 });
 
-test("manual production and packing runs save their BOMs and honour Ignore stock", async ({
-  page,
-}) => {
+test("manual production and packing runs save their BOMs and complete", async ({ page }) => {
   const watched = monitor(page);
   await signIn(page);
   await openPage(page, "Manufacturing");
@@ -419,7 +417,6 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
   const orderNumber = (await newest.locator("td").first().innerText()).trim();
   const orderRow = ordersCard.locator("tbody tr", { hasText: orderNumber });
   await orderRow.getByRole("button", { name: "Start" }).click();
-  await orderRow.getByRole("checkbox").check();
 
   const answers = ["10", "E2E-MANUAL-UNPACKED"];
   const onDialog = (dialog: Dialog) => void dialog.accept(answers.shift() ?? "");
@@ -475,8 +472,6 @@ test("manual production and packing runs save their BOMs and honour Ignore stock
   await expect(packCard.locator('input[aria-label="Unpacked used"]')).toHaveValue("10");
   await expect(packCard.locator('input[aria-label="Quantity used"]')).toHaveValue("10");
 
-  // Ignore stock skips the stock check and deduction; the pack still completes.
-  await packCard.getByRole("checkbox").check();
   page.once("dialog", (dialog) => void dialog.accept("E2E-PACKED"));
   await packCard.getByRole("button", { name: "Confirm pack" }).click();
   await expect(page.locator(".badge", { hasText: "Packed 10" })).toBeVisible();

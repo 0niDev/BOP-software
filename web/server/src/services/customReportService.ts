@@ -37,6 +37,8 @@ export interface CustomHeading {
   name: string;
   /** Printed note/reference number, e.g. 20-29 on the printed P&L. */
   note?: string;
+  /** Print this heading's line in bold. */
+  bold?: boolean;
   /** "accounts" sums CoA nodes; "subtotal" adds/subtracts other headings. */
   kind: "accounts" | "subtotal";
   /** P&L only: "opening" reads balances carried into the period. */
@@ -152,11 +154,12 @@ function rootAccounts(accounts: readonly AccountRow[], type: AccountType): Accou
 function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]): CustomHeading[] {
   if (kind === "BS") {
     return [
-      { id: "assets", name: "Assets", kind: "accounts", accountIds: rootAccounts(accounts, "ASSET").map((a) => a.id), parts: [] },
-      { id: "liabilities", name: "Liabilities", kind: "accounts", accountIds: rootAccounts(accounts, "LIABILITY").map((a) => a.id), parts: [] },
+      { id: "assets", name: "Assets", bold: true, kind: "accounts", accountIds: rootAccounts(accounts, "ASSET").map((a) => a.id), parts: [] },
+      { id: "liabilities", name: "Liabilities", bold: true, kind: "accounts", accountIds: rootAccounts(accounts, "LIABILITY").map((a) => a.id), parts: [] },
       {
         id: "equity",
         name: "Equity",
+        bold: true,
         kind: "accounts",
         accountIds: [...rootAccounts(accounts, "EQUITY").map((a) => a.id), NET_PROFIT_ACCOUNT_ID],
         parts: [],
@@ -197,6 +200,7 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
     id,
     name,
     ...(note ? { note } : {}),
+    bold: true,
     kind: "subtotal",
     accountIds: [],
     parts: parts.map(([headingId, sign]) => ({ headingId, sign })),
@@ -287,7 +291,7 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
   ];
 
   return [
-    account("sales-net", "Sales - Net", "20"),
+    { ...account("sales-net", "Sales - Net", "20"), bold: true },
     ...costCategories,
     subtotal("cost-of-sales", "Cost of Sales", costParts, "21"),
     subtotal("gross-profit", "Gross Profit/(Loss)", [
@@ -363,6 +367,7 @@ function readTemplate(
     const name = typeof heading.name === "string" ? heading.name.trim().slice(0, MAX_HEADING_NAME) : "";
     const note =
       typeof heading.note === "string" ? heading.note.trim().slice(0, MAX_NOTE) || undefined : undefined;
+    const bold = typeof heading.bold === "boolean" ? heading.bold : undefined;
     if (!id || !name || ids.has(id)) continue;
     ids.add(id);
 
@@ -378,6 +383,7 @@ function readTemplate(
         id,
         name,
         ...(note ? { note } : {}),
+        ...(bold !== undefined ? { bold } : {}),
         kind: "subtotal",
         accountIds: [],
         parts: dedupeParts(parts),
@@ -416,6 +422,7 @@ function readTemplate(
       id,
       name,
       ...(note ? { note } : {}),
+      ...(bold !== undefined ? { bold } : {}),
       ...(basis ? { basis } : {}),
       kind: "accounts",
       accountIds,
@@ -484,6 +491,10 @@ function validateTemplate(
     if (note.length > MAX_NOTE) {
       throw new ValidationError(`Heading '${name}' has a note longer than ${MAX_NOTE} characters.`);
     }
+    if (heading.bold != null && typeof heading.bold !== "boolean") {
+      throw new ValidationError(`Heading '${name}' has an invalid bold flag.`);
+    }
+    const bold = typeof heading.bold === "boolean" ? heading.bold : undefined;
     if (heading.basis != null && heading.basis !== "opening") {
       throw new ValidationError(`Heading '${name}' has an invalid value basis.`);
     }
@@ -516,6 +527,7 @@ function validateTemplate(
         id,
         name,
         ...(note ? { note } : {}),
+        ...(bold !== undefined ? { bold } : {}),
         kind: "subtotal",
         accountIds: [],
         parts,
@@ -578,6 +590,7 @@ function validateTemplate(
       id,
       name,
       ...(note ? { note } : {}),
+      ...(bold !== undefined ? { bold } : {}),
       ...(basis ? { basis } : {}),
       kind: "accounts",
       accountIds,
@@ -800,13 +813,13 @@ export class CustomReportService {
       lines.push(line(heading.name, "", "", heading.value, heading.note));
       if (!includeDetail) continue;
       for (const row of heading.rows) {
-        lines.push(line("", row.code, `${"  ".repeat(row.depth)}${row.name}`, row.value));
+        lines.push(line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value));
       }
     }
     if (report.unassigned.rows.length > 0) {
       lines.push(line("Unassigned (not in any heading)", "", "", report.unassigned.value));
       for (const row of report.unassigned.rows) {
-        lines.push(line("", row.code, row.name, row.value));
+        lines.push(line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value));
       }
     }
     lines.push("");

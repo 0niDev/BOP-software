@@ -562,6 +562,46 @@ describe("CustomReportService", () => {
     expect(summary).not.toMatch(/,4000,/);
     expect(summary.split("\n").length).toBeLessThan(full.split("\n").length);
   });
+
+  it("bolds the proper section headings in the default template", async () => {
+    const template = await custom.getTemplate("PL");
+    const boldOf = (id: string) => template.find((heading) => heading.id === id)?.bold;
+    expect(boldOf("sales-net")).toBe(true);
+    expect(boldOf("cost-of-sales")).toBe(true);
+    expect(boldOf("gross-profit")).toBe(true);
+    expect(boldOf("profit-cf")).toBe(true);
+    // Detail/category headings stay normal until the user ticks them.
+    expect(boldOf("discount")).toBeFalsy();
+    expect(boldOf("other-income")).toBeFalsy();
+  });
+
+  it("round-trips the per-heading bold flag", async () => {
+    const saved = await custom.saveTemplate("PL", {
+      headings: [
+        { id: "sales", name: "Sales", kind: "accounts", accountIds: [], parts: [], bold: true },
+        {
+          id: "total",
+          name: "Total",
+          kind: "subtotal",
+          accountIds: [],
+          parts: [{ headingId: "sales", sign: 1 }],
+          bold: false,
+        },
+      ],
+    });
+    expect(saved.find((heading) => heading.id === "sales")?.bold).toBe(true);
+    expect(saved.find((heading) => heading.id === "total")?.bold).toBe(false);
+
+    const reloaded = await custom.getTemplate("PL");
+    expect(reloaded.find((heading) => heading.id === "sales")?.bold).toBe(true);
+    expect(reloaded.find((heading) => heading.id === "total")?.bold).toBe(false);
+  });
+
+  it("carries the bold flag into the built report", async () => {
+    const result = await custom.build("PL");
+    expect(result.headings.find((heading) => heading.id === "cost-of-sales")?.bold).toBe(true);
+    expect(result.headings.find((heading) => heading.id === "discount")?.bold).toBeFalsy();
+  });
 });
 
 /**

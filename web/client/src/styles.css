@@ -559,6 +559,12 @@ tr.total td {
   border-top: 2px solid var(--border-strong);
 }
 
+/* Heading rows the user did not mark bold: keep the section rule, drop the weight. */
+tr.heading-plain td {
+  font-weight: 400;
+  border-top: 2px solid var(--border-strong);
+}
+
 /* --------------------------------------------------- chart of accounts tree */
 /* Level bands: class → group → ledger, descending maroon tint per depth so
    the hierarchy reads by weight and colour as well as indent. */

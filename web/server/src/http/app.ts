@@ -1614,6 +1614,7 @@ export function createApp(
           id: z.string().trim().min(1).max(40),
           name: z.string().trim().min(1).max(80),
           note: z.string().trim().max(20).optional(),
+          bold: z.boolean().optional(),
           kind: z.enum(["accounts", "subtotal"]),
           basis: z.literal("opening").optional(),
           accountIds: z.array(z.coerce.number().int().min(-1)).max(500).default([]),

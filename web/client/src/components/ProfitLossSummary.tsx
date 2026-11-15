@@ -19,7 +19,7 @@ export function plSummaryRows(report: CustomReport): SummaryRow[] {
     name: heading.name,
     note: heading.note,
     value: heading.value,
-    bold: heading.kind === "subtotal",
+    bold: heading.bold ?? heading.kind === "subtotal",
   }));
 }
 

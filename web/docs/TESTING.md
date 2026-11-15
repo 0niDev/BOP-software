@@ -119,7 +119,7 @@ npm run test:e2e
 | Keyboard shortcuts | `Ctrl+2` → Sales Invoices, `Ctrl+6` → Manufacturing, `Ctrl+F` focuses the page filter |
 | Dashboard | Best sellers are revenue-sorted, the sort toggles, avatar/meter render, and a row menu navigates to the owning module |
 | Settings | 26 shortcut rows, rebind/capture/save/reset, Database card contents |
-| Manufacturing | Creates a formulation BOM (with its auto-created unpacked item) and produces it; a manual production run saves a per-unit BOM, then a manual packing order consumes the unpacked bulk with Ignore stock and completes |
+| Manufacturing | Creates a formulation BOM (with its auto-created unpacked item) and produces it; a manual production run saves a per-unit BOM, then a manual packing order consumes the unpacked bulk and completes |
 | Typography/hit targets | Font sizes, `.num` alignment and control sizes across every page |
 | Empty states | A nonsense filter on every filterable page shows an empty state, not an error or a crash |
 | Responsive | No page overflows horizontally at 1280 or 1024 px |

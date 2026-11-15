@@ -130,8 +130,8 @@ export default function SalesInvoicesPage() {
       setBankId(detail.invoice.bank_account_id ?? 0);
       setNotes(detail.invoice.notes ?? "");
       setLines(grouped.size > 0 ? [...grouped.values()] : [newLine()]);
-      // Keep "Ignore stock" checked for an invoice that never touched stock,
-      // otherwise saving a note-only edit would deduct it for the first time.
+      // Keep ignoreStock set for an invoice that never touched stock, otherwise
+      // saving a note-only edit would deduct it for the first time.
       setIgnoreStock(!detail.stockApplied);
       setEditingId(invoice.id);
       setShowForm(true);
@@ -353,15 +353,6 @@ export default function SalesInvoicesPage() {
           style={{ width: "100%" }}
         />
       </div>
-
-      <label style={{ display: "block", marginTop: 12 }}>
-        <input
-          type="checkbox"
-          checked={ignoreStock}
-          onChange={(e) => setIgnoreStock(e.target.checked)}
-        />{" "}
-        Ignore stock (save invoice without stock check or deduction)
-      </label>
 
       <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
         <thead>

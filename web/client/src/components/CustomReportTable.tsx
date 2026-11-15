@@ -43,9 +43,10 @@ export default function CustomReportTable({
         {report.headings.map((heading) => {
           const open = expanded.has(heading.id);
           const hasRows = heading.rows.length > 0;
+          const bold = heading.bold ?? heading.kind === "subtotal";
           return (
             <Fragment key={heading.id}>
-              <tr className="total">
+              <tr className={bold ? "total" : "heading-plain"}>
                 <td colSpan={2}>
                   {hasRows ? (
                     <button
@@ -70,8 +71,8 @@ export default function CustomReportTable({
                   <tr key={`${heading.id}-${row.accountId}`}>
                     <td
                       style={{
-                        paddingLeft: 16 + row.depth * 14,
-                        fontWeight: row.selected ? 600 : 400,
+                        paddingLeft: 16 * (1 + row.depth),
+                        fontWeight: row.selected || row.isHeader ? 600 : 400,
                       }}
                     >
                       {row.name}

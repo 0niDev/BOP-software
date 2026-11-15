@@ -113,6 +113,16 @@ export default function CustomReportEditor({
                 style={{ width: "100%" }}
               />
             </div>
+            <div style={{ paddingBottom: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={heading.bold ?? heading.kind === "subtotal"}
+                  onChange={(event) => update(heading.id, { bold: event.target.checked })}
+                />
+                Bold
+              </label>
+            </div>
             <div>
               <label>Value</label>
               <select

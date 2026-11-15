@@ -42,13 +42,13 @@ export default function PLNotes({ report }: { report: CustomReport }) {
           const headers = heading.rows.filter((row) => row.isHeader);
           return (
             <Fragment key={heading.id}>
-              <tr className="total">
+              <tr className={(heading.bold ?? heading.kind === "subtotal") ? "total" : "heading-plain"}>
                 <td>{heading.name}</td>
                 <td className="num">{money(heading.value)}</td>
               </tr>
               {headers.map((row) => (
                 <tr key={`${heading.id}-${row.accountId}`}>
-                  <td style={{ paddingLeft: 16 + row.depth * 16 }}>{row.name}</td>
+                  <td style={{ paddingLeft: 16 * (1 + row.depth) }}>{row.name}</td>
                   <td className="num">{money(totals.get(row.accountId) ?? 0)}</td>
                 </tr>
               ))}
