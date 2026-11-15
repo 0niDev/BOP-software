@@ -524,7 +524,8 @@ export class ReportService {
                               AND je.voucher_type <> 'PURCHASE'
                               AND COALESCE(je.reference_no, '') NOT LIKE '%-STOCK-CORR'
                         THEN jel.debit ELSE 0 END), 2) other_in,
-              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE'
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND (? IS NULL OR je.entry_date <= ?)
+                              AND je.voucher_type <> 'PURCHASE'
                               AND COALESCE(je.reference_no, '') LIKE '%-STOCK-CORR'
                         THEN jel.debit ELSE 0 END), 2) correction_in,
               ROUND(SUM(CASE WHEN (? IS NULL OR je.entry_date <= ?)
@@ -535,14 +536,21 @@ export class ReportService {
        WHERE je.company_id = ? AND a.account_code IN (?, ?)
        GROUP BY a.id`,
       [
+        // opening
         start,
+        // purchases
         start,
         end,
         end,
+        // other_in
         start,
         end,
         end,
+        // correction_in
         start,
+        end,
+        end,
+        // closing
         end,
         end,
         this.companyId,

@@ -225,6 +225,8 @@ function LedgerTable({ rows, caption }: LedgerTableProps) {
 interface GroupedTbRowsProps {
   group: TbGroup;
   showUnpriced: boolean;
+  /** False on a dated report: there is no shelf to value, so no stock memo. */
+  showStock: boolean;
 }
 
 /** One entry row, shared by the single-party and all-parties ledger tables. */
@@ -362,7 +364,7 @@ function PartyProductTable({ report }: { report: PartyProductSales }) {
 }
 
 /** COA section: type band, the account tree (sub-accounts indented), subtotal. */
-function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
+function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
   return (
     <>
       <tr>
@@ -402,6 +404,9 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
           </tr>
           {(() => {
             const tags = row.tagBreakdown ?? [];
+            // A dated report carries no tag breakdown: there is no shelf in the
+            // past, so the stock lines are simply absent.
+            const hasStock = tags.length > 0;
             const sold = row.soldValue;
             const used = row.usedValue;
             const stockTotal = tags.reduce((total, tag) => total + tag.value, 0);
@@ -463,7 +468,9 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
                 {sold != null ? (
                   <>
                     {memoRow(`${row.accountId}-sold`, "Sold FG (per invoices)", sold, true)}
-                    {memoRow(`${row.accountId}-stock`, "FG in stock", stockTotal, true)}
+                    {/* No shelf on a dated report, so no stock line. */}
+                    {showStock && hasStock &&
+                      memoRow(`${row.accountId}-stock`, "FG in stock", stockTotal, true)}
                   </>
                 ) : used != null ? (
                   <>
@@ -475,7 +482,7 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
                         row.consumedValue,
                         true,
                       )}
-                    {memoRow(`${row.accountId}-stock`, "In stock", stockTotal, true)}
+                    {showStock && hasStock && memoRow(`${row.accountId}-stock`, "In stock", stockTotal, true)}
                     {tags.map((tag) =>
                       memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
                     )}
@@ -485,7 +492,8 @@ function GroupedTbRows({ group, showUnpriced }: GroupedTbRowsProps) {
                     memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
                   )
                 )}
-                {memoRow(`${row.accountId}-difference`, "Difference (stock - GL)", difference, true)}
+                {showStock && hasStock &&
+                  memoRow(`${row.accountId}-difference`, "Difference (stock - GL)", difference, true)}
                 {/* Opt-in: what is behind the figure but carries no cost. */}
                 {showUnpriced && (row.unpricedItems?.length ?? 0) > 0
                   ? [
@@ -1202,7 +1210,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
           </thead>
           <tbody>
             {groupTbRows(visibleTbRows).map((group) => (
-              <GroupedTbRows key={group.type} group={group} showUnpriced={showUnpriced} />
+              <GroupedTbRows
+                key={group.type}
+                group={group}
+                showUnpriced={showUnpriced}
+                showStock={!to}
+              />
             ))}
             {tb && visibleTbRows.length === 0 && (
               <tr>

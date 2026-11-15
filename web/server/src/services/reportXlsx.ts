@@ -716,6 +716,9 @@ export class ReportXlsx {
 
   private async trialBalanceSheet(options: DateRangeOptions & { showUnpriced?: boolean }): Promise<SheetSpec> {
     const report = await this.reports.trialBalance(options);
+    // A dated report has no shelf to value: the stock memo lines would be
+    // rebuilt from the movement history, which does not record it.
+    const showStock = !options.to;
     // Same organization as the CoA page: type sections in CoA order, accounts
     // nested under their parent, and a closing subtotal per section.
     const sections = layoutTrialBalance(report.rows);
@@ -771,11 +774,12 @@ export class ReportXlsx {
               moneyOrBlank(row.closingCredit),
             ],
             // Finished goods split into already-sold cost and what is on hand;
-            // the other inventory accounts keep their per-tag lines.
+            // the other inventory accounts keep their per-tag lines. A dated
+            // report has no tag breakdown, so the stock lines drop out.
             ...(sold != null
               ? [
                   memo("↳ Sold FG (per invoices)", sold),
-                  memo("↳ FG in stock", stock),
+                  ...(showStock && tags.length > 0 ? [memo("↳ FG in stock", stock)] : []),
                 ]
               : used != null
                 ? [
@@ -783,13 +787,13 @@ export class ReportXlsx {
                     ...(consumed != null
                       ? [memo("↳ Consumed (opening + purchases − stock)", consumed)]
                       : []),
-                    memo("↳ In stock", stock),
+                    ...(showStock && tags.length > 0 ? [memo("↳ In stock", stock)] : []),
                     ...tags.map((tag): Cell[] => memo(`· ${tag.name}`, tag.value, 1)),
                   ]
                 : tags.map((tag): Cell[] => memo(`↳ ${tag.name}`, tag.value))),
             // The memo block ends with the stock-vs-GL gap, once per account.
-            ...(tags.length > 0 || sold != null || used != null
-              ? [              memo("Difference (stock - GL)", stock - expectedInStock)]
+            ...(showStock && tags.length > 0
+              ? [memo("Difference (stock - GL)", stock - expectedInStock)]
               : []),
             // Opt-in: items behind the figure whose unit costs nothing.
             ...(options.showUnpriced === true && row.unpricedItems?.length
