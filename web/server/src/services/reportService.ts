@@ -49,7 +49,7 @@ export interface MaterialsConsumptionRow {
   opening: number;
   /** Purchase-invoice debits dated on/after `from`. */
   purchases: number;
-  /** Other debits (stock returned from reversed production orders, adjustments), stock corrections excluded. */
+  /** Other debits (stock returned from reversed production orders, adjustments). */
   otherIn: number;
   /** Physical stock value right now — the closing figure. Null when the report ends in the past. */
   counted: number | null;
@@ -578,10 +578,14 @@ export class ReportService {
       const found = ledger.find((row) => row.account_code === code);
       const opening = Number(found?.opening ?? 0);
       const purchases = Number(found?.purchases ?? 0);
-      // Stock corrections are excluded from what counts as material coming in;
-      // they still move the account, which is why `bookClosing` is the account
-      // balance rather than the debits re-added.
-      const otherIn = toStorage(round2(Number(found?.other_in ?? 0)));
+      // A stock correction is a restatement, not material bought. When the
+      // report closes on the count it must stay out of "stock in", or the
+      // correction would inflate the consumption by its own amount. When it
+      // closes on the ledger it has to be in, because the closing balance
+      // contains it and the row must add up.
+      const otherIn = toStorage(
+        round2(Number(found?.other_in ?? 0) + (end ? Number(found?.correction_in ?? 0) : 0)),
+      );
       const bookClosing = toStorage(round2(Number(found?.closing ?? 0)));
       const closing = end ? bookClosing : counted.get(itemType) ?? 0;
       return {

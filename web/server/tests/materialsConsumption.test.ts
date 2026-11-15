@@ -150,6 +150,13 @@ describe("ReportService.materialsConsumption", () => {
     // The books moved though, so they are 100 closer to the count.
     expect(after.total.bookClosing).toBe(before.total.bookClosing + 100);
     expect(after.total.difference).toBe(before.total.difference + 100);
+
+    // Closing on the ledger, the correction has to be in "stock in" so the row
+    // adds up: 0 + 500 + 100 − 600 = 0.
+    const dated = await reports.materialsConsumption(undefined, "2026-10-31");
+    expect(dated.total.otherIn).toBe(100);
+    expect(dated.total.bookClosing).toBe(600);
+    expect(dated.total.consumed).toBe(0);
   });
 
   it("does not value a negative batch as negative stock", async () => {
