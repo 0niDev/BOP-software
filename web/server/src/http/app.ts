@@ -1530,7 +1530,8 @@ export function createApp(
 
   /** Materials consumed on the periodic basis: opening + purchases − closing stock. */
   app.get("/api/reports/materials-consumption", requireAuth, async (req, res) => {
-    res.json(await reports.materialsConsumption(dateRangeQuery(req).from));
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.materialsConsumption(from, to));
   });
 
   /** All five page reports from one trial-balance read (the page's load path). */

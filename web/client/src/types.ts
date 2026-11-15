@@ -583,14 +583,18 @@ export interface MaterialsConsumptionRow {
   opening: number;
   purchases: number;
   otherIn: number;
-  counted: number;
+  /** Null when the report ends in the past: no count exists for that date. */
+  counted: number | null;
   consumed: number;
   bookClosing: number;
-  difference: number;
+  /** Null when the report ends in the past. */
+  difference: number | null;
 }
 
 export interface MaterialsConsumption {
   from: string | null;
+  /** Null means the report runs to today and closes on the count. */
+  to: string | null;
   rows: MaterialsConsumptionRow[];
   total: MaterialsConsumptionRow;
 }

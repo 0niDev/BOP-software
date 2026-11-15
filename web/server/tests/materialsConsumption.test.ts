@@ -166,6 +166,25 @@ describe("ReportService.materialsConsumption", () => {
     expect(row?.consumedValue).toBe(500);
   });
 
+  it("closes on the inventory account when the report ends in the past", async () => {
+    await buy(rawItemId, 10, 50, "2026-10-08");
+    await buy(rawItemId, 4, 50, "2026-10-20");
+
+    const firstHalf = await reports.materialsConsumption("2026-10-01", "2026-10-15");
+    expect(firstHalf.to).toBe("2026-10-15");
+    // The 20 October purchase is outside the period.
+    expect(firstHalf.total.purchases).toBe(500);
+    expect(firstHalf.total.bookClosing).toBe(500);
+    expect(firstHalf.total.consumed).toBe(0);
+    // No count survives in the past, so neither column is claimed.
+    expect(firstHalf.total.counted).toBeNull();
+    expect(firstHalf.total.difference).toBeNull();
+
+    const october = await reports.materialsConsumption("2026-10-01", "2026-10-31");
+    expect(october.total.purchases).toBe(700);
+    expect(october.total.consumed).toBe(0);
+  });
+
   it("leaves it off a dated trial balance, where closing stock cannot be rebuilt", async () => {
     await buy(rawItemId, 10, 50);
 

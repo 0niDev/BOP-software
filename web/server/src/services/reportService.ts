@@ -51,18 +51,20 @@ export interface MaterialsConsumptionRow {
   purchases: number;
   /** Other debits (stock returned from reversed production orders, adjustments), stock corrections excluded. */
   otherIn: number;
-  /** Physical stock value right now — the closing figure. */
-  counted: number;
-  /** opening + purchases + otherIn − counted. */
+  /** Physical stock value right now — the closing figure. Null when the report ends in the past. */
+  counted: number | null;
+  /** opening + purchases + otherIn − closing. */
   consumed: number;
   /** What the inventory account says is left, for comparison with `counted`. */
   bookClosing: number;
-  /** bookClosing − counted: how far the ledger has drifted from the shelf. */
-  difference: number;
+  /** bookClosing − counted: how far the ledger has drifted from the shelf. Null when the report ends in the past. */
+  difference: number | null;
 }
 
 export interface MaterialsConsumptionResult {
   from: string | null;
+  /** Report end. Null means the report runs to today and closes on the count. */
+  to: string | null;
   rows: MaterialsConsumptionRow[];
   total: MaterialsConsumptionRow;
 }
@@ -490,35 +492,43 @@ export class ReportService {
 
   /**
    * Materials consumed on the old software's periodic basis:
-   * `opening + purchases − closing`. Closing is the physical count (live
-   * stock), not the ledger, so the number cannot be fooled by a BOM line that
-   * is missing or a price left at zero. Covers `from` up to now.
+   * `opening + purchases − closing`.
    *
-   * `bookClosing` and `difference` are there to show whether the inventory
-   * account still agrees with the shelf; the consumed figure ignores them.
+   * Without `to` the closing figure is the physical count (today's stock), so a
+   * wrong BOM or an unpriced item cannot move the number — only a wrong count
+   * can. With `to` the closing figure is the inventory account's balance at that
+   * date, because a past count does not exist; the answer is then what the books
+   * say was consumed in the period.
    */
-  async materialsConsumption(from?: string | null): Promise<MaterialsConsumptionResult> {
+  async materialsConsumption(
+    from?: string | null,
+    to?: string | null,
+  ): Promise<MaterialsConsumptionResult> {
     const start = from || "0001-01-01";
+    const end = to || null;
     const ledger = await this.db.all<{
       account_code: string;
       opening: number;
       purchases: number;
       other_in: number;
       correction_in: number;
-      credits: number;
+      closing: number;
     }>(
       `SELECT a.account_code,
               ROUND(SUM(CASE WHEN je.entry_date < ? THEN jel.debit - jel.credit ELSE 0 END), 2) opening,
-              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type = 'PURCHASE' THEN jel.debit ELSE 0 END), 2) purchases,
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND (? IS NULL OR je.entry_date <= ?)
+                              AND je.voucher_type = 'PURCHASE' THEN jel.debit ELSE 0 END), 2) purchases,
               -- A stock correction restates the account to the count; counting it
               -- as stock coming in would inflate consumption by its own amount.
-              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE'
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND (? IS NULL OR je.entry_date <= ?)
+                              AND je.voucher_type <> 'PURCHASE'
                               AND COALESCE(je.reference_no, '') NOT LIKE '%-STOCK-CORR'
                         THEN jel.debit ELSE 0 END), 2) other_in,
               ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE'
                               AND COALESCE(je.reference_no, '') LIKE '%-STOCK-CORR'
                         THEN jel.debit ELSE 0 END), 2) correction_in,
-              ROUND(SUM(CASE WHEN je.entry_date >= ? THEN jel.credit ELSE 0 END), 2) credits
+              ROUND(SUM(CASE WHEN (? IS NULL OR je.entry_date <= ?)
+                        THEN jel.debit - jel.credit ELSE 0 END), 2) closing
        FROM journal_entry_lines jel
        JOIN accounts a ON a.id = jel.account_id
        JOIN journal_entries je ON je.id = jel.journal_entry_id
@@ -527,27 +537,35 @@ export class ReportService {
       [
         start,
         start,
+        end,
+        end,
         start,
+        end,
+        end,
         start,
-        start,
+        end,
+        end,
         this.companyId,
         SystemAccountCodes.INVENTORY_RAW_MATERIALS,
         SystemAccountCodes.INVENTORY_PACKING_MATERIALS,
       ],
     );
 
+    // A past count only exists for a report that ends today.
     const counted = new Map<string, number>();
-    for (const row of await this.db.all<{ item_type: string; counted: number }>(
-      `SELECT i.item_type,
-              ROUND(SUM(sb.quantity_in_stock
-                        * COALESCE(NULLIF(sb.purchase_price, 0), i.purchase_price, 0)), 2) counted
-       FROM stock_batches sb
-       JOIN items i ON i.id = sb.item_id
-       WHERE i.company_id = ? AND sb.quantity_in_stock > 0 AND sb.is_active = 1
-         AND i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
-       GROUP BY i.item_type`,
-      [this.companyId],
-    )) {
+    for (const row of end
+      ? []
+      : await this.db.all<{ item_type: string; counted: number }>(
+          `SELECT i.item_type,
+                  ROUND(SUM(sb.quantity_in_stock
+                            * COALESCE(NULLIF(sb.purchase_price, 0), i.purchase_price, 0)), 2) counted
+           FROM stock_batches sb
+           JOIN items i ON i.id = sb.item_id
+           WHERE i.company_id = ? AND sb.quantity_in_stock > 0 AND sb.is_active = 1
+             AND i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
+           GROUP BY i.item_type`,
+          [this.companyId],
+        )) {
       counted.set(row.item_type, Number(row.counted));
     }
 
@@ -560,22 +578,21 @@ export class ReportService {
       const found = ledger.find((row) => row.account_code === code);
       const opening = Number(found?.opening ?? 0);
       const purchases = Number(found?.purchases ?? 0);
-      // Stock corrections are excluded from what counts as material coming in,
-      // but they still move the account: `bookClosing` keeps them so the
-      // difference against the count reads zero once the books are fixed.
-      const allDebits = Number(found?.other_in ?? 0) + Number(found?.correction_in ?? 0);
+      // Stock corrections are excluded from what counts as material coming in;
+      // they still move the account, which is why `bookClosing` is the account
+      // balance rather than the debits re-added.
       const otherIn = toStorage(round2(Number(found?.other_in ?? 0)));
-      const closing = counted.get(itemType) ?? 0;
-      const bookClosing = toStorage(round2(opening + purchases + allDebits - Number(found?.credits ?? 0)));
+      const bookClosing = toStorage(round2(Number(found?.closing ?? 0)));
+      const closing = end ? bookClosing : counted.get(itemType) ?? 0;
       return {
         itemType,
         opening,
         purchases,
         otherIn,
-        counted: closing,
+        counted: end ? null : closing,
         consumed: toStorage(round2(opening + purchases + Number(otherIn) - closing)),
         bookClosing,
-        difference: toStorage(round2(bookClosing - closing)),
+        difference: end ? null : toStorage(round2(bookClosing - closing)),
       };
     });
 
@@ -586,13 +603,13 @@ export class ReportService {
       opening: sum((row) => row.opening),
       purchases: sum((row) => row.purchases),
       otherIn: sum((row) => row.otherIn),
-      counted: sum((row) => row.counted),
+      counted: end ? null : sum((row) => row.counted ?? 0),
       consumed: sum((row) => row.consumed),
       bookClosing: sum((row) => row.bookClosing),
-      difference: sum((row) => row.difference),
+      difference: end ? null : sum((row) => row.difference ?? 0),
     };
 
-    return { from: from ?? null, rows, total };
+    return { from: from ?? null, to: end, rows, total };
   }
 
   /**

@@ -873,9 +873,12 @@ export const api = {
     if (to) params.set("to", to);
     return request<LedgerEntry[]>(`/api/reports/party-ledger?${params.toString()}`);
   },
-  materialsConsumption: (from?: string) => {
-    const suffix = from ? `?from=${encodeURIComponent(from)}` : "";
-    return request<MaterialsConsumption>(`/api/reports/materials-consumption${suffix}`);
+  materialsConsumption: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return request<MaterialsConsumption>(`/api/reports/materials-consumption${suffix ? `?${suffix}` : ""}`);
   },
   cashBook: (from?: string, to?: string) => {
     const params = new URLSearchParams();
