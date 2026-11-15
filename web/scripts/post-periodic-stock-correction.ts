@@ -7,6 +7,12 @@
 //   npx tsx scripts/post-periodic-stock-correction.ts --db fixed         # dry run, other database
 //   npx tsx scripts/post-periodic-stock-correction.ts --db fixed --apply # post both entries
 //   ... --date 2026-10-31
+//   npx tsx scripts/post-periodic-stock-correction.ts --local --apply    # ERP_LOCAL_DB from .env
+//   ... --local data/erp.sqlite --apply                                  # a specific local file
+//
+// In local-primary mode (`ERP_DB_ENGINE=local`) the cloud copy is a replica the
+// running service overwrites, so the entry has to go into the local file: stop
+// the service, post with `--local`, start it again.
 //
 // Two entries:
 //   1. Dr 1210 Packing / Cr 3100 Retained Earnings  — opening stock that was
@@ -33,6 +39,19 @@ const dateArg = args.indexOf("--date");
 const entryDate = dateArg >= 0 ? args[dateArg + 1] : "2026-10-31";
 const dbArg = args.indexOf("--db");
 
+/**
+ * Post into the app's own local SQLite file, where the running service reads
+ * from. The service must be stopped: it holds the file open and pushes its copy
+ * over the cloud on start.
+ */
+const localArg = args.indexOf("--local");
+const useLocal = localArg >= 0;
+if (useLocal) {
+  process.env.ERP_DB_ENGINE = "local";
+  const target = args[localArg + 1];
+  if (target && !target.startsWith("--")) process.env.ERP_LOCAL_DB = target;
+}
+
 /** Point the server's config at another database on the same SQLite Cloud instance. */
 function retargetDatabase(name: string): void {
   const envFile = path.resolve(import.meta.dirname, "..", ".env");
@@ -56,10 +75,17 @@ const UNIT_COST = `COALESCE(NULLIF(sb.purchase_price,0), i.purchase_price, 0)`;
 async function main(): Promise<void> {
   // Imported late so a --db override lands before env.ts reads process.env.
   const { getDb } = await import("../server/src/db/index.js");
+  const { env } = await import("../server/src/env.js");
   const { AccountingService } = await import("../server/src/services/accountingService.js");
 
   const db = getDb();
-  console.log(`Database: ${(process.env.SQLITE_CLOUD_URL ?? "").replace(/apikey=[^&]+/, "apikey=***")}`);
+  console.log(
+    `Database: ${
+      useLocal
+        ? `${env.localDbPath} (local — the service must be stopped)`
+        : (process.env.SQLITE_CLOUD_URL ?? "").replace(/apikey=[^&]+/, "apikey=***")
+    }`,
+  );
 
   const balances = new Map<string, number>();
   for (const row of await db.all<{ account_code: string; net: number }>(
@@ -122,11 +148,11 @@ async function main(): Promise<void> {
   console.log(`  opening entry total: ${openingTotal.toFixed(2)}`);
   console.log(`  COGS adjustment    : ${adjustTotal.toFixed(2)}`);
 
-  if (openingTotal <= 0 && adjustTotal <= 0) {
+  if (openingTotal <= 0 && !plan.some((p) => Math.abs(p.delta) >= 0.01)) {
     console.log("Nothing to post.");
     return;
   }
-  if (adjustTotal > MAX_ADJUSTMENT && !force) {
+  if (Math.abs(adjustTotal) > MAX_ADJUSTMENT && !force) {
     throw new Error(
       `Adjustment ${adjustTotal.toFixed(2)} exceeds the ${MAX_ADJUSTMENT} cap — check the stock count before posting (use --force to override).`,
     );
@@ -170,19 +196,34 @@ async function main(): Promise<void> {
     });
   }
 
-  if (adjustTotal > 0 && !posted.has(ADJUST_REF)) {
+  // A negative account delta means the books are *under* the count, so that leg
+  // is a debit. Building the COGS leg from the signed total keeps the entry
+  // balanced whichever way each account is off.
+  if (plan.some((p) => Math.abs(p.delta) >= 0.01) && !posted.has(ADJUST_REF)) {
+    const lines: JournalLineInput[] = [];
+    if (Math.abs(adjustTotal) >= 0.01) {
+      lines.push(
+        adjustTotal > 0
+          ? { accountId: account("5000"), debit: adjustTotal, description: "Materials consumed" }
+          : {
+              accountId: account("5000"),
+              credit: -adjustTotal,
+              description: "Materials consumption reversed — stock over the books",
+            },
+      );
+    }
+    for (const p of plan) {
+      if (Math.abs(p.delta) < 0.01) continue;
+      lines.push({
+        accountId: account(p.code),
+        ...(p.delta > 0 ? { credit: p.delta } : { debit: -p.delta }),
+        description: `Consumed ${p.type.toLowerCase().replace("_", " ")}`,
+      });
+    }
     jobs.push({
       ref: ADJUST_REF,
       narration: "Raw and packing materials consumed — opening + purchases less closing stock",
-      lines: [{ accountId: account("5000"), debit: adjustTotal, description: "Materials consumed" }].concat(
-        plan
-          .filter((p) => p.delta > 0)
-          .map((p) => ({
-            accountId: account(p.code),
-            credit: p.delta,
-            description: `Consumed ${p.type.toLowerCase().replace("_", " ")}`,
-          })),
-      ),
+      lines,
     });
   }
 
@@ -191,6 +232,18 @@ async function main(): Promise<void> {
     return;
   }
   for (const job of jobs) console.log(`  will post ${job.ref} for ${(job.ref === OPENING_REF ? openingTotal : adjustTotal).toFixed(2)}`);
+
+  // Cheap guard before the write: a wrong leg is easier to read here than to
+  // unwind from the ledger later.
+  for (const job of jobs) {
+    const debit = job.lines.reduce((sum, line) => sum + (line.debit ?? 0), 0);
+    const credit = job.lines.reduce((sum, line) => sum + (line.credit ?? 0), 0);
+    if (Math.abs(debit - credit) >= 0.01) {
+      throw new Error(
+        `${job.ref} is unbalanced: debit ${debit.toFixed(2)} vs credit ${credit.toFixed(2)}.`,
+      );
+    }
+  }
 
   if (!apply) {
     console.log("Dry run — nothing written. Re-run with --apply to post.");
