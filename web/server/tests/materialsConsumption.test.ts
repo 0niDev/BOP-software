@@ -152,6 +152,20 @@ describe("ReportService.materialsConsumption", () => {
     expect(after.total.difference).toBe(before.total.difference + 100);
   });
 
+  it("does not value a negative batch as negative stock", async () => {
+    await buy(rawItemId, 10, 50);
+    // Consumption drove the only batch below zero: there is no stock, not
+    // minus 200 worth of it.
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = -4 WHERE batch_number = ?", [
+      "T-" + rawItemId + "-2026-10-08",
+    ]);
+
+    const tb = await reports.trialBalance();
+    const row = tb.rows.find((candidate) => candidate.accountCode === "1200");
+    expect((row?.tagBreakdown ?? []).reduce((total, tag) => total + tag.value, 0)).toBe(0);
+    expect(row?.consumedValue).toBe(500);
+  });
+
   it("leaves it off a dated trial balance, where closing stock cannot be rebuilt", async () => {
     await buy(rawItemId, 10, 50);
 

@@ -372,6 +372,7 @@ export class ReportService {
            LEFT JOIN item_tag_links l ON l.item_id = i.id
            LEFT JOIN item_tags t ON t.id = l.tag_id
           WHERE sb.is_active = 1 AND i.is_active = 1 AND i.company_id = ?
+            AND sb.quantity_in_stock > 0
           GROUP BY i.item_type, t.id`,
         [this.companyId],
       );
@@ -396,7 +397,7 @@ export class ReportService {
                                             FROM stock_movements m
                                            WHERE m.batch_id = sb.id
                                              AND date(m.movement_date) <= date(?)), 0))
-                  WHEN date(sb.received_date) <= date(?) THEN sb.quantity_in_stock
+                  WHEN date(sb.received_date) <= date(?) THEN MAX(0, sb.quantity_in_stock)
                   ELSE 0
                 END AS quantity,
                 CASE WHEN (sb.raw_unit_cost + sb.packing_unit_cost) > 0
