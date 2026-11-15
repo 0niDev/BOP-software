@@ -508,7 +508,14 @@ export class ReportService {
       `SELECT a.account_code,
               ROUND(SUM(CASE WHEN je.entry_date < ? THEN jel.debit - jel.credit ELSE 0 END), 2) opening,
               ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type = 'PURCHASE' THEN jel.debit ELSE 0 END), 2) purchases,
-              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE' THEN jel.debit ELSE 0 END), 2) other_in,
+              -- A stock correction restates the account to the count; counting it
+              -- as stock coming in would inflate consumption by its own amount.
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE'
+                              AND COALESCE(je.reference_no, '') NOT LIKE '%-STOCK-CORR'
+                        THEN jel.debit ELSE 0 END), 2) other_in,
+              ROUND(SUM(CASE WHEN je.entry_date >= ? AND je.voucher_type <> 'PURCHASE'
+                              AND COALESCE(je.reference_no, '') LIKE '%-STOCK-CORR'
+                        THEN jel.debit ELSE 0 END), 2) correction_in,
               ROUND(SUM(CASE WHEN je.entry_date >= ? THEN jel.credit ELSE 0 END), 2) credits
        FROM journal_entry_lines jel
        JOIN accounts a ON a.id = jel.account_id
