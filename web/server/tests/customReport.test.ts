@@ -61,7 +61,7 @@ describe("CustomReportService", () => {
       "Salaries & Wages",
       "Repair & Maintenance",
       "Insurance",
-      "Cost of Sales",
+      "Cost of Revenue",
       "Gross Profit/(Loss)",
       "Salaries & Wages",
       "Fees",
@@ -76,17 +76,18 @@ describe("CustomReportService", () => {
       "Administrative Expenses",
       "Selling & Distribution",
       "Promotional & Public Relations",
+      "Selling & Distribution Expenses",
       "Operating Expenses",
       "Operating Profit/(Loss)",
       "Other Income",
       "Financial Expenses",
       "Bank Charges",
       "Interest",
-      "Financial Charges",
+      "Finance Cost",
       "Others",
-      "Profit/(Loss) Before Taxation",
-      "Taxation (Current)",
-      "Profit/(Loss) After Taxation",
+      "Profit Before Taxation",
+      "Income Tax",
+      "Net Profit After Tax",
       "Prior Year Adjustment",
       "Acc. Profit/(Loss) B/F (y/opening)",
       "Profit/(Loss) C/F to B/Sheet",
@@ -244,7 +245,7 @@ describe("CustomReportService", () => {
     });
 
     const upgraded = await custom.getTemplate("PL");
-    expect(upgraded).toHaveLength(44);
+    expect(upgraded).toHaveLength(45);
     expect(upgraded.find((heading) => heading.id === "cost-of-sales")).toMatchObject({
       name: "Cost Total",
       note: "21",
@@ -648,7 +649,7 @@ describe("custom report routes", () => {
     const initialBody = (await initial.json()) as {
       headings: Array<{ id: string; excludedAccountIds?: number[] }>;
     };
-    expect(initialBody.headings).toHaveLength(44);
+    expect(initialBody.headings).toHaveLength(45);
 
     const roundTrip = await fetch(`${baseUrl}/api/reports/custom/pl`, {
       method: "PUT",
@@ -659,7 +660,7 @@ describe("custom report routes", () => {
     const roundTripBody = (await roundTrip.json()) as {
       headings: Array<{ id: string; note?: string; excludedAccountIds?: number[] }>;
     };
-    expect(roundTripBody.headings).toHaveLength(44);
+    expect(roundTripBody.headings).toHaveLength(45);
     expect(
       roundTripBody.headings.find((heading) => heading.id === "packing-material")
         ?.excludedAccountIds?.length,

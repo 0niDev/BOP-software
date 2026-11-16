@@ -293,7 +293,7 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
   return [
     { ...account("sales-net", "Sales - Net", "20"), bold: true },
     ...costCategories,
-    subtotal("cost-of-sales", "Cost of Sales", costParts, "21"),
+    subtotal("cost-of-sales", "Cost of Revenue", costParts, "21"),
     subtotal("gross-profit", "Gross Profit/(Loss)", [
       ["sales-net", 1],
       ["cost-of-sales", -1],
@@ -302,25 +302,27 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
     subtotal("administrative-expenses", "Administrative Expenses", adminParts, "22"),
     account("selling-distribution", "Selling & Distribution", "23", ["6100", "5206"]),
     account("promotional-public-relations", "Promotional & Public Relations", "23", ["520910"]),
-    subtotal("operating-expenses", "Operating Expenses", [
-      ["administrative-expenses", 1],
+    subtotal("selling-distribution-expenses", "Selling & Distribution Expenses", [
       ["selling-distribution", 1],
       ["promotional-public-relations", 1],
+    ]),
+    subtotal("operating-expenses", "Operating Expenses", [
+      ["administrative-expenses", 1],
+      ["selling-distribution-expenses", 1],
     ]),
     subtotal("operating-profit", "Operating Profit/(Loss)", [
       ["sales-net", 1],
       ["cost-of-sales", -1],
       ["administrative-expenses", -1],
-      ["selling-distribution", -1],
-      ["promotional-public-relations", -1],
+      ["selling-distribution-expenses", -1],
     ]),
     account("other-income", "Other Income", "24"),
     ...financeCategories,
-    subtotal("financial-charges", "Financial Charges", financeParts, "25"),
+    subtotal("financial-charges", "Finance Cost", financeParts, "25"),
     account("others", "Others", "26"),
-    subtotal("profit-before-tax", "Profit/(Loss) Before Taxation", profitParts),
-    account("taxation-current", "Taxation (Current)", "27", ["53"]),
-    subtotal("profit-after-tax", "Profit/(Loss) After Taxation", [
+    subtotal("profit-before-tax", "Profit Before Taxation", profitParts),
+    account("taxation-current", "Income Tax", "27", ["53"]),
+    subtotal("profit-after-tax", "Net Profit After Tax", [
       ...profitParts,
       ["taxation-current", -1],
     ]),
