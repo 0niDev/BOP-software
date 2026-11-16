@@ -301,7 +301,7 @@ Producing consumes raw stock FIFO, creates the unpacked batch and posts
 packing materials, creates the finished-goods batch and posts
 `Dr Finished Goods / Cr Finished Goods (unpacked) / Cr Packing Materials`.
 Insufficient stock is allowed to drive a component batch negative (opening stock
-added later reconciles it); `ignoreStock: true` skips the check and deduction.
+added later reconciles it); the `ignoreStock` flag is accepted but no longer has any effect.
 
 ## Expenses
 

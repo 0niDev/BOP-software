@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConflictError, InsufficientStockError } from "../src/domain/errors.js";
+import { ConflictError } from "../src/domain/errors.js";
 import { insertRow } from "../src/repositories/base.js";
 import { AccountingService } from "../src/services/accountingService.js";
 import { ReportService } from "../src/services/reportService.js";
@@ -155,19 +155,27 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     expect(lines.find((l) => l.account_code === "2100")?.credit).toBe(17);
   });
 
-  it("refuses to sell more than is in stock", async () => {
-    await expect(
-      sales.createSalesInvoice({
-        customerId: ctx.ids.customerId,
-        invoiceDate: "2026-10-08",
-        paymentType: "CASH",
-        items: [{ itemId: ctx.ids.itemId, quantity: 10_000, unitPrice: 150 }],
-      }),
-    ).rejects.toBeInstanceOf(InsufficientStockError);
-    expect(await stockFor(ctx.ids.itemId)).toBe(1000); // unchanged (rolled back)
+  it("drives stock negative when selling more than in stock", async () => {
+    const result = await sales.createSalesInvoice({
+      customerId: ctx.ids.customerId,
+      invoiceDate: "2026-10-08",
+      paymentType: "CASH",
+      items: [{ itemId: ctx.ids.itemId, quantity: 10_000, unitPrice: 150 }],
+    });
+    expect(result.totalAmount).toBe(1_500_000);
+    // Started at 1000, sold 10000: drives negative to -9000.
+    expect(await stockFor(ctx.ids.itemId)).toBe(-9000);
+
+    const je = await accounting.getJournalEntry("sales_invoices", result.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
+      lines.reduce((a, l) => a + l.credit, 0),
+    );
+    // COGS posted: the material left the warehouse, so the ledger says so.
+    expect(lines.find((l) => l.account_code === "5000")).toBeDefined();
   });
 
-  it("can ignore stock when it has not been entered yet", async () => {
+  it("deducts stock even when ignoreStock is set", async () => {
     const result = await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,
       invoiceDate: "2026-10-08",
@@ -177,21 +185,23 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     });
 
     expect(result.totalAmount).toBe(1_500_000);
-    expect(await stockFor(ctx.ids.itemId)).toBe(1000); // untouched
+    // ignoreStock is now a no-op: stock is always deducted, driving negative.
+    expect(await stockFor(ctx.ids.itemId)).toBe(-9000);
 
     const je = await accounting.getJournalEntry("sales_invoices", result.id);
     const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
     expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
       lines.reduce((a, l) => a + l.credit, 0),
     );
-    expect(lines.find((l) => l.account_code === "5000")).toBeUndefined();
-    expect(lines.find((l) => l.account_code === "1220")).toBeUndefined();
+    // COGS posted: the material left the warehouse.
+    expect(lines.find((l) => l.account_code === "5000")).toBeDefined();
+    expect(lines.find((l) => l.account_code === "1220")).toBeDefined();
 
     const line = await ctx.db.get<{ batch_id: number | null }>(
       "SELECT batch_id FROM sales_invoice_items WHERE invoice_id = ?",
       [result.id],
     );
-    expect(line?.batch_id).toBeNull();
+    expect(line?.batch_id).not.toBeNull();
   });
 
   it("rejects a duplicate explicit invoice number", async () => {
@@ -284,7 +294,7 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
     expect(await stockFor(ctx.ids.itemId)).toBe(995);
   });
 
-  it("keeps an ignore-stock invoice out of stock when it is edited", async () => {
+  it("deducts stock on edit even when ignoreStock is set", async () => {
     const created = await sales.createSalesInvoice({
       customerId: ctx.ids.customerId,
       invoiceDate: "2026-10-08",
@@ -292,7 +302,8 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
       ignoreStock: true,
       items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
     });
-    expect((await sales.getById(created.id)).stockApplied).toBe(false);
+    // Stock always deducted: 1000 - 5 = 995.
+    expect(await stockFor(ctx.ids.itemId)).toBe(995);
 
     await sales.updateSalesInvoice(created.id, {
       customerId: ctx.ids.customerId,
@@ -302,7 +313,8 @@ describe("SalesInvoiceService.createSalesInvoice", () => {
       notes: "note only",
       items: [{ itemId: ctx.ids.itemId, quantity: 5, unitPrice: 150 }],
     });
-    expect(await stockFor(ctx.ids.itemId)).toBe(1000);
+    // Edit reverses the old deduction and re-applies: stock unchanged at 995.
+    expect(await stockFor(ctx.ids.itemId)).toBe(995);
   });
 
   it("cancels an invoice: restores stock and removes its journal entry", async () => {

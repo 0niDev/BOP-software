@@ -9,12 +9,7 @@
  */
 import type { SqlDatabase } from "../db/types.js";
 import { PAYMENT_METHODS, SystemAccountCodes, type ItemType, type PaymentMethod } from "../domain/enums.js";
-import {
-  ConflictError,
-  InsufficientStockError,
-  NotFoundError,
-  ValidationError,
-} from "../domain/errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { Decimal, dec, round2, toQuantity, toStorage, type MoneyLike } from "../domain/money.js";
 import { insertRow } from "../repositories/base.js";
 import { ItemRepository, type ItemRow } from "../repositories/itemRepository.js";
@@ -49,8 +44,8 @@ export interface CreateSalesInvoiceInput {
   createdBy?: number | null;
   companyId?: number;
   /**
-   * Skip stock validation and deduction. Used when invoices are entered before
-   * opening stock exists: the invoice posts with no COGS or stock movement.
+   * Accepted for backward compatibility; stock always deducts (driving the batch
+   * negative when insufficient), matching manufacturing.
    */
   ignoreStock?: boolean;
 }
@@ -484,27 +479,21 @@ export class SalesInvoiceService {
     const inventoryCredits = new Map<number, Decimal>();
 
     for (const line of ctx.prepared) {
-      let shares: Array<{ batchId: number | null; quantity: Decimal; cost: Decimal }>;
-      if (input.ignoreStock) {
-        // No stock entered yet: record the line alone, no batches or COGS.
-        shares = [{ batchId: null, quantity: line.quantity, cost: new Decimal(0) }];
-      } else {
-        // A line can span several FIFO batches; record every batch share so a
-        // later return restores the right batch and COGS nets to zero.
-        const consumed = await this.consumeStock(line.item, warehouseId, line.quantity);
-        shares = consumed.shares;
-        cogsTotal = cogsTotal.plus(consumed.cost);
-        cogsByType.set(
-          line.item.item_type,
-          (cogsByType.get(line.item.item_type) ?? new Decimal(0)).plus(consumed.cost),
-        );
-        const inventoryCode = INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type];
-        const inventoryId = await resolver.idFor(inventoryCode);
-        inventoryCredits.set(
-          inventoryId,
-          (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(consumed.cost),
-        );
-      }
+      // A line can span several FIFO batches; record every batch share so a
+      // later return restores the right batch and COGS nets to zero.
+      const consumed = await this.consumeStock(line.item, warehouseId, line.quantity);
+      const shares = consumed.shares;
+      cogsTotal = cogsTotal.plus(consumed.cost);
+      cogsByType.set(
+        line.item.item_type,
+        (cogsByType.get(line.item.item_type) ?? new Decimal(0)).plus(consumed.cost),
+      );
+      const inventoryCode = INVENTORY_ACCOUNT_BY_TYPE[line.item.item_type];
+      const inventoryId = await resolver.idFor(inventoryCode);
+      inventoryCredits.set(
+        inventoryId,
+        (inventoryCredits.get(inventoryId) ?? new Decimal(0)).plus(consumed.cost),
+      );
 
       // Values on the row are that share's slice of the line, not the whole
       // line repeated: summing the rows must reproduce the invoice total.
@@ -543,9 +532,7 @@ export class SalesInvoiceService {
       }
     }
 
-    if (!input.ignoreStock) {
-      await this.appendCogsLines(journalLines, resolver, cogsTotal, cogsByType, inventoryCredits);
-    }
+    await this.appendCogsLines(journalLines, resolver, cogsTotal, cogsByType, inventoryCredits);
 
     const journalEntryId = await this.accounting.postJournalEntry({
       voucherType: "SALES",
@@ -628,6 +615,9 @@ export class SalesInvoiceService {
    * every batch share consumed and the exact cost consumed. A line that spans
    * several batches is split across them so a later return restores the right
    * batch and COGS nets to zero.
+   *
+   * Drives stock negative when insufficient: the goods left the warehouse,
+   * so the ledger has to say so (matching manufacturing).
    */
   private async consumeStock(
     item: ItemRow,
@@ -635,24 +625,23 @@ export class SalesInvoiceService {
     needed: Decimal,
   ): Promise<{ shares: StockConsumption[]; cost: Decimal }> {
     const batches = await this.batches.listAvailableFifo(item.id, warehouseId);
+
+    // No batch at all: create/reuse a negative-capable batch and drive it negative.
     if (batches.length === 0) {
-      throw new ValidationError(
-        `No stock batch found for item '${item.item_name}' in warehouse ${warehouseId}.`,
-      );
-    }
-    const available = batches.reduce((acc, b) => acc.plus(dec(b.quantity_in_stock)), new Decimal(0));
-    if (available.lessThan(needed)) {
-      throw new InsufficientStockError(
-        `Insufficient stock for '${item.item_name}': need ${needed.toString()}, available ${available.toString()}.`,
-      );
+      const batch = await this.negativeBatch(item, warehouseId);
+      const cost = round2(needed.times(dec(item.purchase_price)));
+      await this.batches.adjustQuantity(batch.id, -toQuantity(needed));
+      return { shares: [{ batchId: batch.id, quantity: needed, cost }], cost };
     }
 
     const shares: StockConsumption[] = [];
     let remaining = needed;
     let cost = new Decimal(0);
-    for (const batch of batches) {
+    for (let i = 0; i < batches.length; i++) {
       if (remaining.lessThanOrEqualTo(0)) break;
-      const take = Decimal.min(dec(batch.quantity_in_stock), remaining);
+      const batch = batches[i]!;
+      const isLast = i === batches.length - 1;
+      const take = isLast ? remaining : Decimal.min(dec(batch.quantity_in_stock), remaining);
       await this.batches.adjustQuantity(batch.id, -toQuantity(take));
       const shareCost = round2(take.times(this.unitCost(item, batch)));
       cost = cost.plus(shareCost);
@@ -660,6 +649,21 @@ export class SalesInvoiceService {
       shares.push({ batchId: batch.id, quantity: take, cost: shareCost });
     }
     return { shares, cost: round2(cost) };
+  }
+
+  /** Reuse an existing batch or create a NEG- placeholder so consumption can drive negative. */
+  private async negativeBatch(item: ItemRow, warehouseId: number): Promise<StockBatchRow> {
+    const any = await this.batches.findByItemAndWarehouseAny(item.id, warehouseId);
+    if (any) return any;
+    const id = await this.batches.insert({
+      item_id: item.id,
+      warehouse_id: warehouseId,
+      batch_number: `NEG-${item.id}-${Date.now().toString()}`,
+      purchase_price: toStorage(item.purchase_price),
+      quantity_in_stock: 0,
+      is_active: 1,
+    });
+    return (await this.batches.findById(id))!;
   }
 
   /** Best available unit cost for a batch, falling back to the item price. */
@@ -678,7 +682,7 @@ export class SalesInvoiceService {
     inventoryCredits: Map<number, Decimal>,
   ): Promise<void> {
     if (cogsTotal.lessThanOrEqualTo(0)) {
-      throw new ValidationError("Sales invoice produced zero COGS. Check that stock batches have valid costs.");
+      return;
     }
     for (const [itemType, amount] of cogsByType) {
       if (amount.lessThanOrEqualTo(0)) continue;
