@@ -192,10 +192,12 @@ describe("ReportService.materialsConsumption", () => {
     expect(october.total.consumed).toBe(0);
   });
 
-  it("leaves it off a dated trial balance, where closing stock cannot be rebuilt", async () => {
+  it("shows the periodic figure on a dated trial balance too", async () => {
     await buy(rawItemId, 10, 50);
 
     const tb = await reports.trialBalance({ to: "2026-10-31" });
-    expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBeUndefined();
+    // Nothing left the store yet, so the period consumption is zero — but the
+    // line is present, closing on the ledger balance at the end date.
+    expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBe(0);
   });
 });
