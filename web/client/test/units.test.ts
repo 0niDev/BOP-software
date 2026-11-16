@@ -96,6 +96,36 @@ test("P&L notes group headings by note and break out sub-notes", async () => {
   ]);
 });
 
+test("notes export writes the printed blocks as CSV", async () => {
+  const { notesCsv } = await import("../src/pages/NotesPage");
+  const report: CustomReport = {
+    kind: "PL",
+    headings: [
+      {
+        id: "sales",
+        name: 'Sales "Net"',
+        note: "20",
+        kind: "accounts",
+        value: 1000,
+        accountIds: [1],
+        parts: [],
+        rows: [
+          { accountId: 1, code: "4000", name: 'Sales "Net"', depth: 0, value: 1000, selected: true, isHeader: false },
+        ],
+      },
+    ],
+    unassigned: { value: 0, rows: [] },
+    footer: [],
+    balanced: null,
+  };
+
+  expect(notesCsv(report).split("\n")).toEqual([
+    '"Note No : 20","Sales ""Net""",1000.00',
+    '"","Sales ""Net""",1000.00',
+    '"*** End of Report ***",,',
+  ]);
+});
+
 test("dates always display day/month/year", () => {
   expect(formatDate("2026-10-25")).toBe("25/10/2026");
   expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");

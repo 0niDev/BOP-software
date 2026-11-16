@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import PLNotes from "../components/PLNotes";
+import PLNotes, { noteBlocks } from "../components/PLNotes";
+import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { CustomReport } from "../types";
+
+/** The printed notes as CSV, matching the on-screen Note | Particulars | Amount. */
+export function notesCsv(report: CustomReport): string {
+  const cell = (value: string): string => `"${value.replace(/"/g, '""')}"`;
+  const lines = noteBlocks(report).flatMap((block) => [
+    [
+      cell(block.note ? `Note No : ${block.note}` : ""),
+      cell(block.title),
+      block.total.toFixed(2),
+    ].join(","),
+    ...block.rows.map((row) => [cell(row.note), cell(row.name), row.amount.toFixed(2)].join(",")),
+  ]);
+  lines.push('"*** End of Report ***",,');
+  return lines.join("\n");
+}
 
 /**
  * "Notes" module: the printed Notes to the Accounts for the P&L period. Kept
@@ -35,6 +51,15 @@ export default function NotesPage() {
     void load({ from: "", to: "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageVisible]);
+
+  function exportCsv(): void {
+    if (!report) return;
+    const tag = from || to ? `${from || "start"}_to_${to || "today"}` : "all-posted";
+    saveBlob(
+      new Blob([notesCsv(report)], { type: "text/csv;charset=utf-8" }),
+      `notes_${tag}.csv`,
+    );
+  }
 
   return (
     <>
@@ -71,12 +96,17 @@ export default function NotesPage() {
       {error && <div className="error">{error}</div>}
 
       <div className="card" id="report-notes">
-        <h2>
-          Notes{" "}
-          <span className="badge">
-            {from || to ? "for the period" : "all posted entries"}
-          </span>
-        </h2>
+        <div className="row" style={{ alignItems: "center" }}>
+          <h2 style={{ flex: 1, margin: 0 }}>
+            Notes{" "}
+            <span className="badge">
+              {from || to ? "for the period" : "all posted entries"}
+            </span>
+          </h2>
+          <button onClick={exportCsv} disabled={!report}>
+            Export CSV
+          </button>
+        </div>
         {report ? (
           <PLNotes report={report} />
         ) : (
