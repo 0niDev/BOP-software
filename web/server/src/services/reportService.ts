@@ -164,15 +164,16 @@ export class ReportService {
    */
   async trialBalance(opts: DateRangeOptions = {}): Promise<TrialBalanceResult> {
     const rows = await this.accounting.getTrialBalance(this.companyId, opts);
-    return this.trialBalanceFrom(rows, opts.to || null);
+    return this.trialBalanceFrom(rows, opts.from ?? null, opts.to || null);
   }
 
   /** Trial balance from rows another report call already fetched. */
   async trialBalanceFrom(
     rows: TrialBalanceRow[],
+    from: string | null = null,
     to: string | null = null,
   ): Promise<TrialBalanceResult> {
-    await this.attachInventoryTags(rows, to);
+    await this.attachInventoryTags(rows, from, to);
     const totalDebit = rows.reduce((acc, r) => acc.plus(r.closingDebit), new Decimal(0));
     const totalCredit = rows.reduce((acc, r) => acc.plus(r.closingCredit), new Decimal(0));
     return {
@@ -192,6 +193,7 @@ export class ReportService {
    */
   private async attachInventoryTags(
     rows: TrialBalanceRow[],
+    from: string | null,
     to: string | null,
   ): Promise<void> {
     const inventoryRows = rows.filter((row) => INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode]);
@@ -236,17 +238,14 @@ export class ReportService {
       row.usedValue = await this.issuedToProduction(row.accountId, to);
     }
 
-    // The periodic figure (opening + purchases − stock) beside the posted one:
-    // they are different measures, and the gap between them is material that
-    // left the store without a manufacturing voucher. Today only — closing
-    // stock in the past cannot be rebuilt from the movement table.
-    if (to === null) {
-      const periodic = await this.materialsConsumption(null);
-      for (const row of inventoryRows) {
-        const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
-        if (itemType !== "RAW_MATERIAL" && itemType !== "PACKING_MATERIAL") continue;
-        row.consumedValue = periodic.rows.find((line) => line.itemType === itemType)?.consumed ?? 0;
-      }
+    // The periodic consumption (opening + purchases − closing) beside the posted
+    // one. With a date range the closing is the ledger balance at `to`; without
+    // a range it is today's count.
+    const periodic = await this.materialsConsumption(from, to);
+    for (const row of inventoryRows) {
+      const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
+      if (itemType !== "RAW_MATERIAL" && itemType !== "PACKING_MATERIAL") continue;
+      row.consumedValue = periodic.rows.find((line) => line.itemType === itemType)?.consumed ?? 0;
     }
 
     // What is behind each figure but carries no cost, so it values at zero.

@@ -49,7 +49,7 @@ export async function buildReportsBundle(
     : await accounting.getTrialBalance(companyId, { to: asAt });
 
   return {
-    trialBalance: await reports.trialBalanceFrom(periodRows, to),
+    trialBalance: await reports.trialBalanceFrom(periodRows, from, to),
     profitAndLoss: reports.profitAndLossFrom(periodRows),
     balanceSheet: reports.balanceSheetFrom(sheetRows),
     customPl: await custom.buildFromRows("PL", periodRows),
