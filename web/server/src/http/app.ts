@@ -1673,6 +1673,12 @@ export function createApp(
     res.json({ headings: await customReports.saveTemplate(kind, body) });
   });
 
+  app.get("/api/reports/notes.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.notes({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
   // --- Excel (.xlsx) exports of the same reports --------------------------
   // One workbook per report, plus one workbook holding all four period reports.
   // The bytes come from the same services the on-screen tabs use, so a printed

@@ -22,7 +22,7 @@ import { PartyRepository } from "../repositories/partyRepository.js";
 import type { ItemListRow } from "../repositories/itemRepository.js";
 import { ItemService } from "./itemService.js";
 import { ReportService, type LedgerEntry } from "./reportService.js";
-import { CustomReportService, type CustomReportKind } from "./customReportService.js";
+import { CustomReportService, type CustomReportKind, type CustomReportResult } from "./customReportService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
 /** Reports that can be printed as a workbook. */
@@ -145,6 +145,136 @@ function heading(reportTitle: string, period: string): SheetData {
     [text(generatedAt(), MUTED)],
     [],
   ];
+}
+
+interface NotesBlock {
+  note: string;
+  title: string;
+  total: number;
+  rows: Array<{ note: string; name: string; amount: number; depth: number }>;
+}
+
+/** Subtree total of each header row, matching the Notes screen. */
+function headerTotals(rows: CustomReportResult["headings"][number]["rows"]): Map<number, number> {
+  const totals = new Map<number, number>();
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (!row || !row.isHeader) continue;
+    let sum = row.value;
+    for (let j = i + 1; j < rows.length; j += 1) {
+      const child = rows[j];
+      if (!child || child.depth <= row.depth) break;
+      sum += child.value;
+    }
+    totals.set(row.accountId, sum);
+  }
+  return totals;
+}
+
+/** Group the custom P&L headings into printed notes, matching the Notes screen. */
+function noteBlocks(report: CustomReportResult): NotesBlock[] {
+  const groups = new Map<string, CustomReportResult["headings"]>();
+  for (const heading of report.headings) {
+    const note = heading.note?.trim() ?? "";
+    if (!note && heading.kind === "subtotal") continue;
+    const key = note || `#${heading.id}`;
+    const list = groups.get(key);
+    if (list) list.push(heading);
+    else groups.set(key, [heading]);
+  }
+
+  const blocks: NotesBlock[] = [];
+  for (const group of groups.values()) {
+    const note = group[0]?.note?.trim() ?? "";
+    const subtotal = group.find((heading) => heading.kind === "subtotal");
+    const accounts = group.filter((heading) => heading.kind === "accounts");
+    const title = subtotal?.name ?? accounts[0]?.name ?? "";
+    const total = subtotal
+      ? subtotal.value
+      : accounts.reduce((sum, heading) => sum + heading.value, 0);
+
+    if (!note) {
+      const rows = accounts.flatMap((heading) =>
+        heading.rows.map((row) => ({
+          note: "",
+          name: row.name,
+          amount: row.value,
+          depth: row.depth,
+        })),
+      );
+      blocks.push({ note, title, total, rows });
+      continue;
+    }
+
+    const sections = accounts.flatMap((heading) => {
+      const totals = headerTotals(heading.rows);
+      return heading.rows.flatMap((row, index) =>
+        row.depth === 0 && row.isHeader
+          ? [{ row, index, total: totals.get(row.accountId) ?? 0, rows: heading.rows }]
+          : [],
+      );
+    });
+    const refs = new Map(
+      sections.map((section, index) => [
+        section.row,
+        `${note}.${String(index + 1).padStart(2, "0")}`,
+      ]),
+    );
+    const totals = new Map(sections.map((section) => [section.row, section.total]));
+
+    const rows: NotesBlock["rows"] = [];
+    for (const heading of accounts) {
+      for (const row of heading.rows.filter((candidate) => candidate.depth === 0)) {
+        rows.push({
+          note: refs.get(row) ?? "",
+          name: row.name,
+          amount: totals.get(row) ?? row.value,
+          depth: 0,
+        });
+      }
+    }
+    for (const section of sections) {
+      rows.push({
+        note: refs.get(section.row) ?? "",
+        name: section.row.name,
+        amount: section.total,
+        depth: 0,
+      });
+      for (let i = section.index + 1; i < section.rows.length; i += 1) {
+        const child = section.rows[i]!;
+        if (child.depth <= section.row.depth) break;
+        rows.push({
+          note: "",
+          name: child.name,
+          amount: child.value,
+          depth: child.depth - section.row.depth,
+        });
+      }
+    }
+    blocks.push({ note, title, total, rows });
+  }
+  return blocks;
+}
+
+/** The printed notes as sheet rows: Note | Particulars | Amount. */
+function noteSheetRows(report: CustomReportResult): SheetData {
+  const rows: Cell[][] = [];
+  for (const block of noteBlocks(report)) {
+    rows.push([
+      text(block.note ? `Note No : ${block.note}` : "", TOTAL),
+      text(block.title, TOTAL),
+      money(block.total, TOTAL),
+    ]);
+    for (const row of block.rows) {
+      rows.push([
+        text(row.note),
+        text(row.name, { indent: (row.depth + 1) * 2 }),
+        money(row.amount),
+      ]);
+    }
+  }
+  rows.push([text("*** End of Report ***", TOTAL), null, null]);
+  return rows;
 }
 
 const LEDGER_HEADER = [
@@ -384,6 +514,27 @@ export class ReportXlsx {
           data,
           sheet: title,
           columns: [{ width: 46 }, { width: 12 }, { width: 16 }, { width: 8 }],
+          stickyRowsCount: 6,
+        },
+      ]),
+    };
+  }
+
+  /** The printed Notes to the Accounts for the P&L period. */
+  async notes(options: { from?: string; to?: string } = {}): Promise<XlsxFile> {
+    const report = await this.customReports.build("PL", options);
+    const data: SheetData = [
+      ...heading("Notes to the Accounts", periodLabel(options.from, options.to)),
+      [text("Note", HEADER), text("Particulars", HEADER), text("Amount", HEADER)],
+      ...noteSheetRows(report),
+    ];
+    return {
+      fileName: `notes_${periodSlug(options.from, options.to)}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "Notes",
+          columns: [{ width: 12 }, { width: 52 }, { width: 16 }],
           stickyRowsCount: 6,
         },
       ]),

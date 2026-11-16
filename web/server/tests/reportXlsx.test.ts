@@ -201,6 +201,18 @@ describe("xlsx report exports", () => {
     expect(text).toContain("29");
   });
 
+  it("prints the Notes to the Accounts", async () => {
+    const files = open((await xlsx.notes({})).buffer);
+    const text = strings(files);
+
+    expect(sheetNames(files)).toEqual(["Notes"]);
+    expect(text).toContain("Note No : 20");
+    expect(text).toContain("Sales - Net");
+    expect(text).toContain("Note No : 21");
+    expect(text).toContain("Cost of Revenue");
+    expect(text).toContain("*** End of Report ***");
+  });
+
   it("renders a party ledger with its running balances and the party on the file name", async () => {
     const file = await xlsx.partyLedger({
       kind: "party-ledger",
