@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Factory,
   FileBarChart,
+  FileText,
   History,
   Landmark,
   LayoutDashboard,
@@ -108,6 +109,7 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
           { id: "report-export", label: "Export Reports" },
         ],
       },
+      { id: "notes", label: "Notes", icon: FileText },
     ],
   },
   {

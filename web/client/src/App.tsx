@@ -14,6 +14,7 @@ import JournalVouchersPage from "./pages/JournalVouchersPage";
 import LoginPage from "./pages/LoginPage";
 import ManufacturingPage from "./pages/ManufacturingPage";
 import MaterialsConsumptionPage from "./pages/MaterialsConsumptionPage";
+import NotesPage from "./pages/NotesPage";
 import PartiesPage from "./pages/PartiesPage";
 import PaymentsPage from "./pages/PaymentsPage";
 import PurchaseInvoicesPage from "./pages/PurchaseInvoicesPage";
@@ -66,6 +67,7 @@ export type Page =
   | "assets"
   | "accounts"
   | "journal"
+  | "notes"
   | ReportPage
   | "users"
   | "settings"
@@ -183,6 +185,7 @@ function renderPage(target: Page, onNavigate: (page: Page) => void) {
     case "assets": return <AssetsPage />;
     case "accounts": return <AccountsPage />;
     case "journal": return <JournalVouchersPage />;
+    case "notes": return <NotesPage />;
     case "users": return <UsersPage />;
     case "settings": return <SettingsPage />;
     case "deleted": return <DeletedRecordsPage />;

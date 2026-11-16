@@ -17,6 +17,85 @@ test("PL notes subtotal each header to its nested accounts", async () => {
   expect(totals.has(3)).toBe(false);
 });
 
+test("P&L notes group headings by note and break out sub-notes", async () => {
+  const { noteBlocks } = await import("../src/components/PLNotes");
+  const report: CustomReport = {
+    kind: "PL",
+    headings: [
+      {
+        id: "cost-of-sales",
+        name: "Cost of Revenue",
+        note: "21",
+        kind: "subtotal",
+        value: 900,
+        accountIds: [],
+        parts: [],
+        rows: [],
+      },
+      {
+        id: "rm",
+        name: "Raw Materials",
+        note: "21",
+        kind: "accounts",
+        value: 900,
+        accountIds: [1],
+        parts: [],
+        rows: [
+          { accountId: 1, code: "5110", name: "Raw Materials", depth: 0, value: 0, selected: true, isHeader: true },
+          { accountId: 2, code: "5111", name: "Fibre", depth: 1, value: 500, selected: false, isHeader: false },
+          { accountId: 3, code: "5112", name: "Resin", depth: 1, value: 400, selected: false, isHeader: false },
+        ],
+      },
+      {
+        id: "gross-profit",
+        name: "Gross Profit/(Loss)",
+        kind: "subtotal",
+        value: 700,
+        accountIds: [],
+        parts: [],
+        rows: [],
+      },
+      {
+        id: "misc",
+        name: "Other Income",
+        kind: "accounts",
+        value: 50,
+        accountIds: [9],
+        parts: [],
+        rows: [
+          { accountId: 9, code: "4900", name: "Other Income", depth: 0, value: 50, selected: true, isHeader: false },
+        ],
+      },
+    ],
+    unassigned: { value: 0, rows: [] },
+    footer: [],
+    balanced: null,
+  };
+
+  const blocks = noteBlocks(report);
+
+  // The note-less Gross Profit line is a P&L face line, not a note.
+  expect(blocks.map((block) => block.note)).toEqual(["21", ""]);
+
+  const [revenue, other] = blocks;
+  // A noted subtotal supplies the title and total; its accounts are the body.
+  expect(revenue?.title).toBe("Cost of Revenue");
+  expect(revenue?.total).toBe(900);
+  expect(revenue?.rows.map((row) => [row.note, row.name, row.amount, row.depth])).toEqual([
+    ["21.01", "Raw Materials", 900, 0],
+    ["21.01", "Raw Materials", 900, 0],
+    ["", "Fibre", 500, 1],
+    ["", "Resin", 400, 1],
+  ]);
+
+  // A note-less heading still prints, with its whole tree inline.
+  expect(other?.title).toBe("Other Income");
+  expect(other?.total).toBe(50);
+  expect(other?.rows.map((row) => [row.note, row.name, row.amount, row.depth])).toEqual([
+    ["", "Other Income", 50, 0],
+  ]);
+});
+
 test("dates always display day/month/year", () => {
   expect(formatDate("2026-10-25")).toBe("25/10/2026");
   expect(formatDate("2026-10-25T09:05:00Z", true)).toBe("25/10/2026 09:05");
