@@ -10,6 +10,7 @@ import type {
   Bom,
   BomComponent,
   Cheque,
+  ConsumptionLine,
   LedgerEntry,
   MirrorStatus,
   ReplicaStatus,
@@ -746,6 +747,10 @@ export const api = {
   deleteBom: (id: number) =>
     request<{ ok: boolean }>(`/api/boms/${id}`, { method: "DELETE" }),
   productionOrders: () => request<ProductionOrder[]>("/api/production-orders"),
+  productionOrder: (id: number) =>
+    request<{ order: ProductionOrder; consumptions: ConsumptionLine[] }>(
+      `/api/production-orders/${id}`,
+    ),
   createProductionOrder: (body: {
     /** Omit for a manual run, which saves a per-unit BOM from `components`. */
     bomId?: number | null;
@@ -807,6 +812,10 @@ export const api = {
   reopenProduction: (id: number) =>
     request<{ status: string }>(`/api/production-orders/${id}/reopen`, { method: "POST" }),
   packingOrders: () => request<PackingOrder[]>("/api/packing-orders"),
+  packingOrder: (id: number) =>
+    request<{ order: PackingOrder; consumptions: ConsumptionLine[] }>(
+      `/api/packing-orders/${id}`,
+    ),
   createPackingOrder: (body: {
     /** Omit for a manual run, which saves a per-unit BOM from the totals. */
     bomId?: number | null;

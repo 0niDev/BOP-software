@@ -5,7 +5,7 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Bom, BomComponent, Item, PackingOrder, ProductionOrder } from "../types";
+import type { Bom, BomComponent, ConsumptionLine, Item, PackingOrder, ProductionOrder } from "../types";
 import {
   amountToStockUnit,
   defaultPackUnit,
@@ -97,6 +97,15 @@ export default function ManufacturingPage() {
   const [packUnpackedItemId, setPackUnpackedItemId] = useState(0);
   const [packLines, setPackLines] = useState<ComponentDraft[]>([]);
 
+  // Read-only order detail ("View"), never edits or reopens the order.
+  const [orderView, setOrderView] = useState<{
+    kind: "production" | "packing";
+    order: ProductionOrder | PackingOrder;
+    consumptions: ConsumptionLine[];
+    bomComponents: BomComponent[];
+  } | null>(null);
+  const [viewBusy, setViewBusy] = useState(false);
+
   async function refresh() {
     try {
       setBoms(await api.boms(false));
@@ -149,6 +158,8 @@ export default function ManufacturingPage() {
       bom ? itemName(bom.finished_item_id) : "",
     ]);
   });
+
+  const viewedBom = orderView ? boms.find((b) => b.id === orderView.order.bom_id) : undefined;
 
   const optionsFor = (list: Item[]) => [
     { value: "0", label: "Select..." },
@@ -484,6 +495,27 @@ export default function ManufacturingPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to produce order.");
+    }
+  }
+
+  /** Read-only detail: order header, its BOM recipe and what it actually consumed. */
+  async function openOrderView(kind: "production" | "packing", id: number): Promise<void> {
+    setError(null);
+    setViewBusy(true);
+    try {
+      const detail =
+        kind === "production" ? await api.productionOrder(id) : await api.packingOrder(id);
+      const bomComponents = await loadComponents(detail.order.bom_id);
+      setOrderView({
+        kind,
+        order: detail.order,
+        consumptions: detail.consumptions,
+        bomComponents,
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load order details.");
+    } finally {
+      setViewBusy(false);
     }
   }
 
@@ -1199,6 +1231,12 @@ export default function ManufacturingPage() {
                     <td className="num">{order.actual_quantity}</td>
                     <td className="num">{money(order.production_cost)}</td>
                     <td>
+                      <button
+                        onClick={() => void openOrderView("production", order.id)}
+                        disabled={viewBusy}
+                      >
+                        View
+                      </button>{" "}
                       {order.status === "DRAFT" && (
                         <>
                           <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
@@ -1579,6 +1617,12 @@ export default function ManufacturingPage() {
                       </td>
                       <td className="num">{money(order.production_cost)}</td>
                       <td>
+                        <button
+                          onClick={() => void openOrderView("packing", order.id)}
+                          disabled={viewBusy}
+                        >
+                          View
+                        </button>{" "}
                         {order.status === "DRAFT" && (
                           <>
                             <button onClick={() => startEditPackingOrder(order)}>Edit</button>{" "}
@@ -1612,6 +1656,154 @@ export default function ManufacturingPage() {
             </table>
           </div>
         </>
+      )}
+
+      {orderView && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOrderView(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setOrderView(null);
+          }}
+        >
+          <div
+            className="modal modal-wide"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Order details"
+          >
+            <div className="row" style={{ alignItems: "flex-start", marginBottom: 4 }}>
+              <div style={{ flex: 1 }}>
+                <h2 style={{ margin: 0 }}>{orderView.order.order_number}</h2>
+                <p className="sub" style={{ margin: "5px 0 0" }}>
+                  {orderView.kind === "production" ? "Production order" : "Packing order"} ·{" "}
+                  {orderView.order.status}
+                </p>
+              </div>
+              <button type="button" onClick={() => setOrderView(null)}>
+                Close
+              </button>
+            </div>
+
+            <table style={{ marginTop: 12 }}>
+              <tbody>
+                <tr>
+                  <th>Date</th>
+                  <td>{orderView.order.manufacturing_date}</td>
+                </tr>
+                <tr>
+                  <th>Status</th>
+                  <td>{orderView.order.status}</td>
+                </tr>
+                <tr>
+                  <th>Planned</th>
+                  <td>{quantity(orderView.order.planned_quantity)}</td>
+                </tr>
+                <tr>
+                  <th>Actual</th>
+                  <td>{quantity(orderView.order.actual_quantity)}</td>
+                </tr>
+                {"wastage_quantity" in orderView.order && (
+                  <tr>
+                    <th>Wastage</th>
+                    <td>{quantity(orderView.order.wastage_quantity ?? 0)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <th>Production cost</th>
+                  <td>{money(orderView.order.production_cost)}</td>
+                </tr>
+                <tr>
+                  <th>Output batch</th>
+                  <td>{orderView.order.output_batch_number ?? "—"}</td>
+                </tr>
+                <tr>
+                  <th>Expiry</th>
+                  <td>{orderView.order.expiry_date ?? "—"}</td>
+                </tr>
+                <tr>
+                  <th>BOM</th>
+                  <td>{viewedBom?.bom_name ?? orderView.order.bom_id}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style={{ marginBottom: 4 }}>
+              Recipe
+              {viewedBom && (
+                <span className="sub" style={{ fontWeight: 400 }}>
+                  {" "}
+                  — per {quantity(viewedBom.output_quantity)} output
+                </span>
+              )}
+            </h3>
+            <div className="modal-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Component</th>
+                    <th className="num">Qty required</th>
+                    <th className="num">Wastage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderView.bomComponents.map((line) => (
+                    <tr key={line.id}>
+                      <td>{itemName(line.component_item_id)}</td>
+                      <td className="num">
+                        {quantity(line.quantity_required)} {itemUnit(line.component_item_id)}
+                      </td>
+                      <td className="num">{line.wastage_percent}%</td>
+                    </tr>
+                  ))}
+                  {orderView.bomComponents.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="sub">
+                        No recipe lines.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <h3 style={{ marginBottom: 4 }}>Actually consumed</h3>
+            <div className="modal-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Component</th>
+                    <th className="num">Qty consumed</th>
+                    <th className="num">Unit cost</th>
+                    <th className="num">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderView.consumptions.map((line, index) => (
+                    <tr key={index}>
+                      <td>{itemName(line.component_item_id)}</td>
+                      <td className="num">
+                        {quantity(line.quantity_consumed)} {itemUnit(line.component_item_id)}
+                      </td>
+                      <td className="num">{money(line.unit_cost)}</td>
+                      <td className="num">{money(line.quantity_consumed * line.unit_cost)}</td>
+                    </tr>
+                  ))}
+                  {orderView.consumptions.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="sub">
+                        Nothing consumed yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

@@ -382,9 +382,13 @@ export interface ProductionOrder {
   bom_id: number;
   planned_quantity: number;
   actual_quantity: number;
+  wastage_quantity?: number;
   status: string;
   manufacturing_date: string;
+  expiry_date?: string | null;
   production_cost: number;
+  raw_material_cost?: number;
+  packing_material_cost?: number;
   output_batch_number: string | null;
 }
 
@@ -397,8 +401,17 @@ export interface PackingOrder {
   actual_quantity: number;
   status: string;
   manufacturing_date: string;
+  expiry_date?: string | null;
   production_cost: number;
   output_batch_number: string | null;
+}
+
+/** One consumed batch line on a production or packing order. */
+export interface ConsumptionLine {
+  component_item_id: number;
+  batch_id: number;
+  quantity_consumed: number;
+  unit_cost: number;
 }
 
 export interface Payment {
