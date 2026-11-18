@@ -102,6 +102,15 @@ export interface Item {
   is_active: number;
 }
 
+/** One production or packing run that consumed an item. */
+export interface ItemConsumption {
+  item_id: number;
+  kind: "PRODUCTION" | "PACKING";
+  order_number: string;
+  manufacturing_date: string;
+  quantity_consumed: number;
+}
+
 export interface Asset {
   account_id: number;
   account_code: string;

@@ -30,6 +30,7 @@ import type {
   JournalEntryResult,
   ManualJournalEntry,
   Item,
+  ItemConsumption,
   ItemTag,
   MaterialsConsumption,
   OpeningBalanceChange,
@@ -391,6 +392,8 @@ export const api = {
         value: number;
       }>;
     }>("/api/items/stock-values", { method: "POST", body: JSON.stringify(body) }),
+  /** Production/packing runs that consumed each item, oldest first. */
+  consumptionHistory: () => request<ItemConsumption[]>("/api/items/consumption"),
   /** Reversible stock-ledger resets (a snapshot is taken before each one). */
   stockLedgerResets: () => request<StockLedgerReset[]>("/api/stock-ledger/resets"),
   zeroStockLedger: (reason?: string | null) =>

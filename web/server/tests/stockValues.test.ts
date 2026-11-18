@@ -80,3 +80,63 @@ describe("ItemService.setStockValues", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe("ItemService.consumptionHistory", () => {
+  it("lists production and packing runs that consumed the item, oldest first", async () => {
+    const raw = await items.create({ itemName: "Consumed Raw", itemType: "RAW_MATERIAL" });
+    await items.addOpeningStock({ itemId: raw.id, quantity: 100, unitCost: 1 });
+    const batch = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM stock_batches WHERE item_id = ? LIMIT 1",
+      [raw.id],
+    );
+    const fg = await items.create({ itemName: "Output FG", itemType: "FINISHED_GOOD" });
+    const bomId = await insertRow(ctx.db, "bill_of_materials", {
+      company_id: 1,
+      finished_item_id: fg.id,
+      bom_name: "Consumption BOM",
+    });
+
+    const later = await insertRow(ctx.db, "production_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PO-LATER",
+      bom_id: bomId,
+      planned_quantity: 1,
+      manufacturing_date: "2026-06-02",
+    });
+    await insertRow(ctx.db, "production_consumption", {
+      production_order_id: later,
+      component_item_id: raw.id,
+      batch_id: batch!.id,
+      quantity_consumed: 2,
+    });
+
+    const earlier = await insertRow(ctx.db, "packing_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PCO-EARLIER",
+      bom_id: bomId,
+      planned_quantity: 1,
+      manufacturing_date: "2026-05-01",
+    });
+    await insertRow(ctx.db, "packing_consumption", {
+      packing_order_id: earlier,
+      component_item_id: raw.id,
+      batch_id: batch!.id,
+      quantity_consumed: 5,
+    });
+
+    const forItem = (await items.consumptionHistory()).filter((row) => row.item_id === raw.id);
+    expect(forItem.map((row) => row.order_number)).toEqual(["PCO-EARLIER", "PO-LATER"]);
+    expect(forItem[0]).toMatchObject({
+      kind: "PACKING",
+      manufacturing_date: "2026-05-01",
+      quantity_consumed: 5,
+    });
+    expect(forItem[1]).toMatchObject({
+      kind: "PRODUCTION",
+      manufacturing_date: "2026-06-02",
+      quantity_consumed: 2,
+    });
+  });
+});

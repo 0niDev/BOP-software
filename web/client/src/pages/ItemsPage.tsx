@@ -6,7 +6,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
 import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Item, Party, StockLedgerReset, TaxRate } from "../types";
+import type { Item, ItemConsumption, Party, StockLedgerReset, TaxRate } from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
 interface Draft {
@@ -81,6 +81,7 @@ export default function ItemsPage() {
 
   // "Fix negative stock": per-item qty on hand + unit cost, posted in one entry.
   const [stockFixes, setStockFixes] = useState<Record<number, { qty: number; cost: number }>>({});
+  const [consumption, setConsumption] = useState<ItemConsumption[]>([]);
 
   // Stock ledger reset (clear every batch quantity, reversibly)
   const [ledgerResets, setLedgerResets] = useState<StockLedgerReset[]>([]);
@@ -89,7 +90,7 @@ export default function ItemsPage() {
 
   async function refresh(): Promise<void> {
     try {
-      const [itemList, rates, supplierList, resets, everyItem] = await Promise.all([
+      const [itemList, rates, supplierList, resets, everyItem, runs] = await Promise.all([
         api.items({
           search: search || undefined,
           type: (typeFilter || undefined) as Item["item_type"] | undefined,
@@ -99,12 +100,14 @@ export default function ItemsPage() {
         api.parties({ type: "SUPPLIER" }),
         api.stockLedgerResets(),
         api.items({ activeOnly: true }),
+        api.consumptionHistory(),
       ]);
       setItems(itemList);
       setTaxRates(rates);
       setSuppliers(supplierList);
       setLedgerResets(resets);
       setAllItems(everyItem);
+      setConsumption(runs);
       setStockItemId((current) => current ?? itemList[0]?.id ?? null);
     } catch (err) {
       setError(message(err, "Failed to load items."));
@@ -393,6 +396,13 @@ export default function ItemsPage() {
 
   /** Unfiltered so the fix card does not shrink when the list above is searched. */
   const negativeItems = allItems.filter((item) => item.current_stock < 0);
+  /** Runs arrive oldest first, so each item's list keeps that order. */
+  const consumptionByItem = new Map<number, ItemConsumption[]>();
+  for (const run of consumption) {
+    const list = consumptionByItem.get(run.item_id);
+    if (list) list.push(run);
+    else consumptionByItem.set(run.item_id, [run]);
+  }
   const stockFixesTotal = negativeItems.reduce((total, item) => {
     const fix = stockFixes[item.id];
     if (!fix || fix.qty <= 0 || fix.cost <= 0) return total;
@@ -563,6 +573,7 @@ export default function ItemsPage() {
                   <th className="num">Qty on hand</th>
                   <th className="num">Unit cost</th>
                   <th className="num">Value</th>
+                  <th>Used in</th>
                 </tr>
               </thead>
               <tbody>
@@ -598,6 +609,16 @@ export default function ItemsPage() {
                         />
                       </td>
                       <td className="num">{money(value)}</td>
+                      <td style={{ fontSize: 12, lineHeight: 1.4 }}>
+                        {(consumptionByItem.get(item.id) ?? []).length === 0
+                          ? "—"
+                          : (consumptionByItem.get(item.id) ?? []).map((run, index) => (
+                              <div key={index}>
+                                {run.order_number} · {run.manufacturing_date} ·{" "}
+                                {run.quantity_consumed} {item.unit}
+                              </div>
+                            ))}
+                      </td>
                     </tr>
                   );
                 })}

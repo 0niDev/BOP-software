@@ -550,6 +550,11 @@ export function createApp(
     );
   });
 
+  /** Production/packing runs that consumed each item, oldest first. */
+  app.get("/api/items/consumption", requireAuth, async (_req, res) => {
+    res.json(await items.consumptionHistory());
+  });
+
   app.get("/api/tax-rates", requireAuth, async (_req, res) => {
     res.json(await items.taxRates());
   });

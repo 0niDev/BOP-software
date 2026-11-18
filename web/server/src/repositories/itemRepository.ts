@@ -12,6 +12,15 @@ export interface ItemListRow extends ItemRow {
   last_consumed_at: string | null;
 }
 
+/** One production or packing run that consumed an item. */
+export interface ItemConsumptionRow {
+  item_id: number;
+  kind: "PRODUCTION" | "PACKING";
+  order_number: string;
+  manufacturing_date: string;
+  quantity_consumed: number;
+}
+
 export interface ItemRow {
   id: number;
   company_id: number;
@@ -121,8 +130,32 @@ export class ItemRepository {
     return this.db.all<ItemListRow>(sql, params);
   }
 
-  async update(id: number, data: InsertData): Promise<void> {
-    const cols = Object.keys(data);
+  /** Every production/packing run that consumed an item, oldest first. */
+  async consumptionHistory(companyId = 1): Promise<ItemConsumptionRow[]> {
+    return this.db.all<ItemConsumptionRow>(
+      `SELECT pc.component_item_id AS item_id,
+              'PRODUCTION' AS kind,
+              po.order_number AS order_number,
+              po.manufacturing_date AS manufacturing_date,
+              pc.quantity_consumed AS quantity_consumed
+         FROM production_consumption pc
+         JOIN production_orders po ON po.id = pc.production_order_id
+        WHERE po.company_id = ?
+        UNION ALL
+        SELECT pkc.component_item_id AS item_id,
+               'PACKING' AS kind,
+               pk.order_number AS order_number,
+               pk.manufacturing_date AS manufacturing_date,
+               pkc.quantity_consumed AS quantity_consumed
+          FROM packing_consumption pkc
+          JOIN packing_orders pk ON pk.id = pkc.packing_order_id
+         WHERE pk.company_id = ?
+        ORDER BY manufacturing_date, order_number, item_id`,
+      [companyId, companyId],
+    );
+  }
+
+  async update(id: number, data: InsertData): Promise<void> {    const cols = Object.keys(data);
     if (cols.length === 0) return;
     await this.db.run(
       `UPDATE items SET ${cols.map((col) => `${col} = ?`).join(", ")} WHERE id = ?`,

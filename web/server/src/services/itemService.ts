@@ -9,6 +9,7 @@ import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
 import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
 import {
   ItemRepository,
+  type ItemConsumptionRow,
   type ItemListRow,
   type ItemRow,
 } from "../repositories/itemRepository.js";
@@ -173,6 +174,11 @@ export class ItemService {
     opts: { activeOnly?: boolean; search?: string; itemType?: ItemType; unpricedOnly?: boolean } = {},
   ): Promise<ItemListRow[]> {
     return this.items.list(this.companyId, opts);
+  }
+
+  /** Production/packing runs that consumed each item, oldest first. */
+  async consumptionHistory(): Promise<ItemConsumptionRow[]> {
+    return this.items.consumptionHistory(this.companyId);
   }
 
   async get(id: number): Promise<ItemRow> {
