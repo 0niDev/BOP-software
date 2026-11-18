@@ -6,7 +6,14 @@ import SearchableSelect from "../components/SearchableSelect";
 import { SortTh, sortRows, type SortState } from "../components/Sort";
 import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Item, ItemConsumption, Party, StockLedgerReset, TaxRate } from "../types";
+import type {
+  Item,
+  ItemConsumption,
+  Party,
+  StockLedgerReset,
+  StockValueEntry,
+  TaxRate,
+} from "../types";
 import { ITEM_TYPES, ITEM_UNITS } from "../types";
 
 interface Draft {
@@ -45,6 +52,12 @@ function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
+/** Default a correction to the first of the current month (the clean cutover). */
+function firstOfMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [allItems, setAllItems] = useState<Item[]>([]);
@@ -79,8 +92,12 @@ export default function ItemsPage() {
   const [stockExpiry, setStockExpiry] = useState("");
   const [stockPartyId, setStockPartyId] = useState<number | null>(null);
 
-  // "Fix negative stock": per-item qty on hand + unit cost, posted in one entry.
+  // "Stock value correction": per-item qty on hand + unit cost, one dated entry.
   const [stockFixes, setStockFixes] = useState<Record<number, { qty: number; cost: number }>>({});
+  const [stockDate, setStockDate] = useState(firstOfMonth());
+  const [stockAllItems, setStockAllItems] = useState(false);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockValueEntries, setStockValueEntries] = useState<StockValueEntry[]>([]);
   const [consumption, setConsumption] = useState<ItemConsumption[]>([]);
 
   // Stock ledger reset (clear every batch quantity, reversibly)
@@ -90,24 +107,27 @@ export default function ItemsPage() {
 
   async function refresh(): Promise<void> {
     try {
-      const [itemList, rates, supplierList, resets, everyItem, runs] = await Promise.all([
-        api.items({
-          search: search || undefined,
-          type: (typeFilter || undefined) as Item["item_type"] | undefined,
-          activeOnly: !showInactive,
-        }),
-        api.taxRates(),
-        api.parties({ type: "SUPPLIER" }),
-        api.stockLedgerResets(),
-        api.items({ activeOnly: true }),
-        api.consumptionHistory(),
-      ]);
+      const [itemList, rates, supplierList, resets, everyItem, runs, corrections] =
+        await Promise.all([
+          api.items({
+            search: search || undefined,
+            type: (typeFilter || undefined) as Item["item_type"] | undefined,
+            activeOnly: !showInactive,
+          }),
+          api.taxRates(),
+          api.parties({ type: "SUPPLIER" }),
+          api.stockLedgerResets(),
+          api.items({ activeOnly: true }),
+          api.consumptionHistory(),
+          api.stockValues(),
+        ]);
       setItems(itemList);
       setTaxRates(rates);
       setSuppliers(supplierList);
       setLedgerResets(resets);
       setAllItems(everyItem);
       setConsumption(runs);
+      setStockValueEntries(corrections);
       setStockItemId((current) => current ?? itemList[0]?.id ?? null);
     } catch (err) {
       setError(message(err, "Failed to load items."));
@@ -233,36 +253,110 @@ export default function ItemsPage() {
     }
   }
 
-  /** Rows with no qty or no cost are left alone; only completed rows are posted. */
+  /**
+   * Posts the rows the operator filled in. A row counts when it has a unit cost
+   * and either a positive on-hand qty or a currently-negative balance (0 is a
+   * valid target that zeroes the negative).
+   */
   async function submitStockValues(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    const entries = negativeItems
+    if (!stockDate) {
+      setError("Choose a correction date.");
+      return;
+    }
+    const entries = stockBaseItems
       .map((item) => {
         const fix = stockFixes[item.id];
         return {
           itemId: item.id,
           quantityOnHand: fix?.qty ?? 0,
           unitCost: fix?.cost ?? 0,
+          current: item.current_stock,
         };
       })
-      .filter((entry) => entry.quantityOnHand > 0 && entry.unitCost > 0);
+      .filter(
+        (entry) => entry.unitCost > 0 && (entry.quantityOnHand > 0 || entry.current < 0),
+      );
     if (entries.length === 0) {
       setError("Enter qty on hand and unit cost for at least one item.");
       return;
     }
     setBusy(true);
     try {
-      const result = await api.setStockValues({ entries });
+      const result = await api.setStockValues({
+        entryDate: stockDate,
+        entries: entries.map(({ itemId, quantityOnHand, unitCost }) => ({
+          itemId,
+          quantityOnHand,
+          unitCost,
+        })),
+      });
       setNotice(
-        `Added ${result.entries.length} item(s), value ${money(result.totalValue)} ` +
-          `(entry #${result.journalEntryId}).`,
+        `Saved correction #${result.entryId} dated ${stockDate}: ` +
+          `${result.entries.length} item(s), value ${money(result.totalValue)}.`,
       );
       setStockFixes({});
       await refresh();
     } catch (err) {
       setError(message(err, "Failed to save stock values."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Undo a saved correction (the server refuses once its stock has moved). */
+  async function undoStockValue(entry: StockValueEntry): Promise<void> {
+    if (
+      !window.confirm(
+        `Undo correction #${entry.id} dated ${entry.entry_date}?\n\n` +
+          "Its stock is removed and the journal entry is reversed. Refused if the stock has already moved.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.reverseStockValues(entry.id);
+      setNotice(`Undid correction #${entry.id}.`);
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to undo the correction."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Undo, then load the same values into the form so they can be corrected. */
+  async function editStockValue(entry: StockValueEntry): Promise<void> {
+    if (
+      !window.confirm(
+        `Undo correction #${entry.id} and load its values for editing?\n\n` +
+          "The stock is removed, the entry is reversed, and the values return to the form.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.reverseStockValues(entry.id);
+      await refresh();
+      setStockDate(entry.entry_date);
+      setStockAllItems(true);
+      setStockSearch("");
+      const next: Record<number, { qty: number; cost: number }> = {};
+      for (const line of entry.lines) {
+        next[line.item_id] = { qty: line.quantity_on_hand, cost: line.unit_cost };
+      }
+      setStockFixes(next);
+      setNotice(`Correction #${entry.id} reversed and loaded. Adjust and save.`);
+    } catch (err) {
+      setError(message(err, "Failed to load the correction for editing."));
     } finally {
       setBusy(false);
     }
@@ -394,8 +488,19 @@ export default function ItemsPage() {
     }
   });
 
-  /** Unfiltered so the fix card does not shrink when the list above is searched. */
+  /** Unfiltered so the correction card does not shrink when the list above is searched. */
   const negativeItems = allItems.filter((item) => item.current_stock < 0);
+  const stockBaseItems = stockAllItems ? allItems : negativeItems;
+  const stockQuery = stockSearch.trim().toLowerCase();
+  const stockVisibleItems = stockQuery
+    ? stockBaseItems.filter(
+        (item) =>
+          item.item_name.toLowerCase().includes(stockQuery) ||
+          item.item_code.toLowerCase().includes(stockQuery),
+      )
+    : stockBaseItems;
+  const stockItemName = (id: number): string =>
+    allItems.find((item) => item.id === id)?.item_name ?? String(id);
   /** Runs arrive oldest first, so each item's list keeps that order. */
   const consumptionByItem = new Map<number, ItemConsumption[]>();
   for (const run of consumption) {
@@ -403,9 +508,10 @@ export default function ItemsPage() {
     if (list) list.push(run);
     else consumptionByItem.set(run.item_id, [run]);
   }
-  const stockFixesTotal = negativeItems.reduce((total, item) => {
+  const stockFixesTotal = stockBaseItems.reduce((total, item) => {
     const fix = stockFixes[item.id];
-    if (!fix || fix.qty <= 0 || fix.cost <= 0) return total;
+    if (!fix || fix.cost <= 0) return total;
+    if (fix.qty <= 0 && item.current_stock >= 0) return total;
     return total + (fix.qty - item.current_stock) * fix.cost;
   }, 0);
 
@@ -554,17 +660,46 @@ export default function ItemsPage() {
       </div>
 
       <form className="card" onSubmit={submitStockValues}>
-        <h2>Fix negative stock</h2>
-        {negativeItems.length === 0 ? (
+        <h2>Stock value correction</h2>
+        <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label>Correction date</label>
+            <input
+              type="date"
+              value={stockDate}
+              onChange={(e) => setStockDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Find item</label>
+            <input
+              className="filter-box"
+              placeholder="Search name or code…"
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+            />
+          </div>
+          <label style={{ paddingBottom: 7 }}>
+            <input
+              type="checkbox"
+              checked={stockAllItems}
+              onChange={(e) => setStockAllItems(e.target.checked)}
+            />{" "}
+            Show all items (stock take)
+          </label>
+        </div>
+        <p style={{ opacity: 0.7, fontSize: 12 }}>
+          Enter what you actually have and what it cost. Each saved correction is dated, posted as
+          inventory against Retained Earnings (your supplier ledger is not touched), and listed
+          below where it can be undone. This only adds stock — it cannot reduce a positive balance.
+        </p>
+
+        {stockBaseItems.length === 0 ? (
           <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
-            No items are below zero. Nothing to fix.
+            No items are below zero. Tick “Show all items” for a full stock take.
           </p>
         ) : (
           <>
-            <p style={{ opacity: 0.7, fontSize: 12 }}>
-              Enter what you actually have and what it cost. The difference is added to stock and
-              posted as inventory against Retained Earnings — your supplier ledger is not touched.
-            </p>
             <table>
               <thead>
                 <tr>
@@ -577,11 +712,14 @@ export default function ItemsPage() {
                 </tr>
               </thead>
               <tbody>
-                {negativeItems.map((item) => {
+                {stockVisibleItems.map((item) => {
                   const fix = stockFixes[item.id];
                   const qty = fix?.qty ?? 0;
                   const cost = fix?.cost ?? 0;
-                  const value = qty > 0 && cost > 0 ? (qty - item.current_stock) * cost : 0;
+                  const value =
+                    cost > 0 && (qty > 0 || item.current_stock < 0)
+                      ? (qty - item.current_stock) * cost
+                      : 0;
                   return (
                     <tr key={item.id}>
                       <td>
@@ -622,15 +760,84 @@ export default function ItemsPage() {
                     </tr>
                   );
                 })}
+                {stockVisibleItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="sub">
+                      No items match this search.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
             <div className="row" style={{ alignItems: "center", marginTop: 8 }}>
               <strong>Total value: {money(stockFixesTotal)}</strong>
               <button className="primary" type="submit" disabled={busy}>
-                {busy ? "Saving…" : "Save stock values"}
+                {busy ? "Saving…" : "Save correction"}
               </button>
             </div>
           </>
+        )}
+
+        <h3 style={{ marginTop: 20 }}>Saved corrections</h3>
+        {stockValueEntries.length === 0 ? (
+          <p className="sub" style={{ marginBottom: 0 }}>
+            No corrections saved yet.
+          </p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th className="num">Items</th>
+                <th className="num">Value</th>
+                <th>Voucher</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockValueEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{entry.entry_date}</td>
+                  <td
+                    className="num"
+                    title={entry.lines.map((line) => stockItemName(line.item_id)).join(", ")}
+                  >
+                    {entry.lines.length}
+                  </td>
+                  <td className="num">{money(entry.total_value)}</td>
+                  <td>{entry.journal_entry_id ?? "—"}</td>
+                  <td>
+                    {entry.reversed_at ? (
+                      <span className="badge">Reversed {entry.reversed_at}</span>
+                    ) : (
+                      <span className="badge">Active</span>
+                    )}
+                  </td>
+                  <td>
+                    {!entry.reversed_at && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void editStockValue(entry)}
+                          disabled={busy}
+                        >
+                          Edit
+                        </button>{" "}
+                        <button
+                          type="button"
+                          onClick={() => void undoStockValue(entry)}
+                          disabled={busy}
+                        >
+                          Undo
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </form>
 

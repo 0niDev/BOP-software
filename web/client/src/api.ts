@@ -35,8 +35,7 @@ import type {
   ItemTag,
   MaterialsConsumption,
   OpeningBalanceChange,
-  Party,
-  PartyBalance,
+  Party,  PartyBalance,
   PartyProductSales,
   PartyType,
   Payment,
@@ -53,6 +52,7 @@ import type {
   SettlementMethod,
   ShortcutEntry,
   StockLedgerReset,
+  StockValueEntry,
   TaxRate,
   TrialBalance,
   User,
@@ -382,6 +382,7 @@ export const api = {
     entries: { itemId: number; quantityOnHand: number; unitCost: number }[];
   }) =>
     request<{
+      entryId: number;
       journalEntryId: number;
       totalValue: number;
       entries: Array<{
@@ -393,6 +394,11 @@ export const api = {
         value: number;
       }>;
     }>("/api/items/stock-values", { method: "POST", body: JSON.stringify(body) }),
+  /** Saved stock-value corrections, newest first. */
+  stockValues: () => request<StockValueEntry[]>("/api/items/stock-values"),
+  /** Undo a correction; blocked once its stock has moved. */
+  reverseStockValues: (id: number) =>
+    request<{ ok: boolean }>(`/api/items/stock-values/${id}`, { method: "DELETE" }),
   /** Production/packing runs that consumed each item, oldest first. */
   consumptionHistory: () => request<ItemConsumption[]>("/api/items/consumption"),
   /** Reversible stock-ledger resets (a snapshot is taken before each one). */
