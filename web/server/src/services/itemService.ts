@@ -6,7 +6,7 @@
 import type { SqlDatabase } from "../db/types.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
-import { toQuantity } from "../domain/money.js";
+import { Decimal, dec, round2, toQuantity, toStorage } from "../domain/money.js";
 import {
   ItemRepository,
   type ItemListRow,
@@ -21,7 +21,7 @@ import {
 import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { TaxRateRepository, type TaxRateRow } from "../repositories/taxRateRepository.js";
-import { AccountingService } from "./accountingService.js";
+import { AccountingService, type JournalLineInput } from "./accountingService.js";
 
 /** Inventory account per item type (mirrors accounting/system_accounts.py). */
 export const INVENTORY_ACCOUNT_BY_TYPE: Record<string, string> = {
@@ -47,6 +47,26 @@ export interface OpeningStockResult {
   unitCost: number;
   totalValue: number;
   journalEntryId: number | null;
+}
+
+export interface StockValueEntryInput {
+  itemId: number;
+  /** What the operator says is really on hand. The difference from stock is added. */
+  quantityOnHand: number;
+  unitCost: number;
+}
+
+export interface StockValuesResult {
+  journalEntryId: number;
+  totalValue: number;
+  entries: Array<{
+    itemId: number;
+    itemName: string;
+    addedQuantity: number;
+    batchId: number;
+    batchNumber: string;
+    value: number;
+  }>;
 }
 
 export const ITEM_UNITS = [
@@ -393,6 +413,125 @@ export class ItemService {
       }
 
       return { batchId, batchNumber, quantity, unitCost, totalValue, journalEntryId };
+    });
+  }
+
+  /**
+   * Bulk "fix negative stock": each row states the real quantity on hand and
+   * what it cost. Only adds stock (never removes it), and posts ONE OPENING
+   * entry Dr inventory / Cr Retained Earnings (3100) -- never A/P, so a party
+   * ledger that was already corrected is not touched a second time.
+   */
+  async setStockValues(
+    input: readonly StockValueEntryInput[],
+    entryDate?: string | null,
+  ): Promise<StockValuesResult> {
+    if (input.length === 0) throw new ValidationError("Add at least one item.");
+    const date = entryDate?.trim() || new Date().toISOString().slice(0, 10);
+
+    return this.db.transaction(async () => {
+      const entries: StockValuesResult["entries"] = [];
+      const lines: JournalLineInput[] = [];
+      const seen = new Set<number>();
+      let total = new Decimal(0);
+
+      for (const [index, row] of input.entries()) {
+        const item = await this.items.findById(row.itemId);
+        if (!item || item.company_id !== this.companyId) {
+          throw new ValidationError(`Item ${row.itemId} not found.`);
+        }
+        if (seen.has(item.id)) {
+          throw new ValidationError(`Item ${item.item_name} appears more than once.`);
+        }
+        seen.add(item.id);
+        if (row.quantityOnHand < 0) {
+          throw new ValidationError(`Qty on hand for ${item.item_name} cannot be negative.`);
+        }
+        if (row.unitCost < 0) {
+          throw new ValidationError(`Unit cost for ${item.item_name} cannot be negative.`);
+        }
+
+        const current = await this.batches.getAvailableStock(item.id, this.warehouseId);
+        const addedDecimal = dec(row.quantityOnHand).minus(dec(current));
+        if (addedDecimal.isNegative()) {
+          throw new ValidationError(
+            `Qty on hand for ${item.item_name} (${row.quantityOnHand}) is below current stock ` +
+              `(${current}). This tool only adds stock.`,
+          );
+        }
+        if (addedDecimal.isZero()) continue;
+
+        const added = toQuantity(addedDecimal);
+        const value = round2(addedDecimal.times(dec(row.unitCost)));
+        const batchNumber = `STK-${item.item_code}-${Date.now()}-${index}`;
+        const batchId = await this.batches.insert({
+          item_id: item.id,
+          warehouse_id: this.warehouseId,
+          batch_number: batchNumber,
+          manufacturing_date: date,
+          expiry_date: null,
+          purchase_price: row.unitCost,
+          raw_unit_cost: row.unitCost,
+          packing_unit_cost: 0,
+          quantity_in_stock: added,
+          received_date: date,
+          is_active: 1,
+        });
+        await this.db.run(
+          `INSERT INTO stock_movements
+             (item_id, batch_id, warehouse_id, movement_type, quantity, unit_cost, movement_date, notes)
+           VALUES (?, ?, ?, 'OPENING', ?, ?, ?, ?)`,
+          [
+            item.id,
+            batchId,
+            this.warehouseId,
+            added,
+            row.unitCost,
+            date,
+            `Stock value - ${item.item_name}`,
+          ],
+        );
+
+        const inventoryCode = INVENTORY_ACCOUNT_BY_TYPE[item.item_type] ?? "1200";
+        lines.push({
+          accountId: await this.accounts.idFor(inventoryCode),
+          debit: value,
+          description: `Stock value - ${item.item_name}`,
+        });
+        total = total.plus(value);
+        entries.push({
+          itemId: item.id,
+          itemName: item.item_name,
+          addedQuantity: added,
+          batchId,
+          batchNumber,
+          value: toStorage(value),
+        });
+      }
+
+      if (entries.length === 0) {
+        throw new ValidationError(
+          "Nothing to add: every quantity already matches the stock on hand.",
+        );
+      }
+
+      lines.push({
+        accountId: await this.accounts.idFor(SystemAccountCodes.RETAINED_EARNINGS),
+        credit: total,
+        description: "Stock values entered from purchase register",
+      });
+
+      const journalEntryId = await this.accounting.postJournalEntry({
+        voucherType: "OPENING",
+        entryDate: date,
+        lines,
+        narration: "Stock values entered from purchase register",
+        sourceTable: "stock_batches",
+        sourceId: entries[0]?.batchId ?? null,
+        companyId: this.companyId,
+      });
+
+      return { journalEntryId, totalValue: toStorage(total), entries };
     });
   }
 

@@ -639,6 +639,15 @@ export interface DatabaseInfo {
   restartRequired: boolean;
   companyId: number;
   currency: string;
+  /** Name of an uploaded database hot-swapped in, otherwise null. */
+  loadedFrom: string | null;
+}
+
+/** The live database target, from `GET /api/db/current`. */
+export interface DbCurrent {
+  engine: string;
+  location: string;
+  label: string | null;
 }
 
 export interface BackupFile {

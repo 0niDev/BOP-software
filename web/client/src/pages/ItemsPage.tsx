@@ -47,6 +47,7 @@ function message(err: unknown, fallback: string): string {
 
 export default function ItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [allItems, setAllItems] = useState<Item[]>([]);
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -78,6 +79,9 @@ export default function ItemsPage() {
   const [stockExpiry, setStockExpiry] = useState("");
   const [stockPartyId, setStockPartyId] = useState<number | null>(null);
 
+  // "Fix negative stock": per-item qty on hand + unit cost, posted in one entry.
+  const [stockFixes, setStockFixes] = useState<Record<number, { qty: number; cost: number }>>({});
+
   // Stock ledger reset (clear every batch quantity, reversibly)
   const [ledgerResets, setLedgerResets] = useState<StockLedgerReset[]>([]);
   const [zeroReason, setZeroReason] = useState("");
@@ -85,7 +89,7 @@ export default function ItemsPage() {
 
   async function refresh(): Promise<void> {
     try {
-      const [itemList, rates, supplierList, resets] = await Promise.all([
+      const [itemList, rates, supplierList, resets, everyItem] = await Promise.all([
         api.items({
           search: search || undefined,
           type: (typeFilter || undefined) as Item["item_type"] | undefined,
@@ -94,11 +98,13 @@ export default function ItemsPage() {
         api.taxRates(),
         api.parties({ type: "SUPPLIER" }),
         api.stockLedgerResets(),
+        api.items({ activeOnly: true }),
       ]);
       setItems(itemList);
       setTaxRates(rates);
       setSuppliers(supplierList);
       setLedgerResets(resets);
+      setAllItems(everyItem);
       setStockItemId((current) => current ?? itemList[0]?.id ?? null);
     } catch (err) {
       setError(message(err, "Failed to load items."));
@@ -224,6 +230,48 @@ export default function ItemsPage() {
     }
   }
 
+  /** Rows with no qty or no cost are left alone; only completed rows are posted. */
+  async function submitStockValues(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    setError(null);
+    setNotice(null);
+    const entries = negativeItems
+      .map((item) => {
+        const fix = stockFixes[item.id];
+        return {
+          itemId: item.id,
+          quantityOnHand: fix?.qty ?? 0,
+          unitCost: fix?.cost ?? 0,
+        };
+      })
+      .filter((entry) => entry.quantityOnHand > 0 && entry.unitCost > 0);
+    if (entries.length === 0) {
+      setError("Enter qty on hand and unit cost for at least one item.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.setStockValues({ entries });
+      setNotice(
+        `Added ${result.entries.length} item(s), value ${money(result.totalValue)} ` +
+          `(entry #${result.journalEntryId}).`,
+      );
+      setStockFixes({});
+      await refresh();
+    } catch (err) {
+      setError(message(err, "Failed to save stock values."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function setStockFix(id: number, key: "qty" | "cost", value: number): void {
+    setStockFixes((current) => ({
+      ...current,
+      [id]: { qty: 0, cost: 0, ...current[id], [key]: value },
+    }));
+  }
+
   /**
    * Zero every batch quantity. The server snapshots the database first, so the
    * reset is always recoverable from the history below. Stock only — the
@@ -342,6 +390,14 @@ export default function ItemsPage() {
         return "";
     }
   });
+
+  /** Unfiltered so the fix card does not shrink when the list above is searched. */
+  const negativeItems = allItems.filter((item) => item.current_stock < 0);
+  const stockFixesTotal = negativeItems.reduce((total, item) => {
+    const fix = stockFixes[item.id];
+    if (!fix || fix.qty <= 0 || fix.cost <= 0) return total;
+    return total + (fix.qty - item.current_stock) * fix.cost;
+  }, 0);
 
   return (
     <>
@@ -486,6 +542,76 @@ export default function ItemsPage() {
           </tbody>
         </table>
       </div>
+
+      <form className="card" onSubmit={submitStockValues}>
+        <h2>Fix negative stock</h2>
+        {negativeItems.length === 0 ? (
+          <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+            No items are below zero. Nothing to fix.
+          </p>
+        ) : (
+          <>
+            <p style={{ opacity: 0.7, fontSize: 12 }}>
+              Enter what you actually have and what it cost. The difference is added to stock and
+              posted as inventory against Retained Earnings — your supplier ledger is not touched.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="num">Current</th>
+                  <th className="num">Qty on hand</th>
+                  <th className="num">Unit cost</th>
+                  <th className="num">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {negativeItems.map((item) => {
+                  const fix = stockFixes[item.id];
+                  const qty = fix?.qty ?? 0;
+                  const cost = fix?.cost ?? 0;
+                  const value = qty > 0 && cost > 0 ? (qty - item.current_stock) * cost : 0;
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        {item.item_code} — {item.item_name}
+                      </td>
+                      <td className="num">
+                        {item.current_stock} {item.unit}
+                      </td>
+                      <td className="num">
+                        <NumberInput
+                          min="0"
+                          step="0.01"
+                          value={qty}
+                          onChange={(e) => setStockFix(item.id, "qty", Number(e.target.value))}
+                          style={{ width: 100 }}
+                        />
+                      </td>
+                      <td className="num">
+                        <NumberInput
+                          min="0"
+                          step="0.01"
+                          value={cost}
+                          onChange={(e) => setStockFix(item.id, "cost", Number(e.target.value))}
+                          style={{ width: 100 }}
+                        />
+                      </td>
+                      <td className="num">{money(value)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="row" style={{ alignItems: "center", marginTop: 8 }}>
+              <strong>Total value: {money(stockFixesTotal)}</strong>
+              <button className="primary" type="submit" disabled={busy}>
+                {busy ? "Saving…" : "Save stock values"}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
 
       <section className="card">
         <h2>Stock ledger</h2>

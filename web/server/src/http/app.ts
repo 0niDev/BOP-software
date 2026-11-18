@@ -78,6 +78,22 @@ const returnSchema = z.object({
     .min(1),
 });
 
+/**
+ * Lifecycle hook for loading an uploaded database file. Implemented by the
+ * server process (`index.ts`), which owns closing the old connection, pointer
+ * swap and rebuilding the stack — app.ts only validates the HTTP request.
+ */
+export interface DatabaseSwapper {
+  available: boolean;
+  current(): { engine: string; location: string; label: string | null };
+  swap(
+    bytes: Buffer,
+    filename: string,
+  ): Promise<{ ok: true; label: string }>;
+  /** Return to the real database, discarding the uploaded one. */
+  reset(): Promise<{ ok: true }>;
+}
+
 export interface AppOptions {
   /** Database engine name, so the backup routes know whether snapshots apply. */
   engine?: string;
@@ -89,6 +105,8 @@ export interface AppOptions {
   mirror?: MirrorService;
   /** Cloud replica push; when absent the replica routes report it as unavailable. */
   replica?: ReplicaService;
+  /** Hot-swap of an uploaded local database; absent under the hosted engine. */
+  swapper?: DatabaseSwapper;
   /**
    * Directory of a built client (`index.html` + `assets/`). When given *and* the
    * build is actually present, this process also serves the SPA — the
@@ -310,6 +328,46 @@ export function createApp(
   app.post("/api/backups/:file/restore", requireAuth, (req, res) => {
     backups.restore(String(req.params.file));
     res.json({ ok: true });
+  });
+
+  // --- database hot-swap (local file engine only) ------------------------
+  // The body is the raw .db file (Content-Type: application/octet-stream) and
+  // the original name travels in X-Db-Filename. Only the local engine can do
+  // this; a hosted database has no file to replace.
+  app.get("/api/db/current", requireAuth, (_req, res) => {
+    if (!options.swapper) throw new ConfigurationError("Database details are not available.");
+    res.json(options.swapper.current());
+  });
+
+  app.post(
+    "/api/db/swap",
+    // Check the session before buffering up to 512 MB of request body.
+    requireAuth,
+    express.raw({ type: () => true, limit: "512mb" }),
+    async (req, res) => {
+      if (!options.swapper || !options.swapper.available) {
+        throw new ConfigurationError(
+          "Loading an uploaded database is only available when the server runs on a " +
+            "local SQLite file (ERP_DB_ENGINE=local).",
+        );
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        throw new ValidationError("Send the .db file as the raw request body.");
+      }
+      const filename =
+        (req.header("x-db-filename") ?? "uploaded.db").trim().slice(0, 200) || "uploaded.db";
+      res.json(await options.swapper.swap(req.body, filename));
+    },
+  );
+
+  app.post("/api/db/swap/reset", requireAuth, async (_req, res) => {
+    if (!options.swapper || !options.swapper.available) {
+      throw new ConfigurationError(
+        "Loading an uploaded database is only available when the server runs on a local " +
+          "SQLite file (ERP_DB_ENGINE=local).",
+      );
+    }
+    res.json(await options.swapper.reset());
   });
 
   // --- cloud replica (local-primary mode) ---------------------------------
@@ -597,6 +655,26 @@ export function createApp(
       req.body,
     );
     res.status(201).json(await items.addOpeningStock({ itemId: Number(req.params.id), ...body }));
+  });
+
+  /** Bulk "fix negative stock": real qty on hand + unit cost per item, one entry. */
+  app.post("/api/items/stock-values", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        entryDate: isoDateSchema.optional(),
+        entries: z
+          .array(
+            z.object({
+              itemId: z.number().int().positive(),
+              quantityOnHand: z.number().nonnegative(),
+              unitCost: z.number().nonnegative(),
+            }),
+          )
+          .min(1),
+      }),
+      req.body,
+    );
+    res.status(201).json(await items.setStockValues(body.entries, body.entryDate));
   });
 
   // --- stock ledger reset ------------------------------------------------

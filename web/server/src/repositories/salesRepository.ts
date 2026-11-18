@@ -91,7 +91,8 @@ export class SalesRepository {
       params.push(like, like);
     }
     sql += " ORDER BY si.invoice_date DESC, si.id DESC LIMIT ? OFFSET ?";
-    params.push(opts.limit ?? 100, opts.offset ?? 0);
+    // shortcut: lists are capped at 500, no paging in the UI; raise or add paging past ~500 invoices
+    params.push(opts.limit ?? 500, opts.offset ?? 0);
     return this.db.all<SalesInvoiceListRow>(sql, params);
   }
 

@@ -22,6 +22,7 @@ import type {
   CustomReportKind,
   DashboardData,
   DatabaseInfo,
+  DbCurrent,
   DeletedRecord,
   Expense,
   ExpenseResult,
@@ -373,6 +374,23 @@ export const api = {
       totalValue: number;
       journalEntryId: number | null;
     }>(`/api/items/${itemId}/opening-stock`, { method: "POST", body: JSON.stringify(body) }),
+  /** Bulk "fix negative stock": real qty on hand + unit cost, one OPENING entry. */
+  setStockValues: (body: {
+    entryDate?: string;
+    entries: { itemId: number; quantityOnHand: number; unitCost: number }[];
+  }) =>
+    request<{
+      journalEntryId: number;
+      totalValue: number;
+      entries: Array<{
+        itemId: number;
+        itemName: string;
+        addedQuantity: number;
+        batchId: number;
+        batchNumber: string;
+        value: number;
+      }>;
+    }>("/api/items/stock-values", { method: "POST", body: JSON.stringify(body) }),
   /** Reversible stock-ledger resets (a snapshot is taken before each one). */
   stockLedgerResets: () => request<StockLedgerReset[]>("/api/stock-ledger/resets"),
   zeroStockLedger: (reason?: string | null) =>
@@ -1116,6 +1134,29 @@ export const api = {
   resetAllShortcuts: () =>
     request<{ removed: number }>("/api/settings/shortcuts", { method: "DELETE" }),
   databaseInfo: () => request<DatabaseInfo>("/api/settings/database"),
+  dbCurrent: () => request<DbCurrent>("/api/db/current"),
+  /**
+   * Load a local .db file as the active database. Sent as the raw body so no
+   * multipart parser is needed; the filename travels in a header. The server
+   * rebuilds its stack and drops all sessions, so the caller signs in again.
+   */
+  swapDatabase: async (file: File): Promise<{ ok: boolean; label: string }> => {
+    const headers = new Headers({
+      "content-type": "application/octet-stream",
+      "x-db-filename": file.name,
+    });
+    const token = getToken();
+    if (token) headers.set("authorization", `Bearer ${token}`);
+    const res = await fetch("/api/db/swap", { method: "POST", headers, body: file });
+    endExpiredSession(res, "/api/db/swap");
+    const text = await res.text();
+    const data = text ? (JSON.parse(text) as { ok?: boolean; label?: string; error?: { message?: string; code?: string } }) : null;
+    if (!res.ok) {
+      throw new ApiError(data?.error?.message ?? res.statusText, res.status, data?.error?.code);
+    }
+    return { ok: Boolean(data?.ok), label: data?.label ?? file.name };
+  },
+  resetDatabase: () => request<{ ok: boolean }>("/api/db/swap/reset", { method: "POST" }),
 
   // --- backups ----------------------------------------------------------
   backupStatus: () => request<BackupStatus>("/api/backup/status"),

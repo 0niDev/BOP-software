@@ -11,6 +11,7 @@
  */
 import fs from "node:fs";
 import type { SqlDatabase } from "../db/types.js";
+import { getLocalDbOverride } from "../db/index.js";
 import { ValidationError } from "../domain/errors.js";
 import {
   DEFAULT_SHORTCUTS,
@@ -44,6 +45,8 @@ export interface DatabaseInfo {
   restartRequired: boolean;
   companyId: number;
   currency: string;
+  /** Name of an uploaded database currently hot-swapped in, otherwise null. */
+  loadedFrom: string | null;
 }
 
 /** Hide the password in a `sqlitecloud://user:pass@host:port/db` URL. */
@@ -215,19 +218,24 @@ export class SettingsService {
    */
   async databaseInfo(): Promise<DatabaseInfo> {
     const isCloud = env.dbEngine === "sqlitecloud";
+    const override = getLocalDbOverride();
+    const activePath = override?.file ?? env.localDbPath;
     const row = await this.db.get<{ version: string }>("SELECT sqlite_version() AS version");
     return {
       engine: isCloud ? "sqlitecloud (hosted)" : "local (node:sqlite)",
       location: isCloud
         ? maskConnectionUrl(env.sqliteCloudUrl)
-        : `${env.localDbPath}${fs.existsSync(env.localDbPath) ? "" : "  (file not created yet)"}`,
+        : `${activePath}${fs.existsSync(activePath) ? "" : "  (file not created yet)"}`,
       source: isCloud
         ? "SQLITE_CLOUD_URL (web/.env)"
-        : "ERP_LOCAL_DB (web/.env)",
+        : override
+          ? "uploaded through Settings → Database"
+          : "ERP_LOCAL_DB (web/.env)",
       sqliteVersion: String(row?.version ?? "unknown"),
       restartRequired: true,
       companyId: this.companyId,
       currency: env.currency,
+      loadedFrom: override?.label ?? null,
     };
   }
 }

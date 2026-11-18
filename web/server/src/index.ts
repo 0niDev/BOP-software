@@ -1,12 +1,17 @@
 import fs from "node:fs";
 import http from "node:http";
 import https from "node:https";
-import { closeDb, createDatabase, getDb } from "./db/index.js";
+import path from "node:path";
+import type { Express } from "express";
+import { closeDb, createDatabase, getDb, getLocalDbOverride, setLocalDbOverride } from "./db/index.js";
+import type { SqlDatabase } from "./db/types.js";
 import { ObservedDatabase } from "./db/observed.js";
 import { bootstrapDatabase } from "./db/bootstrap.js";
+import { ConfigurationError, ConflictError } from "./domain/errors.js";
 import { env } from "./env.js";
-import { createApp } from "./http/app.js";
+import { createApp, type DatabaseSwapper } from "./http/app.js";
 import { BackupService } from "./services/backupService.js";
+import { discardUploadedDatabase, validateUploadedDatabase } from "./services/dbSwapService.js";
 import { MirrorService } from "./services/mirrorService.js";
 import { ReplicaService } from "./services/replicaService.js";
 
@@ -65,23 +70,36 @@ function installGlobalErrorBoundaries(): void {
   });
 }
 
-async function main(): Promise<void> {
-  installGlobalErrorBoundaries();
+/** Everything a database hot-swap has to discard and rebuild. */
+interface Stack {
+  rawDb: SqlDatabase;
+  mirrorDb: SqlDatabase;
+  mirror: MirrorService;
+  replica: ReplicaService;
+  db: SqlDatabase;
+  app: Express;
+}
 
+/**
+ * Build the database adapters, services and HTTP app as one unit. The whole
+ * stack is rebuilt on a hot-swap, so nothing here may hold a module-level
+ * connection of its own.
+ */
+async function buildStack(clientDir: string | null, swapper: DatabaseSwapper): Promise<Stack> {
   const rawDb = getDb();
   // The hosted driver serializes every statement on one connection, so a
   // multi-second snapshot would otherwise pause the whole API. The mirror gets
   // its own read connection; SQLite allows concurrent readers.
   const mirrorDb = env.dbEngine === "sqlitecloud" && env.liveMirror ? createDatabase() : rawDb;
-  // Writes are observed so the local copy can refresh shortly after a change;
-  // the mirror keeps reading from its own adapter.
+  // While an uploaded database is loaded, the live copy must not overwrite the
+  // real one, so the mirror stays off for the duration.
   const mirror = new MirrorService(
     mirrorDb,
     env.dbEngine,
     env.mirrorDir,
     env.pcMirrorDir,
     env.mirrorDebounceMs,
-    env.liveMirror,
+    env.liveMirror && getLocalDbOverride() === null,
   );
   // The cloud replica only exists in local-primary mode: the local database is
   // the source of truth and SQLite Cloud becomes a read-only copy of it.
@@ -102,7 +120,9 @@ async function main(): Promise<void> {
   // development database is bootstrapped automatically.
   if (env.dbEngine === "local") {
     await bootstrapDatabase(db);
-    console.log(`[bootstrap] local database ready at ${env.localDbPath}`);
+    console.log(
+      `[bootstrap] local database ready at ${getLocalDbOverride()?.file ?? env.localDbPath}`,
+    );
   } else {
     console.log("[bootstrap] using hosted SQLite Cloud database (no schema changes)");
     // Fail fast on bad cloud credentials / unreachable host rather than waiting
@@ -123,19 +143,132 @@ async function main(): Promise<void> {
   const app = createApp(db, env.companyId, {
     engine: env.dbEngine,
     // One process, one port: the API and the built client when asked for.
-    clientDir: env.serveClient ? env.clientDist : null,
+    clientDir,
     mirror,
     replica,
+    swapper,
   });
+
+  return { rawDb, mirrorDb, mirror, replica, db, app };
+}
+
+async function main(): Promise<void> {
+  installGlobalErrorBoundaries();
+
+  const clientDir = env.serveClient ? env.clientDist : null;
+  let state: Stack;
+  let server: http.Server | https.Server | null = null;
+  let swapping = false;
+
+  /** Only one swap at a time: two would interleave close/rebuild and break both. */
+  async function withSwapLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (swapping) throw new ConflictError("A database switch is already in progress.");
+    swapping = true;
+    try {
+      return await fn();
+    } finally {
+      swapping = false;
+    }
+  }
+
+  /**
+   * Close the live stack, let `apply` point the local engine at a new file,
+   * rebuild everything and hand the listening server the new app. If the new
+   * database cannot be opened, fall back to the real one so the app survives.
+   */
+  async function swapStack(apply: () => void): Promise<void> {
+    const current = state;
+    // An uploaded/test database must never be pushed to SQLite Cloud: stop the
+    // replica with the old stack. It only restarts for the real database.
+    current.replica.stop();
+    await current.mirror.flush().catch(() => undefined);
+    current.mirror.stop();
+    await closeDb();
+    if (current.mirrorDb !== current.rawDb) {
+      await current.mirrorDb.close().catch(() => undefined);
+    }
+
+    apply();
+    let failure: unknown = null;
+    try {
+      state = await buildStack(clientDir, swapper);
+    } catch (err) {
+      // The incoming file failed to open or migrate. Discard it and rebuild on
+      // the real database so the running app is not left pointing at nothing.
+      failure = err;
+      await closeDb().catch(() => undefined);
+      if (getLocalDbOverride()) setLocalDbOverride(null);
+      state = await buildStack(clientDir, swapper);
+    }
+
+    if (server) {
+      server.removeAllListeners("request");
+      server.on("request", state.app);
+    }
+    void state.mirror.start().catch((err: unknown) =>
+      console.error(`[${timestamp()}] [mirror] restart failed:`, err),
+    );
+    if (!getLocalDbOverride()) void state.replica.start();
+
+    if (failure) throw failure;
+  }
+
+  const swapper: DatabaseSwapper = {
+    available: env.dbEngine === "local",
+    current: () => ({
+      engine: env.dbEngine,
+      location: getLocalDbOverride()?.file ?? env.localDbPath,
+      label: getLocalDbOverride()?.label ?? null,
+    }),
+    async swap(bytes, filename) {
+      return withSwapLock(async () => {
+        if (env.dbEngine !== "local") {
+          throw new ConfigurationError(
+            "Loading an uploaded database is only available when the server runs on a " +
+              "local SQLite file (ERP_DB_ENGINE=local).",
+          );
+        }
+        const uploaded = validateUploadedDatabase(bytes);
+        try {
+          const target = path.join(path.dirname(env.localDbPath), "hotswap.sqlite");
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          // SQLite sidecars from a previous load must go, or they would be
+          // replayed onto the new file.
+          for (const suffix of ["", "-wal", "-shm"]) {
+            fs.rmSync(target + suffix, { force: true });
+          }
+          fs.copyFileSync(uploaded, `${target}.swap`);
+          fs.renameSync(`${target}.swap`, target);
+
+          await swapStack(() => setLocalDbOverride({ file: target, label: filename }));
+          console.log(`[db] loaded ${filename} (${target}); real database untouched`);
+          return { ok: true as const, label: filename };
+        } finally {
+          discardUploadedDatabase(uploaded);
+        }
+      });
+    },
+    async reset() {
+      return withSwapLock(async () => {
+        if (!getLocalDbOverride()) return { ok: true as const };
+        await swapStack(() => setLocalDbOverride(null));
+        console.log("[db] switched back to the real database");
+        return { ok: true as const };
+      });
+    },
+  };
+
+  state = await buildStack(clientDir, swapper);
 
   const tls = readTls();
   const scheme = tls ? "https" : "http";
-  const server = tls ? https.createServer(tls, app) : http.createServer(app);
+  server = tls ? https.createServer(tls, state.app) : http.createServer(state.app);
+  const httpServer = server;
 
   await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(env.port, env.host, () => {
-      server.removeListener("error", reject);
+    httpServer.once("error", reject);
+    httpServer.listen(env.port, env.host, () => {
+      httpServer.removeListener("error", reject);
       resolve();
     });
   });
@@ -149,16 +282,18 @@ async function main(): Promise<void> {
   // Opt-in here: set ERP_AUTO_BACKUP_HOURS to enable.
   let backupTimer: NodeJS.Timeout | null = null;
   if (env.autoBackupHours > 0) {
-    const backups = new BackupService(
-      rawDb,
-      env.dbEngine,
-      env.backupDir,
-      env.backupKeep,
-      env.desktopDir,
-      env.dbName,
-    );
     const intervalMs = env.autoBackupHours * 60 * 60 * 1000;
     backupTimer = setInterval(() => {
+      // Never write an uploaded test database into the real snapshot set.
+      if (getLocalDbOverride()) return;
+      const backups = new BackupService(
+        state.rawDb,
+        env.dbEngine,
+        env.backupDir,
+        env.backupKeep,
+        env.desktopDir,
+        env.dbName,
+      );
       void backups
         .run()
         .then((result) =>
@@ -178,7 +313,7 @@ async function main(): Promise<void> {
   // Live local copy: refresh once at startup so changes made outside this
   // process (e.g. the SQLite Cloud dashboard) are picked up too.
   if (env.liveMirror) {
-    void mirror.start().catch((err: unknown) =>
+    void state.mirror.start().catch((err: unknown) =>
       console.error(`[${timestamp()}] [mirror] startup refresh failed:`, err),
     );
   } else {
@@ -187,39 +322,39 @@ async function main(): Promise<void> {
 
   // Cloud replica: push once at startup (catches writes a hard kill left
   // behind), then on the interval. Disabled when no cloud URL is configured.
-  void replica.start();
+  void state.replica.start();
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[${timestamp()}] [server] ${signal} received, shutting down...`);
     if (backupTimer) clearInterval(backupTimer);
-    replica.stop();
+    state.replica.stop();
 
     // Stop accepting requests, then flush whatever the replica has not sent.
-    server.close();
+    httpServer.close();
     try {
-      await replica.flush(env.replicaFlushTimeoutMs);
+      await state.replica.flush(env.replicaFlushTimeoutMs);
     } catch (err) {
       console.error(`[${timestamp()}] [replica] shutdown flush failed:`, err);
     }
 
     // Save the last few seconds of writes before the connection goes away.
     try {
-      await mirror.flush();
+      await state.mirror.flush();
     } catch (err) {
       console.error(`[${timestamp()}] [mirror] shutdown flush failed:`, err);
     }
 
     try {
       // Best-effort cancellation of any in-flight statement before closing.
-      await (db as { interrupt?: () => Promise<void> }).interrupt?.();
+      await (state.db as { interrupt?: () => Promise<void> }).interrupt?.();
     } catch {
       // interrupt is best-effort; continue shutting down anyway
     }
 
-    server.close();
-    if (mirrorDb !== rawDb) {
+    httpServer.close();
+    if (state.mirrorDb !== state.rawDb) {
       try {
-        await mirrorDb.close();
+        await state.mirrorDb.close();
       } catch {
         // the app connection is the one that must close cleanly
       }

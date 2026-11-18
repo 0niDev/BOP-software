@@ -55,7 +55,7 @@ export class MirrorService {
     private readonly dir: string,
     private readonly pcDir: string | null,
     private readonly debounceMs: number,
-    private readonly enabled = true,
+    private enabled = true,
   ) {
     const meta = this.readMeta();
     this.pcUpdatedAt = meta.pcUpdatedAt ?? null;
@@ -96,6 +96,18 @@ export class MirrorService {
       this.runNow(),
       new Promise<void>((resolve) => setTimeout(resolve, timeoutMs).unref?.()),
     ]);
+  }
+
+  /**
+   * Stop refreshing. Used when the live database is hot-swapped: the copy
+   * written from here would be a test file, and the real live copy must stay.
+   */
+  stop(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.enabled = false;
   }
 
   async runNow(): Promise<void> {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { api, ApiError, getToken } from "../api";
+import { api, ApiError, getToken, setToken } from "../api";
 import SearchableSelect from "../components/SearchableSelect";
 import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [draftKey, setDraftKey] = useState("");
 
   const [database, setDatabase] = useState<DatabaseInfo | null>(null);
+  const [dbBusy, setDbBusy] = useState(false);
 
   async function loadShortcuts(): Promise<void> {
     try {
@@ -134,6 +135,47 @@ export default function SettingsPage() {
       setReplica(await api.replicaStatus());
     } catch {
       // The replica only exists in local-primary mode; hide the panel instead.
+    }
+  }
+
+  /** Load an uploaded .db as the live database; sessions drop, so re-login. */
+  async function loadDatabaseFile(file: File): Promise<void> {
+    const ok = window.confirm(
+      `Load "${file.name}" as the active database?\n\n` +
+        "The real database file is not modified and you can switch back anytime. " +
+        "You will be signed out and asked to sign in again.",
+    );
+    if (!ok) return;
+    setError(null);
+    setNotice(null);
+    setDbBusy(true);
+    try {
+      await api.swapDatabase(file);
+      setToken(null);
+      window.location.reload();
+    } catch (err) {
+      setError(message(err, "Could not load that database."));
+    } finally {
+      setDbBusy(false);
+    }
+  }
+
+  async function useRealDatabase(): Promise<void> {
+    const ok = window.confirm(
+      "Switch back to the real database? The loaded test database will be discarded.",
+    );
+    if (!ok) return;
+    setError(null);
+    setNotice(null);
+    setDbBusy(true);
+    try {
+      await api.resetDatabase();
+      setToken(null);
+      window.location.reload();
+    } catch (err) {
+      setError(message(err, "Could not switch back to the real database."));
+    } finally {
+      setDbBusy(false);
     }
   }
 
@@ -496,10 +538,39 @@ export default function SettingsPage() {
         ) : (
           <p style={{ opacity: 0.7 }}>Loading connection information…</p>
         )}
+        {database && (
+          <div style={{ marginTop: 12 }}>
+            <div className="row" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <input
+                type="file"
+                accept=".db,.sqlite,application/octet-stream"
+                disabled={dbBusy || database.engine.includes("hosted")}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void loadDatabaseFile(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+              {database.loadedFrom && (
+                <button onClick={() => void useRealDatabase()} disabled={dbBusy}>
+                  {dbBusy ? "Switching…" : "Switch back to the real database"}
+                </button>
+              )}
+            </div>
+            <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+              {database.engine.includes("hosted")
+                ? "Loading an uploaded file needs the server running on a local SQLite file (ERP_DB_ENGINE=local)."
+                : database.loadedFrom
+                  ? `Loaded from ${database.loadedFrom}. The real database is untouched; cloud pushes and automatic backups stay paused while a test database is loaded.`
+                  : "Load a .db file to inspect it as the active database. The real database file is never modified, and switching back is one click."}
+            </p>
+          </div>
+        )}
         <p style={{ color: "var(--warning, #f39c12)", fontSize: 12, marginBottom: 0 }}>
           ⚠️ The connection is read from the environment when the server starts, so changing
-          it (<code>web/.env</code> or <code>SQLITE_CLOUD_URL</code>) needs a restart. Credentials
-          stay in the environment and are never stored in settings.
+          it (<code>web/.env</code> or <code>SQLITE_CLOUD_URL</code>) needs a restart. A local{" "}
+          <code>.db</code> file can be loaded above without one. Credentials stay in the
+          environment and are never stored in settings.
         </p>
       </div>
 
