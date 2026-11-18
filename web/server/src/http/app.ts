@@ -718,7 +718,7 @@ export function createApp(
       }),
       req.query,
     );
-    res.json(await sales.list(query));
+    res.json(await sales.list({ ...query, all: req.query.all === "1" }));
   });
 
   app.get("/api/sales-invoices/:id", requireAuth, async (req, res) => {
@@ -806,7 +806,7 @@ export function createApp(
       }),
       req.query,
     );
-    res.json(await purchases.list(query));
+    res.json(await purchases.list({ ...query, all: req.query.all === "1" }));
   });
 
   app.get("/api/purchase-invoices/:id", requireAuth, async (req, res) => {

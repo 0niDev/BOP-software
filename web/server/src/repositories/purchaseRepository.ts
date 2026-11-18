@@ -73,7 +73,7 @@ export class PurchaseRepository {
 
   async list(
     companyId = 1,
-    opts: { limit?: number; offset?: number; search?: string } = {},
+    opts: { limit?: number; offset?: number; search?: string; all?: boolean } = {},
   ): Promise<PurchaseInvoiceListRow[]> {
     let sql = `
       SELECT pi.*, p.name AS supplier_name, p.code AS supplier_code
@@ -86,9 +86,12 @@ export class PurchaseRepository {
       const like = `%${opts.search}%`;
       params.push(like, like);
     }
-    sql += " ORDER BY pi.invoice_date DESC, pi.id DESC LIMIT ? OFFSET ?";
-    // shortcut: lists are capped at 500, no paging in the UI; raise or add paging past ~500 invoices
-    params.push(opts.limit ?? 500, opts.offset ?? 0);
+    sql += " ORDER BY pi.invoice_date DESC, pi.id DESC";
+    if (!opts.all) {
+      // shortcut: capped at 500 unless the caller asks for all; raise or add paging past ~500 invoices
+      sql += " LIMIT ? OFFSET ?";
+      params.push(opts.limit ?? 500, opts.offset ?? 0);
+    }
     return this.db.all<PurchaseInvoiceListRow>(sql, params);
   }
 }

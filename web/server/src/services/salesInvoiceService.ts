@@ -146,7 +146,7 @@ export class SalesInvoiceService {
   }
 
   async list(
-    opts: { limit?: number; offset?: number; search?: string } = {},
+    opts: { limit?: number; offset?: number; search?: string; all?: boolean } = {},
   ): Promise<SalesInvoiceListRow[]> {
     return this.sales.list(this.companyId, opts);
   }

@@ -410,10 +410,13 @@ export const api = {
       `/api/stock-ledger/resets/${id}/restore`,
       { method: "POST" },
     ),
-  salesInvoices: (search?: string) =>
-    request<SalesInvoice[]>(
-      `/api/sales-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
-    ),
+  salesInvoices: (search?: string, all?: boolean) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (all) params.set("all", "1");
+    const qs = params.toString();
+    return request<SalesInvoice[]>(`/api/sales-invoices${qs ? `?${qs}` : ""}`);
+  },
   salesInvoice: (id: number) =>
     request<{ invoice: SalesInvoice; items: Record<string, unknown>[]; stockApplied: boolean }>(
       `/api/sales-invoices/${id}`,
@@ -430,10 +433,13 @@ export const api = {
     }),
   deleteSalesInvoice: (id: number) =>
     request<{ ok: boolean }>(`/api/sales-invoices/${id}`, { method: "DELETE" }),
-  purchaseInvoices: (search?: string) =>
-    request<PurchaseInvoice[]>(
-      `/api/purchase-invoices${search ? `?search=${encodeURIComponent(search)}` : ""}`,
-    ),
+  purchaseInvoices: (search?: string, all?: boolean) => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (all) params.set("all", "1");
+    const qs = params.toString();
+    return request<PurchaseInvoice[]>(`/api/purchase-invoices${qs ? `?${qs}` : ""}`);
+  },
   purchaseInvoice: (id: number) =>
     request<{ invoice: PurchaseInvoice; items: Record<string, unknown>[] }>(
       `/api/purchase-invoices/${id}`,

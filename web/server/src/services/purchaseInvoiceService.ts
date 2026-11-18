@@ -109,7 +109,7 @@ export class PurchaseInvoiceService {
   }
 
   async list(
-    opts: { limit?: number; offset?: number; search?: string } = {},
+    opts: { limit?: number; offset?: number; search?: string; all?: boolean } = {},
   ): Promise<PurchaseInvoiceListRow[]> {
     return this.purchases.list(this.companyId, opts);
   }

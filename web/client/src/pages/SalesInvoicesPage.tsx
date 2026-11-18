@@ -46,6 +46,7 @@ export default function SalesInvoicesPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const [customerId, setCustomerId] = useState(0);
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -59,7 +60,7 @@ export default function SalesInvoicesPage() {
 
   async function refresh() {
     try {
-      setInvoices(await api.salesInvoices());
+      setInvoices(await api.salesInvoices(undefined, showAll));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load invoices.");
     }
@@ -71,7 +72,7 @@ export default function SalesInvoicesPage() {
     void refresh();
     void api.parties({ type: "CUSTOMER" }).then(setCustomers).catch(() => undefined);
     void api.items().then(setItems).catch(() => undefined);
-  }, [pageVisible]);
+  }, [pageVisible, showAll]);
 
   const subtotal = useMemo(
     () => lines.reduce((a, l) => a + l.quantity * l.unitPrice, 0),
@@ -496,6 +497,9 @@ export default function SalesInvoicesPage() {
         <div className="row" style={{ marginBottom: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <FilterBox value={query} onChange={setQuery} placeholder="Search number, customer, status…" />
           <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+          <button type="button" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? "Show recent only" : "Show all"}
+          </button>
         </div>
         <table>
           <thead>
