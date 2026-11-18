@@ -16,7 +16,7 @@ import writeXlsxFile, { type Cell, type CellObject, type SheetData } from "write
 import { AccountingService, type DateRangeOptions } from "./accountingService.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
-import type { ItemType } from "../domain/enums.js";
+import type { ItemType, PartyType } from "../domain/enums.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import type { ItemListRow } from "../repositories/itemRepository.js";
@@ -560,12 +560,12 @@ export class ReportXlsx {
    * Same entries the on-screen all-parties report shows.
    */
   async allPartyLedgers(
-    options: DateRangeOptions & { showOpening?: boolean },
+    options: DateRangeOptions & { showOpening?: boolean; partyType?: PartyType },
   ): Promise<XlsxFile> {
     const report = await this.reports.allPartyLedgers(
       options.from ?? undefined,
       options.to ?? undefined,
-      { showOpening: options.showOpening },
+      { showOpening: options.showOpening, partyType: options.partyType },
     );
     const PARTY: Style = { fontWeight: "bold", backgroundColor: "#DDE3ED" };
     const data: SheetData = [

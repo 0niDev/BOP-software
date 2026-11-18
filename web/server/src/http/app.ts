@@ -679,7 +679,21 @@ export function createApp(
       }),
       req.body,
     );
-    res.status(201).json(await items.setStockValues(body.entries, body.entryDate));
+    const user = (req as Request & { user?: Session }).user;
+    res
+      .status(201)
+      .json(await items.setStockValues(body.entries, body.entryDate, user?.userId ?? null));
+  });
+
+  /** Saved stock-value corrections, newest first, with their item lines. */
+  app.get("/api/items/stock-values", requireAuth, async (_req, res) => {
+    res.json(await items.listStockValues());
+  });
+
+  /** Undo a correction; refused once its stock has been consumed or sold. */
+  app.delete("/api/items/stock-values/:id", requireAuth, async (req, res) => {
+    const user = (req as Request & { user?: Session }).user;
+    res.json(await items.reverseStockValues(Number(req.params.id), user?.userId ?? null));
   });
 
   // --- stock ledger reset ------------------------------------------------
@@ -1661,7 +1675,9 @@ export function createApp(
   app.get("/api/reports/party-ledger-all", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     const showOpening = req.query.showOpening === "1" || req.query.showOpening === "true";
-    res.json(await reports.allPartyLedgers(from, to, { showOpening }));
+    const type = req.query.type;
+    const partyType = type === "CUSTOMER" || type === "SUPPLIER" ? type : undefined;
+    res.json(await reports.allPartyLedgers(from, to, { showOpening, partyType }));
   });
 
   app.get("/api/reports/trial-balance.csv", requireAuth, async (req, res) => {
@@ -1837,7 +1853,9 @@ export function createApp(
   app.get("/api/reports/party-ledger-all.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     const showOpening = req.query.showOpening === "1" || req.query.showOpening === "true";
-    const file = await reportXlsx.allPartyLedgers({ from, to, showOpening });
+    const type = req.query.type;
+    const partyType = type === "CUSTOMER" || type === "SUPPLIER" ? type : undefined;
+    const file = await reportXlsx.allPartyLedgers({ from, to, showOpening, partyType });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

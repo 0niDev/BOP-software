@@ -14,6 +14,7 @@ import {
   type ItemRow,
 } from "../repositories/itemRepository.js";
 import { JournalRepository } from "../repositories/journalRepository.js";
+import { insertRow } from "../repositories/base.js";
 import {
   ItemTagRepository,
   type ItemTagLinkRow,
@@ -58,6 +59,7 @@ export interface StockValueEntryInput {
 }
 
 export interface StockValuesResult {
+  entryId: number;
   journalEntryId: number;
   totalValue: number;
   entries: Array<{
@@ -68,6 +70,27 @@ export interface StockValuesResult {
     batchNumber: string;
     value: number;
   }>;
+}
+
+export interface StockValueLineRow {
+  id: number;
+  entry_id: number;
+  item_id: number;
+  batch_id: number;
+  quantity: number;
+  quantity_on_hand: number;
+  unit_cost: number;
+}
+
+export interface StockValueEntryRow {
+  id: number;
+  company_id: number;
+  entry_date: string;
+  journal_entry_id: number | null;
+  total_value: number;
+  created_at: string;
+  reversed_at: string | null;
+  lines: StockValueLineRow[];
 }
 
 export const ITEM_UNITS = [
@@ -431,12 +454,22 @@ export class ItemService {
   async setStockValues(
     input: readonly StockValueEntryInput[],
     entryDate?: string | null,
+    createdBy?: number | null,
   ): Promise<StockValuesResult> {
     if (input.length === 0) throw new ValidationError("Add at least one item.");
     const date = entryDate?.trim() || new Date().toISOString().slice(0, 10);
 
     return this.db.transaction(async () => {
-      const entries: StockValuesResult["entries"] = [];
+      const entries: Array<{
+        itemId: number;
+        itemName: string;
+        addedQuantity: number;
+        batchId: number;
+        batchNumber: string;
+        value: number;
+        quantityOnHand: number;
+        unitCost: number;
+      }> = [];
       const lines: JournalLineInput[] = [];
       const seen = new Set<number>();
       let total = new Decimal(0);
@@ -512,6 +545,8 @@ export class ItemService {
           batchId,
           batchNumber,
           value: toStorage(value),
+          quantityOnHand: toQuantity(row.quantityOnHand),
+          unitCost: row.unitCost,
         });
       }
 
@@ -519,6 +554,23 @@ export class ItemService {
         throw new ValidationError(
           "Nothing to add: every quantity already matches the stock on hand.",
         );
+      }
+
+      const entryId = await insertRow(this.db, "stock_value_entries", {
+        company_id: this.companyId,
+        entry_date: date,
+        total_value: toStorage(total),
+        created_by: createdBy ?? null,
+      });
+      for (const entry of entries) {
+        await insertRow(this.db, "stock_value_entry_lines", {
+          entry_id: entryId,
+          item_id: entry.itemId,
+          batch_id: entry.batchId,
+          quantity: entry.addedQuantity,
+          quantity_on_hand: entry.quantityOnHand,
+          unit_cost: entry.unitCost,
+        });
       }
 
       lines.push({
@@ -531,13 +583,122 @@ export class ItemService {
         voucherType: "OPENING",
         entryDate: date,
         lines,
-        narration: "Stock values entered from purchase register",
-        sourceTable: "stock_batches",
-        sourceId: entries[0]?.batchId ?? null,
+        narration: `Stock value correction #${entryId}`,
+        sourceTable: "stock_value_entries",
+        sourceId: entryId,
         companyId: this.companyId,
       });
+      await this.db.run("UPDATE stock_value_entries SET journal_entry_id = ? WHERE id = ?", [
+        journalEntryId,
+        entryId,
+      ]);
 
-      return { journalEntryId, totalValue: toStorage(total), entries };
+      return { entryId, journalEntryId, totalValue: toStorage(total), entries };
+    });
+  }
+
+  /** Saved stock-value corrections, newest first, with their item lines. */
+  async listStockValues(): Promise<StockValueEntryRow[]> {
+    const entries = await this.db.all<Omit<StockValueEntryRow, "lines">>(
+      `SELECT id, company_id, entry_date, journal_entry_id, total_value, created_at, reversed_at
+         FROM stock_value_entries
+        WHERE company_id = ?
+        ORDER BY entry_date DESC, id DESC`,
+      [this.companyId],
+    );
+    if (entries.length === 0) return [];
+    const lines = await this.db.all<StockValueLineRow>(
+      `SELECT l.id, l.entry_id, l.item_id, l.batch_id, l.quantity, l.quantity_on_hand, l.unit_cost
+         FROM stock_value_entry_lines l
+         JOIN stock_value_entries e ON e.id = l.entry_id
+        WHERE e.company_id = ?
+        ORDER BY l.id`,
+      [this.companyId],
+    );
+    const byEntry = new Map<number, StockValueLineRow[]>();
+    for (const line of lines) {
+      const list = byEntry.get(line.entry_id);
+      if (list) list.push(line);
+      else byEntry.set(line.entry_id, [line]);
+    }
+    return entries.map((entry) => ({ ...entry, lines: byEntry.get(entry.id) ?? [] }));
+  }
+
+  /**
+   * Undo a saved correction: reverse its journal entry and remove the stock it
+   * added. Refused once that stock has been consumed/sold — the batch no longer
+   * holds the full quantity, so a clean undo would corrupt on-hand stock.
+   */
+  async reverseStockValues(entryId: number, reversedBy?: number | null): Promise<{ ok: true }> {
+    const entry = await this.db.get<Omit<StockValueEntryRow, "lines">>(
+      `SELECT id, company_id, entry_date, journal_entry_id, total_value, created_at, reversed_at
+         FROM stock_value_entries
+        WHERE id = ? AND company_id = ?`,
+      [entryId, this.companyId],
+    );
+    if (!entry) throw new NotFoundError(`Stock value correction ${entryId} not found.`);
+    if (entry.reversed_at) {
+      throw new ValidationError("This stock value correction was already reversed.");
+    }
+    const lines = await this.db.all<StockValueLineRow>(
+      `SELECT id, entry_id, item_id, batch_id, quantity, quantity_on_hand, unit_cost
+         FROM stock_value_entry_lines
+        WHERE entry_id = ?
+        ORDER BY id`,
+      [entryId],
+    );
+
+    return this.db.transaction(async () => {
+      for (const line of lines) {
+        const batch = await this.batches.findById(line.batch_id);
+        if (!batch || dec(batch.quantity_in_stock).plus("0.000001").lessThan(line.quantity)) {
+          throw new ValidationError(
+            "Cannot undo: stock from this correction has already been consumed or sold. " +
+              "Enter a new correction instead.",
+          );
+        }
+      }
+
+      if (entry.journal_entry_id != null) {
+        const original = await this.journal.findLinesForEntry(entry.journal_entry_id);
+        if (original.length > 0) {
+          await this.accounting.postJournalEntry({
+            voucherType: "OPENING",
+            entryDate: new Date().toISOString().slice(0, 10),
+            lines: original.map((line) => ({
+              accountId: Number(line.account_id),
+              partyId: line.party_id == null ? null : Number(line.party_id),
+              description: `Reversal - ${String(line.description ?? "")}`.trim(),
+              debit: Number(line.credit),
+              credit: Number(line.debit),
+            })),
+            narration: `Reversal of stock value correction #${entryId}`,
+            sourceTable: "stock_value_entries",
+            sourceId: entryId,
+            companyId: this.companyId,
+          });
+        }
+      }
+
+      for (const line of lines) {
+        await this.batches.adjustQuantity(line.batch_id, -line.quantity);
+        await insertRow(this.db, "stock_movements", {
+          item_id: line.item_id,
+          batch_id: line.batch_id,
+          warehouse_id: this.warehouseId,
+          movement_type: "ADJUSTMENT",
+          quantity: -line.quantity,
+          unit_cost: line.unit_cost,
+          movement_date: new Date().toISOString().slice(0, 10),
+          notes: `Stock value correction #${entryId} reversed`,
+        });
+      }
+
+      await this.db.run(
+        "UPDATE stock_value_entries SET reversed_at = datetime('now'), reversed_by = ? WHERE id = ?",
+        [reversedBy ?? null, entryId],
+      );
+      return { ok: true as const };
     });
   }
 

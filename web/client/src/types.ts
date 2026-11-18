@@ -414,6 +414,29 @@ export interface ConsumptionLine {
   unit_cost: number;
 }
 
+/** One item line inside a saved stock-value correction. */
+export interface StockValueLine {
+  id: number;
+  entry_id: number;
+  item_id: number;
+  batch_id: number;
+  quantity: number;
+  quantity_on_hand: number;
+  unit_cost: number;
+}
+
+/** A saved, reversible stock-value correction. */
+export interface StockValueEntry {
+  id: number;
+  company_id: number;
+  entry_date: string;
+  journal_entry_id: number | null;
+  total_value: number;
+  created_at: string;
+  reversed_at: string | null;
+  lines: StockValueLine[];
+}
+
 export interface Payment {
   id: number;
   voucher_number: string;

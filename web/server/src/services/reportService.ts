@@ -1,6 +1,6 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
-import { SystemAccountCodes, type ItemType } from "../domain/enums.js";
+import { SystemAccountCodes, type ItemType, type PartyType } from "../domain/enums.js";
 import { Decimal, round2, toStorage } from "../domain/money.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
@@ -864,9 +864,12 @@ export class ReportService {
   async allPartyLedgers(
     from?: string,
     to?: string,
-    opts: { showOpening?: boolean } = {},
+    opts: { showOpening?: boolean; partyType?: PartyType } = {},
   ): Promise<AllPartyLedgersResult> {
-    const parties = await this.parties.list(this.companyId, { activeOnly: true });
+    const parties = await this.parties.list(this.companyId, {
+      activeOnly: true,
+      type: opts.partyType,
+    });
     const result: PartyLedgerWithBalance[] = [];
     let grandTotal = new Decimal(0);
     for (const party of parties) {

@@ -254,6 +254,16 @@ describe("xlsx report exports", () => {
     expect(sheetNames(files)).toEqual(["All Party Ledgers"]);
     expect(strings(files)).toContain("Grand total (all parties)");
     expect(worksheet(files)).toContain(`<v>${report.grandTotal}</v>`);
+
+    // The party-type filter splits customers and suppliers.
+    const customersOnly = await reports.allPartyLedgers(undefined, undefined, {
+      partyType: "CUSTOMER",
+    });
+    expect(customersOnly.parties.some((row) => row.partyId === ctx.ids.customerId)).toBe(true);
+    const suppliersOnly = await reports.allPartyLedgers(undefined, undefined, {
+      partyType: "SUPPLIER",
+    });
+    expect(suppliersOnly.parties.some((row) => row.partyId === ctx.ids.customerId)).toBe(false);
   });
 
   it("exports the party product sales report with per-party totals", async () => {

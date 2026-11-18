@@ -8,7 +8,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -584,6 +584,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [allPartyLedgers, setAllPartyLedgers] = useState<AllPartyLedgers | null>(null);
   const [allFrom, setAllFrom] = useState("");
   const [allTo, setAllTo] = useState("");
+  const [allType, setAllType] = useState<"" | Extract<PartyType, "CUSTOMER" | "SUPPLIER">>("");
   const [allShowOpening, setAllShowOpening] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
   const [allBusy, setAllBusy] = useState(false);
@@ -684,7 +685,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setError(null);
     try {
       setAllPartyLedgers(
-        await api.partyLedgerAll(allFrom || undefined, allTo || undefined, allShowOpening),
+        await api.partyLedgerAll(
+          allFrom || undefined,
+          allTo || undefined,
+          allShowOpening,
+          allType || undefined,
+        ),
       );
       setAllLoaded(true);
     } catch (err) {
@@ -1283,6 +1289,19 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
         <h2>All Party Ledgers</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
+            <label>Party type</label>
+            <select
+              value={allType}
+              onChange={(e) =>
+                setAllType(e.target.value as "" | "CUSTOMER" | "SUPPLIER")
+              }
+            >
+              <option value="">All parties</option>
+              <option value="CUSTOMER">Customers</option>
+              <option value="SUPPLIER">Suppliers</option>
+            </select>
+          </div>
+          <div>
             <label>From</label>
             <input type="date" value={allFrom} onChange={(e) => setAllFrom(e.target.value)} />
           </div>
@@ -1309,7 +1328,7 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             onClick={() =>
               void exportXlsx(
                 "all-parties",
-                () => api.partyLedgerAllXlsx(allFrom || undefined, allTo || undefined, allShowOpening),
+                () => api.partyLedgerAllXlsx(allFrom || undefined, allTo || undefined, allShowOpening, allType || undefined),
                 `all-party-ledgers_${periodTag(allFrom, allTo)}.xlsx`,
               )
             }

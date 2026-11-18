@@ -923,11 +923,12 @@ export const api = {
     const suffix = params.toString();
     return request<LedgerEntry[]>(`/api/reports/cash-book${suffix ? `?${suffix}` : ""}`);
   },
-  partyLedgerAll: (from?: string, to?: string, showOpening = false) => {
+  partyLedgerAll: (from?: string, to?: string, showOpening = false, type?: PartyType) => {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (showOpening) params.set("showOpening", "1");
+    if (type) params.set("type", type);
     const suffix = params.toString();
     return request<AllPartyLedgers>(`/api/reports/party-ledger-all${suffix ? `?${suffix}` : ""}`);
   },
@@ -1032,11 +1033,12 @@ export const api = {
     if (to) params.set("to", to);
     return requestBlob(`/api/reports/party-ledger.xlsx?${params.toString()}`);
   },
-  partyLedgerAllXlsx: (from?: string, to?: string, showOpening = false) => {
+  partyLedgerAllXlsx: (from?: string, to?: string, showOpening = false, type?: PartyType) => {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (showOpening) params.set("showOpening", "1");
+    if (type) params.set("type", type);
     const suffix = params.toString();
     return requestBlob(`/api/reports/party-ledger-all.xlsx${suffix ? `?${suffix}` : ""}`);
   },
