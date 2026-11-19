@@ -50,13 +50,17 @@ describe("ReportService", () => {
     await seedActivity();
     const { rows } = await reports.trialBalance();
     const fg = rows.find((row) => row.accountCode === "1220");
-    // 5 + 2 units on the invoices, each at the demo stock's cost of 100.
-    expect(fg?.soldValue).toBeCloseTo(700, 2);
+    // 5 + 2 units on the invoices, billed at 150 each.
+    expect(fg?.soldValue).toBeCloseTo(1050, 2);
+    // Itemised: one row per finished good sold, quantity and invoiced value.
+    expect(fg?.soldItems).toHaveLength(1);
+    expect(fg?.soldItems?.[0]?.quantity).toBeCloseTo(7, 2);
+    expect(fg?.soldItems?.[0]?.value).toBeCloseTo(1050, 2);
 
     // A sale that never relieved stock still counts as sold: the invoice says so.
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 0");
     const afterReset = await reports.trialBalance();
-    expect(afterReset.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(700, 2);
+    expect(afterReset.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(1050, 2);
     // Only finished goods get the sold memo line; material accounts get the
     // consumed one instead (nothing issued in this fixture, so it is zero).
     expect(rows.find((row) => row.accountCode === "1200")?.soldValue).toBeUndefined();
@@ -66,7 +70,7 @@ describe("ReportService", () => {
 
     // The memo line follows the report date.
     const early = await reports.trialBalance({ to: "2026-10-08" });
-    expect(early.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(500, 2);
+    expect(early.rows.find((row) => row.accountCode === "1220")?.soldValue).toBeCloseTo(750, 2);
   });
 
   it("produces a balance sheet that balances after trading activity", async () => {
@@ -139,10 +143,11 @@ describe("ReportService", () => {
     expect(lines[lines.length - 1]).toContain("TOTAL");
     // One header + one line per account + any inventory memo line + the TOTAL line.
     const { rows } = await reports.trialBalance();
-    const memoLines = rows.reduce(
-      (count, row) => count + (row.tagBreakdown?.length ? row.tagBreakdown.length + 1 : 0),
-      0,
-    );
+    const memoLines = rows.reduce((count, row) => {
+      // Finished goods carry what the invoices sold: a total plus one per item.
+      if (row.soldValue != null) return count + 1 + (row.soldItems?.length ?? 0);
+      return count + (row.tagBreakdown?.length ? row.tagBreakdown.length + 1 : 0);
+    }, 0);
     expect(lines).toHaveLength(rows.length + memoLines + 2);
   });
 
@@ -163,18 +168,28 @@ describe("ReportService", () => {
 
   it("breaks inventory accounts down by tag, replaying membership as at the report end", async () => {
     const items = new ItemService(ctx.db);
+    const raw = await items.create({
+      itemName: "Raw Tagged",
+      unit: "KG",
+      itemType: "RAW_MATERIAL",
+    });
+    const opening = await items.addOpeningStock({ itemId: raw.id, quantity: 10, unitCost: 50 });
+    // Backdate the receipt so a historical report sees the stock it carried then.
+    await ctx.db.run("UPDATE stock_movements SET movement_date = '2024-01-01' WHERE batch_id = ?", [
+      opening.batchId,
+    ]);
     const tag = await items.createTag("bottle");
-    await items.setTagItems(tag.id, { add: [ctx.ids.itemId] });
+    await items.setTagItems(tag.id, { add: [raw.id] });
 
     const current = await reports.trialBalance();
-    expect(current.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
-      { name: "bottle", value: 100_000 },
+    expect(current.rows.find((row) => row.accountCode === "1200")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 500 },
     ]);
 
     // Before the assignment the same stock is untagged.
     const before = await reports.trialBalance({ to: "2024-06-30" });
-    expect(before.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
-      { name: "Untagged", value: 100_000 },
+    expect(before.rows.find((row) => row.accountCode === "1200")?.tagBreakdown).toEqual([
+      { name: "Untagged", value: 500 },
     ]);
 
     // Backdate the assignment: the report now sees the tag on that date.
@@ -183,8 +198,8 @@ describe("ReportService", () => {
       [tag.id],
     );
     const backdated = await reports.trialBalance({ to: "2024-06-30" });
-    expect(backdated.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
-      { name: "bottle", value: 100_000 },
+    expect(backdated.rows.find((row) => row.accountCode === "1200")?.tagBreakdown).toEqual([
+      { name: "bottle", value: 500 },
     ]);
   });
 
@@ -203,9 +218,8 @@ describe("ReportService", () => {
     expect(tb.rows.find((row) => row.accountCode === "1200")?.tagBreakdown).toEqual([
       { name: "bottle", value: 500 },
     ]);
-    expect(tb.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toEqual([
-      { name: "bottle", value: 100_000 },
-    ]);
+    // Finished goods carry no tag split any more: the report shows what sold.
+    expect(tb.rows.find((row) => row.accountCode === "1220")?.tagBreakdown).toBeUndefined();
     const csv = await reports.trialBalanceCsv({ showZero: true });
     expect(csv).toContain("↳ bottle");
     // The memo block closes with the stock-vs-GL gap, using the account's own
@@ -377,5 +391,62 @@ describe("ReportService", () => {
     expect(asAtSecond.balanced).toBe(true);
     expect(asAtSecond.netProfit).toBe(350); // 250 + 100
     expect(asAtSecond.assets).toBeGreaterThan(asAtFirst.assets);
+  });
+
+  it("splits party balances into payables and receivables, flagging advances", async () => {
+    // A receipt with no invoice leaves the customer in credit: they prepaid.
+    await payments.receivePayment({
+      customerId: ctx.ids.customerId,
+      amount: 500,
+      paymentDate: "2026-10-10",
+      paymentMethod: "CASH",
+    });
+    // A supplier paid with no invoice is our advance to them.
+    await payments.paySupplier({
+      supplierId: ctx.ids.supplierId,
+      amount: 400,
+      paymentDate: "2026-10-11",
+      paymentMethod: "CASH",
+    });
+
+    const rows = await reports.partyBalances();
+    const customer = rows.find((row) => row.partyId === ctx.ids.customerId)!;
+    expect(customer.balance).toBe(-500);
+    expect(customer.side).toBe("PAYABLE");
+    expect(customer.advance).toBe(true);
+    expect(customer.credit).toBe(500);
+
+    const supplier = rows.find((row) => row.partyId === ctx.ids.supplierId)!;
+    expect(supplier.balance).toBe(400);
+    expect(supplier.side).toBe("RECEIVABLE");
+    expect(supplier.advance).toBe(true);
+    expect(supplier.debit).toBe(400);
+  });
+
+  it("folds pre-period party lines into opening and keeps the closing", async () => {
+    for (const date of ["2026-10-05", "2026-10-20"]) {
+      await sales.createSalesInvoice({
+        customerId: ctx.ids.customerId,
+        invoiceDate: date,
+        paymentType: "CREDIT",
+        items: [{ itemId: ctx.ids.itemId, quantity: 2, unitPrice: 150 }],
+      });
+    }
+
+    const period = (await reports.partyBalances("2026-10-10", "2026-10-31")).find(
+      (row) => row.partyId === ctx.ids.customerId,
+    )!;
+    expect(period.opening).toBe(300);
+    expect(period.debit).toBe(300);
+    expect(period.credit).toBe(0);
+    expect(period.balance).toBe(600);
+    expect(period.side).toBe("RECEIVABLE");
+
+    const firstHalf = (await reports.partyBalances("2026-10-01", "2026-10-10")).find(
+      (row) => row.partyId === ctx.ids.customerId,
+    )!;
+    expect(firstHalf.opening).toBe(0);
+    expect(firstHalf.debit).toBe(300);
+    expect(firstHalf.balance).toBe(300);
   });
 });

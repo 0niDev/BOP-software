@@ -148,6 +148,10 @@ describe("xlsx report exports", () => {
     const bsFiles = open((await xlsx.balanceSheet({ kind: "balance-sheet" })).buffer);
     expect(worksheet(bsFiles)).toContain(`<v>${balanceSheet.assets}</v>`);
     expect(strings(bsFiles)).toContain(balanceSheet.balanced ? "YES" : "NO");
+    // Assets Dr, liabilities and equity Cr, in their own column.
+    expect(strings(bsFiles)).toContain("<t>Dr/Cr</t>");
+    expect(strings(bsFiles)).toContain("<t>Dr</t>");
+    expect(strings(bsFiles)).toContain("<t>Cr</t>");
     // The proof line must net to zero on a balanced ledger.
     expect(strings(bsFiles)).toContain("Assets - (Liabilities + Equity)");
     expect(worksheet(bsFiles)).toContain("<v>0</v>");
@@ -199,6 +203,9 @@ describe("xlsx report exports", () => {
     expect(text).toContain("Sales - Net");
     expect(text).toContain("Acc. Profit/(Loss) B/F (y/opening)");
     expect(text).toContain("29");
+    // Each line carries the side it sits on, sales on the credit side.
+    expect(text).toContain("<t>Dr/Cr</t>");
+    expect(text).toContain("<t>Cr</t>");
   });
 
   it("prints the Notes to the Accounts", async () => {
@@ -234,6 +241,10 @@ describe("xlsx report exports", () => {
     if (!last) throw new Error("the customer ledger should contain the credit sale");
     expect(worksheet(files)).toContain(`<v>${last.balance}</v>`);
     expect(strings(files)).toContain("Balance");
+    // The amount stays a number; the side it sits on rides in its own column.
+    // A credit sale debits the customer's receivable, so the balance reads Dr.
+    expect(strings(files)).toContain("<t>Dr/Cr</t>");
+    expect(strings(files)).toContain("<t>Dr</t>");
   });
 
   it("prints every party's ledger with its closing balance and the grand total", async () => {
@@ -353,6 +364,36 @@ describe("xlsx report exports", () => {
     // The demo item has stock, so the two exports are disjoint.
     const item = await new ItemService(ctx.db).get(ctx.ids.itemId);
     expect(inStockText).toContain(item.item_name);
+  });
+
+  it("exports each side of the party balances with its advance column", async () => {
+    const purchases = new PurchaseInvoiceService(ctx.db);
+    await purchases.createPurchaseInvoice({
+      supplierId: ctx.ids.supplierId,
+      invoiceDate: "2026-10-09",
+      paymentType: "CREDIT",
+      items: [{ itemId: ctx.ids.itemId, quantity: 2, unitCost: 100 }],
+    });
+
+    const payables = await xlsx.partyBalances({ kind: "payables", from: "", to: "" });
+    expect(payables.fileName).toBe("payables_all-posted.xlsx");
+    const payableFiles = open(payables.buffer);
+    expect(sheetNames(payableFiles)).toEqual(["Payables"]);
+    expect(strings(payableFiles)).toContain("Demo Supplier");
+    expect(strings(payableFiles)).toContain("Paid in advance");
+
+    const all = await reports.partyBalances();
+    const supplier = all.find((row) => row.partyId === ctx.ids.supplierId)!;
+    expect(supplier.side).toBe("PAYABLE");
+    expect(worksheet(payableFiles)).toContain(`<v>${Math.abs(supplier.balance)}</v>`);
+
+    const receivables = await xlsx.partyBalances({ kind: "receivables" });
+    const receivableFiles = open(receivables.buffer);
+    expect(sheetNames(receivableFiles)).toEqual(["Receivables"]);
+    expect(strings(receivableFiles)).toContain("Demo Customer");
+    const customer = all.find((row) => row.partyId === ctx.ids.customerId)!;
+    expect(worksheet(receivableFiles)).toContain(`<v>${customer.balance}</v>`);
+    expect(strings(receivableFiles)).toContain("Closing Dr");
   });
 
   it("rejects a party ledger request without a party", async () => {

@@ -16,12 +16,13 @@ import writeXlsxFile, { type Cell, type CellObject, type SheetData } from "write
 import { AccountingService, type DateRangeOptions } from "./accountingService.js";
 import { NotFoundError, ValidationError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
+import { sideOf } from "../domain/money.js";
 import type { ItemType, PartyType } from "../domain/enums.js";
 import type { SqlDatabase } from "../db/types.js";
 import { PartyRepository } from "../repositories/partyRepository.js";
 import type { ItemListRow } from "../repositories/itemRepository.js";
 import { ItemService } from "./itemService.js";
-import { ReportService, type LedgerEntry } from "./reportService.js";
+import { ReportService, type LedgerEntry, type PartyBalanceSide } from "./reportService.js";
 import { CustomReportService, type CustomReportKind, type CustomReportResult } from "./customReportService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
@@ -108,6 +109,15 @@ function moneyOrBlank(value: number, style: Style = {}): CellObject | null {
   return value === 0 ? null : money(value, style);
 }
 
+/**
+ * The side a balance sits on, in its own column so the amount beside it stays a
+ * number Excel can total. Blank at zero, like the screen.
+ */
+function sideCell(value: number, style: Style = {}): CellObject | null {
+  const side = sideOf(value);
+  return side ? text(side, style) : null;
+}
+
 /** Human label for the reporting period, e.g. "2026-01-01 to 2026-03-31". */
 function periodLabel(from?: string | null, to?: string | null): string {
   if (!from && !to) return "all posted entries";
@@ -147,26 +157,48 @@ function heading(reportTitle: string, period: string): SheetData {
   ];
 }
 
+type ReportSide = "Dr" | "Cr" | "";
+
+interface SidedAmount {
+  value: number;
+  side: ReportSide;
+}
+
 interface NotesBlock {
   note: string;
   title: string;
   total: number;
-  rows: Array<{ note: string; name: string; amount: number; depth: number }>;
+  totalSide: ReportSide;
+  rows: Array<{ note: string; name: string; amount: number; side: ReportSide; depth: number }>;
+}
+
+/** Debit-positive figure of a line, so its side follows from its sign. */
+function debitOf(line: { value: number; side?: ReportSide }): number {
+  return line.side === "Cr" ? -line.value : line.value;
+}
+
+/** Side of a debit-positive total; "" at zero. */
+function sideOfTotal(value: number): ReportSide {
+  return value === 0 ? "" : value > 0 ? "Dr" : "Cr";
 }
 
 /** Subtree total of each header row, matching the Notes screen. */
-function headerTotals(rows: CustomReportResult["headings"][number]["rows"]): Map<number, number> {
-  const totals = new Map<number, number>();
+function headerTotals(
+  rows: CustomReportResult["headings"][number]["rows"],
+): Map<number, SidedAmount> {
+  const totals = new Map<number, SidedAmount>();
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     if (!row || !row.isHeader) continue;
     let sum = row.value;
+    let debit = debitOf(row);
     for (let j = i + 1; j < rows.length; j += 1) {
       const child = rows[j];
       if (!child || child.depth <= row.depth) break;
       sum += child.value;
+      debit += debitOf(child);
     }
-    totals.set(row.accountId, sum);
+    totals.set(row.accountId, { value: sum, side: sideOfTotal(debit) });
   }
   return totals;
 }
@@ -192,6 +224,9 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
     const total = subtotal
       ? subtotal.value
       : accounts.reduce((sum, heading) => sum + heading.value, 0);
+    const totalSide: ReportSide = subtotal
+      ? subtotal.side
+      : sideOfTotal(accounts.reduce((sum, heading) => sum + debitOf(heading), 0));
 
     if (!note) {
       const rows = accounts.flatMap((heading) =>
@@ -199,10 +234,11 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
           note: "",
           name: row.name,
           amount: row.value,
+          side: row.side,
           depth: row.depth,
         })),
       );
-      blocks.push({ note, title, total, rows });
+      blocks.push({ note, title, total, totalSide, rows });
       continue;
     }
 
@@ -210,7 +246,14 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
       const totals = headerTotals(heading.rows);
       return heading.rows.flatMap((row, index) =>
         row.depth === 0 && row.isHeader
-          ? [{ row, index, total: totals.get(row.accountId) ?? 0, rows: heading.rows }]
+          ? [
+              {
+                row,
+                index,
+                total: totals.get(row.accountId) ?? { value: row.value, side: row.side },
+                rows: heading.rows,
+              },
+            ]
           : [],
       );
     });
@@ -225,10 +268,12 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
     const rows: NotesBlock["rows"] = [];
     for (const heading of accounts) {
       for (const row of heading.rows.filter((candidate) => candidate.depth === 0)) {
+        const subtree = totals.get(row);
         rows.push({
           note: refs.get(row) ?? "",
           name: row.name,
-          amount: totals.get(row) ?? row.value,
+          amount: subtree?.value ?? row.value,
+          side: subtree?.side ?? row.side,
           depth: 0,
         });
       }
@@ -237,7 +282,8 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
       rows.push({
         note: refs.get(section.row) ?? "",
         name: section.row.name,
-        amount: section.total,
+        amount: section.total.value,
+        side: section.total.side,
         depth: 0,
       });
       for (let i = section.index + 1; i < section.rows.length; i += 1) {
@@ -247,16 +293,17 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
           note: "",
           name: child.name,
           amount: child.value,
+          side: child.side,
           depth: child.depth - section.row.depth,
         });
       }
     }
-    blocks.push({ note, title, total, rows });
+    blocks.push({ note, title, total, totalSide, rows });
   }
   return blocks;
 }
 
-/** The printed notes as sheet rows: Note | Particulars | Amount. */
+/** The printed notes as sheet rows: Note | Particulars | Amount | Dr/Cr. */
 function noteSheetRows(report: CustomReportResult): SheetData {
   const rows: Cell[][] = [];
   for (const block of noteBlocks(report)) {
@@ -264,16 +311,18 @@ function noteSheetRows(report: CustomReportResult): SheetData {
       text(block.note ? `Note No : ${block.note}` : "", TOTAL),
       text(block.title, TOTAL),
       money(block.total, TOTAL),
+      block.totalSide ? text(block.totalSide, TOTAL) : null,
     ]);
     for (const row of block.rows) {
       rows.push([
         text(row.note),
         text(row.name, { indent: (row.depth + 1) * 2 }),
         money(row.amount),
+        row.side ? text(row.side) : null,
       ]);
     }
   }
-  rows.push([text("*** End of Report ***", TOTAL), null, null]);
+  rows.push([text("*** End of Report ***", TOTAL), null, null, null]);
   return rows;
 }
 
@@ -286,6 +335,7 @@ const LEDGER_HEADER = [
   "Debit",
   "Credit",
   "Balance",
+  "Dr/Cr",
 ];
 
 const LEDGER_COLUMNS: Columns = [
@@ -297,6 +347,7 @@ const LEDGER_COLUMNS: Columns = [
   { width: 14 },
   { width: 14 },
   { width: 16 },
+  { width: 8 },
 ];
 
 function ledgerHeaderRow(): Cell[] {
@@ -313,6 +364,7 @@ function ledgerRows(entries: readonly LedgerEntry[]): SheetData {
     moneyOrBlank(entry.debit),
     moneyOrBlank(entry.credit),
     money(entry.balance),
+    sideCell(entry.balance),
   ]);
 }
 
@@ -331,6 +383,7 @@ function ledgerFooter(entries: readonly LedgerEntry[]): SheetData {
       money(debit, TOTAL),
       money(credit, TOTAL),
       money(closing ? closing.balance : 0, TOTAL),
+      sideCell(closing ? closing.balance : 0, TOTAL),
     ],
   ];
 }
@@ -347,7 +400,7 @@ const TRIAL_BALANCE_COLUMNS: Columns = [
   { width: 15 },
 ];
 
-const TWO_COLUMN: Columns = [{ width: 32 }, { width: 18 }];
+const THREE_COLUMN: Columns = [{ width: 32 }, { width: 18 }, { width: 8 }];
 
 const INVENTORY_COLUMNS: Columns = [
   { width: 8 },
@@ -447,12 +500,19 @@ export class ReportXlsx {
         text("Heading / Account", HEADER),
         text("Code", HEADER),
         text("Amount", HEADER),
+        text("Dr/Cr", HEADER),
         text("Note", HEADER),
       ],
       ...report.headings.flatMap((line): SheetData => {
         const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
         return [
-          [text(line.name, style), null, money(line.value, style), text(line.note ?? "", style)],
+          [
+            text(line.name, style),
+            null,
+            money(line.value, style),
+            line.side ? text(line.side, style) : null,
+            text(line.note ?? "", style),
+          ],
           ...(includeDetail
             ? line.rows.map(
                 (row): Cell[] => [
@@ -462,6 +522,7 @@ export class ReportXlsx {
                   }),
                   text(row.code),
                   moneyOrBlank(row.value),
+                  row.side ? text(row.side) : null,
                   null,
                 ],
               )
@@ -474,6 +535,7 @@ export class ReportXlsx {
               text("Unassigned (not in any heading)", TOTAL),
               null,
               money(report.unassigned.value, TOTAL),
+              report.unassigned.side ? text(report.unassigned.side, TOTAL) : null,
               null,
             ] as Cell[],
             ...report.unassigned.rows.map(
@@ -481,6 +543,7 @@ export class ReportXlsx {
                 text(row.name, { indent: (row.depth + 1) * 2 }),
                 text(row.code),
                 moneyOrBlank(row.value),
+                row.side ? text(row.side) : null,
                 null,
               ],
             ),
@@ -488,7 +551,13 @@ export class ReportXlsx {
         : ([] as Cell[][])),
       [],
       ...report.footer.map(
-        (line): Cell[] => [text(line.label, TOTAL), null, money(line.value, TOTAL), null],
+        (line): Cell[] => [
+          text(line.label, TOTAL),
+          null,
+          money(line.value, TOTAL),
+          line.side ? text(line.side, TOTAL) : null,
+          null,
+        ],
       ),
       ...(report.balanced === null
         ? ([] as Cell[][])
@@ -497,6 +566,7 @@ export class ReportXlsx {
               text("Balanced", TOTAL),
               null,
               text(report.balanced ? "YES" : "NO", TOTAL),
+              null,
               null,
             ] as Cell[],
           ]),
@@ -513,7 +583,7 @@ export class ReportXlsx {
         {
           data,
           sheet: title,
-          columns: [{ width: 46 }, { width: 12 }, { width: 16 }, { width: 8 }],
+          columns: [{ width: 46 }, { width: 12 }, { width: 16 }, { width: 8 }, { width: 8 }],
           stickyRowsCount: 6,
         },
       ]),
@@ -525,7 +595,12 @@ export class ReportXlsx {
     const report = await this.customReports.build("PL", options);
     const data: SheetData = [
       ...heading("Notes to the Accounts", periodLabel(options.from, options.to)),
-      [text("Note", HEADER), text("Particulars", HEADER), text("Amount", HEADER)],
+      [
+        text("Note", HEADER),
+        text("Particulars", HEADER),
+        text("Amount", HEADER),
+        text("Dr/Cr", HEADER),
+      ],
       ...noteSheetRows(report),
     ];
     return {
@@ -534,7 +609,7 @@ export class ReportXlsx {
         {
           data,
           sheet: "Notes",
-          columns: [{ width: 12 }, { width: 52 }, { width: 16 }],
+          columns: [{ width: 12 }, { width: 52 }, { width: 16 }, { width: 8 }],
           stickyRowsCount: 6,
         },
       ]),
@@ -582,6 +657,7 @@ export class ReportXlsx {
         null,
         null,
         money(party.closingBalance, PARTY),
+        sideCell(party.closingBalance, PARTY),
       ]);
       data.push(...ledgerRows(party.entries));
       data.push([]);
@@ -595,6 +671,7 @@ export class ReportXlsx {
       null,
       null,
       money(report.grandTotal, TOTAL),
+      sideCell(report.grandTotal, TOTAL),
     ]);
     return {
       fileName: `all-party-ledgers_${periodSlug(options.from, options.to)}.xlsx`,
@@ -603,6 +680,116 @@ export class ReportXlsx {
           data,
           sheet: "All Party Ledgers",
           columns: LEDGER_COLUMNS,
+          stickyRowsCount: 6,
+          orientation: "landscape",
+        },
+      ]),
+    };
+  }
+
+  /**
+   * One side of every party's balance: the payables report (credit balances)
+   * or the receivables report (debit balances), with opening and period
+   * movement. A customer in credit and a supplier in debit are marked as
+   * advances, the same flag the screen splits them on.
+   */
+  async partyBalances(
+    options: DateRangeOptions & { kind: "payables" | "receivables" },
+  ): Promise<XlsxFile> {
+    const side: PartyBalanceSide = options.kind === "payables" ? "PAYABLE" : "RECEIVABLE";
+    const rank = (partyType: string): number =>
+      options.kind === "payables"
+        ? partyType === "SUPPLIER"
+          ? 0
+          : partyType === "CUSTOMER"
+            ? 1
+            : 2
+        : partyType === "CUSTOMER"
+          ? 0
+          : partyType === "SUPPLIER"
+            ? 1
+            : 2;
+    const rows = (
+      await this.reports.partyBalances(options.from ?? undefined, options.to ?? undefined)
+    )
+      .filter((row) => row.side === side)
+      .sort(
+        (a, b) =>
+          rank(a.partyType) - rank(b.partyType) ||
+          Number(b.advance) - Number(a.advance) ||
+          Math.abs(b.balance) - Math.abs(a.balance) ||
+          a.name.localeCompare(b.name),
+      );
+
+    const title = options.kind === "payables" ? "Payables" : "Receivables";
+    const closingLabel = options.kind === "payables" ? "Closing Cr" : "Closing Dr";
+    const data: SheetData = [
+      ...heading(title, periodLabel(options.from, options.to)),
+      [
+        text("Code", HEADER),
+        text("Party", HEADER),
+        text("Type", HEADER),
+        text("Paid in advance", HEADER),
+        text("Opening Dr", HEADER),
+        text("Opening Cr", HEADER),
+        text("Period Dr", HEADER),
+        text("Period Cr", HEADER),
+        text(closingLabel, HEADER),
+      ],
+    ];
+
+    let openingDr = 0;
+    let openingCr = 0;
+    let debit = 0;
+    let credit = 0;
+    let closing = 0;
+    for (const row of rows) {
+      openingDr += row.opening > 0 ? row.opening : 0;
+      openingCr += row.opening < 0 ? -row.opening : 0;
+      debit += row.debit;
+      credit += row.credit;
+      closing += Math.abs(row.balance);
+      data.push([
+        text(row.code),
+        text(row.name + (row.isActive ? "" : " (inactive)")),
+        text(row.partyType),
+        text(row.advance ? "Yes" : ""),
+        moneyOrBlank(row.opening > 0 ? row.opening : 0),
+        moneyOrBlank(row.opening < 0 ? -row.opening : 0),
+        moneyOrBlank(row.debit),
+        moneyOrBlank(row.credit),
+        money(Math.abs(row.balance)),
+      ]);
+    }
+    data.push([
+      text(`Total ${title.toLowerCase()} (${rows.length} parties)`, TOTAL),
+      null,
+      null,
+      null,
+      money(openingDr, TOTAL),
+      money(openingCr, TOTAL),
+      money(debit, TOTAL),
+      money(credit, TOTAL),
+      money(closing, TOTAL),
+    ]);
+
+    return {
+      fileName: `${options.kind}_${periodSlug(options.from, options.to)}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: title,
+          columns: [
+            { width: 14 },
+            { width: 40 },
+            { width: 12 },
+            { width: 14 },
+            { width: 15 },
+            { width: 15 },
+            { width: 14 },
+            { width: 14 },
+            { width: 16 },
+          ],
           stickyRowsCount: 6,
           orientation: "landscape",
         },
@@ -930,7 +1117,9 @@ export class ReportXlsx {
             ...(sold != null
               ? [
                   memo("↳ Sold FG (per invoices)", sold),
-                  ...(showStock && tags.length > 0 ? [memo("↳ FG in stock", stock)] : []),
+                  ...(row.soldItems ?? []).map((item): Cell[] =>
+                    memo(`· ${item.name}`, item.value, 1),
+                  ),
                 ]
               : used != null
                 ? [
@@ -1004,20 +1193,26 @@ export class ReportXlsx {
     const report = await this.customReports.build("PL", options);
     const data: SheetData = [
       ...heading("Profit & Loss", periodLabel(options.from, options.to)),
-      [text("Heading", HEADER), text("Note", HEADER), text("Amount", HEADER)],
+      [
+        text("Heading", HEADER),
+        text("Note", HEADER),
+        text("Amount", HEADER),
+        text("Dr/Cr", HEADER),
+      ],
       ...report.headings.map((line): Cell[] => {
         const style: Style = line.kind === "subtotal" ? TOTAL : {};
         return [
           text(line.name, style),
           text(line.note ?? "", style),
           money(line.value, style),
+          line.side ? text(line.side, style) : null,
         ];
       }),
     ];
     return {
       data,
       sheet: "Profit & Loss",
-      columns: [{ width: 46 }, { width: 10 }, { width: 16 }],
+      columns: [{ width: 46 }, { width: 10 }, { width: 16 }, { width: 8 }],
       stickyRowsCount: 6,
     };
   }
@@ -1027,13 +1222,17 @@ export class ReportXlsx {
     return {
       data: [
         ...heading("Profit & Loss", periodLabel(options.from, options.to)),
-        [text("Metric", HEADER), text("Amount", HEADER)],
-        [text("Revenue (net of returns)"), money(report.revenue)],
-        [text("Expenses (COGS and expense accounts)"), money(report.expenses)],
-        [text("Net Profit", TOTAL), money(report.netProfit, TOTAL)],
+        [text("Metric", HEADER), text("Amount", HEADER), text("Dr/Cr", HEADER)],
+        [text("Revenue (net of returns)"), money(report.revenue), text("Cr")],
+        [text("Expenses (COGS and expense accounts)"), money(report.expenses), text("Dr")],
+        [
+          text("Net Profit", TOTAL),
+          money(report.netProfit, TOTAL),
+          text(report.netProfit >= 0 ? "Cr" : "Dr", TOTAL),
+        ],
       ],
       sheet: "Profit & Loss",
-      columns: TWO_COLUMN,
+      columns: THREE_COLUMN,
       stickyRowsCount: 6,
     };
   }
@@ -1044,17 +1243,25 @@ export class ReportXlsx {
     return {
       data: [
         ...heading("Balance Sheet", asAt ? `as at ${formatDayMonthYear(asAt)}` : "as at today (all posted entries)"),
-        [text("Metric", HEADER), text("Amount", HEADER)],
-        [text("Assets"), money(report.assets)],
-        [text("Liabilities"), money(report.liabilities)],
-        [text("Equity (incl. net profit)"), money(report.equity)],
-        [text("Net Profit"), money(report.netProfit)],
+        [text("Metric", HEADER), text("Amount", HEADER), text("Dr/Cr", HEADER)],
+        [text("Assets"), money(report.assets), text("Dr")],
+        [text("Liabilities"), money(report.liabilities), text("Cr")],
+        [text("Equity (incl. net profit)"), money(report.equity), text("Cr")],
+        [
+          text("Net Profit"),
+          money(report.netProfit),
+          text(report.netProfit >= 0 ? "Cr" : "Dr"),
+        ],
         [],
-        [text("Assets - (Liabilities + Equity)", TOTAL), money(difference, TOTAL)],
-        [text("Balanced", TOTAL), text(report.balanced ? "YES" : "NO", TOTAL)],
+        [
+          text("Assets - (Liabilities + Equity)", TOTAL),
+          money(difference, TOTAL),
+          sideCell(difference, TOTAL),
+        ],
+        [text("Balanced", TOTAL), text(report.balanced ? "YES" : "NO", TOTAL), null],
       ],
       sheet: "Balance Sheet",
-      columns: TWO_COLUMN,
+      columns: THREE_COLUMN,
       stickyRowsCount: 6,
     };
   }

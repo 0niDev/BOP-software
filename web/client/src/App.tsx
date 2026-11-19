@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import { PageVisibleProvider } from "./lib/pageVisibility";
 import AccountsPage from "./pages/AccountsPage";
 import AssetsPage from "./pages/AssetsPage";
+import BalanceReportPage from "./pages/BalanceReportPage";
 import BankingPage from "./pages/BankingPage";
 import DashboardPage from "./pages/DashboardPage";
 import DeletedRecordsPage from "./pages/DeletedRecordsPage";
@@ -44,6 +45,8 @@ export type ReportPage =
   | "report-trial-balance"
   | "report-party-ledger"
   | "report-party-ledger-all"
+  | "report-payables"
+  | "report-receivables"
   | "report-party-product-sales"
   | "report-party-product-purchases"
   | "report-cash-book"
@@ -161,7 +164,13 @@ export default function App() {
         ))}
       {isReportPage(page) && (
         <div data-page-active="">
-          <TrialBalancePage section={page} />
+          {page === "report-payables" || page === "report-receivables" ? (
+            <BalanceReportPage
+              kind={page === "report-payables" ? "payables" : "receivables"}
+            />
+          ) : (
+            <TrialBalancePage section={page} />
+          )}
         </div>
       )}
     </Layout>

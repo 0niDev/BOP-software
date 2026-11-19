@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { money } from "../lib/format";
+import { moneySide, type Side } from "../lib/format";
 import type { CustomReport, CustomReportHeading, CustomReportRow } from "../types";
 
 /**
@@ -11,19 +11,38 @@ import type { CustomReport, CustomReportHeading, CustomReportRow } from "../type
  * report lines, not notes.
  */
 
+/** An amount with the side it sits on. */
+export interface SidedAmount {
+  value: number;
+  side: Side | "";
+}
+
+/** Debit-positive figure of a line, so its side follows from its sign. */
+function debitOf(line: { value: number; side?: Side | "" }): number {
+  return line.side === "Cr" ? -line.value : line.value;
+}
+
+/** Side of a debit-positive total; "" at zero. */
+function sideOfTotal(value: number): Side | "" {
+  if (value === 0) return "";
+  return value > 0 ? "Dr" : "Cr";
+}
+
 /** Subtree total of each header row: its own balance plus every descendant's. */
-export function headerTotals(rows: CustomReportRow[]): Map<number, number> {
-  const totals = new Map<number, number>();
+export function headerTotals(rows: CustomReportRow[]): Map<number, SidedAmount> {
+  const totals = new Map<number, SidedAmount>();
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     if (!row || !row.isHeader) continue;
     let sum = row.value;
+    let debit = debitOf(row);
     for (let j = i + 1; j < rows.length; j += 1) {
       const child = rows[j];
       if (!child || child.depth <= row.depth) break;
       sum += child.value;
+      debit += debitOf(child);
     }
-    totals.set(row.accountId, sum);
+    totals.set(row.accountId, { value: sum, side: sideOfTotal(debit) });
   }
   return totals;
 }
@@ -33,6 +52,8 @@ export interface NoteBlockRow {
   note: string;
   name: string;
   amount: number;
+  /** Side the amount sits on; "" when it is zero. */
+  side: Side | "";
   /** Indentation level under the block header. */
   depth: number;
 }
@@ -41,6 +62,8 @@ export interface NoteBlock {
   note: string;
   title: string;
   total: number;
+  /** Side the block total sits on; "" when it is zero. */
+  totalSide: Side | "";
   rows: NoteBlockRow[];
 }
 
@@ -70,6 +93,9 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
     const total = subtotal
       ? subtotal.value
       : accounts.reduce((sum, heading) => sum + heading.value, 0);
+    const totalSide: Side | "" = subtotal
+      ? subtotal.side
+      : sideOfTotal(accounts.reduce((sum, heading) => sum + debitOf(heading), 0));
 
     // No printed note: keep every row of the tree inline so nothing is lost.
     if (!note) {
@@ -78,10 +104,11 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
           note: "",
           name: row.name,
           amount: row.value,
+          side: row.side,
           depth: row.depth,
         })),
       );
-      blocks.push({ note, title, total, rows });
+      blocks.push({ note, title, total, totalSide, rows });
       continue;
     }
 
@@ -90,7 +117,14 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
       const totals = headerTotals(heading.rows);
       return heading.rows.flatMap((row, index) =>
         row.depth === 0 && row.isHeader
-          ? [{ row, index, total: totals.get(row.accountId) ?? 0, rows: heading.rows }]
+          ? [
+              {
+                row,
+                index,
+                total: totals.get(row.accountId) ?? { value: row.value, side: row.side },
+                rows: heading.rows,
+              },
+            ]
           : [],
       );
     });
@@ -105,10 +139,12 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
     const rows: NoteBlockRow[] = [];
     for (const heading of accounts) {
       for (const row of heading.rows.filter((candidate) => candidate.depth === 0)) {
+        const subtree = totals.get(row);
         rows.push({
           note: refs.get(row) ?? "",
           name: row.name,
-          amount: totals.get(row) ?? row.value,
+          amount: subtree?.value ?? row.value,
+          side: subtree?.side ?? row.side,
           depth: 0,
         });
       }
@@ -117,7 +153,8 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
       rows.push({
         note: refs.get(section.row) ?? "",
         name: section.row.name,
-        amount: section.total,
+        amount: section.total.value,
+        side: section.total.side,
         depth: 0,
       });
       for (let i = section.index + 1; i < section.rows.length; i += 1) {
@@ -127,11 +164,12 @@ export function noteBlocks(report: CustomReport): NoteBlock[] {
           note: "",
           name: child.name,
           amount: child.value,
+          side: child.side,
           depth: child.depth - section.row.depth,
         });
       }
     }
-    blocks.push({ note, title, total, rows });
+    blocks.push({ note, title, total, totalSide, rows });
   }
   return blocks;
 }
@@ -152,13 +190,13 @@ export default function PLNotes({ report }: { report: CustomReport }) {
             <tr className="total">
               <td>{block.note ? `Note No : ${block.note}` : ""}</td>
               <td>{block.title}</td>
-              <td className="num">{money(block.total)}</td>
+              <td className="num">{moneySide(block.total, block.totalSide)}</td>
             </tr>
             {block.rows.map((row, rowIndex) => (
               <tr key={`${block.note}-${blockIndex}-${rowIndex}`}>
                 <td>{row.note}</td>
                 <td style={{ paddingLeft: 16 * (1 + row.depth) }}>{row.name}</td>
-                <td className="num">{money(row.amount)}</td>
+                <td className="num">{moneySide(row.amount, row.side)}</td>
               </tr>
             ))}
           </Fragment>

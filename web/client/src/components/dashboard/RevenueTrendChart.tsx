@@ -10,7 +10,7 @@ import {
 import Card from "../ui/Card";
 import ChartFrame, { LegendItem } from "../ui/ChartFrame";
 import DeltaPill from "../ui/DeltaPill";
-import { compact, money, monthLabel, percentChange } from "../../lib/format";
+import { compact, moneySide, monthLabel, percentChange } from "../../lib/format";
 import type { DashboardData } from "../../types";
 
 interface TrendRow {
@@ -43,11 +43,11 @@ function TrendTooltip({
       <dl className="mt-2 space-y-1">
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[12px] font-semibold text-muted">Revenue</dt>
-          <dd className="num text-[12px] font-bold text-ink">{money(revenue)}</dd>
+          <dd className="num text-[12px] font-bold text-ink">{moneySide(revenue, "Cr")}</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[12px] font-semibold text-muted">Expenses</dt>
-          <dd className="num text-[12px] font-bold text-ink">{money(expenses)}</dd>
+          <dd className="num text-[12px] font-bold text-ink">{moneySide(expenses, "Dr")}</dd>
         </div>
         <div className="flex items-center justify-between gap-4 border-t border-line pt-1">
           <dt className="text-[12px] font-semibold text-muted">Net</dt>
@@ -55,7 +55,7 @@ function TrendTooltip({
             className="num text-[12px] font-bold"
             style={{ color: revenue - expenses >= 0 ? "var(--ok)" : "var(--danger)" }}
           >
-            {money(revenue - expenses)}
+            {moneySide(revenue - expenses, revenue - expenses >= 0 ? "Cr" : "Dr")}
           </dd>
         </div>
       </dl>

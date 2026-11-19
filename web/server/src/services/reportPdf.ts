@@ -15,8 +15,10 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { AccountingService } from "./accountingService.js";
 import { AccountService, type AccountWithDeleteFlags } from "./accountService.js";
 import { ReportService, type PartyBalanceRow } from "./reportService.js";
+import { isDebitNormal } from "../domain/enums.js";
 import { NotFoundError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
+import { sideOf } from "../domain/money.js";
 import type { SqlDatabase } from "../db/types.js";
 
 /** The PDF mime type, for the HTTP Content-Type header. */
@@ -322,6 +324,8 @@ interface CoaRow {
   name?: string;
   subtype?: string;
   balance?: number;
+  /** Side the balance sits on, printed beside it; "" at zero. */
+  side?: "Dr" | "Cr" | "";
 }
 
 /** Section order, matching the on-screen Chart of Accounts. */
@@ -389,12 +393,18 @@ export function buildCoaRows(
   }
   unattached.sort((a, b) => a.name.localeCompare(b.name));
 
+  // A party's closing balance is debit-positive; an account's stored opening is
+  // in the account's own normal sign, so a liability's credit looks positive.
+  const sideOfOpening = (account: AccountWithDeleteFlags): "Dr" | "Cr" | "" =>
+    sideOf(isDebitNormal(account.account_type) ? account.opening_balance : -account.opening_balance);
+
   const partyRow = (party: PartyBalanceRow): CoaRow => ({
     kind: "party",
     code: party.code,
     name: party.name,
     subtype: party.isActive === 1 ? "party" : "party · inactive",
     balance: party.balance,
+    side: sideOf(party.balance),
   });
 
   const accountRow = (account: AccountWithDeleteFlags): CoaRow => ({
@@ -405,6 +415,7 @@ export function buildCoaRows(
       .filter(Boolean)
       .join(" · "),
     balance: account.opening_balance,
+    side: sideOfOpening(account),
   });
 
   const rows: CoaRow[] = [];
@@ -518,7 +529,7 @@ async function renderChartOfAccounts(rows: readonly CoaRow[]): Promise<Uint8Arra
       row.code ?? "",
       row.name ?? "",
       row.subtype ?? "",
-      row.balance ? money(row.balance) : "",
+      row.balance ? (row.side ? `${money(row.balance)} ${row.side}` : money(row.balance)) : "",
     ];
     const wrapped = cells.map((cell, index) =>
       wrap(cell, regular, 9, (COA_COLUMNS[index]?.width ?? 60) - 12),

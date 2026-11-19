@@ -12,7 +12,7 @@ import ExpiringTable from "../components/dashboard/ExpiringTable";
 import LiquidityCard from "../components/dashboard/LiquidityCard";
 import LowStockTable from "../components/dashboard/LowStockTable";
 import RevenueTrendChart from "../components/dashboard/RevenueTrendChart";
-import { compact, money, percent, percentChange, share } from "../lib/format";
+import { compact, money, moneySide, percent, percentChange, share } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { DashboardData } from "../types";
 import type { Page } from "../App";
@@ -131,6 +131,7 @@ export default function DashboardPage({
             icon={TrendingUp}
             label="Revenue this month"
             value={compact(data.profitLoss.revenue)}
+            unit="Cr"
             badge={<DeltaPill change={revenueChange} label="MoM" />}
             hint={money(data.profitLoss.revenue)}
           />
@@ -140,6 +141,7 @@ export default function DashboardPage({
             icon={TrendingDown}
             label="Expenses this month"
             value={compact(data.profitLoss.expenses)}
+            unit="Dr"
             tone="amber"
             badge={<DeltaPill change={expenseChange} label="MoM" invert />}
             hint={money(data.profitLoss.expenses)}
@@ -150,6 +152,7 @@ export default function DashboardPage({
             icon={Coins}
             label="Net loss / profit"
             value={compact(data.profitLoss.profit)}
+            unit={data.profitLoss.profit >= 0 ? "Cr" : "Dr"}
             tone={data.profitLoss.isProfit ? "ok" : "amber"}
             badge={
               <StatusPill tone={data.profitLoss.isProfit ? "ok" : "danger"}>
@@ -164,6 +167,7 @@ export default function DashboardPage({
             icon={Banknote}
             label="Cash & bank"
             value={compact(liquidity)}
+            unit="Dr"
             tone="teal"
             hint={`Cash ${money(data.balances.cash)} · Bank ${money(data.balances.bank)}`}
           />
@@ -217,7 +221,7 @@ function CashReconciliation({ ledgerCash }: { ledgerCash: number }) {
         </label>
         <div className="pb-1 text-right">
           <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted">Ledger</div>
-          <div className="text-[15px] font-bold text-ink">{money(ledgerCash)}</div>
+          <div className="text-[15px] font-bold text-ink">{moneySide(ledgerCash, "Dr")}</div>
         </div>
       </div>
       {difference != null && (

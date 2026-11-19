@@ -1,7 +1,7 @@
 import type { Row, SqlDatabase } from "../db/types.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
 import { SystemAccountCodes, type ItemType, type PartyType } from "../domain/enums.js";
-import { Decimal, round2, toStorage } from "../domain/money.js";
+import { Decimal, round2, sideOf, toStorage } from "../domain/money.js";
 import { PartyRepository, type PartyRow } from "../repositories/partyRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import {
@@ -124,6 +124,9 @@ export interface LedgerEntry {
   beforeOpening?: boolean;
 }
 
+/** Which report a party's closing balance belongs on. */
+export type PartyBalanceSide = "PAYABLE" | "RECEIVABLE" | "ZERO";
+
 /** One party's sub-ledger balance, for the Chart of Accounts. */
 export interface PartyBalanceRow {
   partyId: number;
@@ -137,8 +140,17 @@ export interface PartyBalanceRow {
   name: string;
   partyType: string;
   isActive: number;
+  /** Opening balance for the requested period, debit-positive. */
+  opening: number;
+  /** Debits / credits posted inside the requested period. */
+  debit: number;
+  credit: number;
   /** Closing balance, debit-positive (what the party owes us). */
   balance: number;
+  /** Direction of the closing balance: the payables / receivables split. */
+  side: PartyBalanceSide;
+  /** A customer in credit (prepaid) or a supplier in debit (we prepaid). */
+  advance: boolean;
 }
 
 export function csvEscape(value: string): string {
@@ -209,7 +221,8 @@ export class ReportService {
 
     for (const row of inventoryRows) {
       const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
-      if (!itemType) continue;
+      // Finished goods show only what the invoices sold — no tag split, no count.
+      if (!itemType || itemType === "FINISHED_GOOD") continue;
       const perTag = byType.get(itemType);
       if (!perTag) continue;
       row.tagBreakdown = [...perTag.entries()]
@@ -221,14 +234,17 @@ export class ReportService {
         });
     }
 
-    // Finished goods are split on the report: everything the invoices sold,
-    // and what is physically left. A sold unit is sold whether or not the
-    // posting code remembered to relieve it, so the sold figure is built from
-    // the sales invoices themselves.
+    // Finished goods report one figure: what the sales invoices sold. It is
+    // built from the invoices themselves, so a sale that never relieved stock
+    // still counts.
     const fgRow = inventoryRows.find(
       (row) => INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode] === "FINISHED_GOOD",
     );
-    if (fgRow) fgRow.soldValue = await this.soldFinishedGoods(to);
+    if (fgRow) {
+      const sold = await this.soldFinishedGoods(to);
+      fgRow.soldValue = sold.total;
+      fgRow.soldItems = sold.items;
+    }
 
     // Raw and packing material get the mirror treatment: what manufacturing
     // has already taken out of the account, and what is still in the store.
@@ -251,11 +267,8 @@ export class ReportService {
     // What is behind each figure but carries no cost, so it values at zero.
     for (const row of inventoryRows) {
       const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
-      if (!itemType) continue;
-      row.unpricedItems =
-        itemType === "FINISHED_GOOD"
-          ? await this.unpricedProductionInputs()
-          : await this.unpricedStockItems(itemType);
+      if (!itemType || itemType === "FINISHED_GOOD") continue;
+      row.unpricedItems = await this.unpricedStockItems(itemType);
     }
   }
 
@@ -279,38 +292,6 @@ export class ReportService {
   }
 
   /**
-   * Inputs pulled into production and packing runs that carry no cost anywhere:
-   * no purchase price and no costed batch. Their value never reached the
-   * finished goods made from them.
-   */
-  private async unpricedProductionInputs(): Promise<Array<{ name: string; quantity: number }>> {
-    return this.db.all<{ name: string; quantity: number }>(
-      `WITH runs AS (
-         SELECT bom_id, actual_quantity FROM production_orders WHERE actual_quantity > 0
-         UNION ALL
-         SELECT bom_id, actual_quantity FROM packing_orders WHERE actual_quantity > 0
-       )
-       SELECT i.item_name AS name,
-              SUM(bc.quantity_required * r.actual_quantity / NULLIF(b.output_quantity, 0)) AS quantity
-         FROM runs r
-         JOIN bill_of_materials b ON b.id = r.bom_id
-         JOIN bom_components bc ON bc.bom_id = b.id
-         JOIN items i ON i.id = bc.component_item_id
-        WHERE i.company_id = ?
-          AND NOT EXISTS (
-                SELECT 1 FROM purchase_invoice_items p
-                 WHERE p.item_id = i.id AND p.unit_cost > 0)
-          AND NOT EXISTS (
-                SELECT 1 FROM stock_batches sb
-                 WHERE sb.item_id = i.id
-                   AND (sb.purchase_price > 0 OR (sb.raw_unit_cost + sb.packing_unit_cost) > 0))
-        GROUP BY i.id, i.item_name
-        ORDER BY quantity DESC`,
-      [this.companyId],
-    );
-  }
-
-  /**
    * Material taken out of an inventory account by manufacturing production, as
    * at `to`. Stock has no issue movements in this dataset, so the manufacturing
    * vouchers are the only record of what was consumed.
@@ -328,33 +309,33 @@ export class ReportService {
   }
 
   /**
-   * Cost of every finished good sold as at `to`, taken from the invoices: each
-   * sales-invoice line contributes its own quantity at that item's average
-   * intake cost (purchases, production runs and opening stock). Quantities come
-   * from the invoice, so sales posted without a stock movement are still
-   * counted; only the cost has to be looked up.
+   * Value of every finished good sold as at `to`, taken from the invoices:
+   * each sales-invoice line contributes its own quantity and line total. That
+   * is what the goods were billed at, so it does not depend on the posting
+   * code having relieved stock or on how the batches are costed.
    */
-  private async soldFinishedGoods(to: string | null): Promise<number> {
-    const row = await this.db.get<{ value: number }>(
-      `WITH intake AS (
-         SELECT m.item_id,
-                SUM(m.quantity * m.unit_cost) / NULLIF(SUM(m.quantity), 0) AS unit_cost
-           FROM stock_movements m
-          WHERE m.movement_type IN ('PURCHASE','PRODUCTION_IN','OPENING')
-            AND m.quantity > 0 AND m.unit_cost > 0
-            ${to ? "AND date(m.movement_date) <= date(?)" : ""}
-          GROUP BY m.item_id
-       )
-       SELECT COALESCE(SUM(sii.quantity * COALESCE(cost.unit_cost, 0)), 0) AS value
+  private async soldFinishedGoods(
+    to: string | null,
+  ): Promise<{ total: number; items: Array<{ name: string; quantity: number; value: number }> }> {
+    const rows = await this.db.all<{ name: string; quantity: number; value: number }>(
+      `SELECT it.item_name AS name,
+              SUM(sii.quantity) AS quantity,
+              SUM(sii.line_total) AS value
          FROM sales_invoice_items sii
          JOIN sales_invoices si ON si.id = sii.invoice_id
          JOIN items it ON it.id = sii.item_id
-         LEFT JOIN intake cost ON cost.item_id = sii.item_id
         WHERE it.item_type = 'FINISHED_GOOD' AND it.company_id = ?
-          ${to ? "AND date(si.invoice_date) <= date(?)" : ""}`,
-      to ? [to, this.companyId, to] : [this.companyId],
+          ${to ? "AND date(si.invoice_date) <= date(?)" : ""}
+        GROUP BY it.id, it.item_name
+        ORDER BY value DESC`,
+      to ? [this.companyId, to] : [this.companyId],
     );
-    return toStorage(row?.value ?? 0);
+    const items = rows.map((row) => ({
+      name: row.name,
+      quantity: toStorage(row.quantity),
+      value: toStorage(row.value),
+    }));
+    return { items, total: toStorage(items.reduce((sum, item) => sum + item.value, 0)) };
   }
 
   /** Stock value by item type and tag, as at `to` (null = current stock). */
@@ -758,8 +739,12 @@ export class ReportService {
    * or we pre-paid a supplier) is an asset, credit (we owe them — a customer
    * advance, or a supplier payable) is a liability, and a zero balance gets
    * accountId 0.
+   *
+   * With `from` / `to` the same rules become a period report: lines before
+   * `from` fold into the opening balance, lines up to `to` into the period,
+   * and the stored opening counts as a line on the party's cutover date.
    */
-  async partyBalances(): Promise<PartyBalanceRow[]> {
+  async partyBalances(from?: string, to?: string): Promise<PartyBalanceRow[]> {
     const parties = await this.parties.list(this.companyId, { activeOnly: false });
     if (parties.length === 0) return [];
 
@@ -819,24 +804,56 @@ export class ReportService {
     }
 
     return parties.map((party) => {
-      const opening = new Decimal(Number(party.opening_balance ?? 0));
+      const stored = new Decimal(Number(party.opening_balance ?? 0));
       const openingDate =
         party.opening_balance_date ??
-        (opening.isZero()
+        (stored.isZero()
           ? null
           : openDates.get(party.id) ?? (String(party.created_at ?? "").slice(0, 10) || null));
-      let balance = opening;
+      let opening = new Decimal(0);
+      const period = { debit: new Decimal(0), credit: new Decimal(0) };
+
+      const addPeriod = (signed: Decimal): void => {
+        if (signed.isNegative()) period.credit = period.credit.plus(signed.abs());
+        else period.debit = period.debit.plus(signed);
+      };
+
+      // The stored balance is a line dated at the party's cutover. A report
+      // with no start date shows it as the opening, as the CoA always has.
+      if (!from) {
+        if (!to || openingDate === null || openingDate <= to) opening = opening.plus(stored);
+      } else if (openingDate !== null && from > openingDate) {
+        opening = opening.plus(stored);
+      } else if (openingDate !== null && (!to || openingDate <= to)) {
+        addPeriod(stored);
+      }
+
       for (const line of linesByParty.get(party.id) ?? []) {
         if (Number(line.settled) === 1) continue;
-        if (openingDate !== null && String(line.date ?? "") < openingDate) continue;
-        balance = balance
-          .plus(new Decimal(Number(line.debit ?? 0)))
-          .minus(new Decimal(Number(line.credit ?? 0)));
+        const date = String(line.date ?? "");
+        if (openingDate !== null && date < openingDate) continue;
+        const signed = new Decimal(Number(line.debit ?? 0)).minus(
+          new Decimal(Number(line.credit ?? 0)),
+        );
+        if (!from) {
+          addPeriod(signed);
+        } else if (date < from) {
+          opening = opening.plus(signed);
+        } else if (!to || date <= to) {
+          addPeriod(signed);
+        }
       }
+
+      const balance = opening.plus(period.debit).minus(period.credit);
+      const side: PartyBalanceSide = balance.isZero()
+        ? "ZERO"
+        : balance.isNegative()
+          ? "PAYABLE"
+          : "RECEIVABLE";
       const accountId =
-        balance.isZero()
+        side === "ZERO"
           ? 0
-          : balance.isNegative()
+          : side === "PAYABLE"
             ? payableId
             : party.party_type === "SUPPLIER"
               ? advanceToSuppliersId
@@ -848,7 +865,14 @@ export class ReportService {
         name: party.name,
         partyType: party.party_type,
         isActive: party.is_active,
+        opening: toStorage(opening),
+        debit: toStorage(period.debit),
+        credit: toStorage(period.credit),
         balance: toStorage(balance),
+        side,
+        advance:
+          (party.party_type === "CUSTOMER" && side === "PAYABLE") ||
+          (party.party_type === "SUPPLIER" && side === "RECEIVABLE"),
       };
     });
   }
@@ -1127,11 +1151,18 @@ export class ReportService {
     row: TrialBalanceRow,
     label: (text: string) => string,
   ): string[] {
+    const line = (name: string, value: number): string =>
+      ["", label(name), "", "", "", "", "", value.toFixed(2), ""].join(",");
+    // Finished goods report what the invoices sold, item by item.
+    if (row.soldValue != null) {
+      return [
+        line("↳ Sold FG (per invoices)", row.soldValue),
+        ...(row.soldItems ?? []).map((item) => line(`· ${item.name}`, item.value)),
+      ];
+    }
     const tags = row.tagBreakdown ?? [];
     if (tags.length === 0) return [];
     const stock = tags.reduce((total, tag) => total.plus(tag.value), new Decimal(0));
-    const line = (name: string, value: number): string =>
-      ["", label(name), "", "", "", "", "", value.toFixed(2), ""].join(",");
     return [
       ...tags.map((tag) => line(`↳ ${tag.name}`, tag.value)),
       line("Difference (stock - GL)", toStorage(stock.minus(row.closingDebit))),
@@ -1275,20 +1306,35 @@ export class ReportService {
     // --- Profit & loss (period movement) -------------------------------
     const pl = await this.profitAndLoss(opts);
     lines.push(`Profit & Loss (${csvEscape(periodLabel)})`);
-    lines.push("Revenue,Expenses,Net Profit");
-    lines.push([pl.revenue.toFixed(2), pl.expenses.toFixed(2), pl.netProfit.toFixed(2)].join(","));
+    lines.push("Revenue,Dr/Cr,Expenses,Dr/Cr,Net Profit,Dr/Cr");
+    lines.push(
+      [
+        pl.revenue.toFixed(2),
+        "Cr",
+        pl.expenses.toFixed(2),
+        "Dr",
+        pl.netProfit.toFixed(2),
+        pl.netProfit >= 0 ? "Cr" : "Dr",
+      ].join(","),
+    );
     lines.push("");
 
     // --- Balance sheet (position as at the period end) ------------------
     const bs = await this.balanceSheet(to);
     lines.push(`Balance Sheet (as at ${csvEscape(formatDayMonthYear(to) || "today")})`);
-    lines.push("Assets,Liabilities,Equity (incl. net profit),Net Profit,Balanced");
+    lines.push(
+      "Assets,Dr/Cr,Liabilities,Dr/Cr,Equity (incl. net profit),Dr/Cr,Net Profit,Dr/Cr,Balanced",
+    );
     lines.push(
       [
         bs.assets.toFixed(2),
+        "Dr",
         bs.liabilities.toFixed(2),
+        "Cr",
         bs.equity.toFixed(2),
+        "Cr",
         bs.netProfit.toFixed(2),
+        bs.netProfit >= 0 ? "Cr" : "Dr",
         bs.balanced ? "YES" : "NO",
       ].join(","),
     );
@@ -1297,7 +1343,7 @@ export class ReportService {
     // --- Cash book -----------------------------------------------------
     const cash = await this.cashBook(from ?? undefined, to ?? undefined);
     lines.push(`Cash Book (${csvEscape(periodLabel)})`);
-    lines.push("Date,Voucher,Type,Description,Debit,Credit,Balance");
+    lines.push("Date,Voucher,Type,Description,Debit,Credit,Balance,Dr/Cr");
     for (const entry of cash) {
       lines.push(
         [
@@ -1308,6 +1354,7 @@ export class ReportService {
           entry.debit.toFixed(2),
           entry.credit.toFixed(2),
           entry.balance.toFixed(2),
+          sideOf(entry.balance),
         ].join(","),
       );
     }

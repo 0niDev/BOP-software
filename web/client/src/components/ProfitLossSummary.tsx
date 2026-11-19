@@ -3,13 +3,14 @@
  * order, subtotals bold. Values come from the detailed custom P&L, so the
  * summary can never disagree with it.
  */
-import { money } from "../lib/format";
+import { moneySide } from "../lib/format";
 import type { CustomReport } from "../types";
 
 export interface SummaryRow {
   name: string;
   note?: string;
   value: number;
+  side: "Dr" | "Cr" | "";
   bold: boolean;
 }
 
@@ -19,6 +20,7 @@ export function plSummaryRows(report: CustomReport): SummaryRow[] {
     name: heading.name,
     note: heading.note,
     value: heading.value,
+    side: heading.side,
     bold: heading.bold ?? heading.kind === "subtotal",
   }));
 }
@@ -39,7 +41,7 @@ export default function ProfitLossSummary({ report }: { report: CustomReport }) 
             <tr key={index} className={row.bold ? "total" : undefined}>
               <td style={{ paddingLeft: 16 }}>{row.name}</td>
               <td className="num">{row.note ?? ""}</td>
-              <td className="num">{money(row.value)}</td>
+              <td className="num">{moneySide(row.value, row.side)}</td>
             </tr>
           ))}
         </tbody>

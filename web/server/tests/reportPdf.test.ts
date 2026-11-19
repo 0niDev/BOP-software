@@ -125,6 +125,8 @@ describe("pdf chart of accounts", () => {
     expect(text).toContain("Accounts Receivable");
     expect(text).toContain("Demo Customer");
     expect(text).toContain("300.00");
+    // The balance prints the side it sits on, like the screen.
+    expect(text).toContain("300.00 Dr");
     expect(text).toMatch(/Page 1 of \d+/);
   });
 });

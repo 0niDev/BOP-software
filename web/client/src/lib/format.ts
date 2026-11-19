@@ -13,6 +13,23 @@ export function money(value: number, digits = 2): string {
   });
 }
 
+/** Which side of the ledger a balance sits on. */
+export type Side = "Dr" | "Cr";
+
+/** The side of a debit-positive balance ("Dr" above zero, "Cr" below); "" at zero. */
+export function sideOf(value: number): Side | "" {
+  if (value === 0) return "";
+  return value > 0 ? "Dr" : "Cr";
+}
+
+/**
+ * A balance with its side printed beside it, e.g. "1,234.00 Dr". The amount
+ * keeps its sign so the figure can still be read as a number.
+ */
+export function moneySide(value: number, side: Side | "" = sideOf(value)): string {
+  return side ? `${money(value)} ${side}` : money(value);
+}
+
 /** Compact figure for KPI tiles: 3.1M, 12.4K, 480. */
 export function compact(value: number, digits = 1): string {
   const abs = Math.abs(value);

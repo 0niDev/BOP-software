@@ -14,7 +14,7 @@
 import type { AccountType } from "../domain/enums.js";
 import { ValidationError } from "../domain/errors.js";
 import { formatDayMonthYear } from "../domain/dateValidation.js";
-import { Decimal, toStorage } from "../domain/money.js";
+import { Decimal, sideOf, toStorage } from "../domain/money.js";
 import type { SqlDatabase } from "../db/types.js";
 import { AccountRepository, type AccountRow } from "../repositories/accountRepository.js";
 import { SettingsRepository } from "../repositories/settingsRepository.js";
@@ -58,6 +58,8 @@ export interface CustomReportRow {
   depth: number;
   /** The account's own value (not its subtree's), in its natural sign. */
   value: number;
+  /** Side the line sits on (debit- or credit-positive); "" when the value is zero. */
+  side: "Dr" | "Cr" | "";
   /** Explicitly picked by the user, so it keeps a zero line. */
   selected: boolean;
   /** Has sub-account lines printed under it. */
@@ -66,6 +68,8 @@ export interface CustomReportRow {
 
 export interface CustomReportHeadingResult extends CustomHeading {
   value: number;
+  /** Side the heading's signed total sits on; "" when it is zero. */
+  side: "Dr" | "Cr" | "";
   rows: CustomReportRow[];
 }
 
@@ -73,9 +77,9 @@ export interface CustomReportResult {
   kind: CustomReportKind;
   headings: CustomReportHeadingResult[];
   /** Accounts no heading covers, so the report still ties out. */
-  unassigned: { value: number; rows: CustomReportRow[] };
+  unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   /** Standard-report totals for the footer. */
-  footer: Array<{ label: string; value: number }>;
+  footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>;
   /** Balance sheet only; null for the P&L. */
   balanced: boolean | null;
 }
@@ -697,6 +701,17 @@ function accountValue(
   return 0;
 }
 
+/**
+ * The account's balance as a debit-positive figure, so its side follows from
+ * the sign: assets and expenses sit Dr, revenue and liabilities Cr.
+ */
+function debitValue(row: TrialBalanceRow, kind: CustomReportKind, opening = false): number {
+  const period = kind === "PL" && !opening;
+  const debit = new Decimal(period ? row.debit : opening ? row.openingDebit : row.closingDebit);
+  const credit = new Decimal(period ? row.credit : opening ? row.openingCredit : row.closingCredit);
+  return toStorage(debit.minus(credit));
+}
+
 /** Revenue less expenses earned before the selected period starts. */
 function openingNetProfit(rows: readonly TrialBalanceRow[]): Decimal {
   let revenue = new Decimal(0);
@@ -801,32 +816,44 @@ export class CustomReportService {
       kind === "PL"
         ? `Custom Profit & Loss (${formatDayMonthYear(options.from) || "start"} to ${formatDayMonthYear(options.to) || "today"})`
         : `Custom Balance Sheet (as at ${formatDayMonthYear(options.asAt ?? options.to ?? "") || "today"})`;
-    const lines = [title, "Heading,Account Code,Account,Amount,Note"];
+    const lines = [title, "Heading,Account Code,Account,Amount,Dr/Cr,Note"];
     const line = (
       heading: string,
       code: string,
       account: string,
       value: number,
+      side = "",
       note = "",
     ): string =>
-      [csvEscape(heading), csvEscape(code), csvEscape(account), value.toFixed(2), csvEscape(note)].join(",");
+      [
+        csvEscape(heading),
+        csvEscape(code),
+        csvEscape(account),
+        value.toFixed(2),
+        side,
+        csvEscape(note),
+      ].join(",");
 
     for (const heading of report.headings) {
-      lines.push(line(heading.name, "", "", heading.value, heading.note));
+      lines.push(line(heading.name, "", "", heading.value, heading.side, heading.note));
       if (!includeDetail) continue;
       for (const row of heading.rows) {
-        lines.push(line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value));
+        lines.push(
+          line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value, row.side),
+        );
       }
     }
     if (report.unassigned.rows.length > 0) {
-      lines.push(line("Unassigned (not in any heading)", "", "", report.unassigned.value));
+      lines.push(
+        line("Unassigned (not in any heading)", "", "", report.unassigned.value, report.unassigned.side),
+      );
       for (const row of report.unassigned.rows) {
-        lines.push(line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value));
+        lines.push(line("", row.code, `${"  ".repeat(row.depth + 1)}${row.name}`, row.value, row.side));
       }
     }
     lines.push("");
     for (const footerLine of report.footer) {
-      lines.push(line(footerLine.label, "", "", footerLine.value));
+      lines.push(line(footerLine.label, "", "", footerLine.value, footerLine.side));
     }
     if (report.balanced !== null) {
       lines.push(line("Balanced", "", "", report.balanced ? 1 : 0));
@@ -851,9 +878,15 @@ export class CustomReportService {
     const accountsById = new Map(accounts.map((account) => [account.id, account]));
     const values = new Map<number, number>();
     const openingValues = new Map<number, number>();
+    const debitValues = new Map<number, number>();
+    const openingDebitValues = new Map<number, number>();
     for (const row of rows) {
       values.set(row.accountId, accountValue(row, kind));
-      if (kind === "PL") openingValues.set(row.accountId, accountValue(row, kind, true));
+      debitValues.set(row.accountId, debitValue(row, kind));
+      if (kind === "PL") {
+        openingValues.set(row.accountId, accountValue(row, kind, true));
+        openingDebitValues.set(row.accountId, debitValue(row, kind, true));
+      }
     }
     const netProfit = balanceSheetNetProfit(rows);
     const openingProfit = openingNetProfit(rows);
@@ -875,6 +908,13 @@ export class CustomReportService {
       const source = opening ? openingValues : values;
       return new Decimal(source.get(accountId) ?? 0);
     };
+    /** The same line as a debit-positive figure, so `sideOf` names its side. */
+    const debitOf = (accountId: number, opening = false): Decimal => {
+      if (accountId === OPENING_PROFIT_ACCOUNT_ID) return openingProfit.negated();
+      if (accountId === NET_PROFIT_ACCOUNT_ID) return netProfit.negated();
+      const source = opening ? openingDebitValues : debitValues;
+      return new Decimal(source.get(accountId) ?? 0);
+    };
 
     const codeOf = (accountId: number): string =>
       accountId <= 0 ? "" : (accountsById.get(accountId)?.account_code ?? "");
@@ -889,6 +929,8 @@ export class CustomReportService {
 
     const assigned = new Set<number>();
     const accountResults = new Map<string, CustomReportHeadingResult>();
+    /** Each heading's total as a debit-positive figure, for its side. */
+    const headingDebits = new Map<string, Decimal>();
 
     for (const heading of headings) {
       if (heading.kind !== "accounts") continue;
@@ -934,7 +976,11 @@ export class CustomReportService {
       }
 
       let value = new Decimal(0);
-      for (const accountId of covered) value = value.plus(valueOf(accountId, opening));
+      let debit = new Decimal(0);
+      for (const accountId of covered) {
+        value = value.plus(valueOf(accountId, opening));
+        debit = debit.plus(debitOf(accountId, opening));
+      }
 
       const buildRows = (accountId: number, depth: number): CustomReportRow[] => {
         if (excluded.has(accountId)) return [];
@@ -950,6 +996,7 @@ export class CustomReportService {
             name: nameOf(accountId),
             depth,
             value: toStorage(own),
+            side: sideOf(debitOf(accountId, opening)),
             selected: isSelected,
             isHeader: childRows.length > 0,
           },
@@ -961,8 +1008,10 @@ export class CustomReportService {
       accountResults.set(heading.id, {
         ...heading,
         value: toStorage(value),
+        side: sideOf(debit),
         rows: lines,
       });
+      headingDebits.set(heading.id, debit);
     }
 
     // Account headings are all known now, so subtotals can read them (and any
@@ -971,41 +1020,63 @@ export class CustomReportService {
     for (const heading of headings) {
       if (heading.kind !== "subtotal") continue;
       let value = new Decimal(0);
+      let debit = new Decimal(0);
       for (const part of heading.parts) {
         const referenced =
           accountResults.get(part.headingId)?.value ?? subtotalValues.get(part.headingId);
+        const referencedDebit = headingDebits.get(part.headingId);
         if (referenced == null) continue;
         value = part.sign === 1 ? value.plus(referenced) : value.minus(referenced);
+        if (referencedDebit) {
+          debit = part.sign === 1 ? debit.plus(referencedDebit) : debit.minus(referencedDebit);
+        }
       }
       subtotalValues.set(heading.id, toStorage(value));
+      headingDebits.set(heading.id, debit);
     }
 
     const results = headings.map((heading): CustomReportHeadingResult => {
       if (heading.kind === "accounts") {
-        return accountResults.get(heading.id) ?? { ...heading, value: 0, rows: [] };
+        return accountResults.get(heading.id) ?? { ...heading, value: 0, side: "", rows: [] };
       }
-      return { ...heading, value: subtotalValues.get(heading.id) ?? 0, rows: [] };
+      return {
+        ...heading,
+        value: subtotalValues.get(heading.id) ?? 0,
+        side: sideOf(headingDebits.get(heading.id) ?? 0),
+        rows: [],
+      };
     });
 
+    // Debit-positive total of the unassigned lines, so the block itself can
+    // state which side it sits on.
+    let unassignedDebit = new Decimal(0);
     const unassignedRows: CustomReportRow[] = [...values.entries()]
       .filter(([accountId, value]) => value !== 0 && !assigned.has(accountId))
-      .map(([accountId, value]) => ({
-        accountId,
-        code: accountsById.get(accountId)?.account_code ?? "",
-        name: accountsById.get(accountId)?.account_name ?? "",
-        depth: 0,
-        value,
-        selected: false,
-        isHeader: false,
-      }))
+      .map(([accountId, value]) => {
+        const debit = new Decimal(debitValues.get(accountId) ?? 0);
+        unassignedDebit = unassignedDebit.plus(debit);
+        return {
+          accountId,
+          code: accountsById.get(accountId)?.account_code ?? "",
+          name: accountsById.get(accountId)?.account_name ?? "",
+          depth: 0,
+          value,
+          side: sideOf(debit),
+          selected: false,
+          isHeader: false,
+        };
+      })
       .sort((a, b) => compareAccountCode(a.code, b.code));
     if (kind === "BS" && !assigned.has(NET_PROFIT_ACCOUNT_ID) && !netProfit.isZero()) {
+      // Net profit is credit-positive, so as a debit-positive figure it is negated.
+      unassignedDebit = unassignedDebit.plus(netProfit.negated());
       unassignedRows.push({
         accountId: NET_PROFIT_ACCOUNT_ID,
         code: "",
         name: NET_PROFIT_LABEL,
         depth: 0,
         value: toStorage(netProfit),
+        side: sideOf(netProfit.negated()),
         selected: false,
         isHeader: false,
       });
@@ -1018,7 +1089,11 @@ export class CustomReportService {
     return {
       kind,
       headings: results,
-      unassigned: { value: toStorage(unassignedValue), rows: unassignedRows },
+      unassigned: {
+        value: toStorage(unassignedValue),
+        side: sideOf(unassignedDebit),
+        rows: unassignedRows,
+      },
       ...this.footer(kind, rows, netProfit),
     };
   }
@@ -1028,7 +1103,7 @@ export class CustomReportService {
     kind: CustomReportKind,
     rows: readonly TrialBalanceRow[],
     netProfit: Decimal,
-  ): { footer: Array<{ label: string; value: number }>; balanced: boolean | null } {
+  ): { footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>; balanced: boolean | null } {
     if (kind === "PL") {
       let revenue = new Decimal(0);
       let expenses = new Decimal(0);
@@ -1041,9 +1116,13 @@ export class CustomReportService {
       }
       return {
         footer: [
-          { label: "Revenue", value: toStorage(revenue) },
-          { label: "Expenses", value: toStorage(expenses) },
-          { label: "Net profit", value: toStorage(revenue.minus(expenses)) },
+          { label: "Revenue", value: toStorage(revenue), side: sideOf(revenue.negated()) },
+          { label: "Expenses", value: toStorage(expenses), side: sideOf(expenses) },
+          {
+            label: "Net profit",
+            value: toStorage(revenue.minus(expenses)),
+            side: sideOf(revenue.minus(expenses).negated()),
+          },
         ],
         balanced: null,
       };
@@ -1062,10 +1141,14 @@ export class CustomReportService {
     const equityWithProfit = equity.plus(netProfit);
     return {
       footer: [
-        { label: "Assets", value: toStorage(assets) },
-        { label: "Liabilities", value: toStorage(liabilities) },
-        { label: "Equity (incl. net profit)", value: toStorage(equityWithProfit) },
-        { label: "Net profit", value: toStorage(netProfit) },
+        { label: "Assets", value: toStorage(assets), side: sideOf(assets) },
+        { label: "Liabilities", value: toStorage(liabilities), side: sideOf(liabilities.negated()) },
+        {
+          label: "Equity (incl. net profit)",
+          value: toStorage(equityWithProfit),
+          side: sideOf(equityWithProfit.negated()),
+        },
+        { label: "Net profit", value: toStorage(netProfit), side: sideOf(netProfit.negated()) },
       ],
       balanced: assets
         .minus(liabilities)

@@ -1,0 +1,11 @@
+import { DatabaseSync } from 'node:sqlite'
+const db = new DatabaseSync('data/fix-fixed-2026-11-11.db', { readOnly: true })
+console.log('--- Nov 8 sale invoice + its journal entry')
+console.log(db.prepare(`select id, invoice_number, invoice_date, total_amount from sales_invoices where invoice_date >= '2026-11-01'`).all())
+console.log(db.prepare(`select * from journal_entries where id in (select journal_entry_id from journal_entry_lines where account_id in (select id from accounts where account_code='4000')) `).all().slice(0,3))
+console.log('--- revenue lines by month')
+console.log(db.prepare(`select substr(je.entry_date,1,7) m, count(*) n, sum(jel.debit) dr, sum(jel.credit) cr from journal_entry_lines jel join journal_entries je on je.id=jel.journal_entry_id where jel.account_id in (select id from accounts where account_code in ('4000','5000','1100','2000')) group by m`).all())
+console.log('--- accounts with zero lifetime postings but nonzero opening_balance')
+console.log(db.prepare(`select a.account_code, a.account_name, a.opening_balance, (select count(*) from journal_entry_lines l where l.account_id=a.id) lines from accounts a where a.is_active=1 and a.opening_balance<>0 and (select count(*) from journal_entry_lines l where l.account_id=a.id)=0 order by abs(a.opening_balance) desc limit 20`).all())
+console.log('--- total accounts / lines')
+console.log(db.prepare(`select count(*) n from accounts`).get(), db.prepare(`select count(*) n from journal_entry_lines`).get())

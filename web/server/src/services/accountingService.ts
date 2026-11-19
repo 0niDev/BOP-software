@@ -94,11 +94,12 @@ export interface TrialBalanceRow {
    */
   tagBreakdown?: Array<{ name: string; value: number }>;
   /**
-   * Finished goods only: cost already relieved by sales as at the report end.
-   * The report shows it beside the stock figure as a memo line, because it is
-   * no longer stock and must not be added to the stock-vs-GL difference.
+   * Finished goods only: value of what the sales invoices sold as at the report
+   * end, taken from the invoice lines. Memo only — never added to the totals.
    */
   soldValue?: number;
+  /** One row per finished good sold, so the report can itemise `soldValue`. */
+  soldItems?: Array<{ name: string; quantity: number; value: number }>;
   /** Inventory accounts carrying material into production: the consumed side. */
   usedValue?: number;
   /**

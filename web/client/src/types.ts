@@ -53,8 +53,17 @@ export interface PartyBalance {
   name: string;
   partyType: PartyType;
   isActive: number;
+  /** Opening balance for the requested period, debit-positive. */
+  opening: number;
+  /** Debits / credits posted inside the requested period. */
+  debit: number;
+  credit: number;
   /** Debit-positive: what the party owes us. */
   balance: number;
+  /** Which report the closing balance belongs on. */
+  side: "PAYABLE" | "RECEIVABLE" | "ZERO";
+  /** A customer in credit (prepaid) or a supplier in debit (we prepaid). */
+  advance: boolean;
 }
 
 export interface OpeningBalanceChangeParty {
@@ -486,8 +495,10 @@ export interface TrialBalanceRow {
   closingCredit: number;
   /** Inventory-account memo lines: stock value per tag as at the report end. */
   tagBreakdown?: Array<{ name: string; value: number }>;
-  /** Finished goods only: cost sales have already relieved (not stock any more). */
+  /** Finished goods only: value of what the sales invoices sold, as billed. */
   soldValue?: number;
+  /** One row per finished good sold, so the report can itemise `soldValue`. */
+  soldItems?: Array<{ name: string; quantity: number; value: number }>;
   usedValue?: number;
   /** Raw/packing: periodic consumption (opening + purchases − stock), today only. */
   consumedValue?: number;
@@ -546,20 +557,23 @@ export interface CustomReportRow {
   name: string;
   depth: number;
   value: number;
+  /** Side the line sits on, from its accounts; "" when the value is zero. */
+  side: "Dr" | "Cr" | "";
   selected: boolean;
   isHeader: boolean;
 }
 
 export interface CustomReportHeading extends CustomHeading {
   value: number;
+  side: "Dr" | "Cr" | "";
   rows: CustomReportRow[];
 }
 
 export interface CustomReport {
   kind: CustomReportKind;
   headings: CustomReportHeading[];
-  unassigned: { value: number; rows: CustomReportRow[] };
-  footer: Array<{ label: string; value: number }>;
+  unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
+  footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>;
   balanced: boolean | null;
 }
 

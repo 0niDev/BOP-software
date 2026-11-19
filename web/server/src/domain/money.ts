@@ -95,6 +95,13 @@ export function formatAmount(value: MoneyLike): string {
   }).format(round2(value).toNumber());
 }
 
+/** Which side of the ledger a debit-positive balance sits on; "" at zero. */
+export function sideOf(value: MoneyLike): "Dr" | "Cr" | "" {
+  const amount = dec(value);
+  if (amount.isZero()) return "";
+  return amount.isPositive() ? "Dr" : "Cr";
+}
+
 /** Format with the configured currency symbol. */
 export function formatMoney(value: MoneyLike, currency = "PKR"): string {
   return new Intl.NumberFormat("en-PK", {

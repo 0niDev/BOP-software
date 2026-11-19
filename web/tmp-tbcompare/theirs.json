@@ -1,0 +1,2413 @@
+[
+ {
+  "r": 1,
+  "cells": {
+   "A": "BOP Nutraceuticals ERP"
+  }
+ },
+ {
+  "r": 2,
+  "cells": {
+   "A": "Trial Balance"
+  }
+ },
+ {
+  "r": 3,
+  "cells": {
+   "A": "01/11/2026 to 15/11/2026"
+  }
+ },
+ {
+  "r": 4,
+  "cells": {
+   "A": "Generated 19/11/2026 00:25 UTC"
+  }
+ },
+ {
+  "r": 5,
+  "cells": {
+   "A": "Account Code",
+   "B": "Account Name",
+   "C": "Type",
+   "D": "Opening Debit",
+   "E": "Opening Credit",
+   "F": "Period Debit",
+   "G": "Period Credit",
+   "H": "Closing Debit",
+   "I": "Closing Credit"
+  }
+ },
+ {
+  "r": 7,
+  "cells": {
+   "A": "ASSETS (56)"
+  }
+ },
+ {
+  "r": 8,
+  "cells": {
+   "A": "1",
+   "B": "Assets",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 9,
+  "cells": {
+   "A": "11",
+   "B": "Fixed Assets",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 10,
+  "cells": {
+   "A": "111",
+   "B": "Fixed Assets At Cost",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 11,
+  "cells": {
+   "A": "1111",
+   "B": "Furniture & Fixture",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 12,
+  "cells": {
+   "A": "1112",
+   "B": "Office Equipment",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 13,
+  "cells": {
+   "A": "1113",
+   "B": "Plant & Machinery",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 14,
+  "cells": {
+   "A": "1114",
+   "B": "Vehicles",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 15,
+  "cells": {
+   "A": "1115",
+   "B": "Building",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 16,
+  "cells": {
+   "A": "1116",
+   "B": "Land",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 17,
+  "cells": {
+   "A": "1117",
+   "B": "Electric Installation",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 18,
+  "cells": {
+   "A": "1118",
+   "B": "Factory Equipments",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 19,
+  "cells": {
+   "A": "1119",
+   "B": "Electric Appliances",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 20,
+  "cells": {
+   "A": "112",
+   "B": "Accumulated Depreciation",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 21,
+  "cells": {
+   "A": "1121",
+   "B": "Acc.Dep on Vehicles",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 22,
+  "cells": {
+   "A": "1122",
+   "B": "Acc.Dep on Furniture & Fixture",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 23,
+  "cells": {
+   "A": "1123",
+   "B": "Acc.Dep on Building",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 24,
+  "cells": {
+   "A": "1124",
+   "B": "Acc.Dep on Office Equipment",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 25,
+  "cells": {
+   "A": "1125",
+   "B": "Acc.Dep on Accounting Software",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 26,
+  "cells": {
+   "A": "1126",
+   "B": "Acc.Dep on Land",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 27,
+  "cells": {
+   "A": "1127",
+   "B": "Acc.Dep on Plant and Machinery",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 28,
+  "cells": {
+   "A": "1128",
+   "B": "Acc.Dep on Electric Installations",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 29,
+  "cells": {
+   "A": "1129",
+   "B": "Acc.Dep on Factory Equipments",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 30,
+  "cells": {
+   "A": "113",
+   "B": "Fixed Assets - Intangible",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 31,
+  "cells": {
+   "A": "1131",
+   "B": "Accounting Software",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 32,
+  "cells": {
+   "A": "12",
+   "B": "Leased Assets",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 33,
+  "cells": {
+   "A": "121",
+   "B": "Solar",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 34,
+  "cells": {
+   "A": "122",
+   "B": "Vehicles (Leased)",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 35,
+  "cells": {
+   "A": "13",
+   "B": "Current Assets",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 36,
+  "cells": {
+   "A": "131",
+   "B": "Advance Deposit & Prepayments",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 37,
+  "cells": {
+   "A": "1311",
+   "B": "Prepaid Insurance",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 38,
+  "cells": {
+   "A": "132",
+   "B": "Raw Material Purchase",
+   "C": "ASSET",
+   "D": 4043553.65,
+   "G": 2727962.89,
+   "H": 1315590.76
+  }
+ },
+ {
+  "r": 39,
+  "cells": {
+   "B": "↳ Used in production",
+   "H": 5995488.87
+  }
+ },
+ {
+  "r": 40,
+  "cells": {
+   "B": "↳ Consumed (opening + purchases − stock)",
+   "H": 5649512.52
+  }
+ },
+ {
+  "r": 41,
+  "cells": {
+   "B": "· Untagged",
+   "H": 5166321.02
+  }
+ },
+ {
+  "r": 42,
+  "cells": {
+   "A": "1321",
+   "B": "Freight & Other Chgs of Purchase",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 43,
+  "cells": {
+   "A": "133",
+   "B": "Packing Material",
+   "C": "ASSET",
+   "D": 3028570.42,
+   "G": 1086562.42,
+   "H": 1942008
+  }
+ },
+ {
+  "r": 44,
+  "cells": {
+   "B": "↳ Used in production",
+   "H": 2879496.04
+  }
+ },
+ {
+  "r": 45,
+  "cells": {
+   "B": "↳ Consumed (opening + purchases − stock)",
+   "H": 4307218.42
+  }
+ },
+ {
+  "r": 46,
+  "cells": {
+   "B": "· bottle",
+   "H": 1194620
+  }
+ },
+ {
+  "r": 47,
+  "cells": {
+   "B": "· Untagged",
+   "H": 3444712.5
+  }
+ },
+ {
+  "r": 48,
+  "cells": {
+   "A": "134",
+   "B": "Finished Goods",
+   "C": "ASSET",
+   "D": 27480,
+   "F": 1507812.43,
+   "H": 1535292.43
+  }
+ },
+ {
+  "r": 49,
+  "cells": {
+   "B": "↳ Sold FG (per invoices)",
+   "H": 41355424
+  }
+ },
+ {
+  "r": 50,
+  "cells": {
+   "B": "· Ambro-lic Oral liquid 1 lit",
+   "H": 1950000
+  }
+ },
+ {
+  "r": 51,
+  "cells": {
+   "B": "· GROWMORE 25 KG",
+   "H": 1900000
+  }
+ },
+ {
+  "r": 52,
+  "cells": {
+   "B": "· BOP PH 5 Liquid 25 lit",
+   "H": 1769120
+  }
+ },
+ {
+  "r": 53,
+  "cells": {
+   "B": "· LG MUNE LIQUID 5 lit",
+   "H": 1605120
+  }
+ },
+ {
+  "r": 54,
+  "cells": {
+   "B": "· TOXI LIC 5 LIT",
+   "H": 1600000
+  }
+ },
+ {
+  "r": 55,
+  "cells": {
+   "B": "· MAGNET BOP 25 KG",
+   "H": 1495730
+  }
+ },
+ {
+  "r": 56,
+  "cells": {
+   "B": "· CALCI-PHOS-D 1 Lit",
+   "H": 1451244
+  }
+ },
+ {
+  "r": 57,
+  "cells": {
+   "B": "· PHYTO FAT 25 KG",
+   "H": 1409700
+  }
+ },
+ {
+  "r": 58,
+  "cells": {
+   "B": "· Calcium 72 25 kg",
+   "H": 1139240
+  }
+ },
+ {
+  "r": 59,
+  "cells": {
+   "B": "· BIO ambrox 5 lit",
+   "H": 1128000
+  }
+ },
+ {
+  "r": 60,
+  "cells": {
+   "B": "· Yeast plus powder 25 kgs",
+   "H": 1123200
+  }
+ },
+ {
+  "r": 61,
+  "cells": {
+   "B": "· VETLIV ORAL SOLUTION 5 LIT",
+   "H": 1072720
+  }
+ },
+ {
+  "r": 62,
+  "cells": {
+   "B": "· EUCAMENT ORAL LIQUIED 1 LIT",
+   "H": 882816
+  }
+ },
+ {
+  "r": 63,
+  "cells": {
+   "B": "· CALCI PHOS D 5 LIT",
+   "H": 843512
+  }
+ },
+ {
+  "r": 64,
+  "cells": {
+   "B": "· immunit z Oral liquid 5 lit",
+   "H": 840000
+  }
+ },
+ {
+  "r": 65,
+  "cells": {
+   "B": "· NUTRAMIN FORT 25 KG",
+   "H": 790000
+  }
+ },
+ {
+  "r": 66,
+  "cells": {
+   "B": "· Pro-Tox Liquid 5 lit",
+   "H": 774400
+  }
+ },
+ {
+  "r": 67,
+  "cells": {
+   "B": "· BOP MINERALS 25 KG",
+   "H": 753532
+  }
+ },
+ {
+  "r": 68,
+  "cells": {
+   "B": "· CRD Mint Oral liquid 5 lit",
+   "H": 700000
+  }
+ },
+ {
+  "r": 69,
+  "cells": {
+   "B": "· LIVOMAT 5 LIT",
+   "H": 680064
+  }
+ },
+ {
+  "r": 70,
+  "cells": {
+   "B": "· Lysogarlic Powder 1 kg",
+   "H": 675000
+  }
+ },
+ {
+  "r": 71,
+  "cells": {
+   "B": "· Rumicid powder 25 kg",
+   "H": 666180
+  }
+ },
+ {
+  "r": 72,
+  "cells": {
+   "B": "· Kimchi Sal Oral Liquid 5 lit",
+   "H": 563200
+  }
+ },
+ {
+  "r": 73,
+  "cells": {
+   "B": "· VITAL GOLD 25 KG",
+   "H": 543750
+  }
+ },
+ {
+  "r": 74,
+  "cells": {
+   "B": "· LIV GUARD 5 LIT",
+   "H": 535040
+  }
+ },
+ {
+  "r": 75,
+  "cells": {
+   "B": "· LIVER CARE 25 KG",
+   "H": 528000
+  }
+ },
+ {
+  "r": 76,
+  "cells": {
+   "B": "· FEBRO MEON 120 ML",
+   "H": 518400
+  }
+ },
+ {
+  "r": 77,
+  "cells": {
+   "B": "· BOP MICROGOLD 25 KG",
+   "H": 517520
+  }
+ },
+ {
+  "r": 78,
+  "cells": {
+   "B": "· RespiGuard Liquid 5 lit",
+   "H": 511104
+  }
+ },
+ {
+  "r": 79,
+  "cells": {
+   "B": "· CALCI-PHOS-D 100 ML",
+   "H": 477150
+  }
+ },
+ {
+  "r": 80,
+  "cells": {
+   "B": "· GOLDEN PREMIX 25 KG",
+   "H": 462000
+  }
+ },
+ {
+  "r": 81,
+  "cells": {
+   "B": "· Super ADEK Oral Liquid 5 lit",
+   "H": 405504
+  }
+ },
+ {
+  "r": 82,
+  "cells": {
+   "B": "· promin Gold 25 kg",
+   "H": 400000
+  }
+ },
+ {
+  "r": 83,
+  "cells": {
+   "B": "· Hepatic-Optimizer 5 lit",
+   "H": 397200
+  }
+ },
+ {
+  "r": 84,
+  "cells": {
+   "B": "· MAGNET BOP 1 KG",
+   "H": 389800
+  }
+ },
+ {
+  "r": 85,
+  "cells": {
+   "B": "· BENTOX 25 KG",
+   "H": 371500
+  }
+ },
+ {
+  "r": 86,
+  "cells": {
+   "B": "· Super Yeast 25 kg",
+   "H": 343200
+  }
+ },
+ {
+  "r": 87,
+  "cells": {
+   "B": "· GROWMORE 1 KG",
+   "H": 337550
+  }
+ },
+ {
+  "r": 88,
+  "cells": {
+   "B": "· EUCAMENT ORAL LIQUIED 5 LIT",
+   "H": 331584
+  }
+ },
+ {
+  "r": 89,
+  "cells": {
+   "B": "· SCOUR GUARD 100 ML",
+   "H": 320506
+  }
+ },
+ {
+  "r": 90,
+  "cells": {
+   "B": "· MERLIN FIX ORAL POWDER 25 KG",
+   "H": 315000
+  }
+ },
+ {
+  "r": 91,
+  "cells": {
+   "B": "· Sachro-Lic Oral powder 25 kg",
+   "H": 312000
+  }
+ },
+ {
+  "r": 92,
+  "cells": {
+   "B": "· Calcium 721 kg",
+   "H": 303222
+  }
+ },
+ {
+  "r": 93,
+  "cells": {
+   "B": "· RED GOLD 1 KG",
+   "H": 280800
+  }
+ },
+ {
+  "r": 94,
+  "cells": {
+   "B": "· Oritox Oral powder 25 kg",
+   "H": 278100
+  }
+ },
+ {
+  "r": 95,
+  "cells": {
+   "B": "· ACIDI LIC 25 LIT",
+   "H": 270000
+  }
+ },
+ {
+  "r": 96,
+  "cells": {
+   "B": "· immune forte oral liquid 5 lit",
+   "H": 264000
+  }
+ },
+ {
+  "r": 97,
+  "cells": {
+   "B": "· Micro Tox liquid 1 lit",
+   "H": 253440
+  }
+ },
+ {
+  "r": 98,
+  "cells": {
+   "B": "· Tie Tox oral liquid 5 lit",
+   "H": 237600
+  }
+ },
+ {
+  "r": 99,
+  "cells": {
+   "B": "· ferovit plus liquid 5 lit",
+   "H": 235840
+  }
+ },
+ {
+  "r": 100,
+  "cells": {
+   "B": "· HEAATIC OPT FORT 25 KG",
+   "H": 220000
+  }
+ },
+ {
+  "r": 101,
+  "cells": {
+   "B": "· LIVOMAT 1 LIT",
+   "H": 211200
+  }
+ },
+ {
+  "r": 102,
+  "cells": {
+   "B": "· Viro-immune 5 lit",
+   "H": 200000
+  }
+ },
+ {
+  "r": 103,
+  "cells": {
+   "B": "· BIO MIN 25 KG",
+   "H": 200000
+  }
+ },
+ {
+  "r": 104,
+  "cells": {
+   "B": "· GROWTH PROMOTER 25 KG",
+   "H": 194036
+  }
+ },
+ {
+  "r": 105,
+  "cells": {
+   "B": "· DCP BOP 25 KG",
+   "H": 184040
+  }
+ },
+ {
+  "r": 106,
+  "cells": {
+   "B": "· MICRO TOX 5 LIT",
+   "H": 179520
+  }
+ },
+ {
+  "r": 107,
+  "cells": {
+   "B": "· E.C Gold oral liquid 5 lit",
+   "H": 176000
+  }
+ },
+ {
+  "r": 108,
+  "cells": {
+   "B": "· LIVO CARE 5 LIT",
+   "H": 161920
+  }
+ },
+ {
+  "r": 109,
+  "cells": {
+   "B": "· BOP YEAST 5 LIT",
+   "H": 158400
+  }
+ },
+ {
+  "r": 110,
+  "cells": {
+   "B": "· RespiGuard Liquid 1 lit",
+   "H": 155760
+  }
+ },
+ {
+  "r": 111,
+  "cells": {
+   "B": "· BESTHAMOL 1 LIT",
+   "H": 150000
+  }
+ },
+ {
+  "r": 112,
+  "cells": {
+   "B": "· VITAL GOLD 1 KG",
+   "H": 145000
+  }
+ },
+ {
+  "r": 113,
+  "cells": {
+   "B": "· SUPER YEAST 5 LIT",
+   "H": 144000
+  }
+ },
+ {
+  "r": 114,
+  "cells": {
+   "B": "· LG MUNE LIQUID 1 LIT",
+   "H": 135168
+  }
+ },
+ {
+  "r": 115,
+  "cells": {
+   "B": "· BOP Yeast oral powder 25 kg [HIGH]",
+   "H": 132000
+  }
+ },
+ {
+  "r": 116,
+  "cells": {
+   "B": "· DCAL LIQUID 5 LIT",
+   "H": 132000
+  }
+ },
+ {
+  "r": 117,
+  "cells": {
+   "B": "· ADEK GOLD 5 LIT",
+   "H": 128000
+  }
+ },
+ {
+  "r": 118,
+  "cells": {
+   "B": "· HERBS GOLD  5 LIT",
+   "H": 128000
+  }
+ },
+ {
+  "r": 119,
+  "cells": {
+   "B": "· RUMEN GUARD 25 KG",
+   "H": 120000
+  }
+ },
+ {
+  "r": 120,
+  "cells": {
+   "B": "· MIN MAX 25 KG",
+   "H": 117000
+  }
+ },
+ {
+  "r": 121,
+  "cells": {
+   "B": "· BIO ESEL 200 Liquid 5 lit",
+   "H": 110880
+  }
+ },
+ {
+  "r": 122,
+  "cells": {
+   "B": "· TIMPO EX 120 ML",
+   "H": 110160
+  }
+ },
+ {
+  "r": 123,
+  "cells": {
+   "B": "· URETIC POWDER 1 KG",
+   "H": 110000
+  }
+ },
+ {
+  "r": 124,
+  "cells": {
+   "B": "· BOP Copper oral Liquid 5 lit",
+   "H": 108000
+  }
+ },
+ {
+  "r": 125,
+  "cells": {
+   "B": "· Broncokill liquid 5 lit",
+   "H": 100000
+  }
+ },
+ {
+  "r": 126,
+  "cells": {
+   "B": "· IMUNIX 5 LIT",
+   "H": 90000
+  }
+ },
+ {
+  "r": 127,
+  "cells": {
+   "B": "· UDDER BOOST 25 KG",
+   "H": 90000
+  }
+ },
+ {
+  "r": 128,
+  "cells": {
+   "B": "· E.S 200 liquid 5 lit",
+   "H": 89600
+  }
+ },
+ {
+  "r": 129,
+  "cells": {
+   "B": "· Reno Guard Flush oral powder 1 kg",
+   "H": 81000
+  }
+ },
+ {
+  "r": 130,
+  "cells": {
+   "B": "· RESPI FIX 5 LIT",
+   "H": 78000
+  }
+ },
+ {
+  "r": 131,
+  "cells": {
+   "B": "· CALCIVIT-D 1 KG",
+   "H": 75900
+  }
+ },
+ {
+  "r": 132,
+  "cells": {
+   "B": "· Hepatic-Optimizer Powder 25 kg",
+   "H": 75000
+  }
+ },
+ {
+  "r": 133,
+  "cells": {
+   "B": "· MLC 360 ORAL LIQUID 25 LIT",
+   "H": 75000
+  }
+ },
+ {
+  "r": 134,
+  "cells": {
+   "B": "· BOP YEAST 20 KG",
+   "H": 72600
+  }
+ },
+ {
+  "r": 135,
+  "cells": {
+   "B": "· toxi-off liquid 5 lit",
+   "H": 72000
+  }
+ },
+ {
+  "r": 136,
+  "cells": {
+   "B": "· BOP PH 5 Liquid 5 lit",
+   "H": 68640
+  }
+ },
+ {
+  "r": 137,
+  "cells": {
+   "B": "· Tie Tox Oral liquid 1 lit",
+   "H": 62712
+  }
+ },
+ {
+  "r": 138,
+  "cells": {
+   "B": "· Toxi gold forte oral powder 25 kgs",
+   "H": 60000
+  }
+ },
+ {
+  "r": 139,
+  "cells": {
+   "B": "· VETO RESPI 5 LIT",
+   "H": 60000
+  }
+ },
+ {
+  "r": 140,
+  "cells": {
+   "B": "· Mycovix 5 L",
+   "H": 60000
+  }
+ },
+ {
+  "r": 141,
+  "cells": {
+   "B": "· KIRZAN BOP 100 ML",
+   "H": 52500
+  }
+ },
+ {
+  "r": 142,
+  "cells": {
+   "B": "· BIO ADEK Oral Liquid 5 lit",
+   "H": 52200
+  }
+ },
+ {
+  "r": 143,
+  "cells": {
+   "B": "· Super Buffer 25 kg",
+   "H": 50000
+  }
+ },
+ {
+  "r": 144,
+  "cells": {
+   "B": "· TOXI GUARD 25 KG",
+   "H": 50000
+  }
+ },
+ {
+  "r": 145,
+  "cells": {
+   "B": "· CID 7 Oral Liquid 25 lit",
+   "H": 45000
+  }
+ },
+ {
+  "r": 146,
+  "cells": {
+   "B": "· UDDER BOOST 500 G",
+   "H": 35000
+  }
+ },
+ {
+  "r": 147,
+  "cells": {
+   "B": "· HEAATIC-OPTIMIZER 100 ML",
+   "H": 31600
+  }
+ },
+ {
+  "r": 148,
+  "cells": {
+   "B": "· HEAATIC OPTIMIZER 5 LIT",
+   "H": 26400
+  }
+ },
+ {
+  "r": 149,
+  "cells": {
+   "B": "· CID 7 Oral Liquid 5 lit",
+   "H": 21600
+  }
+ },
+ {
+  "r": 150,
+  "cells": {
+   "B": "· GROWMORE 100 G",
+   "H": 9000
+  }
+ },
+ {
+  "r": 151,
+  "cells": {
+   "B": "· BOP DCAD 25 KG",
+   "H": 8000
+  }
+ },
+ {
+  "r": 152,
+  "cells": {
+   "A": "135",
+   "B": "Work-in-Process",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 153,
+  "cells": {
+   "A": "136",
+   "B": "Waste Stock",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 154,
+  "cells": {
+   "A": "137",
+   "B": "Loan & Advances",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 155,
+  "cells": {
+   "A": "1371",
+   "B": "Staff Salary Advance",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 156,
+  "cells": {
+   "A": "1372",
+   "B": "Advance to Suppliers",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 157,
+  "cells": {
+   "A": "1373",
+   "B": "Advance Against Salary",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 158,
+  "cells": {
+   "A": "1374",
+   "B": "Advance to Mill Employes",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 159,
+  "cells": {
+   "A": "138",
+   "B": "Other Receivable",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 160,
+  "cells": {
+   "A": "1381",
+   "B": "Sales Tax Receivable",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 161,
+  "cells": {
+   "A": "13811",
+   "B": "Sales tax paid on opening",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 162,
+  "cells": {
+   "A": "13812",
+   "B": "Sales tax paid on purchase",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 163,
+  "cells": {
+   "A": "13813",
+   "B": "Sales tax received on return",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 164,
+  "cells": {
+   "A": "13814",
+   "B": "Sales tax received on sales",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 165,
+  "cells": {
+   "A": "13815",
+   "B": "Sales tax paid on sales return",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 166,
+  "cells": {
+   "A": "1382",
+   "B": "Accounts Receivable",
+   "C": "ASSET",
+   "D": 50326089,
+   "F": 12134878,
+   "H": 62460967
+  }
+ },
+ {
+  "r": 167,
+  "cells": {
+   "A": "1383",
+   "B": "Withholding Tax Receivable",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 168,
+  "cells": {
+   "A": "1384",
+   "B": "Other Receivables",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 169,
+  "cells": {
+   "A": "139",
+   "B": "Cash and Bank Balances",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 170,
+  "cells": {
+   "A": "1391",
+   "B": "Cash in Hand",
+   "C": "ASSET",
+   "E": 1017795,
+   "G": 2193030,
+   "I": 3210825
+  }
+ },
+ {
+  "r": 171,
+  "cells": {
+   "A": "13911",
+   "B": "Cash at Head Office",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 172,
+  "cells": {
+   "A": "13912",
+   "B": "Cash at Mills",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 173,
+  "cells": {
+   "A": "1392",
+   "B": "Balance with Banks on Current A/c",
+   "C": "ASSET"
+  }
+ },
+ {
+  "r": 174,
+  "cells": {
+   "B": "Total Assets",
+   "H": 67253858.19,
+   "I": 3210825
+  }
+ },
+ {
+  "r": 175,
+  "cells": {
+   "A": "LIABILITIES (16)"
+  }
+ },
+ {
+  "r": 177,
+  "cells": {
+   "A": "2",
+   "B": "Liabilities",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 178,
+  "cells": {
+   "A": "21",
+   "B": "Short term liabilities",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 179,
+  "cells": {
+   "A": "211",
+   "B": "Accounts Payable",
+   "C": "LIABILITY",
+   "E": 11452772.5,
+   "G": 1534625,
+   "I": 12987397.5
+  }
+ },
+ {
+  "r": 180,
+  "cells": {
+   "A": "212",
+   "B": "Sales Tax Payable",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 181,
+  "cells": {
+   "A": "213",
+   "B": "Withholding Tax Payable",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 182,
+  "cells": {
+   "A": "214",
+   "B": "Atta Lab",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 183,
+  "cells": {
+   "A": "215",
+   "B": "Anaiyat Aluminium Door",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 184,
+  "cells": {
+   "A": "216",
+   "B": "Raja Waheed Kashmir Poultry",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 185,
+  "cells": {
+   "A": "217",
+   "B": "Rana Asad",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 186,
+  "cells": {
+   "A": "218",
+   "B": "Rana Ashraf",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 187,
+  "cells": {
+   "A": "219",
+   "B": "Loan Return",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 188,
+  "cells": {
+   "A": "21a1",
+   "B": "Dr Khalid Arain",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 189,
+  "cells": {
+   "A": "21a2",
+   "B": "Riaz Karachi",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 190,
+  "cells": {
+   "A": "22",
+   "B": "Long term liabilities",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 191,
+  "cells": {
+   "A": "23",
+   "B": "BORROWING AND LOANS",
+   "C": "LIABILITY"
+  }
+ },
+ {
+  "r": 192,
+  "cells": {
+   "A": "231",
+   "B": "ZAFAR IQBAL SUDIA",
+   "C": "LIABILITY",
+   "E": 324000,
+   "I": 324000
+  }
+ },
+ {
+  "r": 193,
+  "cells": {
+   "B": "Total Liabilities",
+   "H": 0,
+   "I": 13311397.5
+  }
+ },
+ {
+  "r": 194,
+  "cells": {
+   "A": "EQUITY (8)"
+  }
+ },
+ {
+  "r": 196,
+  "cells": {
+   "A": "3",
+   "B": "Equity",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 197,
+  "cells": {
+   "A": "31",
+   "B": "Capital investment",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 198,
+  "cells": {
+   "A": "311",
+   "B": "Owner's Equity",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 199,
+  "cells": {
+   "A": "312",
+   "B": "Retained Earnings",
+   "C": "EQUITY",
+   "E": 26086879,
+   "G": 908991,
+   "I": 26995870
+  }
+ },
+ {
+  "r": 200,
+  "cells": {
+   "A": "32",
+   "B": "Withdrawals",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 201,
+  "cells": {
+   "A": "321",
+   "B": "DRAWING",
+   "C": "EQUITY",
+   "D": 543477,
+   "H": 543477
+  }
+ },
+ {
+  "r": 202,
+  "cells": {
+   "A": "33",
+   "B": "Last year earnings",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 203,
+  "cells": {
+   "A": "34",
+   "B": "Current year earnings",
+   "C": "EQUITY"
+  }
+ },
+ {
+  "r": 204,
+  "cells": {
+   "B": "Total Equity",
+   "H": 543477,
+   "I": 26995870
+  }
+ },
+ {
+  "r": 205,
+  "cells": {
+   "A": "REVENUE (5)"
+  }
+ },
+ {
+  "r": 207,
+  "cells": {
+   "A": "4",
+   "B": "Revenue",
+   "C": "REVENUE"
+  }
+ },
+ {
+  "r": 208,
+  "cells": {
+   "A": "41",
+   "B": "Net Sales",
+   "C": "REVENUE"
+  }
+ },
+ {
+  "r": 209,
+  "cells": {
+   "A": "411",
+   "B": "Sales Revenue",
+   "C": "REVENUE",
+   "E": 29256546,
+   "G": 12278878,
+   "I": 41535424
+  }
+ },
+ {
+  "r": 210,
+  "cells": {
+   "A": "42",
+   "B": "Revenue through vendor claims",
+   "C": "REVENUE"
+  }
+ },
+ {
+  "r": 211,
+  "cells": {
+   "A": "421",
+   "B": "Sales Returns & Allowances",
+   "C": "REVENUE",
+   "D": 917670,
+   "F": 144000,
+   "H": 1061670
+  }
+ },
+ {
+  "r": 212,
+  "cells": {
+   "B": "Total Revenue",
+   "H": 1061670,
+   "I": 41535424
+  }
+ },
+ {
+  "r": 213,
+  "cells": {
+   "A": "EXPENSES (97)"
+  }
+ },
+ {
+  "r": 215,
+  "cells": {
+   "A": "5",
+   "B": "Expense",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 216,
+  "cells": {
+   "A": "51",
+   "B": "Sales expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 217,
+  "cells": {
+   "A": "511",
+   "B": "Cost of goods sold",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 218,
+  "cells": {
+   "A": "5111",
+   "B": "Cost of Goods Sold",
+   "C": "EXPENSE",
+   "D": 683114.43,
+   "F": 6943358.88,
+   "H": 7626473.31
+  }
+ },
+ {
+  "r": 219,
+  "cells": {
+   "A": "5112",
+   "B": "Purchase Returns & Allowances",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 220,
+  "cells": {
+   "A": "5113",
+   "B": "Manufacturing Wastage Expense",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 221,
+  "cells": {
+   "A": "5114",
+   "B": "Inventory Loss / Expiry Expense",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 222,
+  "cells": {
+   "A": "512",
+   "B": "Discounts",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 223,
+  "cells": {
+   "A": "5121",
+   "B": "Special discount on sale",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 224,
+  "cells": {
+   "A": "5122",
+   "B": "Special discount returned",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 225,
+  "cells": {
+   "A": "5123",
+   "B": "Discount on recovery",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 226,
+  "cells": {
+   "A": "513",
+   "B": "Expired stock actual value",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 227,
+  "cells": {
+   "A": "514",
+   "B": "Selling and distribution",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 228,
+  "cells": {
+   "A": "5141",
+   "B": "Salaries Market staff",
+   "C": "EXPENSE",
+   "D": 1653000,
+   "H": 1653000
+  }
+ },
+ {
+  "r": 229,
+  "cells": {
+   "A": "5142",
+   "B": "Expense Market staff",
+   "C": "EXPENSE",
+   "D": 373700,
+   "H": 373700
+  }
+ },
+ {
+  "r": 230,
+  "cells": {
+   "A": "5143",
+   "B": "Incantive",
+   "C": "EXPENSE",
+   "D": 100000,
+   "H": 100000
+  }
+ },
+ {
+  "r": 231,
+  "cells": {
+   "A": "5144",
+   "B": "FUEL EXP",
+   "C": "EXPENSE",
+   "D": 142000,
+   "H": 142000
+  }
+ },
+ {
+  "r": 232,
+  "cells": {
+   "A": "52",
+   "B": "General and admin expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 233,
+  "cells": {
+   "A": "521",
+   "B": "Payroll",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 234,
+  "cells": {
+   "A": "5211",
+   "B": "Wages",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 235,
+  "cells": {
+   "A": "5212",
+   "B": "Payroll taxes",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 236,
+  "cells": {
+   "A": "522",
+   "B": "Maintenance",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 237,
+  "cells": {
+   "A": "5221",
+   "B": "Auto vehicles",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 238,
+  "cells": {
+   "A": "5222",
+   "B": "Furniture and fixture",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 239,
+  "cells": {
+   "A": "5223",
+   "B": "Stationery",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 240,
+  "cells": {
+   "A": "523",
+   "B": "Travel & entertainment",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 241,
+  "cells": {
+   "A": "5231",
+   "B": "Lodging",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 242,
+  "cells": {
+   "A": "5232",
+   "B": "Meals",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 243,
+  "cells": {
+   "A": "5233",
+   "B": "Gasoline charges/Maintenance",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 244,
+  "cells": {
+   "A": "524",
+   "B": "Shipping",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 245,
+  "cells": {
+   "A": "5241",
+   "B": "Freight",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 246,
+  "cells": {
+   "A": "5242",
+   "B": "Supply expenses + Bilty",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 247,
+  "cells": {
+   "A": "525",
+   "B": "Taxes & Zakat",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 248,
+  "cells": {
+   "A": "526",
+   "B": "Consultancy fees",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 249,
+  "cells": {
+   "A": "527",
+   "B": "Overhead expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 250,
+  "cells": {
+   "A": "5271",
+   "B": "Telephone and faxes",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 251,
+  "cells": {
+   "A": "5272",
+   "B": "Internet expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 252,
+  "cells": {
+   "A": "5273",
+   "B": "Mail and postages",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 253,
+  "cells": {
+   "A": "5274",
+   "B": "Utility expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 254,
+  "cells": {
+   "A": "52741",
+   "B": "Telephone Bill",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 255,
+  "cells": {
+   "A": "5275",
+   "B": "Advertising",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 256,
+  "cells": {
+   "A": "5276",
+   "B": "Contributions and donations",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 257,
+  "cells": {
+   "A": "5277",
+   "B": "Promotion public relations",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 258,
+  "cells": {
+   "A": "528",
+   "B": "Financial expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 259,
+  "cells": {
+   "A": "5281",
+   "B": "Interest",
+   "C": "EXPENSE",
+   "D": 324000,
+   "H": 324000
+  }
+ },
+ {
+  "r": 260,
+  "cells": {
+   "A": "5282",
+   "B": "Bank charges",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 261,
+  "cells": {
+   "A": "5283",
+   "B": "Intrest",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 262,
+  "cells": {
+   "A": "529",
+   "B": "Admin Staff Salary",
+   "C": "EXPENSE",
+   "D": 250000,
+   "H": 250000
+  }
+ },
+ {
+  "r": 263,
+  "cells": {
+   "A": "52a1",
+   "B": "General & Administrative Expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 264,
+  "cells": {
+   "A": "52a2",
+   "B": "SUBSCRIPTION & FEES",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 265,
+  "cells": {
+   "A": "52a21",
+   "B": "DRAP",
+   "C": "EXPENSE",
+   "D": 2930000,
+   "H": 2930000
+  }
+ },
+ {
+  "r": 266,
+  "cells": {
+   "A": "52a22",
+   "B": "DRAP ZEESHAN",
+   "C": "EXPENSE",
+   "D": 100000,
+   "H": 100000
+  }
+ },
+ {
+  "r": 267,
+  "cells": {
+   "A": "52a23",
+   "B": "DRAP PRODUCT FEE",
+   "C": "EXPENSE",
+   "D": 60000,
+   "H": 60000
+  }
+ },
+ {
+  "r": 268,
+  "cells": {
+   "A": "53",
+   "B": "Income tax",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 269,
+  "cells": {
+   "A": "54",
+   "B": "Other expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 270,
+  "cells": {
+   "A": "55",
+   "B": "Raw Materials",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 271,
+  "cells": {
+   "A": "551",
+   "B": "Raw Material Consumed",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 272,
+  "cells": {
+   "A": "56",
+   "B": "Store & Spares",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 273,
+  "cells": {
+   "A": "57",
+   "B": "Packing Material",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 274,
+  "cells": {
+   "A": "571",
+   "B": "Packing Material",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 275,
+  "cells": {
+   "A": "572",
+   "B": "Polypropline Bags",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 276,
+  "cells": {
+   "A": "573",
+   "B": "Polythene Bags",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 277,
+  "cells": {
+   "A": "574",
+   "B": "Miscellaneous",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 278,
+  "cells": {
+   "A": "58",
+   "B": "Manufacturing Expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 279,
+  "cells": {
+   "A": "581",
+   "B": "Vehicle Running Expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 280,
+  "cells": {
+   "A": "5811",
+   "B": "Vehicle Repair (Mill)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 281,
+  "cells": {
+   "A": "5812",
+   "B": "Vehicle Petrol Bills (Mill)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 282,
+  "cells": {
+   "A": "5813",
+   "B": "Misc Expenses",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 283,
+  "cells": {
+   "A": "5814",
+   "B": "Vehicle Token Tax & Others",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 284,
+  "cells": {
+   "A": "582",
+   "B": "Fuel and Power",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 285,
+  "cells": {
+   "A": "5821",
+   "B": "Electric Power Bills",
+   "C": "EXPENSE",
+   "D": 846338,
+   "H": 846338
+  }
+ },
+ {
+  "r": 286,
+  "cells": {
+   "A": "5822",
+   "B": "Sui Gas",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 287,
+  "cells": {
+   "A": "5823",
+   "B": "Diesel",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 288,
+  "cells": {
+   "A": "583",
+   "B": "Depreciation",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 289,
+  "cells": {
+   "A": "5831",
+   "B": "Depr: Auto vehicles",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 290,
+  "cells": {
+   "A": "5832",
+   "B": "Depr: Furniture and fixture",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 291,
+  "cells": {
+   "A": "5833",
+   "B": "Depr: Building and ground",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 292,
+  "cells": {
+   "A": "5834",
+   "B": "Depr: Office equipment",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 293,
+  "cells": {
+   "A": "5835",
+   "B": "Depr: Computer and software",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 294,
+  "cells": {
+   "A": "584",
+   "B": "Salaries, Wages and Benefits (Mfg)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 295,
+  "cells": {
+   "A": "5841",
+   "B": "Salary/Wages Factory",
+   "C": "EXPENSE",
+   "D": 1394000,
+   "H": 1394000
+  }
+ },
+ {
+  "r": 296,
+  "cells": {
+   "A": "5842",
+   "B": "Overtime",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 297,
+  "cells": {
+   "A": "5843",
+   "B": "Medical Allowance (Mfg)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 298,
+  "cells": {
+   "A": "5844",
+   "B": "Final Settlement (Mfg)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 299,
+  "cells": {
+   "A": "5845",
+   "B": "Others",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 300,
+  "cells": {
+   "A": "5846",
+   "B": "Rashan Expenses",
+   "C": "EXPENSE",
+   "D": 48000,
+   "H": 48000
+  }
+ },
+ {
+  "r": 301,
+  "cells": {
+   "A": "585",
+   "B": "Repairs and Maintenance",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 302,
+  "cells": {
+   "A": "5851",
+   "B": "Repair Plant and Machinery",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 303,
+  "cells": {
+   "A": "5852",
+   "B": "Repair & Maint Computers (Mills)",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 304,
+  "cells": {
+   "A": "5853",
+   "B": "Repair Mill Building/Colony",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 305,
+  "cells": {
+   "A": "5854",
+   "B": "Repair Other Equipments Used in Factory",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 306,
+  "cells": {
+   "A": "5855",
+   "B": "Repair General",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 307,
+  "cells": {
+   "A": "586",
+   "B": "Insurance",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 308,
+  "cells": {
+   "A": "5861",
+   "B": "Group Insurance Expense",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 309,
+  "cells": {
+   "A": "587",
+   "B": "Miscellaneous Expenses",
+   "C": "EXPENSE",
+   "D": 25000,
+   "H": 25000
+  }
+ },
+ {
+  "r": 310,
+  "cells": {
+   "A": "588",
+   "B": "TRAVELING & CONVANCE",
+   "C": "EXPENSE",
+   "D": 322000,
+   "H": 322000
+  }
+ },
+ {
+  "r": 311,
+  "cells": {
+   "A": "6",
+   "B": "Gain / Loss on Asset Disposal",
+   "C": "EXPENSE"
+  }
+ },
+ {
+  "r": 312,
+  "cells": {
+   "B": "Total Expenses",
+   "H": 16194511.309999999,
+   "I": 0
+  }
+ },
+ {
+  "r": 313,
+  "cells": {
+   "C": "Closing totals",
+   "H": 85053516.5,
+   "I": 85053516.5
+  }
+ },
+ {
+  "r": 315,
+  "cells": {
+   "A": "Balanced",
+   "B": "YES"
+  }
+ }
+]

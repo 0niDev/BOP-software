@@ -4,6 +4,7 @@ import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import FilterBox, { matchesQuery } from "../components/FilterBox";
 import { saveBlob } from "../lib/download";
+import { moneySide, sideOf } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, AccountType, PartyBalance } from "../types";
 
@@ -41,16 +42,20 @@ const EMPTY_DRAFT: Draft = {
   isActive: true,
 };
 
-function money(value: number): string {
-  return value.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function amount(value: number): string {
-  return value === 0 ? "—" : money(value);
+/**
+ * A stored opening balance is in the account's own normal sign (a liability's
+ * credit is positive), so the side comes from the account type, not the sign.
+ */
+function openingSide(account: Account): "Dr" | "Cr" | "" {
+  const debitPositive =
+    account.account_type === "ASSET" || account.account_type === "EXPENSE"
+      ? account.opening_balance
+      : -account.opening_balance;
+  return sideOf(debitPositive);
 }
 
 /** Type band row style shared by the account-type sections and the Parties band. */
@@ -88,7 +93,7 @@ function partyRow(party: PartyBalance, rails: number): ReactNode {
       <td>{party.partyType}</td>
       <td>—</td>
       <td className="num" title="Closing balance of this party's ledger">
-        {amount(party.balance)}
+        {party.balance === 0 ? "—" : moneySide(party.balance)}
       </td>
       <td>
         <span className="badge">{party.isActive ? "Active" : "Inactive"}</span>
@@ -433,7 +438,11 @@ export default function AccountsPage() {
         </td>
         <td>{account.account_type}</td>
         <td>{account.account_subtype ?? "—"}</td>
-        <td className="num">{amount(account.opening_balance)}</td>
+        <td className="num">
+          {account.opening_balance === 0
+            ? "—"
+            : moneySide(account.opening_balance, openingSide(account))}
+        </td>
         <td>
           <span className="badge">
             {account.is_active ? "Active" : "Inactive"}

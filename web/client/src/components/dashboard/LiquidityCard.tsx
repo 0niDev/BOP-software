@@ -1,7 +1,7 @@
 import { Banknote, Landmark, TrendingDown, TrendingUp } from "lucide-react";
 import Card from "../ui/Card";
 import StatusPill from "../ui/StatusPill";
-import { dayLabel, money } from "../../lib/format";
+import { dayLabel, moneySide, type Side } from "../../lib/format";
 import type { DashboardData } from "../../types";
 import type { Page } from "../../App";
 
@@ -43,17 +43,28 @@ export default function LiquidityCard({
       }
     >
       <p className="num text-[26px] font-extrabold leading-tight tracking-tight text-ink">
-        {money(balances.total)}
+        {moneySide(balances.total, "Dr")}
       </p>
       <p className="mt-1 text-[12px] font-medium text-muted">Liquid + stock on hand</p>
 
       <dl className="mt-4 space-y-2">
         {[
-          { label: "Receivables", value: receivablesPayables.receivable, tone: "var(--accent)" },
-          { label: "Payables", value: receivablesPayables.payable, tone: "var(--amber)" },
+          {
+            label: "Receivables",
+            value: receivablesPayables.receivable,
+            side: "Dr" as Side,
+            tone: "var(--accent)",
+          },
+          {
+            label: "Payables",
+            value: receivablesPayables.payable,
+            side: "Cr" as Side,
+            tone: "var(--amber)",
+          },
           {
             label: `Inventory (${inventory.totalItems} items)`,
             value: balances.inventory,
+            side: "Dr" as Side,
             tone: "var(--teal)",
           },
         ].map((row) => (
@@ -71,7 +82,9 @@ export default function LiquidityCard({
               />
               {row.label}
             </dt>
-            <dd className="num text-[12.5px] font-bold text-ink">{money(row.value)}</dd>
+            <dd className="num text-[12.5px] font-bold text-ink">
+              {moneySide(row.value, row.side)}
+            </dd>
           </div>
         ))}
       </dl>

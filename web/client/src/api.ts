@@ -235,7 +235,13 @@ export const api = {
     const suffix = params.toString();
     return request<Party[]>(`/api/parties${suffix ? `?${suffix}` : ""}`);
   },
-  partyBalances: () => request<PartyBalance[]>("/api/parties/balances"),
+  partyBalances: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const suffix = params.toString();
+    return request<PartyBalance[]>(`/api/parties/balances${suffix ? `?${suffix}` : ""}`);
+  },
   createParty: (body: {
     name: string;
     partyType: PartyType;
@@ -1047,6 +1053,12 @@ export const api = {
     if (type) params.set("type", type);
     const suffix = params.toString();
     return requestBlob(`/api/reports/party-ledger-all.xlsx${suffix ? `?${suffix}` : ""}`);
+  },
+  partyBalancesXlsx: (kind: "payables" | "receivables", from?: string, to?: string) => {
+    const params = new URLSearchParams({ kind });
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return requestBlob(`/api/reports/party-balances.xlsx?${params.toString()}`);
   },
   partyProductSalesXlsx: (from?: string, to?: string) => {
     const params = new URLSearchParams();

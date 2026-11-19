@@ -1,9 +1,9 @@
 import { Fragment, useState } from "react";
-import { money } from "../lib/format";
+import { moneySide } from "../lib/format";
 import type { CustomReport } from "../types";
 
-function amount(value: number): string {
-  return value === 0 ? "—" : money(value);
+function amount(value: number, side: "Dr" | "Cr" | "" = ""): string {
+  return value === 0 ? "—" : moneySide(value, side);
 }
 
 /**
@@ -63,7 +63,7 @@ export default function CustomReportTable({
                   )}
                   {heading.name}
                 </td>
-                <td className="num">{amount(heading.value)}</td>
+                <td className="num">{amount(heading.value, heading.side)}</td>
                 <td className="num">{heading.note ?? ""}</td>
               </tr>
               {open &&
@@ -80,7 +80,7 @@ export default function CustomReportTable({
                     <td>
                       <span className="coa-code">{row.code}</span>
                     </td>
-                    <td className="num">{amount(row.value)}</td>
+                    <td className="num">{amount(row.value, row.side)}</td>
                     <td />
                   </tr>
                 ))}
@@ -91,7 +91,7 @@ export default function CustomReportTable({
           <>
             <tr className="total">
               <td colSpan={2}>Unassigned (not in any heading)</td>
-              <td className="num">{amount(report.unassigned.value)}</td>
+              <td className="num">{amount(report.unassigned.value, report.unassigned.side)}</td>
               <td />
             </tr>
             {report.unassigned.rows.map((row) => (
@@ -100,7 +100,7 @@ export default function CustomReportTable({
                 <td>
                   <span className="coa-code">{row.code}</span>
                 </td>
-                <td className="num">{amount(row.value)}</td>
+                <td className="num">{amount(row.value, row.side)}</td>
                 <td />
               </tr>
             ))}
@@ -117,7 +117,7 @@ export default function CustomReportTable({
           report.footer.map((line) => (
             <tr key={line.label} className="total">
               <td colSpan={2}>{line.label}</td>
-              <td className="num">{money(line.value)}</td>
+              <td className="num">{moneySide(line.value, line.side)}</td>
               <td />
             </tr>
           ))}

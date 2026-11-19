@@ -103,6 +103,8 @@ export const NAV_SECTIONS: ReadonlyArray<{ title: string; items: readonly NavEnt
         children: [
           { id: "report-party-ledger", label: "Party Ledger" },
           { id: "report-party-ledger-all", label: "All Party Ledgers" },
+          { id: "report-payables", label: "Payables" },
+          { id: "report-receivables", label: "Receivables" },
           { id: "report-party-product-sales", label: "Party Product Sales" },
           { id: "report-party-product-purchases", label: "Party Product Purchases" },
           { id: "report-cash-book", label: "Cash Book" },

@@ -459,8 +459,9 @@ export function createApp(
     );
   });
 
-  app.get("/api/parties/balances", requireAuth, async (_req, res) => {
-    res.json(await reports.partyBalances());
+  app.get("/api/parties/balances", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    res.json(await reports.partyBalances(from, to));
   });
 
   app.post("/api/parties", requireAuth, async (req, res) => {
@@ -1856,6 +1857,16 @@ export function createApp(
     const type = req.query.type;
     const partyType = type === "CUSTOMER" || type === "SUPPLIER" ? type : undefined;
     const file = await reportXlsx.allPartyLedgers({ from, to, showOpening, partyType });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/party-balances.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const kind = req.query.kind;
+    if (kind !== "payables" && kind !== "receivables") {
+      throw new ValidationError("kind must be 'payables' or 'receivables'.");
+    }
+    const file = await reportXlsx.partyBalances({ kind, from, to });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

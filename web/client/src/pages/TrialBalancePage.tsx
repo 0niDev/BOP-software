@@ -6,7 +6,7 @@ import CustomReportTable from "../components/CustomReportTable";
 import ProfitLossSummary from "../components/ProfitLossSummary";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
-import { formatDate } from "../lib/format";
+import { formatDate, moneySide, sideOf } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
@@ -178,13 +178,18 @@ function periodTag(from: string, to: string): string {
   return from || to ? `${from || "start"}_to_${to || "today"}` : "all-posted";
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, side }: { label: string; value: number; side?: "Dr" | "Cr" | "" }) {
   return (
     <div className="card" style={{ flex: 1, margin: 0 }}>
       <label>{label}</label>
-      <div style={{ fontSize: 22 }}>{money(value)}</div>
+      <div style={{ fontSize: 22 }}>{moneySide(value, side ?? sideOf(value))}</div>
     </div>
   );
+}
+
+/** Profit is credit-positive: a gain sits Cr, a loss Dr. */
+function profitSide(value: number): "Dr" | "Cr" | "" {
+  return value === 0 ? "" : value > 0 ? "Cr" : "Dr";
 }
 
 interface LedgerTableProps {
@@ -245,7 +250,7 @@ function LedgerCells({ row }: { row: LedgerEntry }) {
       <td>{row.notes ?? "—"}</td>
       <td className="num">{amount(row.debit)}</td>
       <td className="num">{amount(row.credit)}</td>
-      <td className="num">{money(row.balance)}</td>
+      <td className="num">{moneySide(row.balance)}</td>
     </>
   );
 }
@@ -290,7 +295,7 @@ function AllPartyLedgerTable({
                   fontWeight: 700,
                 }}
               >
-                {money(party.closingBalance)}
+                {moneySide(party.closingBalance)}
               </td>
             </tr>
             {party.entries.length === 0 ? (
@@ -312,7 +317,7 @@ function AllPartyLedgerTable({
       <tfoot>
         <tr className="total">
           <td colSpan={7}>Grand total (all parties)</td>
-          <td className="num">{money(report.grandTotal)}</td>
+          <td className="num">{moneySide(report.grandTotal)}</td>
         </tr>
       </tfoot>
     </table>
@@ -463,13 +468,19 @@ function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
             );
             return (
               <>
-                {/* Finished goods: what the invoices sold, then what is left. */}
+                {/* Finished goods: what the invoices sold, item by item. */}
                 {sold != null ? (
                   <>
                     {memoRow(`${row.accountId}-sold`, "Sold FG (per invoices)", sold, true)}
-                    {/* No shelf on a dated report, so no stock line. */}
-                    {showStock && hasStock &&
-                      memoRow(`${row.accountId}-stock`, "FG in stock", stockTotal, true)}
+                    {(row.soldItems ?? []).map((item) =>
+                      memoRow(
+                        `${row.accountId}-sold-${item.name}`,
+                        item.name,
+                        item.value,
+                        false,
+                        true,
+                      ),
+                    )}
                   </>
                 ) : used != null ? (
                   <>
@@ -991,9 +1002,9 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             </div>
             {showTotals && (
               <div className="row">
-                <Stat label="Revenue" value={pl.revenue} />
-                <Stat label="Expenses" value={pl.expenses} />
-                <Stat label="Net profit" value={pl.netProfit} />
+                <Stat label="Revenue" value={pl.revenue} side="Cr" />
+                <Stat label="Expenses" value={pl.expenses} side="Dr" />
+                <Stat label="Net profit" value={pl.netProfit} side={profitSide(pl.netProfit)} />
               </div>
             )}
             {customPl && (
@@ -1094,10 +1105,10 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               </button>
             </div>
             <div className="row">
-              <Stat label="Assets" value={bs.assets} />
-              <Stat label="Liabilities" value={bs.liabilities} />
-              <Stat label="Equity (incl. profit)" value={bs.equity} />
-              <Stat label="Net profit" value={bs.netProfit} />
+              <Stat label="Assets" value={bs.assets} side="Dr" />
+              <Stat label="Liabilities" value={bs.liabilities} side="Cr" />
+              <Stat label="Equity (incl. profit)" value={bs.equity} side="Cr" />
+              <Stat label="Net profit" value={bs.netProfit} side={profitSide(bs.netProfit)} />
             </div>
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
               <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>

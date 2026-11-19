@@ -6,14 +6,15 @@ import type { CustomReport } from "../src/types";
 test("PL notes subtotal each header to its nested accounts", async () => {
   const { headerTotals } = await import("../src/components/PLNotes");
   const rows = [
-    { accountId: 1, code: "5100", name: "COGS", depth: 0, value: 0, selected: true, isHeader: true },
-    { accountId: 2, code: "5110", name: "Raw Material", depth: 1, value: 0, selected: false, isHeader: true },
-    { accountId: 3, code: "5111", name: "Raw A", depth: 2, value: 800, selected: false, isHeader: false },
-    { accountId: 4, code: "5120", name: "Direct Labour", depth: 1, value: 600, selected: false, isHeader: false },
+    { accountId: 1, code: "5100", name: "COGS", depth: 0, value: 0, side: "Dr" as const, selected: true, isHeader: true },
+    { accountId: 2, code: "5110", name: "Raw Material", depth: 1, value: 0, side: "Dr" as const, selected: false, isHeader: true },
+    { accountId: 3, code: "5111", name: "Raw A", depth: 2, value: 800, side: "Dr" as const, selected: false, isHeader: false },
+    { accountId: 4, code: "5120", name: "Direct Labour", depth: 1, value: 600, side: "Dr" as const, selected: false, isHeader: false },
   ];
   const totals = headerTotals(rows);
-  expect(totals.get(1)).toBe(1400);
-  expect(totals.get(2)).toBe(800);
+  // A note prints the figure and the side it sits on, like the report face.
+  expect(totals.get(1)).toEqual({ value: 1400, side: "Dr" });
+  expect(totals.get(2)).toEqual({ value: 800, side: "Dr" });
   expect(totals.has(3)).toBe(false);
 });
 
@@ -94,6 +95,17 @@ test("P&L notes group headings by note and break out sub-notes", async () => {
   expect(other?.rows.map((row) => [row.note, row.name, row.amount, row.depth])).toEqual([
     ["", "Other Income", 50, 0],
   ]);
+});
+
+test("a balance prints the side it sits on", async () => {
+  const { moneySide, sideOf } = await import("../src/lib/format");
+  // Debit-positive: above zero Dr, below zero Cr, nothing at zero.
+  expect(sideOf(1200)).toBe("Dr");
+  expect(sideOf(-1200)).toBe("Cr");
+  expect(sideOf(0)).toBe("");
+  expect(moneySide(1234)).toBe("1,234.00 Dr");
+  expect(moneySide(-1234)).toBe("-1,234.00 Cr");
+  expect(moneySide(0)).toBe("0.00");
 });
 
 test("dates always display day/month/year", () => {

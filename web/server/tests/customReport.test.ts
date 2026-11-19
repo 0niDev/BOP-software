@@ -537,8 +537,11 @@ describe("CustomReportService", () => {
     expect(csv).toContain("Custom Profit & Loss");
     expect(csv).toContain("Sales - Net");
     expect(csv).toContain("Profit/(Loss) C/F to B/Sheet");
-    expect(csv).toContain("Heading,Account Code,Account,Amount,Note");
-    expect(csv).toContain("Sales - Net,,,0.00,20");
+    expect(csv).toContain("Heading,Account Code,Account,Amount,Dr/Cr,Note");
+    expect(csv).toContain("Sales - Net,,,0.00,,20");
+    // The amount stays numeric; the side rides in its own column.
+    expect(csv).toContain("Revenue,,,750.00,Cr,");
+    expect(csv).toContain("Expenses,,,500.00,Dr,");
 
     const file = await new ReportXlsx(ctx.db).custom("PL");
     expect(file.fileName).toMatch(/^custom-profit-and-loss_/);
