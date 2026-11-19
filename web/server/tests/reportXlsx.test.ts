@@ -195,6 +195,31 @@ describe("xlsx report exports", () => {
     expect(part(files, "xl/styles.xml")).toContain('indent="2"');
   });
 
+  it("prints zero amounts as 0, not as empty cells", async () => {
+    const accounts = new AccountService(ctx.db);
+    const quiet = await accounts.create({
+      accountCode: "1099",
+      accountName: "Quiet Asset",
+      accountType: "ASSET",
+    });
+
+    const files = open((await xlsx.trialBalance({})).buffer);
+    // Shared strings are index-referenced, so find the row whose name cell is
+    // this account and read its six money cells (columns D to I).
+    const entries = part(files, "xl/sharedStrings.xml").split("<si>").slice(1);
+    const index = entries.findIndex(
+      (entry) => entry.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&") === quiet.account_name,
+    );
+    expect(index).toBeGreaterThanOrEqual(0);
+    const row = worksheet(files)
+      .match(/<row[^>]*>.*?<\/row>/gs)
+      ?.find((block) => new RegExp(`<c r="B\\d+"[^>]*><v>${index}</v></c>`).test(block));
+    expect(row).toBeDefined();
+    for (const column of ["D", "E", "F", "G", "H", "I"]) {
+      expect(row).toMatch(new RegExp(`<c r="${column}\\d+"[^>]*><v>0</v></c>`));
+    }
+  });
+
   it("prints the custom P&L heading notes", async () => {
     const files = open((await xlsx.custom("PL", {})).buffer);
     const text = strings(files);

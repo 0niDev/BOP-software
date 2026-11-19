@@ -1104,12 +1104,12 @@ export class ReportXlsx {
                 ...(row.hasChildren ? { fontWeight: "bold" } : {}),
               }),
               text(row.accountType),
-              moneyOrBlank(row.openingDebit),
-              moneyOrBlank(row.openingCredit),
-              moneyOrBlank(row.debit),
-              moneyOrBlank(row.credit),
-              moneyOrBlank(row.closingDebit),
-              moneyOrBlank(row.closingCredit),
+              money(row.openingDebit),
+              money(row.openingCredit),
+              money(row.debit),
+              money(row.credit),
+              money(row.closingDebit),
+              money(row.closingCredit),
             ],
             // Finished goods split into already-sold cost and what is on hand;
             // the other inventory accounts keep their per-tag lines. A dated

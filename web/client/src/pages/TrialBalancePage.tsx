@@ -101,6 +101,11 @@ function amount(value: number): string {
   return value === 0 ? "" : money(value);
 }
 
+/** Anything moved on the account inside the period. */
+function hasPeriodMovement(row: TrialBalanceRow): boolean {
+  return row.debit !== 0 || row.credit !== 0;
+}
+
 /** Any opening, period or closing balance on the account. */
 function hasMovement(row: TrialBalanceRow): boolean {
   return [
@@ -231,6 +236,8 @@ interface GroupedTbRowsProps {
   showUnpriced: boolean;
   /** False on a dated report: there is no shelf to value, so no stock memo. */
   showStock: boolean;
+  /** False = period movement only; opening/closing columns and stock memo are hidden. */
+  showBalances: boolean;
 }
 
 /** One entry row, shared by the single-party and all-parties ledger tables. */
@@ -368,12 +375,14 @@ function PartyProductTable({ report }: { report: PartyProductSales }) {
 }
 
 /** COA section: type band, the account tree (sub-accounts indented), subtotal. */
-function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
+function GroupedTbRows({ group, showUnpriced, showStock, showBalances }: GroupedTbRowsProps) {
+  const periodDebit = group.rows.reduce((sum, row) => sum + row.debit, 0);
+  const periodCredit = group.rows.reduce((sum, row) => sum + row.credit, 0);
   return (
     <>
       <tr>
         <td
-          colSpan={8}
+          colSpan={showBalances ? 8 : 4}
           style={{
             background: "var(--accent-soft)",
             fontWeight: 700,
@@ -399,14 +408,25 @@ function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
               </span>
             </td>
             <td style={row.hasChildren ? { fontWeight: 600 } : undefined}>{row.accountName}</td>
-            <td className="num">{amount(row.openingDebit)}</td>
-            <td className="num">{amount(row.openingCredit)}</td>
+            {showBalances && (
+              <>
+                <td className="num">{amount(row.openingDebit)}</td>
+                <td className="num">{amount(row.openingCredit)}</td>
+              </>
+            )}
             <td className="num">{amount(row.debit)}</td>
             <td className="num">{amount(row.credit)}</td>
-            <td className="num">{amount(row.closingDebit)}</td>
-            <td className="num">{amount(row.closingCredit)}</td>
+            {showBalances && (
+              <>
+                <td className="num">{amount(row.closingDebit)}</td>
+                <td className="num">{amount(row.closingCredit)}</td>
+              </>
+            )}
           </tr>
           {(() => {
+            // The memo describes closing stock, so it has no place in a
+            // movement-only view.
+            if (!showBalances) return null;
             const tags = row.tagBreakdown ?? [];
             // A dated report carries no tag breakdown: there is no shelf in the
             // past, so the stock lines are simply absent.
@@ -535,9 +555,18 @@ function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
         </Fragment>
       ))}
       <tr className="total">
-        <td colSpan={6}>Total {TYPE_LABELS[group.type]}</td>
-        <td className="num">{amount(group.closingDebit)}</td>
-        <td className="num">{amount(group.closingCredit)}</td>
+        <td colSpan={showBalances ? 6 : 2}>Total {TYPE_LABELS[group.type]}</td>
+        {showBalances ? (
+          <>
+            <td className="num">{amount(group.closingDebit)}</td>
+            <td className="num">{amount(group.closingCredit)}</td>
+          </>
+        ) : (
+          <>
+            <td className="num">{amount(periodDebit)}</td>
+            <td className="num">{amount(periodCredit)}</td>
+          </>
+        )}
       </tr>
     </>
   );
@@ -572,6 +601,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [error, setError] = useState<string | null>(null);
   /** A trial balance is read for its balances: hide the empty chart lines by default. */
   const [showZero, setShowZero] = useState(false);
+  /** Off = period movement only; on = opening and closing balances as well. */
+  const [showBalances, setShowBalances] = useState(false);
   // Opt-in list of the items behind each inventory figure that cost nothing.
   const [showUnpriced, setShowUnpriced] = useState(false);
 
@@ -852,7 +883,13 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     );
   }
 
-  const visibleTbRows = tb ? (showZero ? tb.rows : tb.rows.filter(hasMovement)) : [];
+  const visibleTbRows = tb
+    ? showZero
+      ? tb.rows
+      : tb.rows.filter(showBalances ? hasMovement : hasPeriodMovement)
+    : [];
+  const periodDebit = visibleTbRows.reduce((sum, row) => sum + row.debit, 0);
+  const periodCredit = visibleTbRows.reduce((sum, row) => sum + row.credit, 0);
 
   return (
     <>
@@ -1109,9 +1146,23 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
         <div className="row" style={{ alignItems: "center" }}>
           <h2 style={{ flex: 1, margin: 0 }}>
             Trial Balance{" "}
-            {tb && <span className="badge">{tb.balanced ? "Balanced" : "OUT OF BALANCE"}</span>}
+            {tb && (
+              <span className="badge">
+                {(showBalances ? tb.balanced : Math.abs(periodDebit - periodCredit) < 0.01)
+                  ? "Balanced"
+                  : "OUT OF BALANCE"}
+              </span>
+            )}
             {tb && <span className="badge">{visibleTbRows.length} accounts</span>}
           </h2>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={showBalances}
+              onChange={(event) => setShowBalances(event.target.checked)}
+            />
+            Include opening and closing balances
+          </label>
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
               type="checkbox"
@@ -1120,14 +1171,16 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             />
             Show zero balances
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={showUnpriced}
-              onChange={(event) => setShowUnpriced(event.target.checked)}
-            />
-            Show unpriced items
-          </label>
+          {showBalances && (
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={showUnpriced}
+                onChange={(event) => setShowUnpriced(event.target.checked)}
+              />
+              Show unpriced items
+            </label>
+          )}
           <button onClick={() => void exportCsv()} disabled={csvBusy}>
             {csvBusy ? "Preparing…" : "Export CSV"}
           </button>
@@ -1150,12 +1203,20 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             <tr>
               <th>Code</th>
               <th>Account</th>
-              <th className="num">Opening Dr</th>
-              <th className="num">Opening Cr</th>
+              {showBalances && (
+                <>
+                  <th className="num">Opening Dr</th>
+                  <th className="num">Opening Cr</th>
+                </>
+              )}
               <th className="num">Period Dr</th>
               <th className="num">Period Cr</th>
-              <th className="num">Closing Dr</th>
-              <th className="num">Closing Cr</th>
+              {showBalances && (
+                <>
+                  <th className="num">Closing Dr</th>
+                  <th className="num">Closing Cr</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -1165,25 +1226,39 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 group={group}
                 showUnpriced={showUnpriced}
                 showStock={!to}
+                showBalances={showBalances}
               />
             ))}
             {tb && visibleTbRows.length === 0 && (
               <tr>
-                <td colSpan={8}>No accounts with posted entries in this period.</td>
+                <td colSpan={showBalances ? 8 : 4}>
+                  No accounts with posted entries in this period.
+                </td>
               </tr>
             )}
           </tbody>
           {tb && (
             <tfoot>
               <tr className="total">
-                <td colSpan={6}>Closing totals</td>
-                <td className="num">{amount(tb.totalDebit)}</td>
-                <td className="num">{amount(tb.totalCredit)}</td>
+                <td colSpan={showBalances ? 6 : 2}>
+                  {showBalances ? "Closing totals" : "Period totals"}
+                </td>
+                {showBalances ? (
+                  <>
+                    <td className="num">{amount(tb.totalDebit)}</td>
+                    <td className="num">{amount(tb.totalCredit)}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className="num">{amount(periodDebit)}</td>
+                    <td className="num">{amount(periodCredit)}</td>
+                  </>
+                )}
               </tr>
             </tfoot>
           )}
         </table>
-        {tb && visibleTbRows.some((row) => row.tagBreakdown?.length) && (
+        {tb && showBalances && visibleTbRows.some((row) => row.tagBreakdown?.length) && (
           <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
             Inventory tags are memo lines: stock valued at current unit cost, with tag
             membership as at the report end. An item under several tags counts in full

@@ -101,6 +101,7 @@ describe("CustomReportService", () => {
   it("maps the default P&L categories and their excluded branches", async () => {
     const accountIdsByCode = new Map<string, number>();
     const codes = [
+      "4000", "4100",
       "512", "511", "514", "6100", "5206", "520901", "520902", "520903", "520904",
       "540", "520905", "54", "56", "58", "33006", "59", "55", "34550003", "34550004",
       "5203", "34100", "34350", "52063", "52", "5202", "5205", "5207", "5208",
@@ -135,6 +136,7 @@ describe("CustomReportService", () => {
         .map((accountId) => codeById.get(accountId) ?? "")
         .sort();
 
+    expect(codesOf("sales-net")).toEqual(["4000", "4100"]);
     expect(codesOf("discount")).toEqual(["512"]);
     expect(codesOf("cost-of-goods-sold")).toEqual(["511"]);
     expect(codesOf("selling-distribution")).toEqual(["5206", "6100"]);
@@ -538,7 +540,7 @@ describe("CustomReportService", () => {
     expect(csv).toContain("Sales - Net");
     expect(csv).toContain("Profit/(Loss) C/F to B/Sheet");
     expect(csv).toContain("Heading,Account Code,Account,Amount,Dr/Cr,Note");
-    expect(csv).toContain("Sales - Net,,,0.00,,20");
+    expect(csv).toContain("Sales - Net,,,750.00,Cr,20");
     // The amount stays numeric; the side rides in its own column.
     expect(csv).toContain("Revenue,,,750.00,Cr,");
     expect(csv).toContain("Expenses,,,500.00,Dr,");

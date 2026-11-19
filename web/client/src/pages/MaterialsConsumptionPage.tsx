@@ -32,6 +32,7 @@ export default function MaterialsConsumptionPage() {
   const [report, setReport] = useState<MaterialsConsumption | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [includeOpening, setIncludeOpening] = useState(false);
 
   const pageVisible = usePageVisible();
 
@@ -60,6 +61,9 @@ export default function MaterialsConsumptionPage() {
   const total = report?.total;
   const closesOnCount = report != null && report.to === null;
 
+  const consumedOf = (row: MaterialsConsumption["rows"][number]): number =>
+    includeOpening ? row.consumed : row.consumed - row.opening;
+
   return (
     <div className="card">
       <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -84,13 +88,27 @@ export default function MaterialsConsumptionPage() {
             onChange={(event) => setTo(event.target.value)}
           />
         </div>
+        <div>
+          <label htmlFor="consumption-opening" style={{ display: "block" }}>
+            <input
+              id="consumption-opening"
+              type="checkbox"
+              checked={includeOpening}
+              onChange={(event) => setIncludeOpening(event.target.checked)}
+            />{" "}
+            Include opening stock
+          </label>
+        </div>
       </div>
       <p style={{ marginTop: 4 }}>
+        {includeOpening
+          ? "Opening + purchases + other stock in − closing stock"
+          : "Purchases + other stock in − closing stock"}
         {closesOnCount
-          ? "Opening + purchases − closing stock, where closing is today's physical count — so this figure does not depend on the bills of materials being right."
-          : "Opening + purchases − closing stock, where closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}{" "}
-        Consumption starts on 1 November 2026 — anything on 31 October or earlier is part of
-        opening stock and is never shown as consumption.
+          ? ", where closing is today's physical count — so this figure does not depend on the bills of materials being right."
+          : ", where closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}{" "}
+        Consumption starts on 1 November 2026 — anything on 31 October or earlier is opening stock,
+        and it is only counted when the Include opening stock box is ticked.
       </p>
       {error && <div className="error">{error}</div>}
       {busy && !report && <p>Loading…</p>}
@@ -100,7 +118,7 @@ export default function MaterialsConsumptionPage() {
             <thead>
               <tr>
                 <th>Materials</th>
-                <th className="num">Opening</th>
+                {includeOpening && <th className="num">Opening</th>}
                 <th className="num">+ Purchases</th>
                 <th className="num">+ Other stock in</th>
                 <th className="num">− Closing stock</th>
@@ -111,21 +129,21 @@ export default function MaterialsConsumptionPage() {
               {rows.map((row) => (
                 <tr key={row.itemType}>
                   <td>{LABEL[row.itemType] ?? row.itemType}</td>
-                  <td className="num">{money(row.opening)}</td>
+                  {includeOpening && <td className="num">{money(row.opening)}</td>}
                   <td className="num">{money(row.purchases)}</td>
                   <td className="num">{money(row.otherIn)}</td>
                   <td className="num">{money(row.counted ?? row.bookClosing)}</td>
-                  <td className="num">{money(row.consumed)}</td>
+                  <td className="num">{money(consumedOf(row))}</td>
                 </tr>
               ))}
               {total && (
                 <tr style={{ fontWeight: 600 }}>
                   <td>{LABEL[total.itemType] ?? total.itemType}</td>
-                  <td className="num">{money(total.opening)}</td>
+                  {includeOpening && <td className="num">{money(total.opening)}</td>}
                   <td className="num">{money(total.purchases)}</td>
                   <td className="num">{money(total.otherIn)}</td>
                   <td className="num">{money(total.counted ?? total.bookClosing)}</td>
-                  <td className="num">{money(total.consumed)}</td>
+                  <td className="num">{money(consumedOf(total))}</td>
                 </tr>
               )}
             </tbody>

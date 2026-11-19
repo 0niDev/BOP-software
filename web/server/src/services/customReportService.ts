@@ -215,7 +215,6 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
     parts: parts.map(([headingId, sign]) => ({ headingId, sign })),
   });
 
-  // Sales - Net is intentionally unmapped; the user will select its accounts.
   const costCategories: CustomHeading[] = [
     account("discount", "Discount", "21", ["512"]),
     account("cost-of-goods-sold", "Cost of Goods Sold", "21", ["511"]),
@@ -300,7 +299,8 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
   ];
 
   return [
-    { ...account("sales-net", "Sales - Net", "20"), bold: true },
+    // Sales - Net = printed 411 Sales Revenue + 421 Sales Returns & Allowances.
+    { ...account("sales-net", "Sales - Net", "20", ["4000", "4100"]), bold: true },
     ...costCategories,
     subtotal("cost-of-sales", "Cost of Revenue", costParts, "21"),
     subtotal("gross-profit", "Gross Profit/(Loss)", [
