@@ -3,7 +3,7 @@ import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
 import CustomReportEditor from "../components/CustomReportEditor";
 import CustomReportTable from "../components/CustomReportTable";
-import ProfitLossSummary from "../components/ProfitLossSummary";
+import PLFace from "../components/PLFace";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate, moneySide, sideOf } from "../lib/format";
@@ -468,30 +468,36 @@ function GroupedTbRows({ group, showUnpriced, showStock }: GroupedTbRowsProps) {
             );
             return (
               <>
-                {/* Finished goods: what the invoices sold, item by item. */}
+                {/* Finished goods: one total for what the invoices sold. */}
                 {sold != null ? (
-                  <>
-                    {memoRow(`${row.accountId}-sold`, "Sold FG (per invoices)", sold, true)}
-                    {(row.soldItems ?? []).map((item) =>
-                      memoRow(
-                        `${row.accountId}-sold-${item.name}`,
-                        item.name,
-                        item.value,
-                        false,
-                        true,
-                      ),
-                    )}
-                  </>
+                  memoRow(`${row.accountId}-sold`, "Sold FG (per invoices)", sold, true)
                 ) : used != null ? (
                   <>
                     {memoRow(`${row.accountId}-used`, "Used in production", used, true)}
-                    {row.consumedValue != null &&
-                      memoRow(
-                        `${row.accountId}-consumed`,
-                        "Consumed (opening + purchases − stock)",
-                        row.consumedValue,
-                        true,
-                      )}
+                    {row.consumedValue != null && (
+                      <>
+                        {memoRow(
+                          `${row.accountId}-consumed`,
+                          "Consumed (opening + purchases − stock)",
+                          row.consumedValue,
+                          true,
+                        )}
+                        {memoRow(
+                          `${row.accountId}-consumed-opening`,
+                          "Opening stock",
+                          row.consumedOpening ?? 0,
+                          false,
+                          true,
+                        )}
+                        {memoRow(
+                          `${row.accountId}-consumed-closing`,
+                          "Closing stock",
+                          row.consumedClosing ?? 0,
+                          false,
+                          true,
+                        )}
+                      </>
+                    )}
                     {showStock && hasStock && memoRow(`${row.accountId}-stock`, "In stock", stockTotal, true)}
                     {tags.map((tag) =>
                       memoRow(`${row.accountId}-tag-${tag.name}`, tag.name, tag.value, false, true),
@@ -568,10 +574,6 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [showZero, setShowZero] = useState(false);
   // Opt-in list of the items behind each inventory figure that cost nothing.
   const [showUnpriced, setShowUnpriced] = useState(false);
-  // Revenue / expenses / net-profit totals are hidden by default; remember it.
-  const [showTotals, setShowTotals] = useState(
-    () => localStorage.getItem("pl-show-totals") === "1",
-  );
 
   // Report period (trial balance + P&L) and the balance-sheet date.
   const [from, setFrom] = useState("");
@@ -979,53 +981,6 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <input
                   type="checkbox"
-                  checked={showTotals}
-                  onChange={(event) => {
-                    setShowTotals(event.target.checked);
-                    localStorage.setItem("pl-show-totals", event.target.checked ? "1" : "0");
-                  }}
-                />
-                Show totals
-              </label>
-              <button
-                onClick={() =>
-                  void exportXlsx(
-                    "pl",
-                    () => api.profitAndLossXlsx(from || undefined, to || undefined),
-                    `profit-and-loss_${periodTag(from, to)}.xlsx`,
-                  )
-                }
-                disabled={xlsxBusy !== null}
-              >
-                {xlsxBusy === "pl" ? "Preparing…" : "Export Excel"}
-              </button>
-            </div>
-            {showTotals && (
-              <div className="row">
-                <Stat label="Revenue" value={pl.revenue} side="Cr" />
-                <Stat label="Expenses" value={pl.expenses} side="Dr" />
-                <Stat label="Net profit" value={pl.netProfit} side={profitSide(pl.netProfit)} />
-              </div>
-            )}
-            {customPl && (
-              <div style={{ marginTop: 16 }}>
-                <h3 style={{ margin: 0 }}>P&amp;L summary</h3>
-                <ProfitLossSummary report={customPl} />
-              </div>
-            )}
-            <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
-              <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>
-              <button
-                onClick={() => {
-                  setCustomError(null);
-                  setCustomEditor(customEditor === "PL" ? null : "PL");
-                }}
-              >
-                {customEditor === "PL" ? "Close editor" : "Edit headings"}
-              </button>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
                   checked={includeDetail}
                   onChange={(event) => setIncludeDetail(event.target.checked)}
                 />
@@ -1057,21 +1012,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 {csvBusy ? "Preparing…" : "Export CSV"}
               </button>
             </div>
-            {customEditor === "PL" ? (
-              <CustomReportEditor
-                kind="PL"
-                accounts={accounts}
-                headings={customPl?.headings ?? []}
-                busy={customBusy}
-                error={customError}
-                onSave={(headings) => void saveCustomHeadings("PL", headings)}
-                onCancel={() => setCustomEditor(null)}
-              />
-            ) : customPl ? (
-              <CustomReportTable report={customPl} showFooter={showTotals} />
+            {customPl ? (
+              <PLFace report={customPl} />
             ) : (
-              <p style={{ opacity: 0.7, margin: 0 }}>Loading custom report…</p>
+              <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
             )}
+            {customError && <div className="error">{customError}</div>}
           </>
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>

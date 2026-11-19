@@ -18,6 +18,13 @@ export interface TrialBalanceResult {
   balanced: boolean;
 }
 
+/**
+ * First day of the books this system reports on. Anything dated 31 Oct 2026 or
+ * earlier is opening stock, never consumption — a consumption report cannot be
+ * asked to show it, whatever period is requested.
+ */
+export const CONSUMPTION_CUTOVER_DATE = "2026-11-01";
+
 /** Inventory account code → the item type whose stock it holds. */
 const INVENTORY_ITEM_TYPE_BY_CODE: Record<string, ItemType> = {
   [SystemAccountCodes.INVENTORY_RAW_MATERIALS]: "RAW_MATERIAL",
@@ -241,9 +248,7 @@ export class ReportService {
       (row) => INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode] === "FINISHED_GOOD",
     );
     if (fgRow) {
-      const sold = await this.soldFinishedGoods(to);
-      fgRow.soldValue = sold.total;
-      fgRow.soldItems = sold.items;
+      fgRow.soldValue = await this.soldFinishedGoods(to);
     }
 
     // Raw and packing material get the mirror treatment: what manufacturing
@@ -261,7 +266,12 @@ export class ReportService {
     for (const row of inventoryRows) {
       const itemType = INVENTORY_ITEM_TYPE_BY_CODE[row.accountCode];
       if (itemType !== "RAW_MATERIAL" && itemType !== "PACKING_MATERIAL") continue;
-      row.consumedValue = periodic.rows.find((line) => line.itemType === itemType)?.consumed ?? 0;
+      const line = periodic.rows.find((candidate) => candidate.itemType === itemType);
+      row.consumedValue = line?.consumed ?? 0;
+      row.consumedOpening = line?.opening ?? 0;
+      // The closing the consumption was measured against: the count on a live
+      // report, the inventory account on a dated one.
+      row.consumedClosing = line == null ? 0 : line.counted ?? line.bookClosing;
     }
 
     // What is behind each figure but carries no cost, so it values at zero.
@@ -314,28 +324,17 @@ export class ReportService {
    * is what the goods were billed at, so it does not depend on the posting
    * code having relieved stock or on how the batches are costed.
    */
-  private async soldFinishedGoods(
-    to: string | null,
-  ): Promise<{ total: number; items: Array<{ name: string; quantity: number; value: number }> }> {
-    const rows = await this.db.all<{ name: string; quantity: number; value: number }>(
-      `SELECT it.item_name AS name,
-              SUM(sii.quantity) AS quantity,
-              SUM(sii.line_total) AS value
+  private async soldFinishedGoods(to: string | null): Promise<number> {
+    const row = await this.db.get<{ value: number }>(
+      `SELECT SUM(sii.line_total) AS value
          FROM sales_invoice_items sii
          JOIN sales_invoices si ON si.id = sii.invoice_id
          JOIN items it ON it.id = sii.item_id
         WHERE it.item_type = 'FINISHED_GOOD' AND it.company_id = ?
-          ${to ? "AND date(si.invoice_date) <= date(?)" : ""}
-        GROUP BY it.id, it.item_name
-        ORDER BY value DESC`,
+          ${to ? "AND date(si.invoice_date) <= date(?)" : ""}`,
       to ? [this.companyId, to] : [this.companyId],
     );
-    const items = rows.map((row) => ({
-      name: row.name,
-      quantity: toStorage(row.quantity),
-      value: toStorage(row.value),
-    }));
-    return { items, total: toStorage(items.reduce((sum, item) => sum + item.value, 0)) };
+    return toStorage(row?.value ?? 0);
   }
 
   /** Stock value by item type and tag, as at `to` (null = current stock). */
@@ -479,13 +478,41 @@ export class ReportService {
    * can. With `to` the closing figure is the inventory account's balance at that
    * date, because a past count does not exist; the answer is then what the books
    * say was consumed in the period.
+   *
+   * The books begin on 1 November 2026. Everything dated 31 October or earlier
+   * is opening stock: the period can never start before the cutover, so no
+   * consumption figure ever includes a pre-November entry.
    */
   async materialsConsumption(
     from?: string | null,
     to?: string | null,
   ): Promise<MaterialsConsumptionResult> {
-    const start = from || "0001-01-01";
+    const start =
+      from && from > CONSUMPTION_CUTOVER_DATE ? from : CONSUMPTION_CUTOVER_DATE;
     const end = to || null;
+
+    // A window that closes before the books begin has nothing to report.
+    if (end !== null && end < CONSUMPTION_CUTOVER_DATE) {
+      const empty = (
+        itemType: MaterialsConsumptionRow["itemType"],
+      ): MaterialsConsumptionRow => ({
+        itemType,
+        opening: 0,
+        purchases: 0,
+        otherIn: 0,
+        counted: null,
+        consumed: 0,
+        bookClosing: 0,
+        difference: null,
+      });
+      return {
+        from: start,
+        to: end,
+        rows: [empty("RAW_MATERIAL"), empty("PACKING_MATERIAL")],
+        total: empty("TOTAL"),
+      };
+    }
+
     const ledger = await this.db.all<{
       account_code: string;
       opening: number;
@@ -601,7 +628,7 @@ export class ReportService {
       difference: end ? null : sum((row) => row.difference ?? 0),
     };
 
-    return { from: from ?? null, to: end, rows, total };
+    return { from: start, to: end, rows, total };
   }
 
   /**
@@ -1153,12 +1180,9 @@ export class ReportService {
   ): string[] {
     const line = (name: string, value: number): string =>
       ["", label(name), "", "", "", "", "", value.toFixed(2), ""].join(",");
-    // Finished goods report what the invoices sold, item by item.
+    // Finished goods report one figure: what the invoices sold.
     if (row.soldValue != null) {
-      return [
-        line("↳ Sold FG (per invoices)", row.soldValue),
-        ...(row.soldItems ?? []).map((item) => line(`· ${item.name}`, item.value)),
-      ];
+      return [line("↳ Sold FG (per invoices)", row.soldValue)];
     }
     const tags = row.tagBreakdown ?? [];
     if (tags.length === 0) return [];

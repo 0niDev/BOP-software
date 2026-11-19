@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import CustomReportEditor from "../components/CustomReportEditor";
 import PLNotes from "../components/PLNotes";
 import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { CustomReport } from "../types";
+import type { Account, CustomHeading, CustomReport } from "../types";
 
 /**
  * "Notes" module: the printed Notes to the Accounts for the P&L period. Kept
@@ -16,6 +17,10 @@ export default function NotesPage() {
   const [busy, setBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const pageVisible = usePageVisible();
 
@@ -37,6 +42,36 @@ export default function NotesPage() {
     void load({ from: "", to: "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageVisible]);
+
+  /** Heading edits belong to the notes: they change these blocks, not the P&L face. */
+  async function toggleEditor(): Promise<void> {
+    if (editing) {
+      setEditing(false);
+      return;
+    }
+    setEditorError(null);
+    setEditing(true);
+    if (accounts.length > 0) return;
+    try {
+      setAccounts(await api.accounts());
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : "Failed to load accounts.");
+    }
+  }
+
+  async function saveHeadings(headings: CustomHeading[]): Promise<void> {
+    setEditorBusy(true);
+    setEditorError(null);
+    try {
+      await api.saveCustomReport("PL", headings);
+      setEditing(false);
+      await load();
+    } catch (err) {
+      setEditorError(err instanceof Error ? err.message : "Failed to save headings.");
+    } finally {
+      setEditorBusy(false);
+    }
+  }
 
   async function exportXlsx(): Promise<void> {
     setExportBusy(true);
@@ -96,11 +131,31 @@ export default function NotesPage() {
           <button onClick={() => void exportXlsx()} disabled={exportBusy}>
             {exportBusy ? "Preparing…" : "Export Excel"}
           </button>
+          <button onClick={() => void toggleEditor()} disabled={editorBusy || !report}>
+            {editing ? "Close editor" : "Edit headings"}
+          </button>
         </div>
+        <p style={{ opacity: 0.7, fontSize: 12, marginTop: 0 }}>
+          Editing headings changes these notes only; the Profit &amp; Loss statement
+          keeps its printed layout.
+        </p>
         {report ? (
           <PLNotes report={report} />
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading notes…</p>
+        )}
+        {editing && report && (
+          <div style={{ marginTop: 16 }}>
+            <CustomReportEditor
+              kind="PL"
+              accounts={accounts}
+              headings={report.headings}
+              busy={editorBusy}
+              error={editorError}
+              onSave={(headings) => void saveHeadings(headings)}
+              onCancel={() => setEditing(false)}
+            />
+          </div>
         )}
       </div>
     </>

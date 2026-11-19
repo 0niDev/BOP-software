@@ -497,11 +497,13 @@ export interface TrialBalanceRow {
   tagBreakdown?: Array<{ name: string; value: number }>;
   /** Finished goods only: value of what the sales invoices sold, as billed. */
   soldValue?: number;
-  /** One row per finished good sold, so the report can itemise `soldValue`. */
-  soldItems?: Array<{ name: string; quantity: number; value: number }>;
   usedValue?: number;
   /** Raw/packing: periodic consumption (opening + purchases − stock), today only. */
   consumedValue?: number;
+  /** Raw/packing: the stock the consumption starts from. */
+  consumedOpening?: number;
+  /** Raw/packing: the closing stock the consumption was measured against. */
+  consumedClosing?: number;
   unpricedItems?: Array<{ name: string; quantity: number }>;
 }
 
@@ -572,6 +574,8 @@ export interface CustomReportHeading extends CustomHeading {
 export interface CustomReport {
   kind: CustomReportKind;
   headings: CustomReportHeading[];
+  /** P&L only: the fixed printed face, unaffected by heading (notes) edits. */
+  face?: CustomReportHeading[];
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>;
   balanced: boolean | null;

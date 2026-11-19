@@ -10,6 +10,9 @@ const LABEL: Record<string, string> = {
   TOTAL: "Total",
 };
 
+/** The books begin here; 31 October and earlier is opening stock, never consumption. */
+const CONSUMPTION_START = "2026-11-01";
+
 function message(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
@@ -24,7 +27,7 @@ function message(err: unknown, fallback: string): string {
  * past; that view says what the books recorded for the period.
  */
 export default function MaterialsConsumptionPage() {
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState(CONSUMPTION_START);
   const [to, setTo] = useState("");
   const [report, setReport] = useState<MaterialsConsumption | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export default function MaterialsConsumptionPage() {
             id="consumption-from"
             type="date"
             value={from}
+            min={CONSUMPTION_START}
             onChange={(event) => setFrom(event.target.value)}
           />
         </div>
@@ -76,6 +80,7 @@ export default function MaterialsConsumptionPage() {
             id="consumption-to"
             type="date"
             value={to}
+            min={CONSUMPTION_START}
             onChange={(event) => setTo(event.target.value)}
           />
         </div>
@@ -83,7 +88,9 @@ export default function MaterialsConsumptionPage() {
       <p style={{ marginTop: 4 }}>
         {closesOnCount
           ? "Opening + purchases − closing stock, where closing is today's physical count — so this figure does not depend on the bills of materials being right."
-          : "Opening + purchases − closing stock, where closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}
+          : "Opening + purchases − closing stock, where closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}{" "}
+        Consumption starts on 1 November 2026 — anything on 31 October or earlier is part of
+        opening stock and is never shown as consumption.
       </p>
       {error && <div className="error">{error}</div>}
       {busy && !report && <p>Loading…</p>}

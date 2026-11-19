@@ -52,7 +52,7 @@ async function buy(
   itemId: number,
   quantity: number,
   unitCost: number,
-  date = "2026-10-08",
+  date = "2026-11-08",
 ): Promise<void> {
   await purchases.createPurchaseInvoice({
     supplierId,
@@ -81,7 +81,7 @@ describe("ReportService.materialsConsumption", () => {
     // Take 4 units off the shelf without posting anything: the periodic view
     // still sees them as consumed, which is the whole point of the method.
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
-      "T-" + rawItemId + "-2026-10-08",
+      "T-" + rawItemId + "-2026-11-08",
     ]);
 
     const result = await reports.materialsConsumption();
@@ -95,7 +95,7 @@ describe("ReportService.materialsConsumption", () => {
   it("the start date turns earlier purchases into opening stock", async () => {
     await buy(rawItemId, 10, 50);
 
-    const later = await reports.materialsConsumption("2026-10-09");
+    const later = await reports.materialsConsumption("2026-11-09");
     expect(later.total.opening).toBe(500);
     expect(later.total.purchases).toBe(0);
     expect(later.total.consumed).toBe(0);
@@ -116,7 +116,7 @@ describe("ReportService.materialsConsumption", () => {
     await buy(rawItemId, 10, 50);
     await buy(packingItemId, 4, 25);
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
-      "T-" + rawItemId + "-2026-10-08",
+      "T-" + rawItemId + "-2026-11-08",
     ]);
 
     const tb = await reports.trialBalance();
@@ -127,14 +127,14 @@ describe("ReportService.materialsConsumption", () => {
   it("does not count a stock correction as material coming in", async () => {
     await buy(rawItemId, 10, 50);
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
-      "T-" + rawItemId + "-2026-10-08",
+      "T-" + rawItemId + "-2026-11-08",
     ]);
     const before = await reports.materialsConsumption();
 
     // What the periodic fix posts: debit the account up to the count.
     await accounting.postJournalEntry({
       voucherType: "JOURNAL",
-      entryDate: "2026-10-31",
+      entryDate: "2026-11-30",
       narration: "Stock correction",
       referenceNo: "PERIODIC-STOCK-CORR",
       lines: [
@@ -153,7 +153,7 @@ describe("ReportService.materialsConsumption", () => {
 
     // Closing on the ledger, the correction has to be in "stock in" so the row
     // adds up: 0 + 500 + 100 − 600 = 0.
-    const dated = await reports.materialsConsumption(undefined, "2026-10-31");
+    const dated = await reports.materialsConsumption(undefined, "2026-11-30");
     expect(dated.total.otherIn).toBe(100);
     expect(dated.total.bookClosing).toBe(600);
     expect(dated.total.consumed).toBe(0);
@@ -164,7 +164,7 @@ describe("ReportService.materialsConsumption", () => {
     // Consumption drove the only batch below zero: there is no stock, not
     // minus 200 worth of it.
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = -4 WHERE batch_number = ?", [
-      "T-" + rawItemId + "-2026-10-08",
+      "T-" + rawItemId + "-2026-11-08",
     ]);
 
     const tb = await reports.trialBalance();
@@ -174,12 +174,12 @@ describe("ReportService.materialsConsumption", () => {
   });
 
   it("closes on the inventory account when the report ends in the past", async () => {
-    await buy(rawItemId, 10, 50, "2026-10-08");
-    await buy(rawItemId, 4, 50, "2026-10-20");
+    await buy(rawItemId, 10, 50, "2026-11-08");
+    await buy(rawItemId, 4, 50, "2026-11-20");
 
-    const firstHalf = await reports.materialsConsumption("2026-10-01", "2026-10-15");
-    expect(firstHalf.to).toBe("2026-10-15");
-    // The 20 October purchase is outside the period.
+    const firstHalf = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(firstHalf.to).toBe("2026-11-15");
+    // The 20 November purchase is outside the period.
     expect(firstHalf.total.purchases).toBe(500);
     expect(firstHalf.total.bookClosing).toBe(500);
     expect(firstHalf.total.consumed).toBe(0);
@@ -187,15 +187,37 @@ describe("ReportService.materialsConsumption", () => {
     expect(firstHalf.total.counted).toBeNull();
     expect(firstHalf.total.difference).toBeNull();
 
-    const october = await reports.materialsConsumption("2026-10-01", "2026-10-31");
-    expect(october.total.purchases).toBe(700);
+    const november = await reports.materialsConsumption("2026-11-01", "2026-11-30");
+    expect(november.total.purchases).toBe(700);
+    expect(november.total.consumed).toBe(0);
+  });
+
+  it("never reports consumption from 31 October or earlier", async () => {
+    await buy(rawItemId, 10, 50, "2026-10-08");
+
+    // Asked for October only, the report is empty.
+    const october = await reports.materialsConsumption(undefined, "2026-10-31");
+    expect(october.total.purchases).toBe(0);
     expect(october.total.consumed).toBe(0);
+
+    // With no dates, October is opening stock, not a purchase.
+    const live = await reports.materialsConsumption();
+    expect(live.from).toBe("2026-11-01");
+    expect(live.total.opening).toBe(500);
+    expect(live.total.purchases).toBe(0);
+    expect(live.total.consumed).toBe(0);
+
+    // A start before the books begin is pulled forward to the cutover.
+    const clamped = await reports.materialsConsumption("2026-10-01");
+    expect(clamped.from).toBe("2026-11-01");
+    expect(clamped.total.opening).toBe(500);
+    expect(clamped.total.purchases).toBe(0);
   });
 
   it("shows the periodic figure on a dated trial balance too", async () => {
     await buy(rawItemId, 10, 50);
 
-    const tb = await reports.trialBalance({ to: "2026-10-31" });
+    const tb = await reports.trialBalance({ to: "2026-11-30" });
     // Nothing left the store yet, so the period consumption is zero — but the
     // line is present, closing on the ledger balance at the end date.
     expect(tb.rows.find((row) => row.accountCode === "1200")?.consumedValue).toBe(0);

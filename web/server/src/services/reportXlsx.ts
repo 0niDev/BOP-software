@@ -1115,17 +1115,16 @@ export class ReportXlsx {
             // the other inventory accounts keep their per-tag lines. A dated
             // report has no tag breakdown, so the stock lines drop out.
             ...(sold != null
-              ? [
-                  memo("↳ Sold FG (per invoices)", sold),
-                  ...(row.soldItems ?? []).map((item): Cell[] =>
-                    memo(`· ${item.name}`, item.value, 1),
-                  ),
-                ]
+              ? [memo("↳ Sold FG (per invoices)", sold)]
               : used != null
                 ? [
                     memo("↳ Used in production", used),
                     ...(consumed != null
-                      ? [memo("↳ Consumed (opening + purchases − stock)", consumed)]
+                      ? [
+                          memo("↳ Consumed (opening + purchases − stock)", consumed),
+                          memo("Opening stock", row.consumedOpening ?? 0, 1),
+                          memo("Closing stock", row.consumedClosing ?? 0, 1),
+                        ]
                       : []),
                     ...(showStock && tags.length > 0 ? [memo("↳ In stock", stock)] : []),
                     ...tags.map((tag): Cell[] => memo(`· ${tag.name}`, tag.value, 1)),

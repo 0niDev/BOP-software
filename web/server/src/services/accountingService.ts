@@ -98,8 +98,6 @@ export interface TrialBalanceRow {
    * end, taken from the invoice lines. Memo only — never added to the totals.
    */
   soldValue?: number;
-  /** One row per finished good sold, so the report can itemise `soldValue`. */
-  soldItems?: Array<{ name: string; quantity: number; value: number }>;
   /** Inventory accounts carrying material into production: the consumed side. */
   usedValue?: number;
   /**
@@ -108,6 +106,10 @@ export interface TrialBalanceRow {
    * report that ends today — see `ReportService.materialsConsumption`.
    */
   consumedValue?: number;
+  /** Raw/packing only: stock the consumption started from (1 November 2026). */
+  consumedOpening?: number;
+  /** Raw/packing only: the closing stock `consumedValue` was measured against. */
+  consumedClosing?: number;
   /** Items behind the account that carry no cost at all, so they value at zero. */
   unpricedItems?: Array<{ name: string; quantity: number }>;
 }

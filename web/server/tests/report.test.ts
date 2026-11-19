@@ -50,12 +50,8 @@ describe("ReportService", () => {
     await seedActivity();
     const { rows } = await reports.trialBalance();
     const fg = rows.find((row) => row.accountCode === "1220");
-    // 5 + 2 units on the invoices, billed at 150 each.
+    // 5 + 2 units on the invoices, billed at 150 each — one total, no item list.
     expect(fg?.soldValue).toBeCloseTo(1050, 2);
-    // Itemised: one row per finished good sold, quantity and invoiced value.
-    expect(fg?.soldItems).toHaveLength(1);
-    expect(fg?.soldItems?.[0]?.quantity).toBeCloseTo(7, 2);
-    expect(fg?.soldItems?.[0]?.value).toBeCloseTo(1050, 2);
 
     // A sale that never relieved stock still counts as sold: the invoice says so.
     await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 0");
@@ -144,8 +140,8 @@ describe("ReportService", () => {
     // One header + one line per account + any inventory memo line + the TOTAL line.
     const { rows } = await reports.trialBalance();
     const memoLines = rows.reduce((count, row) => {
-      // Finished goods carry what the invoices sold: a total plus one per item.
-      if (row.soldValue != null) return count + 1 + (row.soldItems?.length ?? 0);
+      // Finished goods carry one total for what the invoices sold.
+      if (row.soldValue != null) return count + 1;
       return count + (row.tagBreakdown?.length ? row.tagBreakdown.length + 1 : 0);
     }, 0);
     expect(lines).toHaveLength(rows.length + memoLines + 2);

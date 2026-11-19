@@ -76,6 +76,11 @@ export interface CustomReportHeadingResult extends CustomHeading {
 export interface CustomReportResult {
   kind: CustomReportKind;
   headings: CustomReportHeadingResult[];
+  /**
+   * P&L only: the fixed printed face, always rendered from the default
+   * template so heading edits (which belong to the notes) cannot change it.
+   */
+  face?: CustomReportHeadingResult[];
   /** Accounts no heading covers, so the report still ties out. */
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   /** Standard-report totals for the footer. */
@@ -802,7 +807,13 @@ export class CustomReportService {
   ): Promise<CustomReportResult> {
     const template = await this.getTemplate(kind);
     const accounts = await this.accountRows();
-    return this.render(kind, template, accounts, rows);
+    const report = this.render(kind, template, accounts, rows);
+    if (kind !== "PL") return report;
+    return {
+      ...report,
+      // The printed face keeps its own template, independent of the notes.
+      face: this.render(kind, defaultTemplate(kind, accounts), accounts, rows).headings,
+    };
   }
 
   /** CSV of the same lines the screen and workbook show; `includeDetail` adds the account rows. */
