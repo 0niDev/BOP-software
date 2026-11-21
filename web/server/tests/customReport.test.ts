@@ -95,6 +95,24 @@ describe("CustomReportService", () => {
     expect([
       ...new Set(result.headings.flatMap((heading) => heading.note ?? [])),
     ]).toEqual(["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"]);
+    expect(result.face?.map((line) => line.label)).toEqual([
+      "Sales - Net",
+      "Cost of Sales",
+      "Gross Profit/(Loss)",
+      "Operating Expenses",
+      "Administrative Expenses",
+      "Selling & Distribution",
+      "Operating Profit/(Loss)",
+      "Other Income",
+      "Financial Charges",
+      "Others",
+      "Profit/(Loss) Before Taxation",
+      "Taxation (Current)",
+      "Profit/(Loss) After Taxation",
+      "Prior Year Adjustment",
+      "Acc. Profit/(Loss) B/F (y/opening)",
+      "Profit/(Loss) C/F to B/Sheet",
+    ]);
     expect(result.balanced).toBeNull();
   });
 
@@ -561,12 +579,27 @@ describe("CustomReportService", () => {
 
     const full = await custom.customCsv("PL");
     const summary = await custom.customCsv("PL", {}, false);
-    // Both keep the heading total; only the full export prints the account line.
-    expect(summary).toContain("Sales,,,750.00");
+    // The summary is the fixed face the website shows; the full export keeps
+    // the editable heading tree and prints its account rows underneath.
+    expect(summary).toContain("Sales - Net,,,750.00,Cr,20");
     expect(full).toContain("Sales,,,750.00");
     expect(full).toMatch(/,4000,/);
     expect(summary).not.toMatch(/,4000,/);
-    expect(summary.split("\n").length).toBeLessThan(full.split("\n").length);
+    // The face has no footer or unassigned block, so it cannot disagree with
+    // the printed statement.
+    expect(summary).not.toContain("Unassigned");
+    expect(summary).not.toContain("Revenue,,,");
+  });
+
+  it("uses the same printed face in the all-reports CSV", async () => {
+    await seedSale();
+    const face = (await custom.build("PL")).face;
+    const csv = await reports.exportAllCsv({}, face);
+
+    expect(csv).toContain("Description,Amount,Dr/Cr,Note");
+    expect(csv).toContain("Sales - Net,750.00,Cr,20");
+    expect(csv).toContain("Profit/(Loss) C/F to B/Sheet");
+    expect(csv).not.toContain("Revenue (net of returns)");
   });
 
   it("bolds the proper section headings in the default template", async () => {

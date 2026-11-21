@@ -24,6 +24,7 @@ import type { ItemListRow } from "../repositories/itemRepository.js";
 import { ItemService } from "./itemService.js";
 import { ReportService, type LedgerEntry, type PartyBalanceSide } from "./reportService.js";
 import { CustomReportService, type CustomReportKind, type CustomReportResult } from "./customReportService.js";
+import { ManufacturingService, type ManufacturingReportOrder } from "./manufacturingService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
 /** Reports that can be printed as a workbook. */
@@ -416,12 +417,39 @@ const INVENTORY_COLUMNS: Columns = [
   { width: 10 },
 ];
 
+/** Production & packing report: each order, then the materials it consumed. */
+const MANUFACTURING_COLUMNS: Columns = [
+  { width: 12 }, // Type
+  { width: 20 }, // Order
+  { width: 12 }, // Date
+  { width: 12 }, // Expiry
+  { width: 30 }, // BOM
+  { width: 32 }, // Output item
+  { width: 8 }, // Unit
+  { width: 13 }, // Status
+  { width: 10 }, // Planned
+  { width: 10 }, // Actual
+  { width: 10 }, // Wastage
+  { width: 20 }, // Output batch
+  { width: 13 }, // Raw cost
+  { width: 13 }, // Packing cost
+  { width: 13 }, // Total cost
+  { width: 30 }, // Notes
+  { width: 32 }, // Material
+  { width: 20 }, // Material batch
+  { width: 12 }, // Quantity
+  { width: 8 }, // Material unit
+  { width: 13 }, // Unit cost
+  { width: 14 }, // Amount
+];
+
 export class ReportXlsx {
   private readonly reports: ReportService;
   private readonly customReports: CustomReportService;
   private readonly parties: PartyRepository;
   private readonly accounting: AccountingService;
   private readonly items: ItemService;
+  private readonly manufacturing: ManufacturingService;
 
   constructor(db: SqlDatabase, companyId = 1) {
     this.reports = new ReportService(db, companyId);
@@ -429,6 +457,7 @@ export class ReportXlsx {
     this.parties = new PartyRepository(db);
     this.accounting = new AccountingService(db, companyId);
     this.items = new ItemService(db, companyId);
+    this.manufacturing = new ManufacturingService(db, companyId);
   }
 
   /** Render one report (or all of them) to an .xlsx buffer. */
@@ -503,72 +532,91 @@ export class ReportXlsx {
         text("Dr/Cr", HEADER),
         text("Note", HEADER),
       ],
-      ...report.headings.flatMap((line): SheetData => {
-        const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
-        return [
-          [
-            text(line.name, style),
-            null,
-            money(line.value, style),
-            line.side ? text(line.side, style) : null,
-            text(line.note ?? "", style),
-          ],
-          ...(includeDetail
-            ? line.rows.map(
-                (row): Cell[] => [
-                  text(row.name, {
-                    indent: (row.depth + 1) * 2,
-                    ...(row.selected || row.isHeader ? { fontWeight: "bold" } : {}),
-                  }),
-                  text(row.code),
-                  moneyOrBlank(row.value),
-                  row.side ? text(row.side) : null,
-                  null,
-                ],
-              )
-            : []),
-        ];
-      }),
-      ...(report.unassigned.rows.length > 0
-        ? [
-            [
-              text("Unassigned (not in any heading)", TOTAL),
+      ...(kind === "PL" && !includeDetail
+        ? (report.face ?? []).map(
+            (line): Cell[] => [
+              text(line.label, {
+                indent: (line.depth ?? 0) * 2,
+                ...(line.bold ? TOTAL : HEADING_PLAIN),
+              }),
               null,
-              money(report.unassigned.value, TOTAL),
-              report.unassigned.side ? text(report.unassigned.side, TOTAL) : null,
-              null,
-            ] as Cell[],
-            ...report.unassigned.rows.map(
-              (row): Cell[] => [
-                text(row.name, { indent: (row.depth + 1) * 2 }),
-                text(row.code),
-                moneyOrBlank(row.value),
-                row.side ? text(row.side) : null,
+              line.noAmount ? null : money(line.value, line.bold ? TOTAL : HEADING_PLAIN),
+              line.noAmount || !line.side
+                ? null
+                : text(line.side, line.bold ? TOTAL : HEADING_PLAIN),
+              text(line.note ?? "", line.bold ? TOTAL : HEADING_PLAIN),
+            ],
+          )
+        : report.headings.flatMap((line): SheetData => {
+            const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
+            return [
+              [
+                text(line.name, style),
+                null,
+                money(line.value, style),
+                line.side ? text(line.side, style) : null,
+                text(line.note ?? "", style),
+              ],
+              ...(includeDetail
+                ? line.rows.map(
+                    (row): Cell[] => [
+                      text(row.name, {
+                        indent: (row.depth + 1) * 2,
+                        ...(row.selected || row.isHeader ? { fontWeight: "bold" } : {}),
+                      }),
+                      text(row.code),
+                      moneyOrBlank(row.value),
+                      row.side ? text(row.side) : null,
+                      null,
+                    ],
+                  )
+                : []),
+            ];
+          })),
+      ...(kind === "PL" && !includeDetail
+        ? []
+        : [
+            ...(report.unassigned.rows.length > 0
+              ? [
+                  [
+                    text("Unassigned (not in any heading)", TOTAL),
+                    null,
+                    money(report.unassigned.value, TOTAL),
+                    report.unassigned.side ? text(report.unassigned.side, TOTAL) : null,
+                    null,
+                  ] as Cell[],
+                  ...report.unassigned.rows.map(
+                    (row): Cell[] => [
+                      text(row.name, { indent: (row.depth + 1) * 2 }),
+                      text(row.code),
+                      moneyOrBlank(row.value),
+                      row.side ? text(row.side) : null,
+                      null,
+                    ],
+                  ),
+                ]
+              : ([] as Cell[][])),
+            [],
+            ...report.footer.map(
+              (line): Cell[] => [
+                text(line.label, TOTAL),
+                null,
+                money(line.value, TOTAL),
+                line.side ? text(line.side, TOTAL) : null,
                 null,
               ],
             ),
-          ]
-        : ([] as Cell[][])),
-      [],
-      ...report.footer.map(
-        (line): Cell[] => [
-          text(line.label, TOTAL),
-          null,
-          money(line.value, TOTAL),
-          line.side ? text(line.side, TOTAL) : null,
-          null,
-        ],
-      ),
-      ...(report.balanced === null
-        ? ([] as Cell[][])
-        : [
-            [
-              text("Balanced", TOTAL),
-              null,
-              text(report.balanced ? "YES" : "NO", TOTAL),
-              null,
-              null,
-            ] as Cell[],
+            ...(report.balanced === null
+              ? ([] as Cell[][])
+              : [
+                  [
+                    text("Balanced", TOTAL),
+                    null,
+                    text(report.balanced ? "YES" : "NO", TOTAL),
+                    null,
+                    null,
+                  ] as Cell[],
+                ]),
           ]),
     ];
     const scope =
@@ -974,6 +1022,115 @@ export class ReportXlsx {
     };
   }
 
+  /**
+   * Production & packing report: every order dated in the period (or all), with
+   * the materials that order actually consumed underneath it. One row per
+   * consumed line; an order with no consumption keeps its summary row alone.
+   */
+  async productionPacking(request: { from?: string | null; to?: string | null }): Promise<XlsxFile> {
+    const { from, to } = request;
+    const orders = await this.manufacturing.manufacturingReport(from ?? null, to ?? null);
+    const scope =
+      from || to
+        ? `${formatDayMonthYear(from) || "start"} to ${formatDayMonthYear(to) || "today"}`
+        : "all orders";
+
+    const data: SheetData = [
+      ...heading("Production & Packing Report", `${scope} — ${orders.length} order(s)`),
+      [
+        text("Type", HEADER),
+        text("Order", HEADER),
+        text("Date", HEADER),
+        text("Expiry", HEADER),
+        text("BOM", HEADER),
+        text("Output Item", HEADER),
+        text("Unit", HEADER),
+        text("Status", HEADER),
+        text("Planned", HEADER),
+        text("Actual", HEADER),
+        text("Wastage", HEADER),
+        text("Output Batch", HEADER),
+        text("Raw Cost", HEADER),
+        text("Packing Cost", HEADER),
+        text("Total Cost", HEADER),
+        text("Notes", HEADER),
+        text("Material", HEADER),
+        text("Material Batch", HEADER),
+        text("Quantity", HEADER),
+        text("Unit", HEADER),
+        text("Unit Cost", HEADER),
+        text("Amount", HEADER),
+      ],
+    ];
+
+    const orderCells = (order: ManufacturingReportOrder): Cell[] => [
+      text(order.type),
+      text(order.orderNumber),
+      text(order.date),
+      order.expiryDate ? text(order.expiryDate) : null,
+      text(order.bomName),
+      text(order.outputItemName),
+      text(order.outputUnit),
+      text(order.status),
+      quantity(order.plannedQuantity),
+      quantity(order.actualQuantity),
+      quantity(order.wastageQuantity),
+      order.outputBatchNumber ? text(order.outputBatchNumber) : null,
+      moneyOrBlank(order.rawMaterialCost),
+      moneyOrBlank(order.packingMaterialCost),
+      money(order.totalCost),
+      order.notes ? text(order.notes) : null,
+    ];
+
+    let totalCost = 0;
+    let totalAmount = 0;
+    const blankOrder: Cell[] = new Array(16).fill(null);
+
+    for (const order of orders) {
+      totalCost += order.totalCost;
+      if (order.consumptions.length === 0) {
+        data.push([...orderCells(order), null, null, null, null, null, null]);
+        continue;
+      }
+      order.consumptions.forEach((line, index) => {
+        totalAmount += line.amount;
+        data.push([
+          ...(index === 0 ? orderCells(order) : blankOrder),
+          text(line.itemName),
+          line.batchNumber ? text(line.batchNumber) : null,
+          quantity(line.quantity),
+          text(line.unit),
+          money(line.unitCost),
+          money(line.amount),
+        ]);
+      });
+    }
+
+    if (orders.length === 0) {
+      data.push([text("No production or packing orders in this period.", MUTED)]);
+    }
+
+    const totalRow: Cell[] = new Array(22).fill(null);
+    totalRow[0] = text("Total", TOTAL);
+    totalRow[14] = money(totalCost, TOTAL);
+    totalRow[21] = money(totalAmount, TOTAL);
+    data.push([], totalRow);
+
+    const slug = from || to ? periodSlug(from, to) : "all-dates";
+    return {
+      fileName: `production-packing_${slug}.xlsx`,
+      buffer: await this.write([
+        {
+          data,
+          sheet: "Production & Packing",
+          columns: MANUFACTURING_COLUMNS,
+          stickyRowsCount: 6,
+          orientation: "landscape",
+        },
+      ]),
+    };
+  }
+
   /** Item rows for the workbook, with the page's stock filter applied. */
   private async inventoryRows(request: InventoryXlsxRequest): Promise<ItemListRow[]> {
     const rows = await this.items.list({
@@ -1060,6 +1217,51 @@ export class ReportXlsx {
     // Same organization as the CoA page: type sections in CoA order, accounts
     // nested under their parent, and a closing subtotal per section.
     const sections = layoutTrialBalance(report.rows);
+    // Party sub-ledgers behind Receivable / Payable, printed as their own bands.
+    const balances = await this.reports.partyBalances(
+      options.from ?? undefined,
+      options.to ?? undefined,
+    );
+    const partyBands: SheetData = [
+      { label: "Customers", partyType: "CUSTOMER" },
+      { label: "Suppliers", partyType: "SUPPLIER" },
+    ].flatMap(({ label, partyType }): SheetData => {
+      const rows = balances
+        .filter((row) => row.partyType === partyType)
+        .filter((row) =>
+          [row.opening, row.debit, row.credit, row.balance].some((value) => value !== 0),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (rows.length === 0) return [];
+      const total = (pick: (row: (typeof rows)[number]) => number): number =>
+        rows.reduce((sum, row) => sum + pick(row), 0);
+      return [
+        [text(`${label.toUpperCase()} (${rows.length})`, SECTION)],
+        ...rows.map((row): Cell[] => [
+          text(row.code),
+          text(row.name),
+          text(partyType, MUTED),
+          money(Math.max(row.opening, 0)),
+          money(Math.max(-row.opening, 0)),
+          money(row.debit),
+          money(row.credit),
+          money(Math.max(row.balance, 0)),
+          money(Math.max(-row.balance, 0)),
+        ]),
+        [
+          null,
+          text(`Total ${label}`, TOTAL),
+          null,
+          null,
+          null,
+          null,
+          null,
+          money(total((row) => Math.max(row.balance, 0)), TOTAL),
+          money(total((row) => Math.max(-row.balance, 0)), TOTAL),
+        ],
+        [],
+      ];
+    });
     const data: SheetData = [
       ...heading("Trial Balance", periodLabel(options.from, options.to)),
       [
@@ -1159,6 +1361,7 @@ export class ReportXlsx {
         ],
         [],
       ]),
+      ...partyBands,
       [
         null,
         null,
@@ -1187,53 +1390,37 @@ export class ReportXlsx {
     };
   }
 
-  /** The compact printed P&L: a flat copy of the edited headings, same as the screen. */
+  /** The printed P&L face: the same lines, wording and notes the screen shows. */
   private async plSummarySheet(options: DateRangeOptions): Promise<SheetSpec> {
     const report = await this.customReports.build("PL", options);
     const data: SheetData = [
       ...heading("Profit & Loss", periodLabel(options.from, options.to)),
       [
-        text("Heading", HEADER),
-        text("Note", HEADER),
+        text("Description", HEADER),
         text("Amount", HEADER),
         text("Dr/Cr", HEADER),
+        text("Note", HEADER),
       ],
-      ...report.headings.map((line): Cell[] => {
-        const style: Style = line.kind === "subtotal" ? TOTAL : {};
+      ...(report.face ?? []).map((line): Cell[] => {
+        const style: Style = line.bold ? TOTAL : {};
         return [
-          text(line.name, style),
+          text(line.label, { indent: (line.depth ?? 0) * 2, ...style }),
+          line.noAmount ? null : money(line.value, style),
+          line.noAmount || !line.side ? null : text(line.side, style),
           text(line.note ?? "", style),
-          money(line.value, style),
-          line.side ? text(line.side, style) : null,
         ];
       }),
     ];
     return {
       data,
       sheet: "Profit & Loss",
-      columns: [{ width: 46 }, { width: 10 }, { width: 16 }, { width: 8 }],
+      columns: [{ width: 46 }, { width: 16 }, { width: 8 }, { width: 10 }],
       stickyRowsCount: 6,
     };
   }
 
-  private async profitAndLossSheet(options: DateRangeOptions): Promise<SheetSpec> {
-    const report = await this.reports.profitAndLoss(options);
-    return {
-      data: [
-        ...heading("Profit & Loss", periodLabel(options.from, options.to)),
-        [text("Metric", HEADER), text("Amount", HEADER), text("Dr/Cr", HEADER)],
-        [text("Revenue (net of returns)"), money(report.revenue), text("Cr")],
-        [text("Expenses (COGS and expense accounts)"), money(report.expenses), text("Dr")],
-        [
-          text("Net Profit", TOTAL),
-          money(report.netProfit, TOTAL),
-          text(report.netProfit >= 0 ? "Cr" : "Dr", TOTAL),
-        ],
-      ],
-      sheet: "Profit & Loss",
-      columns: THREE_COLUMN,
-      stickyRowsCount: 6,
-    };
+  private profitAndLossSheet(options: DateRangeOptions): Promise<SheetSpec> {
+    return this.plSummarySheet(options);
   }
 
   private async balanceSheetSheet(asAt: string | null): Promise<SheetSpec> {

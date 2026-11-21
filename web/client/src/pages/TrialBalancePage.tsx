@@ -8,7 +8,7 @@ import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate, moneySide, sideOf } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyBalance, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -91,6 +91,28 @@ export function groupTbRows(rows: TrialBalanceRow[]): TbGroup[] {
       },
     ];
   });
+}
+
+/**
+ * The party bands appended to the trial balance: customers' receivables then
+ * suppliers' payables, so the sub-ledger sits beside the control accounts.
+ * A party whose opening, period and closing are all zero carries nothing.
+ */
+export function partyTbSections(
+  balances: PartyBalance[],
+  showZero: boolean,
+): Array<{ title: string; rows: PartyBalance[] }> {
+  const band = (partyType: PartyType, title: string) => ({
+    title,
+    rows: balances
+      .filter(
+        (row) =>
+          row.partyType === partyType &&
+          (showZero || [row.opening, row.debit, row.credit, row.balance].some((value) => value !== 0)),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  });
+  return [band("CUSTOMER", "Customers"), band("SUPPLIER", "Suppliers")];
 }
 
 function money(value: number): string {
@@ -572,6 +594,83 @@ function GroupedTbRows({ group, showUnpriced, showStock, showBalances }: Grouped
   );
 }
 
+/** Party band on the trial balance: customers' balances, then suppliers'. */
+function PartyTbRows({
+  title,
+  rows,
+  showBalances,
+}: {
+  title: string;
+  rows: PartyBalance[];
+  showBalances: boolean;
+}) {
+  if (rows.length === 0) return null;
+  const totals = rows.reduce(
+    (sum, row) => ({
+      openingDebit: sum.openingDebit + Math.max(row.opening, 0),
+      openingCredit: sum.openingCredit + Math.max(-row.opening, 0),
+      debit: sum.debit + row.debit,
+      credit: sum.credit + row.credit,
+      closingDebit: sum.closingDebit + Math.max(row.balance, 0),
+      closingCredit: sum.closingCredit + Math.max(-row.balance, 0),
+    }),
+    { openingDebit: 0, openingCredit: 0, debit: 0, credit: 0, closingDebit: 0, closingCredit: 0 },
+  );
+  return (
+    <>
+      <tr>
+        <td
+          colSpan={showBalances ? 8 : 4}
+          style={{
+            background: "var(--accent-soft)",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontSize: 12,
+            opacity: 0.8,
+          }}
+        >
+          {title} ({rows.length})
+        </td>
+      </tr>
+      {rows.map((row) => (
+        <tr key={row.partyId}>
+          <td style={{ whiteSpace: "nowrap" }}>{row.code}</td>
+          <td>{row.name}</td>
+          {showBalances && (
+            <>
+              <td className="num">{amount(Math.max(row.opening, 0))}</td>
+              <td className="num">{amount(Math.max(-row.opening, 0))}</td>
+            </>
+          )}
+          <td className="num">{amount(row.debit)}</td>
+          <td className="num">{amount(row.credit)}</td>
+          {showBalances && (
+            <>
+              <td className="num">{amount(Math.max(row.balance, 0))}</td>
+              <td className="num">{amount(Math.max(-row.balance, 0))}</td>
+            </>
+          )}
+        </tr>
+      ))}
+      <tr className="total">
+        <td colSpan={showBalances ? 6 : 2}>Total {title}</td>
+        {showBalances ? (
+          <>
+            <td className="num">{amount(totals.closingDebit)}</td>
+            <td className="num">{amount(totals.closingCredit)}</td>
+          </>
+        ) : (
+          <>
+            <td className="num">{amount(totals.debit)}</td>
+            <td className="num">{amount(totals.credit)}</td>
+          </>
+        )}
+      </tr>
+    </>
+  );
+}
+
 export default function TrialBalancePage({ section = "reports" }: { section?: ReportPage }) {
   const showAll = section === "reports";
   const showListing = section === "listing";
@@ -598,6 +697,8 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   // Custom-report exports show only heading totals unless this is ticked.
   const [includeDetail, setIncludeDetail] = useState(false);
   const [parties, setParties] = useState<Party[]>([]);
+  /** Party balances behind the Receivable / Payable control accounts. */
+  const [tbBalances, setTbBalances] = useState<PartyBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** A trial balance is read for its balances: hide the empty chart lines by default. */
   const [showZero, setShowZero] = useState(false);
@@ -667,8 +768,12 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     setReportsBusy(true);
     setError(null);
     try {
-      const bundle = await api.reportsBundle(f || undefined, t || undefined, a || undefined);
+      const [bundle, balances] = await Promise.all([
+        api.reportsBundle(f || undefined, t || undefined, a || undefined),
+        showTb ? api.partyBalances(f || undefined, t || undefined) : Promise.resolve([]),
+      ]);
       setTb(bundle.trialBalance);
+      setTbBalances(balances);
       setPl(bundle.profitAndLoss);
       setBs(bundle.balanceSheet);
       setCustomPl(bundle.customPl);
@@ -1229,6 +1334,14 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 showBalances={showBalances}
               />
             ))}
+            {partyTbSections(tbBalances, showZero).map((band) => (
+              <PartyTbRows
+                key={band.title}
+                title={band.title}
+                rows={band.rows}
+                showBalances={showBalances}
+              />
+            ))}
             {tb && visibleTbRows.length === 0 && (
               <tr>
                 <td colSpan={showBalances ? 8 : 4}>
@@ -1263,6 +1376,13 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             Inventory tags are memo lines: stock valued at current unit cost, with tag
             membership as at the report end. An item under several tags counts in full
             under each. They do not change the account balances.
+          </p>
+        )}
+        {tb && tbBalances.length > 0 && (
+          <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
+            Customers and Suppliers are the party sub-ledgers behind Accounts Receivable
+            and Payable. A party in credit (customer advance) or debit (supplier
+            advance) prints on that side.
           </p>
         )}
       </div>

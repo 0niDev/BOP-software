@@ -12,6 +12,8 @@ import { AccountingService } from "../src/services/accountingService.js";
 import { AccountService } from "../src/services/accountService.js";
 import { assignDisplayCodes } from "../src/services/displayCodes.js";
 import { ItemService } from "../src/services/itemService.js";
+import { CustomReportService } from "../src/services/customReportService.js";
+import { ManufacturingService } from "../src/services/manufacturingService.js";
 import { ReportService } from "../src/services/reportService.js";
 import { ReportXlsx } from "../src/services/reportXlsx.js";
 import { SalesInvoiceService } from "../src/services/salesInvoiceService.js";
@@ -99,6 +101,16 @@ describe("xlsx report exports", () => {
     }
   });
 
+  it("prints customer and supplier balances as trial-balance bands", async () => {
+    const trialBalance = await reports.partyBalances(undefined, undefined);
+    const customer = trialBalance.find((row) => row.partyType === "CUSTOMER" && row.balance !== 0);
+    expect(customer).toBeDefined();
+    const sheetStrings = strings(open((await xlsx.trialBalance({})).buffer));
+    expect(sheetStrings).toContain("CUSTOMERS");
+    expect(sheetStrings).toContain(customer!.name);
+    expect(sheetStrings).toContain("Total Customers");
+  });
+
   it("names workbooks after the period they cover", async () => {
     expect((await xlsx.trialBalance({ from: "2026-01-01", to: "2026-01-31" })).fileName).toBe(
       "trial-balance_2026-01-01_to_2026-01-31.xlsx",
@@ -132,17 +144,21 @@ describe("xlsx report exports", () => {
 
     const profitAndLoss = await reports.profitAndLoss({});
     expect(profitAndLoss.revenue).toBe(750);
-    // The single-report workbook is the compact summary (notes 20-29), so its
-    // labels come from the custom report rather than the standard 3-line sheet.
+    // The single-report workbook is the printed face (notes 20-29), the same
+    // lines the website shows.
     const plFiles = open((await xlsx.profitAndLoss({})).buffer);
     const plStrings = strings(plFiles);
-    expect(plStrings).toContain("Heading");
+    expect(plStrings).toContain("Description");
     expect(plStrings).toContain("Sales - Net");
     expect(plStrings).toContain("Profit/(Loss) C/F to B/Sheet");
-    // The standard 3-line P&L still rides in the combined workbook.
+    // The combined workbook's P&L sheet is the same face.
     const allFiles = open((await xlsx.all({})).buffer);
-    expect(worksheet(allFiles, 2)).toContain(`<v>${profitAndLoss.netProfit}</v>`);
-    expect(strings(allFiles)).toContain("Revenue (net of returns)");
+    const face = (await new CustomReportService(ctx.db).build("PL", {})).face;
+    const profitCf = face?.find((line) => line.headingId === "profit-cf")?.value;
+    expect(profitCf).toBeDefined();
+    expect(worksheet(allFiles, 2)).toContain(`<v>${profitCf}</v>`);
+    expect(strings(allFiles)).toContain("Sales - Net");
+    expect(strings(allFiles)).toContain("Cost of Sales");
 
     const balanceSheet = await reports.balanceSheet(null);
     const bsFiles = open((await xlsx.balanceSheet({ kind: "balance-sheet" })).buffer);
@@ -231,6 +247,16 @@ describe("xlsx report exports", () => {
     // Each line carries the side it sits on, sales on the credit side.
     expect(text).toContain("<t>Dr/Cr</t>");
     expect(text).toContain("<t>Cr</t>");
+  });
+
+  it("prints the summary P&L as the face the website shows", async () => {
+    const text = strings(open((await xlsx.custom("PL", {}, false)).buffer));
+
+    expect(text).toContain("Cost of Sales");
+    expect(text).toContain("Selling & Distribution");
+    // The notes template lines are not part of the printed face.
+    expect(text).not.toContain("Cost of Revenue");
+    expect(text).not.toContain("Unassigned (not in any heading)");
   });
 
   it("prints the Notes to the Accounts", async () => {
@@ -378,8 +404,85 @@ describe("xlsx report exports", () => {
     expect(sheet).toContain(`<v>${items.length}</v>`);
   });
 
-  it("applies the Items page stock filter to the inventory workbook", async () => {
-    const zero = await xlsx.inventory({ stock: "zero" });
+  it("exports production and packing orders with their consumed materials", async () => {
+    const manufacturing = new ManufacturingService(ctx.db);
+    const bom = await manufacturing.createBom({
+      bomName: "Report BOM",
+      finishedItemId: ctx.ids.itemId,
+      outputQuantity: 10,
+      components: [{ componentItemId: ctx.ids.itemId, quantityRequired: 5 }],
+    });
+    const productionId = await insertRow(ctx.db, "production_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PO-REPORT-1",
+      bom_id: bom.id,
+      planned_quantity: 10,
+      actual_quantity: 9,
+      wastage_quantity: 1,
+      output_batch_number: "REPORT-BATCH-1",
+      manufacturing_date: "2026-10-08",
+      production_cost: 500,
+      raw_material_cost: 480,
+      packing_material_cost: 20,
+      status: "COMPLETED",
+    });
+    await insertRow(ctx.db, "production_consumption", {
+      production_order_id: productionId,
+      component_item_id: ctx.ids.itemId,
+      batch_id: ctx.ids.batchId,
+      quantity_consumed: 5,
+      unit_cost: 96,
+    });
+    const packingId = await insertRow(ctx.db, "packing_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PK-REPORT-1",
+      bom_id: bom.id,
+      planned_quantity: 10,
+      actual_quantity: 10,
+      output_batch_number: "REPORT-FG-1",
+      manufacturing_date: "2026-10-09",
+      production_cost: 300,
+      status: "COMPLETED",
+    });
+    await insertRow(ctx.db, "packing_consumption", {
+      packing_order_id: packingId,
+      component_item_id: ctx.ids.itemId,
+      batch_id: ctx.ids.batchId,
+      quantity_consumed: 2,
+      unit_cost: 40,
+    });
+    // Dated outside the period, so it must not appear in the workbook.
+    await insertRow(ctx.db, "production_orders", {
+      company_id: 1,
+      warehouse_id: 1,
+      order_number: "PO-OUTSIDE",
+      bom_id: bom.id,
+      planned_quantity: 1,
+      manufacturing_date: "2026-09-01",
+      status: "DRAFT",
+    });
+
+    const file = await xlsx.productionPacking({ from: "2026-10-01", to: "2026-10-31" });
+    expect(file.fileName).toBe("production-packing_2026-10-01_to_2026-10-31.xlsx");
+    const files = open(file.buffer);
+    expect(sheetNames(files)).toEqual(["Production & Packing"]);
+
+    const text = strings(files);
+    expect(text).toContain("PO-REPORT-1");
+    expect(text).toContain("PK-REPORT-1");
+    expect(text).toContain("REPORT-BATCH-1");
+    expect(text).toContain("Total");
+    expect(text).not.toContain("PO-OUTSIDE");
+
+    const sheet = worksheet(files);
+    expect(sheet).toContain("<v>500</v>"); // production order total cost
+    expect(sheet).toContain("<v>300</v>"); // packing order total cost
+    expect(sheet).toContain("<v>480</v>"); // consumed 5 × 96
+  });
+
+  it("applies the Items page stock filter to the inventory workbook", async () => {    const zero = await xlsx.inventory({ stock: "zero" });
     const inStock = await xlsx.inventory({ stock: "in" });
     const zeroText = strings(open(zero.buffer));
     const inStockText = strings(open(inStock.buffer));

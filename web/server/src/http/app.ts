@@ -1700,7 +1700,10 @@ export function createApp(
       req.query.showUnpriced === "1" || req.query.showUnpriced === "true";
     const showZero = req.query.showZero === "1" || req.query.showZero === "true";
     res.type("text/csv").send(
-      await reports.exportAllCsv({ from, to, showUnpriced, showZero }),
+      await reports.exportAllCsv(
+        { from, to, showUnpriced, showZero },
+        (await customReports.build("PL", { from, to })).face,
+      ),
     );
   });
 
@@ -1823,6 +1826,12 @@ export function createApp(
   app.get("/api/reports/cash-book.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
     const file = await reportXlsx.cashBook({ from, to });
+    sendXlsx(res, file.fileName, file.buffer);
+  });
+
+  app.get("/api/reports/production-packing.xlsx", requireAuth, async (req, res) => {
+    const { from, to } = dateRangeQuery(req);
+    const file = await reportXlsx.productionPacking({ from, to });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

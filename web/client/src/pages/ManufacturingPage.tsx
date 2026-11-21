@@ -4,6 +4,7 @@ import FilterBox, { matchesQuery } from "../components/FilterBox";
 import NumberInput from "../components/NumberInput";
 import SearchableSelect from "../components/SearchableSelect";
 import { moveRowFocus } from "../lib/gridKeys";
+import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
 import type { Bom, BomComponent, ConsumptionLine, Item, PackingOrder, ProductionOrder } from "../types";
 import {
@@ -53,6 +54,11 @@ export default function ManufacturingPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Production & packing Excel export (blank dates = every order).
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
 
   const [bomComponents, setBomComponents] = useState<Record<number, BomComponent[]>>({});
   const [expandedBomId, setExpandedBomId] = useState<number | null>(null);
@@ -119,8 +125,23 @@ export default function ManufacturingPage() {
     }
   }
 
-  const pageVisible = usePageVisible();
+  async function exportProductionPacking() {
+    setExportBusy(true);
+    setError(null);
+    try {
+      const blob = await api.productionPackingXlsx(exportFrom || undefined, exportTo || undefined);
+      const slug = exportFrom || exportTo
+        ? `${exportFrom || "start"}_to_${exportTo || "today"}`
+        : "all-dates";
+      saveBlob(blob, `production-packing_${slug}.xlsx`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to export the report.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
+  const pageVisible = usePageVisible();
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -926,6 +947,29 @@ export default function ManufacturingPage() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="row" style={{ marginTop: 12, alignItems: "flex-end" }}>
+          <div>
+            <label htmlFor="manufacturing-export-from">From date</label>
+            <input
+              id="manufacturing-export-from"
+              type="date"
+              value={exportFrom}
+              onChange={(e) => setExportFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="manufacturing-export-to">To date</label>
+            <input
+              id="manufacturing-export-to"
+              type="date"
+              value={exportTo}
+              onChange={(e) => setExportTo(e.target.value)}
+            />
+          </div>
+          <button type="button" onClick={() => void exportProductionPacking()} disabled={exportBusy}>
+            {exportBusy ? "Preparing…" : "Export Excel"}
+          </button>
         </div>
         {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
         {notice && <div className="badge" style={{ display: "inline-block", marginTop: 12 }}>{notice}</div>}

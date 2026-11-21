@@ -571,11 +571,24 @@ export interface CustomReportHeading extends CustomHeading {
   rows: CustomReportRow[];
 }
 
+/** One printed line of the fixed P&L face. */
+export interface CustomReportFaceLine {
+  headingId?: string;
+  label: string;
+  note?: string;
+  depth?: number;
+  bold?: boolean;
+  noAmount?: boolean;
+  value: number;
+  side: "Dr" | "Cr" | "";
+  rows: CustomReportRow[];
+}
+
 export interface CustomReport {
   kind: CustomReportKind;
   headings: CustomReportHeading[];
   /** P&L only: the fixed printed face, unaffected by heading (notes) edits. */
-  face?: CustomReportHeading[];
+  face?: CustomReportFaceLine[];
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>;
   balanced: boolean | null;

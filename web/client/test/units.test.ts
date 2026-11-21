@@ -538,6 +538,36 @@ test("new categories go under a level-2 head, new items under a level-3 category
   expect(itemCategory(accounts, 8)).toBe(0);
 });
 
+test("trial balance party bands split customers and suppliers", async () => {
+  const { partyTbSections } = await import("../src/pages/TrialBalancePage");
+  const balance = (overrides: { partyId: number; partyType: "CUSTOMER" | "SUPPLIER"; balance: number; debit?: number }) => ({
+    partyId: overrides.partyId,
+    accountId: 1,
+    code: `P${overrides.partyId}`,
+    name: `Party ${overrides.partyId}`,
+    partyType: overrides.partyType,
+    isActive: 1,
+    opening: 0,
+    debit: overrides.debit ?? 0,
+    credit: 0,
+    balance: overrides.balance,
+    side: (overrides.balance > 0 ? "RECEIVABLE" : "PAYABLE") as "RECEIVABLE" | "PAYABLE",
+    advance: false,
+  });
+  const rows = [
+    balance({ partyId: 1, partyType: "CUSTOMER", balance: 500 }),
+    balance({ partyId: 2, partyType: "SUPPLIER", balance: -300 }),
+    balance({ partyId: 3, partyType: "CUSTOMER", balance: 0 }),
+    balance({ partyId: 4, partyType: "CUSTOMER", balance: 0, debit: 40 }),
+  ];
+  const sections = partyTbSections(rows, false);
+  expect(sections.map((section) => section.title)).toEqual(["Customers", "Suppliers"]);
+  // A settled customer with no movement drops out; one with period movement stays.
+  expect(sections[0]!.rows.map((row) => row.partyId).sort()).toEqual([1, 4]);
+  expect(sections[1]!.rows.map((row) => row.partyId)).toEqual([2]);
+  expect(partyTbSections(rows, true)[0]!.rows).toHaveLength(3);
+});
+
 test("category picker offers level-4 items whose value is the item's own id", async () => {
   const { categoryOptions, expenseCategories } = await import("../src/pages/ExpensesPage");
   const account = (id: number, code: string, parent: number | null) => ({

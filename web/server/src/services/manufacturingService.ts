@@ -62,6 +62,37 @@ export interface UpdateBomInput {
   isActive?: boolean;
 }
 
+/** One consumed material line in the production & packing report. */
+export interface ManufacturingReportLine {
+  itemName: string;
+  unit: string;
+  batchNumber: string | null;
+  quantity: number;
+  unitCost: number;
+  amount: number;
+}
+
+/** One production or packing order, with its materials, in the report. */
+export interface ManufacturingReportOrder {
+  type: "Production" | "Packing";
+  orderNumber: string;
+  date: string;
+  expiryDate: string | null;
+  bomName: string;
+  outputItemName: string;
+  outputUnit: string;
+  status: string;
+  plannedQuantity: number;
+  actualQuantity: number;
+  wastageQuantity: number;
+  outputBatchNumber: string | null;
+  rawMaterialCost: number;
+  packingMaterialCost: number;
+  totalCost: number;
+  notes: string | null;
+  consumptions: ManufacturingReportLine[];
+}
+
 export interface CreateProductionOrderInput {
   /** Saved formulation BOM to produce from — omit for a manual run. */
   bomId?: number | null;
@@ -1116,6 +1147,101 @@ export class ManufacturingService {
         updated_at: new Date().toISOString(),
       });
     });
+  }
+
+  /**
+   * Production and packing orders dated in [from, to], each with the materials
+   * it actually consumed. One report row per order, flat, so the workbook and
+   * the screen can never disagree about a cost or a batch.
+   */
+  async manufacturingReport(
+    from?: string | null,
+    to?: string | null,
+  ): Promise<ManufacturingReportOrder[]> {
+    const [orders, packingOrders, boms, items, batches] = await Promise.all([
+      this.manufacturing.listOrdersBetween(from ?? null, to ?? null, this.companyId),
+      this.manufacturing.listPackingOrdersBetween(from ?? null, to ?? null, this.companyId),
+      this.manufacturing.listBoms(this.companyId, false),
+      this.items.list(this.companyId, { activeOnly: false }),
+      this.db.all<{ id: number; batch_number: string }>(
+        "SELECT id, batch_number FROM stock_batches",
+      ),
+    ]);
+
+    const itemById = new Map(items.map((item) => [item.id, item]));
+    const bomById = new Map(boms.map((bom) => [bom.id, bom]));
+    const batchNumberById = new Map(batches.map((batch) => [batch.id, batch.batch_number]));
+
+    const itemName = (id: number) => itemById.get(id)?.item_name ?? `#${id}`;
+    const itemUnit = (id: number) => itemById.get(id)?.unit ?? "UNIT";
+
+    const consumptionLines = (rows: Record<string, unknown>[]): ManufacturingReportLine[] =>
+      rows.map((row) => {
+        const itemId = Number(row.component_item_id);
+        const batchId = Number(row.batch_id);
+        const quantity = Number(row.quantity_consumed);
+        const unitCost = Number(row.unit_cost);
+        return {
+          itemName: itemName(itemId),
+          unit: itemUnit(itemId),
+          batchNumber: batchNumberById.get(batchId) ?? null,
+          quantity,
+          unitCost,
+          amount: toStorage(round2(dec(quantity).times(unitCost))),
+        };
+      });
+
+    const reportOrders: ManufacturingReportOrder[] = [];
+
+    for (const order of orders) {
+      const bom = bomById.get(order.bom_id);
+      reportOrders.push({
+        type: "Production",
+        orderNumber: order.order_number,
+        date: order.manufacturing_date,
+        expiryDate: order.expiry_date,
+        bomName: bom?.bom_name ?? String(order.bom_id),
+        outputItemName: bom ? itemName(bom.finished_item_id) : "",
+        outputUnit: bom ? itemUnit(bom.finished_item_id) : "",
+        status: order.status,
+        plannedQuantity: Number(order.planned_quantity),
+        actualQuantity: Number(order.actual_quantity),
+        wastageQuantity: Number(order.wastage_quantity),
+        outputBatchNumber: order.output_batch_number,
+        rawMaterialCost: Number(order.raw_material_cost),
+        packingMaterialCost: Number(order.packing_material_cost),
+        totalCost: Number(order.production_cost),
+        notes: order.notes,
+        consumptions: consumptionLines(await this.manufacturing.findConsumptions(order.id)),
+      });
+    }
+
+    for (const order of packingOrders) {
+      const bom = bomById.get(order.bom_id);
+      reportOrders.push({
+        type: "Packing",
+        orderNumber: order.order_number,
+        date: order.manufacturing_date,
+        expiryDate: order.expiry_date,
+        bomName: bom?.bom_name ?? String(order.bom_id),
+        outputItemName: bom ? itemName(bom.finished_item_id) : "",
+        outputUnit: bom ? itemUnit(bom.finished_item_id) : "",
+        status: order.status,
+        plannedQuantity: Number(order.planned_quantity),
+        actualQuantity: Number(order.actual_quantity),
+        wastageQuantity: 0,
+        outputBatchNumber: order.output_batch_number,
+        rawMaterialCost: 0,
+        packingMaterialCost: 0,
+        totalCost: Number(order.production_cost),
+        notes: order.notes,
+        consumptions: consumptionLines(await this.manufacturing.findPackingConsumptions(order.id)),
+      });
+    }
+
+    return reportOrders.sort(
+      (a, b) => a.date.localeCompare(b.date) || a.orderNumber.localeCompare(b.orderNumber),
+    );
   }
 
   /** Post the opposite of every manufacturing journal entry sourced on an order. */

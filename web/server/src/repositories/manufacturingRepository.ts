@@ -158,6 +158,21 @@ export class ManufacturingRepository {
     );
   }
 
+  /** Orders dated in [from, to]; either end may be open. */
+  async listOrdersBetween(
+    from: string | null,
+    to: string | null,
+    companyId = 1,
+  ): Promise<ProductionOrderRow[]> {
+    return this.db.all<ProductionOrderRow>(
+      "SELECT * FROM production_orders WHERE company_id = ?" +
+        (from ? " AND manufacturing_date >= ?" : "") +
+        (to ? " AND manufacturing_date <= ?" : "") +
+        " ORDER BY manufacturing_date, id",
+      [companyId, ...(from ? [from] : []), ...(to ? [to] : [])],
+    );
+  }
+
   async updateOrder(id: number, data: InsertData): Promise<void> {
     const cols = Object.keys(data);
     if (cols.length === 0) return;
@@ -204,6 +219,21 @@ export class ManufacturingRepository {
     return this.db.all<PackingOrderRow>(
       "SELECT * FROM packing_orders WHERE company_id = ? ORDER BY id DESC LIMIT 200",
       [companyId],
+    );
+  }
+
+  /** Packing orders dated in [from, to]; either end may be open. */
+  async listPackingOrdersBetween(
+    from: string | null,
+    to: string | null,
+    companyId = 1,
+  ): Promise<PackingOrderRow[]> {
+    return this.db.all<PackingOrderRow>(
+      "SELECT * FROM packing_orders WHERE company_id = ?" +
+        (from ? " AND manufacturing_date >= ?" : "") +
+        (to ? " AND manufacturing_date <= ?" : "") +
+        " ORDER BY manufacturing_date, id",
+      [companyId, ...(from ? [from] : []), ...(to ? [to] : [])],
     );
   }
 

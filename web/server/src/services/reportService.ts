@@ -10,6 +10,7 @@ import {
   type TrialBalanceRow,
 } from "./accountingService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
+import type { PlFaceLine } from "./plFace.js";
 
 export interface TrialBalanceResult {
   rows: TrialBalanceRow[];
@@ -1264,7 +1265,10 @@ export class ReportService {
    * produced by the same services the individual tabs use, so the numbers
    * cannot drift.
    */
-  async exportAllCsv(opts: DateRangeOptions = {}): Promise<string> {
+  async exportAllCsv(
+    opts: DateRangeOptions = {},
+    plFace?: readonly PlFaceLine[],
+  ): Promise<string> {
     const from = opts.from ?? null;
     const to = opts.to ?? null;
     const periodLabel = `${formatDayMonthYear(from) || "start"} to ${formatDayMonthYear(to) || "today"}`;
@@ -1328,19 +1332,34 @@ export class ReportService {
     lines.push("");
 
     // --- Profit & loss (period movement) -------------------------------
-    const pl = await this.profitAndLoss(opts);
     lines.push(`Profit & Loss (${csvEscape(periodLabel)})`);
-    lines.push("Revenue,Dr/Cr,Expenses,Dr/Cr,Net Profit,Dr/Cr");
-    lines.push(
-      [
-        pl.revenue.toFixed(2),
-        "Cr",
-        pl.expenses.toFixed(2),
-        "Dr",
-        pl.netProfit.toFixed(2),
-        pl.netProfit >= 0 ? "Cr" : "Dr",
-      ].join(","),
-    );
+    if (plFace) {
+      // The printed face the website shows, line for line.
+      lines.push("Description,Amount,Dr/Cr,Note");
+      for (const face of plFace) {
+        lines.push(
+          [
+            csvEscape(`${"  ".repeat(face.depth ?? 0)}${face.label}`),
+            face.noAmount ? "" : face.value.toFixed(2),
+            face.noAmount ? "" : face.side,
+            csvEscape(face.note ?? ""),
+          ].join(","),
+        );
+      }
+    } else {
+      const pl = await this.profitAndLoss(opts);
+      lines.push("Revenue,Dr/Cr,Expenses,Dr/Cr,Net Profit,Dr/Cr");
+      lines.push(
+        [
+          pl.revenue.toFixed(2),
+          "Cr",
+          pl.expenses.toFixed(2),
+          "Dr",
+          pl.netProfit.toFixed(2),
+          pl.netProfit >= 0 ? "Cr" : "Dr",
+        ].join(","),
+      );
+    }
     lines.push("");
 
     // --- Balance sheet (position as at the period end) ------------------

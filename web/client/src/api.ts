@@ -992,6 +992,8 @@ export const api = {
     ),
   profitAndLossXlsx: (from?: string, to?: string) =>
     requestBlob(`/api/reports/profit-and-loss.xlsx${periodQuery(from, to)}`),
+  productionPackingXlsx: (from?: string, to?: string) =>
+    requestBlob(`/api/reports/production-packing.xlsx${periodQuery(from, to)}`),
   exportAllXlsx: (
     from?: string,
     to?: string,

@@ -625,6 +625,7 @@ async function main(): Promise<void> {
       "/api/reports/balance-sheet.xlsx",
       "/api/reports/cash-book.xlsx",
       "/api/reports/export-all.xlsx",
+      "/api/reports/production-packing.xlsx",
       "/api/items/export.xlsx",
     ]) {
       const res = await fetch(`${base}${path}`, { headers });

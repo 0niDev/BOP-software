@@ -24,6 +24,7 @@ import {
 } from "./accountingService.js";
 import { csvEscape } from "./reportService.js";
 import { compareAccountCode } from "./trialBalanceLayout.js";
+import { resolvePlFace, type PlFaceLine } from "./plFace.js";
 
 export type CustomReportKind = "PL" | "BS";
 
@@ -80,7 +81,7 @@ export interface CustomReportResult {
    * P&L only: the fixed printed face, always rendered from the default
    * template so heading edits (which belong to the notes) cannot change it.
    */
-  face?: CustomReportHeadingResult[];
+  face?: PlFaceLine[];
   /** Accounts no heading covers, so the report still ties out. */
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   /** Standard-report totals for the footer. */
@@ -812,7 +813,9 @@ export class CustomReportService {
     return {
       ...report,
       // The printed face keeps its own template, independent of the notes.
-      face: this.render(kind, defaultTemplate(kind, accounts), accounts, rows).headings,
+      face: resolvePlFace(
+        this.render(kind, defaultTemplate(kind, accounts), accounts, rows).headings,
+      ),
     };
   }
 
@@ -832,7 +835,7 @@ export class CustomReportService {
       heading: string,
       code: string,
       account: string,
-      value: number,
+      value: number | null,
       side = "",
       note = "",
     ): string =>
@@ -840,10 +843,28 @@ export class CustomReportService {
         csvEscape(heading),
         csvEscape(code),
         csvEscape(account),
-        value.toFixed(2),
+        value == null ? "" : value.toFixed(2),
         side,
         csvEscape(note),
       ].join(",");
+
+    // The summary is the printed face the screen shows. Ticking "include
+    // account detail" switches to the full heading tree underneath it.
+    if (kind === "PL" && !includeDetail) {
+      for (const face of report.face ?? []) {
+        lines.push(
+          line(
+            face.label,
+            "",
+            "",
+            face.noAmount ? null : face.value,
+            face.noAmount ? "" : face.side,
+            face.note,
+          ),
+        );
+      }
+      return lines.join("\n");
+    }
 
     for (const heading of report.headings) {
       lines.push(line(heading.name, "", "", heading.value, heading.side, heading.note));
