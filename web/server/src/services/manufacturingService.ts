@@ -66,10 +66,13 @@ export interface UpdateBomInput {
 export interface ManufacturingReportLine {
   itemName: string;
   unit: string;
+  itemType: string;
   batchNumber: string | null;
   quantity: number;
   unitCost: number;
   amount: number;
+  /** False for the unpacked bulk a packing order consumes: quantity only. */
+  costed: boolean;
 }
 
 /** One production or packing order, with its materials, in the report. */
@@ -1174,20 +1177,28 @@ export class ManufacturingService {
 
     const itemName = (id: number) => itemById.get(id)?.item_name ?? `#${id}`;
     const itemUnit = (id: number) => itemById.get(id)?.unit ?? "UNIT";
+    const itemType = (id: number) => itemById.get(id)?.item_type ?? "";
 
-    const consumptionLines = (rows: Record<string, unknown>[]): ManufacturingReportLine[] =>
+    const consumptionLines = (
+      rows: Record<string, unknown>[],
+      packingOnly = false,
+    ): ManufacturingReportLine[] =>
       rows.map((row) => {
         const itemId = Number(row.component_item_id);
         const batchId = Number(row.batch_id);
         const quantity = Number(row.quantity_consumed);
         const unitCost = Number(row.unit_cost);
+        const type = itemType(itemId);
         return {
           itemName: itemName(itemId),
           unit: itemUnit(itemId),
+          itemType: type,
           batchNumber: batchNumberById.get(batchId) ?? null,
           quantity,
           unitCost,
           amount: toStorage(round2(dec(quantity).times(unitCost))),
+          // A packing order's unpacked bulk is shown but never costed here.
+          costed: !packingOnly || type === "PACKING_MATERIAL",
         };
       });
 
@@ -1218,6 +1229,15 @@ export class ManufacturingService {
 
     for (const order of packingOrders) {
       const bom = bomById.get(order.bom_id);
+      const consumptions = consumptionLines(
+        await this.manufacturing.findPackingConsumptions(order.id),
+        true,
+      );
+      // The packing order's stored cost includes the unpacked bulk it consumed;
+      // this report is about packaging, so only packing materials are costed.
+      const packingCost = consumptions
+        .filter((line) => line.costed)
+        .reduce((sum, line) => sum + line.amount, 0);
       reportOrders.push({
         type: "Packing",
         orderNumber: order.order_number,
@@ -1232,10 +1252,10 @@ export class ManufacturingService {
         wastageQuantity: 0,
         outputBatchNumber: order.output_batch_number,
         rawMaterialCost: 0,
-        packingMaterialCost: 0,
-        totalCost: Number(order.production_cost),
+        packingMaterialCost: packingCost,
+        totalCost: packingCost,
         notes: order.notes,
-        consumptions: consumptionLines(await this.manufacturing.findPackingConsumptions(order.id)),
+        consumptions,
       });
     }
 

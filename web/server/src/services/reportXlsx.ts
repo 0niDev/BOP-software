@@ -1093,15 +1093,15 @@ export class ReportXlsx {
         continue;
       }
       order.consumptions.forEach((line, index) => {
-        totalAmount += line.amount;
+        if (line.costed) totalAmount += line.amount;
         data.push([
           ...(index === 0 ? orderCells(order) : blankOrder),
           text(line.itemName),
           line.batchNumber ? text(line.batchNumber) : null,
           quantity(line.quantity),
           text(line.unit),
-          money(line.unitCost),
-          money(line.amount),
+          line.costed ? money(line.unitCost) : null,
+          line.costed ? money(line.amount) : null,
         ]);
       });
     }

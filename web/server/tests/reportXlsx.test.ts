@@ -434,6 +434,12 @@ describe("xlsx report exports", () => {
       quantity_consumed: 5,
       unit_cost: 96,
     });
+    const packingItem = await new ItemService(ctx.db).create({
+      itemName: "Report Carton",
+      itemType: "PACKING_MATERIAL",
+      unit: "UNIT",
+      purchasePrice: 25,
+    });
     const packingId = await insertRow(ctx.db, "packing_orders", {
       company_id: 1,
       warehouse_id: 1,
@@ -446,12 +452,20 @@ describe("xlsx report exports", () => {
       production_cost: 300,
       status: "COMPLETED",
     });
+    // The unpacked bulk it consumed: quantity only, never costed in this report.
     await insertRow(ctx.db, "packing_consumption", {
       packing_order_id: packingId,
       component_item_id: ctx.ids.itemId,
       batch_id: ctx.ids.batchId,
       quantity_consumed: 2,
       unit_cost: 40,
+    });
+    await insertRow(ctx.db, "packing_consumption", {
+      packing_order_id: packingId,
+      component_item_id: packingItem.id,
+      batch_id: ctx.ids.batchId,
+      quantity_consumed: 3,
+      unit_cost: 25,
     });
     // Dated outside the period, so it must not appear in the workbook.
     await insertRow(ctx.db, "production_orders", {
@@ -478,8 +492,11 @@ describe("xlsx report exports", () => {
 
     const sheet = worksheet(files);
     expect(sheet).toContain("<v>500</v>"); // production order total cost
-    expect(sheet).toContain("<v>300</v>"); // packing order total cost
+    expect(sheet).toContain("<v>75</v>"); // packing order: packaging 3 × 25 only
     expect(sheet).toContain("<v>480</v>"); // consumed 5 × 96
+    // The unpacked bulk (2 × 40) is shown as quantity, not money.
+    expect(sheet).not.toContain("<v>80</v>");
+    expect(text).toContain("Report Carton");
   });
 
   it("applies the Items page stock filter to the inventory workbook", async () => {    const zero = await xlsx.inventory({ stock: "zero" });
