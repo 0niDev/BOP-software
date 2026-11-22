@@ -64,11 +64,11 @@ export interface MaterialsConsumptionRow {
   /** opening + purchases + otherIn − closing. */
   consumed: number;
   /**
-   * Materials actually issued by production and packing orders dated in the
-   * period. This is read from the consumption rows themselves, so reopening,
-   * editing or repacking an old order updates it immediately.
+   * The stock-in effect of manufacturing entries posted after the period end
+   * for orders dated inside it. Reopening and repacking an old order changes
+   * this, so the formula reflects the edit without moving the whole history.
    */
-  actualConsumed: number;
+  manufacturingEdits: number;
   /** What the inventory account says is left, for comparison with `counted`. */
   bookClosing: number;
   /** bookClosing − counted: how far the ledger has drifted from the shelf. Null when the report ends in the past. */
@@ -509,7 +509,7 @@ export class ReportService {
         otherIn: 0,
         counted: null,
         consumed: 0,
-        actualConsumed: 0,
+        manufacturingEdits: 0,
         bookClosing: 0,
         difference: null,
       });
@@ -592,7 +592,7 @@ export class ReportService {
       counted.set(row.item_type, Number(row.counted));
     }
 
-    const actual = await this.actualConsumed(start, end);
+    const edits = end ? await this.manufacturingEdits(start, end) : new Map<string, number>();
 
     const rows: MaterialsConsumptionRow[] = (
       [
@@ -619,8 +619,16 @@ export class ReportService {
         purchases,
         otherIn,
         counted: end ? null : closing,
-        consumed: toStorage(round2(opening + purchases + Number(otherIn) - closing)),
-        actualConsumed: toStorage(round2(actual.get(itemType) ?? 0)),
+        consumed: toStorage(
+          round2(
+            opening +
+              purchases +
+              Number(otherIn) +
+              Number(edits.get(itemType) ?? 0) -
+              closing,
+          ),
+        ),
+        manufacturingEdits: toStorage(round2(edits.get(itemType) ?? 0)),
         bookClosing,
         difference: end ? null : toStorage(round2(bookClosing - closing)),
       };
@@ -635,7 +643,7 @@ export class ReportService {
       otherIn: sum((row) => row.otherIn),
       counted: end ? null : sum((row) => row.counted ?? 0),
       consumed: sum((row) => row.consumed),
-      actualConsumed: sum((row) => row.actualConsumed),
+      manufacturingEdits: sum((row) => row.manufacturingEdits),
       bookClosing: sum((row) => row.bookClosing),
       difference: end ? null : sum((row) => row.difference ?? 0),
     };
@@ -644,36 +652,63 @@ export class ReportService {
   }
 
   /**
-   * What production and packing actually took out of stock in the period,
-   * grouped by material type. Sourced from the consumption rows, not the
-   * journals, so editing an old order (which replaces its consumption rows)
-   * is reflected in that order's period.
+   * The edit delta for orders dated in the period: the net stock-in effect of
+   * the first reversal posted after the period end and everything after it.
+   * The original posting stays where it was, so this adds only what the
+   * reopen/repack changed, not the whole consumption again.
    */
-  private async actualConsumed(
+  private async manufacturingEdits(
     from: string,
-    to: string | null,
+    to: string,
   ): Promise<Map<string, number>> {
-    const used = await this.db.all<{ item_type: string; consumed: number }>(
-      `SELECT i.item_type, ROUND(SUM(c.quantity_consumed * c.unit_cost), 2) consumed
-         FROM (
-           SELECT pc.component_item_id, pc.quantity_consumed, pc.unit_cost
-             FROM production_consumption pc
-             JOIN production_orders po ON po.id = pc.production_order_id
-            WHERE po.company_id = ? AND po.manufacturing_date >= ?
-              AND (? IS NULL OR po.manufacturing_date <= ?)
+    const rows = await this.db.all<{ account_code: string; adjustment: number }>(
+      `SELECT a.account_code, ROUND(SUM(jel.credit - jel.debit), 2) adjustment
+         FROM journal_entry_lines jel
+         JOIN accounts a ON a.id = jel.account_id
+         JOIN journal_entries je ON je.id = jel.journal_entry_id
+         JOIN (
+           SELECT 'production_orders' AS source_table, id AS source_id, manufacturing_date
+             FROM production_orders
+            WHERE company_id = ?
            UNION ALL
-           SELECT pc.component_item_id, pc.quantity_consumed, pc.unit_cost
-             FROM packing_consumption pc
-             JOIN packing_orders po ON po.id = pc.packing_order_id
-            WHERE po.company_id = ? AND po.manufacturing_date >= ?
-              AND (? IS NULL OR po.manufacturing_date <= ?)
-         ) c
-         JOIN items i ON i.id = c.component_item_id
-        WHERE i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
-        GROUP BY i.item_type`,
-      [this.companyId, from, to, to, this.companyId, from, to, to],
+           SELECT 'packing_orders', id, manufacturing_date
+             FROM packing_orders
+            WHERE company_id = ?
+         ) o ON o.source_table = je.source_table AND o.source_id = je.source_id
+        WHERE je.company_id = ?
+          AND a.account_code IN (?, ?)
+          AND o.manufacturing_date >= ?
+          AND o.manufacturing_date <= ?
+          AND je.entry_date > ?
+          AND je.id >= (
+            SELECT MIN(rev.id) FROM journal_entries rev
+             WHERE rev.source_table = je.source_table
+               AND rev.source_id = je.source_id
+               AND rev.narration LIKE 'Reversal%'
+               AND rev.entry_date > ?
+          )
+        GROUP BY a.account_code`,
+      [
+        this.companyId,
+        this.companyId,
+        this.companyId,
+        SystemAccountCodes.INVENTORY_RAW_MATERIALS,
+        SystemAccountCodes.INVENTORY_PACKING_MATERIALS,
+        from,
+        to,
+        to,
+        to,
+      ],
     );
-    return new Map(used.map((row) => [row.item_type, Number(row.consumed)]));
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      const itemType =
+        row.account_code === SystemAccountCodes.INVENTORY_RAW_MATERIALS
+          ? "RAW_MATERIAL"
+          : "PACKING_MATERIAL";
+      map.set(itemType, Number(row.adjustment));
+    }
+    return map;
   }
 
   /**

@@ -61,7 +61,7 @@ export default function MaterialsConsumptionPage() {
   const total = report?.total;
   const closesOnCount = report != null && report.to === null;
 
-  const bookResidualOf = (row: MaterialsConsumption["rows"][number]): number =>
+  const consumedOf = (row: MaterialsConsumption["rows"][number]): number =>
     includeOpening ? row.consumed : row.consumed - row.opening;
 
   return (
@@ -101,17 +101,13 @@ export default function MaterialsConsumptionPage() {
         </div>
       </div>
       <p style={{ marginTop: 4 }}>
-        <strong>Consumed (actual)</strong> is what production and packing orders dated in this
-        period actually took out, valued at the cost recorded when they were produced or packed.
-        Reopening, editing or repacking an order replaces those consumption rows, so this column
-        updates for old orders too.
-      </p>
-      <p>
-        <strong>Book residual</strong> is {includeOpening ? "opening + " : ""}purchases + other
-        stock in − closing stock
+        {includeOpening ? "Opening + purchases" : "Purchases"} + other stock in + manufacturing
+        edits − closing stock. <strong>Manufacturing edits</strong> carries the effect of a reopened
+        or repacked order dated in this period but posted after it ended, so an old period picks up
+        the edit without losing the order's original posting.{" "}
         {closesOnCount
-          ? ", where closing is today's physical count — so this figure does not depend on the bills of materials being right."
-          : ", where closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}{" "}
+          ? "Closing is today's physical count — so the figure does not depend on the bills of materials being right."
+          : "Closing is the inventory account on the end date. Leave the end date empty to close on today's count instead."}{" "}
         Consumption starts on 1 November 2026 — anything on 31 October or earlier is opening stock,
         and it is only counted when the Include opening stock box is ticked.
       </p>
@@ -126,9 +122,9 @@ export default function MaterialsConsumptionPage() {
                 {includeOpening && <th className="num">Opening</th>}
                 <th className="num">+ Purchases</th>
                 <th className="num">+ Other stock in</th>
+                <th className="num">+ Manufacturing edits</th>
                 <th className="num">− Closing stock</th>
-                <th className="num">= Book residual</th>
-                <th className="num">= Consumed (actual)</th>
+                <th className="num">= Consumed</th>
               </tr>
             </thead>
             <tbody>
@@ -138,9 +134,9 @@ export default function MaterialsConsumptionPage() {
                   {includeOpening && <td className="num">{money(row.opening)}</td>}
                   <td className="num">{money(row.purchases)}</td>
                   <td className="num">{money(row.otherIn)}</td>
+                  <td className="num">{money(row.manufacturingEdits)}</td>
                   <td className="num">{money(row.counted ?? row.bookClosing)}</td>
-                  <td className="num">{money(bookResidualOf(row))}</td>
-                  <td className="num">{money(row.actualConsumed)}</td>
+                  <td className="num">{money(consumedOf(row))}</td>
                 </tr>
               ))}
               {total && (
@@ -149,9 +145,9 @@ export default function MaterialsConsumptionPage() {
                   {includeOpening && <td className="num">{money(total.opening)}</td>}
                   <td className="num">{money(total.purchases)}</td>
                   <td className="num">{money(total.otherIn)}</td>
+                  <td className="num">{money(total.manufacturingEdits)}</td>
                   <td className="num">{money(total.counted ?? total.bookClosing)}</td>
-                  <td className="num">{money(bookResidualOf(total))}</td>
-                  <td className="num">{money(total.actualConsumed)}</td>
+                  <td className="num">{money(consumedOf(total))}</td>
                 </tr>
               )}
             </tbody>

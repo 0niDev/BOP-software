@@ -273,45 +273,119 @@ describe("ReportService.materialsConsumption", () => {
     expect(clamped.total.purchases).toBe(0);
   });
 
-  it("reports the exact consumption rows for the period", async () => {
-    await consumeOrder("production", rawItemId, "2026-11-08", 4, 50, "PO-00001");
-    await consumeOrder("packing", packingItemId, "2026-11-09", 2, 25, "PCO-00001");
-
-    const result = await reports.materialsConsumption("2026-11-01", "2026-11-15");
-    expect(result.rows.find((row) => row.itemType === "RAW_MATERIAL")?.actualConsumed).toBe(200);
-    expect(result.rows.find((row) => row.itemType === "PACKING_MATERIAL")?.actualConsumed).toBe(50);
-    expect(result.total.actualConsumed).toBe(250);
-  });
-
-  it("updates an old period when its consumption rows are replaced", async () => {
-    const orderId = await consumeOrder("packing", packingItemId, "2026-11-09", 2, 25, "PCO-00002");
-    const before = await reports.materialsConsumption("2026-11-01", "2026-11-15");
-    expect(before.total.actualConsumed).toBe(50);
-
-    // What reopening and repacking does: drop the old rows, write the new ones.
-    await ctx.db.run("DELETE FROM packing_consumption WHERE packing_order_id = ?", [orderId]);
-    const batch = await ctx.db.get<{ id: number }>(
-      "SELECT id FROM stock_batches WHERE batch_number = 'B-PCO-00002'",
+  it("adds a later repack's delta to an old period", async () => {
+    const packingAccount = await accountId(ctx.db, "1210");
+    const finishedGoods = await accountId(ctx.db, "1220");
+    const orderId = await consumeOrder(
+      "packing",
+      packingItemId,
+      "2026-11-08",
+      1,
+      100,
+      "PCO-00010",
     );
-    await insertRow(ctx.db, "packing_consumption", {
-      packing_order_id: orderId,
-      component_item_id: packingItemId,
-      batch_id: batch!.id,
-      quantity_consumed: 8,
-      unit_cost: 25,
+
+    // Original pack inside the period.
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-10",
+      narration: "Packing order PCO-00010 packed",
+      sourceTable: "packing_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: finishedGoods, debit: 100 },
+        { accountId: packingAccount, credit: 100 },
+      ],
+    });
+    // Reopened and repacked after the period end, for 250 instead of 100.
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-20",
+      narration: "Reversal - packing order PCO-00010",
+      sourceTable: "packing_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: packingAccount, debit: 100 },
+        { accountId: finishedGoods, credit: 100 },
+      ],
+    });
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-20",
+      narration: "Packing order PCO-00010 packed",
+      sourceTable: "packing_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: finishedGoods, debit: 250 },
+        { accountId: packingAccount, credit: 250 },
+      ],
     });
 
-    const after = await reports.materialsConsumption("2026-11-01", "2026-11-15");
-    expect(after.total.actualConsumed).toBe(200);
+    const result = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    const packing = result.rows.find((row) => row.itemType === "PACKING_MATERIAL");
+    // 250 after the edit − 100 before it.
+    expect(packing?.manufacturingEdits).toBe(150);
+    // The original 100 in the period is replaced by the new 250.
+    expect(packing?.consumed).toBe(250);
   });
 
-  it("leaves consumption from outside the period out", async () => {
-    await consumeOrder("production", rawItemId, "2026-11-20", 10, 50, "PO-00003");
+  it("does not pull in a later pack that was never reopened", async () => {
+    const rawAccount = await accountId(ctx.db, "1200");
+    const finishedGoods = await accountId(ctx.db, "1220");
+    const orderId = await consumeOrder("production", rawItemId, "2026-11-08", 1, 500, "PO-00010");
 
-    const firstHalf = await reports.materialsConsumption("2026-11-01", "2026-11-15");
-    expect(firstHalf.total.actualConsumed).toBe(0);
-    const wholeMonth = await reports.materialsConsumption("2026-11-01", "2026-11-30");
-    expect(wholeMonth.total.actualConsumed).toBe(500);
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-20",
+      narration: "Production order PO-00010 produced",
+      sourceTable: "production_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: finishedGoods, debit: 500 },
+        { accountId: rawAccount, credit: 500 },
+      ],
+    });
+
+    const result = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(result.rows.find((row) => row.itemType === "RAW_MATERIAL")?.manufacturingEdits).toBe(0);
+  });
+
+  it("does not adjust a live report", async () => {
+    const packingAccount = await accountId(ctx.db, "1210");
+    const finishedGoods = await accountId(ctx.db, "1220");
+    const orderId = await consumeOrder(
+      "packing",
+      packingItemId,
+      "2026-11-08",
+      1,
+      100,
+      "PCO-00011",
+    );
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-10",
+      narration: "Packing order PCO-00011 packed",
+      sourceTable: "packing_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: finishedGoods, debit: 100 },
+        { accountId: packingAccount, credit: 100 },
+      ],
+    });
+    await accounting.postJournalEntry({
+      voucherType: "MANUFACTURING",
+      entryDate: "2026-11-20",
+      narration: "Reversal - packing order PCO-00011",
+      sourceTable: "packing_orders",
+      sourceId: orderId,
+      lines: [
+        { accountId: packingAccount, debit: 100 },
+        { accountId: finishedGoods, credit: 100 },
+      ],
+    });
+
+    const live = await reports.materialsConsumption();
+    expect(live.total.manufacturingEdits).toBe(0);
   });
 
   it("shows the periodic figure on a dated trial balance too", async () => {

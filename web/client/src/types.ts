@@ -663,10 +663,10 @@ export interface MaterialsConsumptionRow {
   otherIn: number;
   /** Null when the report ends in the past: no count exists for that date. */
   counted: number | null;
-  /** opening + purchases + other stock in − closing stock. */
+  /** opening + purchases + other stock in + manufacturing edits − closing stock. */
   consumed: number;
-  /** Materials actually issued by production and packing orders dated in the period. */
-  actualConsumed: number;
+  /** Stock-in effect of reopens/repacks posted after the period end for orders dated inside it. */
+  manufacturingEdits: number;
   bookClosing: number;
   /** Null when the report ends in the past. */
   difference: number | null;
