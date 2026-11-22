@@ -395,6 +395,7 @@ export interface ProductionOrder {
   status: string;
   manufacturing_date: string;
   expiry_date?: string | null;
+  notes?: string | null;
   production_cost: number;
   raw_material_cost?: number;
   packing_material_cost?: number;

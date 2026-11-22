@@ -35,6 +35,8 @@ interface ComponentDraft {
   key: number;
   itemId: number;
   quantityRequired: number;
+  /** Carried over from a saved BOM so editing an order does not drop it. */
+  wastagePercent?: number;
   /** Scale the quantity was typed in (g/ml, kg/lit, unit), for the rows that
    * convert it — the production run's raw materials. */
   quantityUnit?: PackUnit;
@@ -43,6 +45,18 @@ interface ComponentDraft {
 let componentKey = 1;
 function newComponent(): ComponentDraft {
   return { key: componentKey++, itemId: 0, quantityRequired: 1 };
+}
+
+/** Saved BOM rows as editable drafts (per output unit, as the BOM stores them). */
+function draftsFromComponents(components: BomComponent[]): ComponentDraft[] {
+  return components.length > 0
+    ? components.map((component) => ({
+        key: componentKey++,
+        itemId: component.component_item_id,
+        quantityRequired: component.quantity_required,
+        wastagePercent: component.wastage_percent,
+      }))
+    : [newComponent()];
 }
 
 export default function ManufacturingPage() {
@@ -98,7 +112,8 @@ export default function ManufacturingPage() {
 
   // Header-only edit (number, dates, notes) — works on completed orders too,
   // because it never reopens the order or touches stock/journal.
-  const [packingHeaderEdit, setPackingHeaderEdit] = useState<{
+  const [headerEdit, setHeaderEdit] = useState<{
+    kind: "production" | "packing";
     id: number;
     orderNumber: string;
     manufacturingDate: string;
@@ -380,11 +395,53 @@ export default function ManufacturingPage() {
     try {
       if (productionBomId > 0) {
         if (editingOrderId !== null) {
+          // The rows under a selected BOM are editable while editing. Sending
+          // them saves this order's own copy of the recipe.
+          const chosen = productionLines.filter((line) => line.itemId > 0);
+          const components: Array<{
+            componentItemId: number;
+            quantityRequired: number;
+            wastagePercent?: number;
+          }> = [];
+          for (const line of chosen) {
+            const stock = productionStock(line);
+            if (stock.error) {
+              setError(`${itemName(line.itemId)}: ${stock.error}`);
+              return;
+            }
+            if (!(stock.bulk > 0)) {
+              setError(`${itemName(line.itemId)}: quantity must be greater than 0.`);
+              return;
+            }
+            components.push({
+              componentItemId: line.itemId,
+              quantityRequired: stock.bulk,
+              wastagePercent: line.wastagePercent ?? 0,
+            });
+          }
+          const before = bomComponents[productionBomId] ?? [];
+          const componentsChanged =
+            components.length !== before.length ||
+            components.some((component) => {
+              const row = before.find(
+                (saved) => saved.component_item_id === component.componentItemId,
+              );
+              return (
+                !row ||
+                Math.abs(row.quantity_required - component.quantityRequired) > 1e-9 ||
+                Math.abs((row.wastage_percent ?? 0) - (component.wastagePercent ?? 0)) > 1e-9
+              );
+            });
           await api.updateProductionOrder(editingOrderId, {
             bomId: productionBomId,
             ...shared,
+            ...(componentsChanged ? { components } : {}),
           });
-          setNotice("Updated production order");
+          setNotice(
+            componentsChanged
+              ? "Updated production order and its components"
+              : "Updated production order",
+          );
         } else {
           const order = await api.createProductionOrder({
             bomId: productionBomId,
@@ -404,7 +461,11 @@ export default function ManufacturingPage() {
         }
         // The typed amount may be in g/ml or kg/lit; the order always records
         // stock quantities in the item's own unit.
-        const components: Array<{ componentItemId: number; quantityRequired: number }> = [];
+        const components: Array<{
+          componentItemId: number;
+          quantityRequired: number;
+          wastagePercent?: number;
+        }> = [];
         for (const line of chosen) {
           const stock = productionStock(line);
           if (stock.error) {
@@ -415,7 +476,11 @@ export default function ManufacturingPage() {
             setError(`${itemName(line.itemId)}: per item must be greater than 0.`);
             return;
           }
-          components.push({ componentItemId: line.itemId, quantityRequired: stock.bulk });
+          components.push({
+            componentItemId: line.itemId,
+            quantityRequired: stock.bulk,
+            wastagePercent: line.wastagePercent ?? 0,
+          });
         }
         if (editingOrderId !== null) {
           await api.updateProductionOrder(editingOrderId, {
@@ -445,7 +510,9 @@ export default function ManufacturingPage() {
     setProductionBomId(id);
     if (id) {
       try {
-        await loadComponents(id);
+        const components = await loadComponents(id);
+        // While an order is being edited, its rows are the editable recipe.
+        if (editingOrderId !== null) setProductionLines(draftsFromComponents(components));
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
       }
@@ -459,7 +526,9 @@ export default function ManufacturingPage() {
     setProductionBomId(order.bom_id);
     setProductionQuantity(order.planned_quantity);
     setProductionDate(order.manufacturing_date);
-    void loadComponents(order.bom_id).catch(() => undefined);
+    void loadComponents(order.bom_id)
+      .then((components) => setProductionLines(draftsFromComponents(components)))
+      .catch(() => undefined);
   }
 
   async function removeOrder(order: ProductionOrder) {
@@ -493,7 +562,29 @@ export default function ManufacturingPage() {
       await refresh();
       startEditOrder(order);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to reopen order.");
+      const message = err instanceof ApiError ? err.message : "Failed to reopen order.";
+      if (!isDownstreamBlocker(message)) {
+        setError(message);
+        return;
+      }
+      if (
+        !window.confirm(
+          `${message}\n\nForce reopen anyway? The later order/sale keeps its stock movements; this output batch goes negative so you can edit and produce again.`,
+        )
+      ) {
+        setError(message);
+        return;
+      }
+      try {
+        await api.reopenProduction(order.id, { force: true });
+        setNotice(
+          `Force-reopened order ${order.order_number} — stock may be negative until it is produced again.`,
+        );
+        await refresh();
+        startEditOrder(order);
+      } catch (forced) {
+        setError(forced instanceof ApiError ? forced.message : "Failed to force reopen order.");
+      }
     }
   }
 
@@ -592,11 +683,36 @@ export default function ManufacturingPage() {
     try {
       if (packingBomId > 0) {
         if (editingPackingOrderId !== null) {
+          // Rows under a selected BOM are editable while editing; sending them
+          // saves this order's own copy of the recipe.
+          const components = validLines(packingLines).map((line) => ({
+            componentItemId: line.itemId,
+            quantityRequired: line.quantityRequired,
+            wastagePercent: line.wastagePercent ?? 0,
+          }));
+          const before = bomComponents[packingBomId] ?? [];
+          const componentsChanged =
+            components.length !== before.length ||
+            components.some((component) => {
+              const row = before.find(
+                (saved) => saved.component_item_id === component.componentItemId,
+              );
+              return (
+                !row ||
+                Math.abs(row.quantity_required - component.quantityRequired) > 1e-9 ||
+                Math.abs((row.wastage_percent ?? 0) - (component.wastagePercent ?? 0)) > 1e-9
+              );
+            });
           await api.updatePackingOrder(editingPackingOrderId, {
             bomId: packingBomId,
             ...shared,
+            ...(componentsChanged ? { materials: components } : {}),
           });
-          setNotice("Updated packing order");
+          setNotice(
+            componentsChanged
+              ? "Updated packing order and its components"
+              : "Updated packing order",
+          );
         } else {
           const order = await api.createPackingOrder({
             bomId: packingBomId,
@@ -624,6 +740,7 @@ export default function ManufacturingPage() {
             materials: materials.map((line) => ({
               componentItemId: line.itemId,
               quantityRequired: line.quantityRequired,
+              wastagePercent: line.wastagePercent ?? 0,
             })),
           });
           setNotice("Updated packing order and saved its per-unit BOM");
@@ -637,6 +754,7 @@ export default function ManufacturingPage() {
             materials: materials.map((line) => ({
               componentItemId: line.itemId,
               quantityRequired: line.quantityRequired,
+              wastagePercent: line.wastagePercent ?? 0,
             })),
           });
           setNotice(`Created packing order ${order.orderNumber} and saved its per-unit BOM`);
@@ -654,7 +772,8 @@ export default function ManufacturingPage() {
     setPackingBomId(id);
     if (id) {
       try {
-        await loadComponents(id);
+        const components = await loadComponents(id);
+        if (editingPackingOrderId !== null) setPackingLines(draftsFromComponents(components));
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Failed to load BOM components.");
       }
@@ -668,7 +787,9 @@ export default function ManufacturingPage() {
     setPackingBomId(order.bom_id);
     setPackingQuantity(order.planned_quantity);
     setPackingDate(order.manufacturing_date);
-    void loadComponents(order.bom_id).catch(() => undefined);
+    void loadComponents(order.bom_id)
+      .then((components) => setPackingLines(draftsFromComponents(components)))
+      .catch(() => undefined);
   }
 
   async function removePackingOrder(order: PackingOrder) {
@@ -694,10 +815,11 @@ export default function ManufacturingPage() {
     }
   }
 
-  function startEditPackingHeader(order: PackingOrder) {
+  function startEditHeader(kind: "production" | "packing", order: ProductionOrder | PackingOrder) {
     setError(null);
     setNotice(null);
-    setPackingHeaderEdit({
+    setHeaderEdit({
+      kind,
       id: order.id,
       orderNumber: order.order_number,
       manufacturingDate: order.manufacturing_date,
@@ -706,23 +828,34 @@ export default function ManufacturingPage() {
     });
   }
 
-  async function savePackingHeader(event: FormEvent) {
+  async function saveHeader(event: FormEvent) {
     event.preventDefault();
-    if (!packingHeaderEdit) return;
+    if (!headerEdit) return;
     setError(null);
     setNotice(null);
+    const body = {
+      orderNumber: headerEdit.orderNumber.trim() || null,
+      manufacturingDate: headerEdit.manufacturingDate,
+      expiryDate: headerEdit.expiryDate || null,
+      notes: headerEdit.notes.trim() || null,
+    };
     try {
-      await api.updatePackingOrderHeader(packingHeaderEdit.id, {
-        orderNumber: packingHeaderEdit.orderNumber.trim() || null,
-        manufacturingDate: packingHeaderEdit.manufacturingDate,
-        expiryDate: packingHeaderEdit.expiryDate || null,
-        notes: packingHeaderEdit.notes.trim() || null,
-      });
-      setNotice(`Updated packing order ${packingHeaderEdit.orderNumber.trim()}`);
-      setPackingHeaderEdit(null);
+      if (headerEdit.kind === "production") {
+        await api.updateProductionOrderHeader(headerEdit.id, body);
+      } else {
+        await api.updatePackingOrderHeader(headerEdit.id, body);
+      }
+      setNotice(
+        `Updated ${headerEdit.kind} order ${headerEdit.orderNumber.trim() || headerEdit.id}`,
+      );
+      setHeaderEdit(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to update the packing order.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : `Failed to update the ${headerEdit.kind} order.`,
+      );
     }
   }
 
@@ -743,7 +876,31 @@ export default function ManufacturingPage() {
       await refresh();
       startEditPackingOrder(order);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to reopen packing order.");
+      const message = err instanceof ApiError ? err.message : "Failed to reopen packing order.";
+      if (!isDownstreamBlocker(message)) {
+        setError(message);
+        return;
+      }
+      if (
+        !window.confirm(
+          `${message}\n\nForce reopen anyway? The later order/sale keeps its stock movements; this output batch goes negative so you can edit and pack again.`,
+        )
+      ) {
+        setError(message);
+        return;
+      }
+      try {
+        await api.reopenPacking(order.id, { force: true });
+        setNotice(
+          `Force-reopened packing order ${order.order_number} — stock may be negative until it is packed again.`,
+        );
+        await refresh();
+        startEditPackingOrder(order);
+      } catch (forced) {
+        setError(
+          forced instanceof ApiError ? forced.message : "Failed to force reopen packing order.",
+        );
+      }
     }
   }
 
@@ -820,6 +977,187 @@ export default function ManufacturingPage() {
 
   const packOrder = packingOrders.find((order) => order.id === packOrderId);
   const packUnpackedAvailable = items.find((i) => i.id === packUnpackedItemId)?.current_stock ?? 0;
+
+  // Editable raw-material rows: the manual run's entry and, while editing an
+  // order, the order-specific copy of the selected BOM.
+  const productionLinesEditor = (
+    <>
+      <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
+        <thead>
+          <tr>
+            <th>Raw material</th>
+            <th className="num">Per item</th>
+            <th className="num">Stock quantity</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {productionLines.map((line) => {
+            const stock = productionStock(line);
+            const unit = itemUnit(line.itemId);
+            return (
+              <tr key={line.key}>
+                <td>
+                  <SearchableSelect
+                    value={String(line.itemId)}
+                    autoFocus={addedProduction.current && line.key === productionLines.at(-1)?.key}
+                    ariaLabel="Raw material"
+                    onChange={(next) => selectProductionItem(line.key, next)}
+                    placeholder="Select..."
+                    emptyText="No matching item"
+                    options={optionsFor(rawMaterials)}
+                  />
+                </td>
+                <td className="num">
+                  <div className="row" style={{ justifyContent: "flex-end" }}>
+                    <NumberInput
+                      min="0"
+                      step="0.001"
+                      aria-label="Per item"
+                      value={line.quantityRequired}
+                      onChange={(e) =>
+                        updateProductionLine(line.key, {
+                          quantityRequired: Number(e.target.value),
+                        })
+                      }
+                      style={{ width: 110 }}
+                    />
+                    {/* A native select keeps ↑/↓ for its options instead of
+                        the table's row navigation. */}
+                    {hasKnownUnit(unit) ? (
+                      <select
+                        value={line.quantityUnit ?? defaultPackUnit(unit)}
+                        onChange={(e) =>
+                          updateProductionLine(line.key, {
+                            quantityUnit: e.target.value as PackUnit,
+                          })
+                        }
+                        aria-label="Consumed unit"
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        {PACK_UNITS.map((packUnit) => (
+                          <option key={packUnit} value={packUnit}>
+                            {PACK_UNIT_LABELS[packUnit]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="badge">{unit}</span>
+                    )}
+                  </div>
+                </td>
+                <td className="num">
+                  {line.itemId > 0 &&
+                    (stock.error ? (
+                      <span style={{ color: "var(--danger)", fontSize: 12 }}>{stock.error}</span>
+                    ) : (
+                      <span className="badge">
+                        {quantity(stock.bulk)} {unit}
+                      </span>
+                    ))}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setProductionLines((prev) => prev.filter((l) => l.key !== line.key))
+                    }
+                    disabled={productionLines.length === 1}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button
+        type="button"
+        style={{ marginTop: 12 }}
+        onClick={() => {
+          addedProduction.current = true;
+          setProductionLines((prev) => [...prev, newComponent()]);
+        }}
+      >
+        Add raw material
+      </button>
+    </>
+  );
+
+  /** Packing-material rows; `includeUnpacked` adds the bulk item, which a
+   *  packing BOM stores as its one finished-good line. */
+  function packingLinesEditor(includeUnpacked: boolean) {
+    return (
+      <>
+        <table style={{ marginTop: 16 }} onKeyDown={moveRowFocus}>
+          <thead>
+            <tr>
+              <th>{includeUnpacked ? "Unpacked / packing material" : "Packing material"}</th>
+              <th className="num">{includeUnpacked ? "Per item" : "Total used"}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {packingLines.map((line) => (
+              <tr key={line.key}>
+                <td>
+                  <SearchableSelect
+                    value={String(line.itemId)}
+                    autoFocus={addedPacking.current && line.key === packingLines.at(-1)?.key}
+                    ariaLabel="Packing material"
+                    onChange={(next) => updatePackingLine(line.key, { itemId: Number(next) })}
+                    placeholder="Select packing material..."
+                    emptyText="No matching packing material"
+                    options={optionsFor(
+                      includeUnpacked
+                        ? [...finishedGoods, ...packingMaterials]
+                        : packingMaterials,
+                    )}
+                  />
+                </td>
+                <td className="num">
+                  <NumberInput
+                    min="0"
+                    step="0.001"
+                    aria-label={includeUnpacked ? "Per item" : "Total used"}
+                    value={line.quantityRequired}
+                    onChange={(e) =>
+                      updatePackingLine(line.key, {
+                        quantityRequired: Number(e.target.value),
+                      })
+                    }
+                    style={{ width: 140 }}
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPackingLines((prev) => prev.filter((l) => l.key !== line.key))
+                    }
+                    disabled={packingLines.length === 1}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button
+          type="button"
+          style={{ marginTop: 12 }}
+          onClick={() => {
+            addedPacking.current = true;
+            setPackingLines((prev) => [...prev, newComponent()]);
+          }}
+        >
+          Add packing material
+        </button>
+      </>
+    );
+  }
 
   // One BOM editor, reused by the formulations tab (create + edit) and rendered
   // on the production/packing tabs while an order edit has a BOM loaded.
@@ -1138,7 +1476,16 @@ export default function ManufacturingPage() {
                       Edit this BOM
                     </button>
                   ))}
-                {bomComponentList(productionBomId)}
+                {editingOrderId === null && bomComponentList(productionBomId)}
+                {editingOrderId !== null && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ opacity: 0.7, fontSize: 12 }}>
+                      Change the rows below to edit this order's raw materials. Other orders keep
+                      the original BOM; this order saves its own copy.
+                    </p>
+                    {productionLinesEditor}
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -1323,6 +1670,9 @@ export default function ManufacturingPage() {
                       >
                         View
                       </button>{" "}
+                      <button onClick={() => startEditHeader("production", order)}>
+                        Edit details
+                      </button>{" "}
                       {order.status === "DRAFT" && (
                         <>
                           <button onClick={() => startEditOrder(order)}>Edit</button>{" "}
@@ -1340,7 +1690,7 @@ export default function ManufacturingPage() {
                               batch {order.output_batch_number}
                             </span>
                           )}{" "}
-                          <button onClick={() => void reopenOrder(order)}>Edit</button>
+                          <button onClick={() => void reopenOrder(order)}>Reopen</button>
                         </>
                       )}
                     </td>
@@ -1411,7 +1761,16 @@ export default function ManufacturingPage() {
                       Edit this BOM
                     </button>
                   ))}
-                {bomComponentList(packingBomId)}
+                {editingPackingOrderId === null && bomComponentList(packingBomId)}
+                {editingPackingOrderId !== null && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ opacity: 0.7, fontSize: 12 }}>
+                      Change the rows below to edit this order's unpacked material and packaging.
+                      Other orders keep the original BOM; this order saves its own copy.
+                    </p>
+                    {packingLinesEditor(true)}
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -1709,7 +2068,7 @@ export default function ManufacturingPage() {
                         >
                           View
                         </button>{" "}
-                        <button onClick={() => startEditPackingHeader(order)}>Edit details</button>{" "}
+                        <button onClick={() => startEditHeader("packing", order)}>Edit details</button>{" "}
                         {order.status === "DRAFT" && (
                           <>
                             <button onClick={() => startEditPackingOrder(order)}>Edit</button>{" "}
@@ -1894,22 +2253,22 @@ export default function ManufacturingPage() {
           </div>
         </div>
       )}
-      {packingHeaderEdit && (
+      {headerEdit && (
         <div
           className="modal-overlay"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPackingHeaderEdit(null);
+            if (event.target === event.currentTarget) setHeaderEdit(null);
           }}
         >
           <form
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label="Edit packing order details"
-            onSubmit={savePackingHeader}
+            aria-label={`Edit ${headerEdit.kind} order details`}
+            onSubmit={saveHeader}
           >
-            <h2 style={{ marginTop: 0 }}>Edit packing order details</h2>
+            <h2 style={{ marginTop: 0 }}>Edit {headerEdit.kind} order details</h2>
             <p className="sub" style={{ marginTop: 0 }}>
               Changes the number, dates and notes only. Stock, costs and the posted journal are
               left exactly as they are.
@@ -1918,22 +2277,22 @@ export default function ManufacturingPage() {
               <div>
                 <label>Order number</label>
                 <input
-                  value={packingHeaderEdit.orderNumber}
+                  value={headerEdit.orderNumber}
                   onChange={(e) =>
-                    setPackingHeaderEdit({ ...packingHeaderEdit, orderNumber: e.target.value })
+                    setHeaderEdit({ ...headerEdit, orderNumber: e.target.value })
                   }
                   style={{ width: 160 }}
                 />
               </div>
               <div>
-                <label>Packing date</label>
+                <label>{headerEdit.kind === "production" ? "Production date" : "Packing date"}</label>
                 <input
                   type="date"
                   required
-                  value={packingHeaderEdit.manufacturingDate}
+                  value={headerEdit.manufacturingDate}
                   onChange={(e) =>
-                    setPackingHeaderEdit({
-                      ...packingHeaderEdit,
+                    setHeaderEdit({
+                      ...headerEdit,
                       manufacturingDate: e.target.value,
                     })
                   }
@@ -1943,9 +2302,9 @@ export default function ManufacturingPage() {
                 <label>Expiry date</label>
                 <input
                   type="date"
-                  value={packingHeaderEdit.expiryDate}
+                  value={headerEdit.expiryDate}
                   onChange={(e) =>
-                    setPackingHeaderEdit({ ...packingHeaderEdit, expiryDate: e.target.value })
+                    setHeaderEdit({ ...headerEdit, expiryDate: e.target.value })
                   }
                 />
               </div>
@@ -1954,15 +2313,15 @@ export default function ManufacturingPage() {
               <label>Notes</label>
               <textarea
                 rows={2}
-                value={packingHeaderEdit.notes}
+                value={headerEdit.notes}
                 onChange={(e) =>
-                  setPackingHeaderEdit({ ...packingHeaderEdit, notes: e.target.value })
+                  setHeaderEdit({ ...headerEdit, notes: e.target.value })
                 }
                 style={{ width: "100%" }}
               />
             </div>
             <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setPackingHeaderEdit(null)}>
+              <button type="button" onClick={() => setHeaderEdit(null)}>
                 Cancel
               </button>
               <button className="primary" type="submit">
@@ -1978,4 +2337,9 @@ export default function ManufacturingPage() {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** The reopen guard's messages, which offer a force reopen as the workaround. */
+function isDownstreamBlocker(message: string): boolean {
+  return /reopen that order first|has other stock movements/i.test(message);
 }

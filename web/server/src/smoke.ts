@@ -790,7 +790,11 @@ async function main(): Promise<void> {
       unpackedQuantity: 10,
       materials: [{ componentItemId: packingMaterial.id, quantityRequired: 10 }],
     });
-    const packing = (await json(packingRes)) as { id: number; orderNumber: string };
+    const packing = (await json(packingRes)) as {
+      id: number;
+      orderNumber: string;
+      bomId: number;
+    };
     check(
       packingRes.status === 201 && /^PCO-\d+$/.test(packing.orderNumber),
       `POST /api/packing-orders creates a packing order (${packing.orderNumber})`,
@@ -804,6 +808,112 @@ async function main(): Promise<void> {
       packRes.status === 200 && packed.productionCost === 110,
       `packing consumes 10 unpacked @ 8 + 10 boxes @ 3 = 110 (${packed.productionCost})`,
     );
+
+    // --- header-only correction on a COMPLETED packing order --------------
+    // Stock and the posted journal must not move: this is a label/date fix.
+    const stockOf = async (itemId: number): Promise<number> => {
+      const rows = (await json(await fetch(`${base}/api/items`, { headers }))) as Array<{
+        id: number;
+        current_stock: number;
+      }>;
+      return Number(rows.find((r) => r.id === itemId)?.current_stock ?? -1);
+    };
+    const boxesBefore = await stockOf(packingMaterial.id);
+    const packedBatchBefore = await stockOf(ids.itemId);
+    const orderBefore = (await json(
+      await fetch(`${base}/api/packing-orders/${packing.id}`, { headers }),
+    )) as {
+      order: {
+        status: string;
+        production_cost: number;
+        output_batch_number: string | null;
+      };
+    };
+    const packingJournalBefore = await json(
+      await fetch(`${base}/api/journal-entries/packing_orders/${packing.id}`, { headers }),
+    );
+
+    const unauthHeader = await fetch(`${base}/api/packing-orders/${packing.id}/header`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ manufacturingDate: "2026-10-03" }),
+    });
+    check(
+      unauthHeader.status === 401,
+      `PATCH .../header requires auth (${unauthHeader.status})`,
+    );
+
+    const badHeader = await fetch(`${base}/api/packing-orders/${packing.id}/header`, {
+      method: "PATCH",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ manufacturingDate: "03/11/2026" }),
+    });
+    check(badHeader.status === 400, `a non-ISO date is rejected (${badHeader.status})`);
+
+    const headerRes = await fetch(`${base}/api/packing-orders/${packing.id}/header`, {
+      method: "PATCH",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        orderNumber: "PCO-CORRECTED",
+        manufacturingDate: "2026-10-03",
+        expiryDate: "2027-10-03",
+        notes: "date corrected",
+      }),
+    });
+    check(headerRes.status === 200, `PATCH .../header edits a COMPLETED order (${headerRes.status})`);
+
+    const headerDetail = (await json(
+      await fetch(`${base}/api/packing-orders/${packing.id}`, { headers }),
+    )) as {
+      order: {
+        order_number: string;
+        manufacturing_date: string;
+        expiry_date: string | null;
+        notes: string | null;
+        status: string;
+        production_cost: number;
+        output_batch_number: string | null;
+      };
+    };
+    check(
+      headerDetail.order.order_number === "PCO-CORRECTED" &&
+        headerDetail.order.manufacturing_date === "2026-10-03" &&
+        headerDetail.order.expiry_date === "2027-10-03" &&
+        headerDetail.order.notes === "date corrected",
+      `the new number, date, expiry and notes read back (${headerDetail.order.manufacturing_date})`,
+    );
+    check(
+      headerDetail.order.status === orderBefore.order.status &&
+        headerDetail.order.production_cost === orderBefore.order.production_cost &&
+        headerDetail.order.output_batch_number === orderBefore.order.output_batch_number,
+      `status, cost and output batch are untouched (${headerDetail.order.status}, ${headerDetail.order.production_cost})`,
+    );
+    check(
+      (await stockOf(packingMaterial.id)) === boxesBefore &&
+        (await stockOf(ids.itemId)) === packedBatchBefore,
+      `stock is untouched by the header edit (boxes ${boxesBefore}, packed ${packedBatchBefore})`,
+    );
+    const packingJournalAfter = await json(
+      await fetch(`${base}/api/journal-entries/packing_orders/${packing.id}`, { headers }),
+    );
+    check(
+      JSON.stringify(packingJournalAfter) === JSON.stringify(packingJournalBefore),
+      "the posted journal entry is untouched by the header edit",
+    );
+
+    const takenRes = await post("/api/packing-orders", {
+      bomId: packing.bomId,
+      plannedQuantity: 1,
+      manufacturingDate: "2026-10-09",
+      orderNumber: "PCO-TAKEN",
+    });
+    check(takenRes.status === 201, `a second packing order takes PCO-TAKEN (${takenRes.status})`);
+    const dupHeader = await fetch(`${base}/api/packing-orders/${packing.id}/header`, {
+      method: "PATCH",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ orderNumber: "PCO-TAKEN", manufacturingDate: "2026-10-03" }),
+    });
+    check(dupHeader.status === 400, `renaming onto an existing number is rejected (${dupHeader.status})`);
 
     const noBomRes = await post("/api/production-orders", {
       plannedQuantity: 1,

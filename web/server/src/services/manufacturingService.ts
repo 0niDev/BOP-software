@@ -180,6 +180,24 @@ export interface UpdatePackingOrderHeaderInput {
   notes?: string | null;
 }
 
+export interface UpdateProductionOrderHeaderInput {
+  /** New order number. Blank keeps the current one. */
+  orderNumber?: string | null;
+  manufacturingDate: string;
+  expiryDate?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Reopen a completed order. `force` skips the "reopen that order first" guard:
+ * the order's own output movement is still undone, but downstream movements
+ * (a completed pack, a sale) are left in place and the output batch is allowed
+ * to go negative instead of blocking the edit.
+ */
+export interface ReopenOrderInput {
+  force?: boolean;
+}
+
 export interface PackPackingOrderInput {
   /** Items/packages to make now. Defaults to the order's planned quantity. */
   units?: number | string | null;
@@ -537,6 +555,16 @@ export class ManufacturingService {
       if (bom.phase === "PACKING") {
         throw new ValidationError("This is a packing BOM — create a packing order instead.");
       }
+      // Changing the components on an order saves its own copy of the recipe,
+      // so other orders that use the original BOM keep their formula.
+      if (input.components && input.components.length > 0) {
+        bomId = await this.saveOrderSpecificBom(
+          bom,
+          input.components,
+          order,
+          "production",
+        );
+      }
     }
 
     await this.manufacturing.updateOrder(id, {
@@ -742,7 +770,10 @@ export class ManufacturingService {
    * stock, undo the output batch and reset the order to DRAFT so it can be
    * edited and produced again.
    */
-  async reopenProductionOrder(orderId: number): Promise<void> {
+  async reopenProductionOrder(
+    orderId: number,
+    input: ReopenOrderInput = {},
+  ): Promise<void> {
     const order = await this.manufacturing.findOrderById(orderId);
     if (!order) throw new NotFoundError(`Production order ${orderId} not found.`);
     if (order.status !== "COMPLETED") {
@@ -758,7 +789,12 @@ export class ManufacturingService {
         `Reversal - production order ${order.order_number}`,
       );
       await this.returnConsumptions("production_consumption", "production_order_id", orderId);
-      await this.removeOutputBatches("production_orders", orderId, order.order_number);
+      await this.removeOutputBatches(
+        "production_orders",
+        orderId,
+        order.order_number,
+        input.force === true,
+      );
       await this.db.run("DELETE FROM production_consumption WHERE production_order_id = ?", [orderId]);
       await this.manufacturing.updateOrder(orderId, {
         actual_quantity: 0,
@@ -906,6 +942,9 @@ export class ManufacturingService {
       const bom = await this.manufacturing.findBomById(bomId);
       if (!bom) throw new ValidationError("BOM does not exist.");
       if (bom.phase !== "PACKING") throw new ValidationError("Packing needs a packing BOM.");
+      if (input.materials && input.materials.length > 0) {
+        bomId = await this.saveOrderSpecificBom(bom, input.materials, order, "packing");
+      }
     }
 
     await this.manufacturing.updatePackingOrder(id, {
@@ -916,6 +955,90 @@ export class ManufacturingService {
       notes: input.notes ?? null,
       updated_at: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Save a DRAFT order's edited components as an order-specific copy of its
+   * recipe. The original BOM is untouched, so changing one order never
+   * rewrites the formula another order was built from.
+   */
+  private async saveOrderSpecificBom(
+    original: BomRow,
+    components: readonly BomComponentInput[],
+    order: { order_number: string },
+    label: "production" | "packing",
+  ): Promise<number> {
+    const checked = await this.validateComponents(components);
+    if (original.phase === "PACKING") {
+      const unpacked = checked.components.filter(
+        (component) => component.itemType === "FINISHED_GOOD",
+      ).length;
+      if (checked.phase !== "PACKING" || unpacked !== 1) {
+        throw new ValidationError(
+          "A packing order's recipe needs one unpacked material and its packing materials.",
+        );
+      }
+    } else if (checked.phase !== "FORMULATION") {
+      throw new ValidationError("A production order's recipe needs raw materials.");
+    }
+
+    const bomName = `${original.bom_name} [${order.order_number}]`;
+    const notes = `Order-specific recipe for ${label} order ${order.order_number}`;
+    const existing = await this.manufacturing.findBomByName(bomName, this.companyId);
+    if (existing) {
+      await this.updateBom(existing.id, {
+        finishedItemId: original.finished_item_id,
+        outputQuantity: original.output_quantity,
+        components,
+        bomName,
+        notes,
+      });
+      return existing.id;
+    }
+    const created = await this.createBom({
+      finishedItemId: original.finished_item_id,
+      outputQuantity: original.output_quantity,
+      components,
+      bomName,
+      notes,
+    });
+    return created.id;
+  }
+
+  /**
+   * Correct a production order's header (number, dates, notes) on any status.
+   * Stock, consumption and the posted journal are untouched, so this is the
+   * safe way to fix a typo on a COMPLETED order.
+   */
+  async updateProductionOrderHeader(
+    id: number,
+    input: UpdateProductionOrderHeaderInput,
+  ): Promise<void> {
+    const order = await this.manufacturing.findOrderById(id);
+    if (!order) throw new NotFoundError(`Production order ${id} not found.`);
+
+    const patch: {
+      order_number?: string;
+      manufacturing_date: string;
+      expiry_date: string | null;
+      notes: string | null;
+      updated_at: string;
+    } = {
+      manufacturing_date: input.manufacturingDate,
+      expiry_date: input.expiryDate ?? null,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const orderNumber = input.orderNumber?.trim() ?? "";
+    if (orderNumber && orderNumber !== order.order_number) {
+      if (await this.manufacturing.orderNumberExists(orderNumber, order.company_id)) {
+        throw new ValidationError(`Order number '${orderNumber}' already exists.`);
+      }
+      patch.order_number = orderNumber;
+    }
+
+    await this.manufacturing.updateOrder(id, patch);
   }
 
   /**
@@ -1171,7 +1294,7 @@ export class ManufacturingService {
    * Reopen a completed packing order: return every consumed material of every
    * pack to stock, undo all output batches and reset the order to DRAFT.
    */
-  async reopenPackingOrder(orderId: number): Promise<void> {
+  async reopenPackingOrder(orderId: number, input: ReopenOrderInput = {}): Promise<void> {
     const order = await this.manufacturing.findPackingOrderById(orderId);
     if (!order) throw new NotFoundError(`Packing order ${orderId} not found.`);
     if (order.status !== "COMPLETED") {
@@ -1183,7 +1306,12 @@ export class ManufacturingService {
     await this.db.transaction(async () => {
       await this.reverseJournalEntry("packing_orders", orderId, `Reversal - packing order ${order.order_number}`);
       await this.returnConsumptions("packing_consumption", "packing_order_id", orderId);
-      await this.removeOutputBatches("packing_orders", orderId, order.order_number);
+      await this.removeOutputBatches(
+        "packing_orders",
+        orderId,
+        order.order_number,
+        input.force === true,
+      );
       await this.db.run("DELETE FROM packing_consumption WHERE packing_order_id = ?", [orderId]);
       await this.manufacturing.updatePackingOrder(orderId, {
         actual_quantity: 0,
@@ -1376,30 +1504,43 @@ export class ManufacturingService {
     sourceTable: string,
     orderId: number,
     orderNumber: string,
+    force = false,
   ): Promise<void> {
-    const batches = await this.db.all<{ batch_id: number }>(
-      `SELECT DISTINCT batch_id FROM stock_movements
+    const outputs = await this.db.all<{ id: number; batch_id: number; quantity: number }>(
+      `SELECT id, batch_id, quantity FROM stock_movements
        WHERE reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN'`,
       [sourceTable, orderId],
     );
-    for (const row of batches) {
-      const batch = await this.batches.findById(row.batch_id);
+    const batchIds = [...new Set(outputs.map((row) => Number(row.batch_id)))];
+    for (const batchId of batchIds) {
+      const batch = await this.batches.findById(batchId);
       if (!batch) continue;
-      await this.dropUndoneConsumptions(row.batch_id);
+      await this.dropUndoneConsumptions(batchId);
       const blocker = await this.db.get<{ reference_table: string | null; reference_id: number | null }>(
         `SELECT reference_table, reference_id FROM stock_movements
          WHERE batch_id = ? AND NOT (reference_table = ? AND reference_id = ? AND movement_type = 'PRODUCTION_IN')
          LIMIT 1`,
-        [row.batch_id, sourceTable, orderId],
+        [batchId, sourceTable, orderId],
       );
-      if (blocker) {
+      if (blocker && !force) {
         throw new ValidationError(
           `Batch '${batch.batch_number}' (${orderNumber}) ${await this.describeBlocker(blocker)} — reopen that order first.`,
         );
       }
-      await this.db.run("DELETE FROM stock_movements WHERE batch_id = ?", [row.batch_id]);
-      await this.batches.adjustQuantity(row.batch_id, -toQuantity(dec(batch.quantity_in_stock)));
-      await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0, is_active = 0 WHERE id = ?", [row.batch_id]);
+      if (blocker) {
+        // Force: keep every downstream movement (the pack or sale still refers
+        // to this batch) and undo only this order's output. If the batch was
+        // already consumed, it is left negative — that is the correction, not
+        // an error.
+        for (const output of outputs.filter((row) => Number(row.batch_id) === batchId)) {
+          await this.db.run("DELETE FROM stock_movements WHERE id = ?", [output.id]);
+          await this.batches.adjustQuantity(batchId, -toQuantity(dec(output.quantity)));
+        }
+        continue;
+      }
+      await this.db.run("DELETE FROM stock_movements WHERE batch_id = ?", [batchId]);
+      await this.batches.adjustQuantity(batchId, -toQuantity(dec(batch.quantity_in_stock)));
+      await this.db.run("UPDATE stock_batches SET quantity_in_stock = 0, is_active = 0 WHERE id = ?", [batchId]);
     }
   }
 

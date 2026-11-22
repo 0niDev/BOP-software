@@ -1150,8 +1150,27 @@ export function createApp(
     res.json(await manufacturing.produceProduction(Number(req.params.id), body));
   });
 
+  // Header-only edit: allowed on any status, never touches stock or the journal.
+  app.patch("/api/production-orders/:id/header", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        orderNumber: z.string().nullish(),
+        manufacturingDate: isoDateSchema,
+        expiryDate: optionalIsoDateSchema,
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    await manufacturing.updateProductionOrderHeader(Number(req.params.id), body);
+    res.json({ ok: true });
+  });
+
   app.post("/api/production-orders/:id/reopen", requireAuth, async (req, res) => {
-    await manufacturing.reopenProductionOrder(Number(req.params.id));
+    const body = parseBody(
+      z.object({ force: z.boolean().optional() }),
+      req.body ?? {},
+    );
+    await manufacturing.reopenProductionOrder(Number(req.params.id), body);
     res.json({ status: "DRAFT" });
   });
 
@@ -1272,7 +1291,11 @@ export function createApp(
   });
 
   app.post("/api/packing-orders/:id/reopen", requireAuth, async (req, res) => {
-    await manufacturing.reopenPackingOrder(Number(req.params.id));
+    const body = parseBody(
+      z.object({ force: z.boolean().optional() }),
+      req.body ?? {},
+    );
+    await manufacturing.reopenPackingOrder(Number(req.params.id), body);
     res.json({ status: "DRAFT" });
   });
 

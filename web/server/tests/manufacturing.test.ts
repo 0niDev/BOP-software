@@ -468,6 +468,120 @@ describe("ManufacturingService — production", () => {
     expect(produced.productionCost).toBe(80);
     expect(await batchQty("RM-1-BATCH")).toBe(96);
   });
+
+  it("force-reopens an order whose bulk was already packed, leaving the output negative", async () => {
+    const { bom, order } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Uses the whole bulk",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-FORCED" });
+    expect(await batchQty("BULK-1")).toBe(0);
+
+    // The guard still refuses the ordinary reopen…
+    await expect(mfg.reopenProductionOrder(order.id)).rejects.toBeInstanceOf(ValidationError);
+
+    // …and force skips it instead of dead-ending the edit.
+    await mfg.reopenProductionOrder(order.id, { force: true });
+    const { order: reopened } = await mfg.getProductionOrder(order.id);
+    expect(reopened.status).toBe("DRAFT");
+    expect(await batchQty("RM-1-BATCH")).toBe(100);
+    // The pack still refers to the bulk batch, so it goes negative rather than
+    // disappearing. Re-producing replaces the undone output.
+    expect(await batchQty("BULK-1")).toBe(-10);
+    const bulk = await ctx.db.get<{ active: number; movements: number }>(
+      `SELECT b.is_active AS active,
+              (SELECT COUNT(*) FROM stock_movements WHERE batch_id = b.id) AS movements
+         FROM stock_batches b WHERE b.batch_number = 'BULK-1'`,
+    );
+    expect(bulk?.active).toBe(1);
+    expect(Number(bulk?.movements)).toBe(1); // the completed pack's consume line
+    expect((await mfg.getPackingOrder(packing.id)).order.status).toBe("COMPLETED");
+    expect(await batchQty("FG-FORCED")).toBe(10);
+  });
+
+  it("changes a DRAFT order's components without rewriting the shared BOM", async () => {
+    const bom = await formulationBom();
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+    });
+    await mfg.startProduction(order.id);
+    await mfg.produceProduction(order.id, { actualQuantity: 10 });
+    await mfg.reopenProductionOrder(order.id);
+
+    await mfg.updateProductionOrder(order.id, {
+      bomId: bom.id,
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      components: [{ componentItemId: rawItemId, quantityRequired: 2 }],
+    });
+
+    const { order: edited } = await mfg.getProductionOrder(order.id);
+    expect(edited.bom_id).not.toBe(bom.id);
+    const copy = await mfg.getBom(edited.bom_id);
+    expect(copy.bom.bom_name).toBe(`Syrup [${order.orderNumber}]`);
+    expect(copy.bom.finished_item_id).toBe(bom.finishedItemId);
+    expect(copy.components.map((c) => c.quantity_required)).toEqual([2]);
+    // The original recipe is untouched for every other order.
+    expect((await mfg.getBom(bom.id)).components.map((c) => c.quantity_required)).toEqual([5]);
+
+    await mfg.startProduction(order.id);
+    const produced = await mfg.produceProduction(order.id, { actualQuantity: 10 });
+    // 10 output × 2 KG / 10 output-units × 20 = 40; raw stock 100 - 2 = 98.
+    expect(produced.productionCost).toBe(40);
+    expect(await batchQty("RM-1-BATCH")).toBe(98);
+  });
+
+  it("corrects a completed production order's header without touching stock or the journal", async () => {
+    const { order } = await producedBulk();
+    await mfg.createProductionOrder({
+      bomId: (await mfg.getProductionOrder(order.id)).order.bom_id,
+      plannedQuantity: 1,
+      manufacturingDate: DATE,
+      orderNumber: "PROD-TAKEN",
+    });
+    const before = await accounting.getJournalEntry("production_orders", order.id);
+
+    await mfg.updateProductionOrderHeader(order.id, {
+      orderNumber: "PROD-CORRECT",
+      manufacturingDate: "2026-10-03",
+      expiryDate: "2027-10-03",
+      notes: "date corrected",
+    });
+    const { order: edited } = await mfg.getProductionOrder(order.id);
+    expect(edited.order_number).toBe("PROD-CORRECT");
+    expect(edited.manufacturing_date).toBe("2026-10-03");
+    expect(edited.expiry_date).toBe("2027-10-03");
+    expect(edited.notes).toBe("date corrected");
+    expect(edited.status).toBe("COMPLETED");
+    expect(await batchQty("RM-1-BATCH")).toBe(95);
+    expect(await batchQty("BULK-1")).toBe(10);
+    expect((await accounting.getJournalEntry("production_orders", order.id))?.lines).toEqual(
+      before?.lines,
+    );
+
+    await expect(
+      mfg.updateProductionOrderHeader(order.id, {
+        orderNumber: "PROD-TAKEN",
+        manufacturingDate: "2026-10-03",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await mfg.updateProductionOrderHeader(order.id, {
+      orderNumber: "  ",
+      manufacturingDate: "2026-11-03",
+    });
+    const { order: blank } = await mfg.getProductionOrder(order.id);
+    expect(blank.order_number).toBe("PROD-CORRECT");
+    expect(blank.manufacturing_date).toBe("2026-11-03");
+  });
 });
 
 describe("ManufacturingService — packing", () => {
@@ -821,5 +935,87 @@ describe("ManufacturingService — packing", () => {
     await expect(mfg.deleteBom(order.bomId)).rejects.toBeInstanceOf(ValidationError);
     await mfg.deletePackingOrder(order.id);
     await mfg.deleteBom(order.bomId);
+  });
+
+  it("force-reopens a packing order whose output was already used", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Sold from this batch",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-PACK-FORCED" });
+    const batch = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM stock_batches WHERE batch_number = 'FG-PACK-FORCED'",
+    );
+    // Simulate 4 packed units already sold from this batch.
+    await insertRow(ctx.db, "stock_movements", {
+      item_id: ctx.ids.itemId,
+      batch_id: batch!.id,
+      warehouse_id: 1,
+      movement_type: "SALE",
+      quantity: -4,
+      unit_cost: 12,
+      reference_table: "sales_invoices",
+      reference_id: 999,
+      movement_date: DATE,
+      notes: "sold",
+    });
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE id = ?", [batch!.id]);
+
+    await expect(mfg.reopenPackingOrder(packing.id)).rejects.toBeInstanceOf(ValidationError);
+    await mfg.reopenPackingOrder(packing.id, { force: true });
+    expect((await mfg.getPackingOrder(packing.id)).order.status).toBe("DRAFT");
+    // 6 on hand minus the 10 the reopened pack put in: the sold units stay sold.
+    expect(await batchQty("FG-PACK-FORCED")).toBe(-4);
+    expect(await batchQty("BULK-1")).toBe(10);
+    expect(await batchQty("PM-1-BATCH")).toBe(100);
+  });
+
+  it("changes a DRAFT packing order's components without rewriting the shared BOM", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Editable pack",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id);
+    await mfg.reopenPackingOrder(packing.id);
+
+    await mfg.updatePackingOrder(packing.id, {
+      bomId: packing.bomId,
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      materials: [
+        { componentItemId: bom.finishedItemId, quantityRequired: 1 },
+        { componentItemId: packingItemId, quantityRequired: 0.5 },
+      ],
+    });
+
+    const { order } = await mfg.getPackingOrder(packing.id);
+    expect(order.bom_id).not.toBe(packing.bomId);
+    const copy = await mfg.getBom(order.bom_id);
+    expect(copy.bom.bom_name).toBe(`Editable pack [${packing.orderNumber}]`);
+    expect(copy.bom.finished_item_id).toBe(ctx.ids.itemId);
+    expect(copy.components.map((c) => c.quantity_required).sort()).toEqual([0.5, 1]);
+    expect(
+      (await mfg.getBom(packing.bomId)).components.map((c) => c.quantity_required).sort(),
+    ).toEqual([1, 1]);
+
+    await mfg.startPacking(packing.id);
+    const result = await mfg.packPackingOrder(packing.id, { units: 10 });
+    // 10 unpacked @10 + 5 bottles @2 = 110; bottles 100 - 5 = 95.
+    expect(result.productionCost).toBe(110);
+    expect(await batchQty("PM-1-BATCH")).toBe(95);
   });
 });

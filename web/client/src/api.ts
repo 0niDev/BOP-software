@@ -806,6 +806,20 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  /** Header-only edit on any status; stock and the journal are untouched. */
+  updateProductionOrderHeader: (
+    id: number,
+    body: {
+      orderNumber?: string | null;
+      manufacturingDate: string;
+      expiryDate?: string | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/production-orders/${id}/header`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   deleteProductionOrder: (id: number) =>
     request<{ ok: boolean }>(`/api/production-orders/${id}`, { method: "DELETE" }),
   produceProduction: (id: number, body: {
@@ -821,8 +835,11 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
-  reopenProduction: (id: number) =>
-    request<{ status: string }>(`/api/production-orders/${id}/reopen`, { method: "POST" }),
+  reopenProduction: (id: number, body: { force?: boolean } = {}) =>
+    request<{ status: string }>(`/api/production-orders/${id}/reopen`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   packingOrders: () => request<PackingOrder[]>("/api/packing-orders"),
   packingOrder: (id: number) =>
     request<{ order: PackingOrder; consumptions: ConsumptionLine[] }>(
@@ -907,8 +924,11 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
-  reopenPacking: (id: number) =>
-    request<{ status: string }>(`/api/packing-orders/${id}/reopen`, { method: "POST" }),
+  reopenPacking: (id: number, body: { force?: boolean } = {}) =>
+    request<{ status: string }>(`/api/packing-orders/${id}/reopen`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   trialBalance: (from?: string, to?: string) =>
     request<TrialBalance>(`/api/reports/trial-balance${periodQuery(from, to)}`),
   profitAndLoss: (from?: string, to?: string) =>
