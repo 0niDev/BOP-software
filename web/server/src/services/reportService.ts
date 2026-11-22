@@ -63,6 +63,12 @@ export interface MaterialsConsumptionRow {
   counted: number | null;
   /** opening + purchases + otherIn − closing. */
   consumed: number;
+  /**
+   * Materials actually issued by production and packing orders dated in the
+   * period. This is read from the consumption rows themselves, so reopening,
+   * editing or repacking an old order updates it immediately.
+   */
+  actualConsumed: number;
   /** What the inventory account says is left, for comparison with `counted`. */
   bookClosing: number;
   /** bookClosing − counted: how far the ledger has drifted from the shelf. Null when the report ends in the past. */
@@ -503,6 +509,7 @@ export class ReportService {
         otherIn: 0,
         counted: null,
         consumed: 0,
+        actualConsumed: 0,
         bookClosing: 0,
         difference: null,
       });
@@ -585,6 +592,8 @@ export class ReportService {
       counted.set(row.item_type, Number(row.counted));
     }
 
+    const actual = await this.actualConsumed(start, end);
+
     const rows: MaterialsConsumptionRow[] = (
       [
         [SystemAccountCodes.INVENTORY_RAW_MATERIALS, "RAW_MATERIAL"],
@@ -611,6 +620,7 @@ export class ReportService {
         otherIn,
         counted: end ? null : closing,
         consumed: toStorage(round2(opening + purchases + Number(otherIn) - closing)),
+        actualConsumed: toStorage(round2(actual.get(itemType) ?? 0)),
         bookClosing,
         difference: end ? null : toStorage(round2(bookClosing - closing)),
       };
@@ -625,11 +635,45 @@ export class ReportService {
       otherIn: sum((row) => row.otherIn),
       counted: end ? null : sum((row) => row.counted ?? 0),
       consumed: sum((row) => row.consumed),
+      actualConsumed: sum((row) => row.actualConsumed),
       bookClosing: sum((row) => row.bookClosing),
       difference: end ? null : sum((row) => row.difference ?? 0),
     };
 
     return { from: start, to: end, rows, total };
+  }
+
+  /**
+   * What production and packing actually took out of stock in the period,
+   * grouped by material type. Sourced from the consumption rows, not the
+   * journals, so editing an old order (which replaces its consumption rows)
+   * is reflected in that order's period.
+   */
+  private async actualConsumed(
+    from: string,
+    to: string | null,
+  ): Promise<Map<string, number>> {
+    const used = await this.db.all<{ item_type: string; consumed: number }>(
+      `SELECT i.item_type, ROUND(SUM(c.quantity_consumed * c.unit_cost), 2) consumed
+         FROM (
+           SELECT pc.component_item_id, pc.quantity_consumed, pc.unit_cost
+             FROM production_consumption pc
+             JOIN production_orders po ON po.id = pc.production_order_id
+            WHERE po.company_id = ? AND po.manufacturing_date >= ?
+              AND (? IS NULL OR po.manufacturing_date <= ?)
+           UNION ALL
+           SELECT pc.component_item_id, pc.quantity_consumed, pc.unit_cost
+             FROM packing_consumption pc
+             JOIN packing_orders po ON po.id = pc.packing_order_id
+            WHERE po.company_id = ? AND po.manufacturing_date >= ?
+              AND (? IS NULL OR po.manufacturing_date <= ?)
+         ) c
+         JOIN items i ON i.id = c.component_item_id
+        WHERE i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
+        GROUP BY i.item_type`,
+      [this.companyId, from, to, to, this.companyId, from, to, to],
+    );
+    return new Map(used.map((row) => [row.item_type, Number(row.consumed)]));
   }
 
   /**

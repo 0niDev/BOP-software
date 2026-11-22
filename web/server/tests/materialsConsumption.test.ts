@@ -62,6 +62,65 @@ async function buy(
   });
 }
 
+/** A completed production or packing order with one consumption row. */
+async function consumeOrder(
+  kind: "production" | "packing",
+  itemId: number,
+  date: string,
+  quantity: number,
+  unitCost: number,
+  orderNumber: string,
+): Promise<number> {
+  const batchId = await insertRow(ctx.db, "stock_batches", {
+    item_id: itemId,
+    warehouse_id: 1,
+    batch_number: `B-${orderNumber}`,
+    purchase_price: unitCost,
+    quantity_in_stock: 0,
+    is_active: 1,
+  });
+  const bomId = await insertRow(ctx.db, "bill_of_materials", {
+    company_id: 1,
+    finished_item_id: itemId,
+    bom_name: `BOM ${orderNumber}`,
+    output_quantity: 1,
+    phase: kind === "production" ? "FORMULATION" : "PACKING",
+    is_active: 1,
+  });
+  const orderId =
+    kind === "production"
+      ? await insertRow(ctx.db, "production_orders", {
+          company_id: 1,
+          warehouse_id: 1,
+          order_number: orderNumber,
+          bom_id: bomId,
+          planned_quantity: 1,
+          manufacturing_date: date,
+          status: "COMPLETED",
+        })
+      : await insertRow(ctx.db, "packing_orders", {
+          company_id: 1,
+          warehouse_id: 1,
+          order_number: orderNumber,
+          bom_id: bomId,
+          planned_quantity: 1,
+          manufacturing_date: date,
+          status: "COMPLETED",
+        });
+  await insertRow(
+    ctx.db,
+    kind === "production" ? "production_consumption" : "packing_consumption",
+    {
+      [kind === "production" ? "production_order_id" : "packing_order_id"]: orderId,
+      component_item_id: itemId,
+      batch_id: batchId,
+      quantity_consumed: quantity,
+      unit_cost: unitCost,
+    },
+  );
+  return orderId;
+}
+
 describe("ReportService.materialsConsumption", () => {
   it("consumption is opening + purchases − closing stock", async () => {
     await buy(rawItemId, 10, 50);
@@ -212,6 +271,47 @@ describe("ReportService.materialsConsumption", () => {
     expect(clamped.from).toBe("2026-11-01");
     expect(clamped.total.opening).toBe(500);
     expect(clamped.total.purchases).toBe(0);
+  });
+
+  it("reports the exact consumption rows for the period", async () => {
+    await consumeOrder("production", rawItemId, "2026-11-08", 4, 50, "PO-00001");
+    await consumeOrder("packing", packingItemId, "2026-11-09", 2, 25, "PCO-00001");
+
+    const result = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(result.rows.find((row) => row.itemType === "RAW_MATERIAL")?.actualConsumed).toBe(200);
+    expect(result.rows.find((row) => row.itemType === "PACKING_MATERIAL")?.actualConsumed).toBe(50);
+    expect(result.total.actualConsumed).toBe(250);
+  });
+
+  it("updates an old period when its consumption rows are replaced", async () => {
+    const orderId = await consumeOrder("packing", packingItemId, "2026-11-09", 2, 25, "PCO-00002");
+    const before = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(before.total.actualConsumed).toBe(50);
+
+    // What reopening and repacking does: drop the old rows, write the new ones.
+    await ctx.db.run("DELETE FROM packing_consumption WHERE packing_order_id = ?", [orderId]);
+    const batch = await ctx.db.get<{ id: number }>(
+      "SELECT id FROM stock_batches WHERE batch_number = 'B-PCO-00002'",
+    );
+    await insertRow(ctx.db, "packing_consumption", {
+      packing_order_id: orderId,
+      component_item_id: packingItemId,
+      batch_id: batch!.id,
+      quantity_consumed: 8,
+      unit_cost: 25,
+    });
+
+    const after = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(after.total.actualConsumed).toBe(200);
+  });
+
+  it("leaves consumption from outside the period out", async () => {
+    await consumeOrder("production", rawItemId, "2026-11-20", 10, 50, "PO-00003");
+
+    const firstHalf = await reports.materialsConsumption("2026-11-01", "2026-11-15");
+    expect(firstHalf.total.actualConsumed).toBe(0);
+    const wholeMonth = await reports.materialsConsumption("2026-11-01", "2026-11-30");
+    expect(wholeMonth.total.actualConsumed).toBe(500);
   });
 
   it("shows the periodic figure on a dated trial balance too", async () => {
