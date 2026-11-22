@@ -1225,6 +1225,21 @@ export function createApp(
     res.json({ ok: true });
   });
 
+  // Header-only edit: allowed on any status, never touches stock or the journal.
+  app.patch("/api/packing-orders/:id/header", requireAuth, async (req, res) => {
+    const body = parseBody(
+      z.object({
+        orderNumber: z.string().nullish(),
+        manufacturingDate: isoDateSchema,
+        expiryDate: optionalIsoDateSchema,
+        notes: z.string().nullish(),
+      }),
+      req.body,
+    );
+    await manufacturing.updatePackingOrderHeader(Number(req.params.id), body);
+    res.json({ ok: true });
+  });
+
   app.delete("/api/packing-orders/:id", requireAuth, async (req, res) => {
     await manufacturing.deletePackingOrder(Number(req.params.id));
     res.json({ ok: true });

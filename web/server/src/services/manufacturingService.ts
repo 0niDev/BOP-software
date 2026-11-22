@@ -172,6 +172,14 @@ export interface UpdatePackingOrderInput {
   materials?: readonly BomComponentInput[] | null;
 }
 
+export interface UpdatePackingOrderHeaderInput {
+  /** New order number. Blank keeps the current one. */
+  orderNumber?: string | null;
+  manufacturingDate: string;
+  expiryDate?: string | null;
+  notes?: string | null;
+}
+
 export interface PackPackingOrderInput {
   /** Items/packages to make now. Defaults to the order's planned quantity. */
   units?: number | string | null;
@@ -908,6 +916,42 @@ export class ManufacturingService {
       notes: input.notes ?? null,
       updated_at: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Correct a packing order's header (number, dates, notes) on any status.
+   * Stock, consumption and the posted journal are untouched, so this is the
+   * safe way to fix a typo on a COMPLETED order.
+   */
+  async updatePackingOrderHeader(
+    id: number,
+    input: UpdatePackingOrderHeaderInput,
+  ): Promise<void> {
+    const order = await this.manufacturing.findPackingOrderById(id);
+    if (!order) throw new NotFoundError(`Packing order ${id} not found.`);
+
+    const patch: {
+      order_number?: string;
+      manufacturing_date: string;
+      expiry_date: string | null;
+      notes: string | null;
+      updated_at: string;
+    } = {
+      manufacturing_date: input.manufacturingDate,
+      expiry_date: input.expiryDate ?? null,
+      notes: input.notes ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const orderNumber = input.orderNumber?.trim() ?? "";
+    if (orderNumber && orderNumber !== order.order_number) {
+      if (await this.manufacturing.packingOrderNumberExists(orderNumber, order.company_id)) {
+        throw new ValidationError(`Order number '${orderNumber}' already exists.`);
+      }
+      patch.order_number = orderNumber;
+    }
+
+    await this.manufacturing.updatePackingOrder(id, patch);
   }
 
   async deletePackingOrder(id: number): Promise<void> {

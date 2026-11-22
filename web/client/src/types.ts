@@ -411,6 +411,7 @@ export interface PackingOrder {
   status: string;
   manufacturing_date: string;
   expiry_date?: string | null;
+  notes?: string | null;
   production_cost: number;
   output_batch_number: string | null;
 }

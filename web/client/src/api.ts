@@ -877,6 +877,20 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  /** Header-only edit on any status; stock and the journal are untouched. */
+  updatePackingOrderHeader: (
+    id: number,
+    body: {
+      orderNumber?: string | null;
+      manufacturingDate: string;
+      expiryDate?: string | null;
+      notes?: string | null;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/packing-orders/${id}/header`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   deletePackingOrder: (id: number) =>
     request<{ ok: boolean }>(`/api/packing-orders/${id}`, { method: "DELETE" }),
   packPackingOrder: (id: number, body: {

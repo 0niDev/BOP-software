@@ -471,6 +471,65 @@ describe("ManufacturingService — production", () => {
 });
 
 describe("ManufacturingService — packing", () => {
+  it("corrects a completed order's number and dates without touching stock or the journal", async () => {
+    const { bom } = await producedBulk();
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Header fix",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      materials: [{ componentItemId: packingItemId, quantityRequired: 10 }],
+    });
+    await mfg.createPackingOrder({
+      bomId: packing.bomId,
+      plannedQuantity: 1,
+      manufacturingDate: DATE,
+      orderNumber: "PCO-TAKEN",
+    });
+    await mfg.startPacking(packing.id);
+    await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-HEADER" });
+    const before = await accounting.getJournalEntry("packing_orders", packing.id);
+
+    await mfg.updatePackingOrderHeader(packing.id, {
+      orderNumber: "PCO-CORRECT",
+      manufacturingDate: "2026-10-03",
+      expiryDate: "2027-10-03",
+      notes: "date corrected",
+    });
+
+    const { order } = await mfg.getPackingOrder(packing.id);
+    expect(order.order_number).toBe("PCO-CORRECT");
+    expect(order.manufacturing_date).toBe("2026-10-03");
+    expect(order.expiry_date).toBe("2027-10-03");
+    expect(order.notes).toBe("date corrected");
+    expect(order.status).toBe("COMPLETED");
+    expect(order.production_cost).toBe(120);
+    expect(await batchQty("BULK-1")).toBe(0);
+    expect(await batchQty("PM-1-BATCH")).toBe(90);
+    expect(await batchQty("FG-HEADER")).toBe(10);
+    expect((await accounting.getJournalEntry("packing_orders", packing.id))?.lines).toEqual(
+      before?.lines,
+    );
+
+    // A rename still has to be unique.
+    await expect(
+      mfg.updatePackingOrderHeader(packing.id, {
+        orderNumber: "PCO-TAKEN",
+        manufacturingDate: "2026-10-03",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    // Blank keeps the current number.
+    await mfg.updatePackingOrderHeader(packing.id, {
+      orderNumber: "  ",
+      manufacturingDate: "2026-11-03",
+    });
+    const { order: blank } = await mfg.getPackingOrder(packing.id);
+    expect(blank.order_number).toBe("PCO-CORRECT");
+    expect(blank.manufacturing_date).toBe("2026-11-03");
+  });
+
   it("packs unpacked bulk with packing materials into finished goods", async () => {
     const { bom } = await producedBulk();
     const packing = await mfg.createPackingOrder({

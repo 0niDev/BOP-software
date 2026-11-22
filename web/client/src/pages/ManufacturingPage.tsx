@@ -96,6 +96,16 @@ export default function ManufacturingPage() {
   const [packingOrderQuery, setPackingOrderQuery] = useState("");
   const addedPacking = useRef(false);
 
+  // Header-only edit (number, dates, notes) — works on completed orders too,
+  // because it never reopens the order or touches stock/journal.
+  const [packingHeaderEdit, setPackingHeaderEdit] = useState<{
+    id: number;
+    orderNumber: string;
+    manufacturingDate: string;
+    expiryDate: string;
+    notes: string;
+  } | null>(null);
+
   // Pack dialog
   const [packOrderId, setPackOrderId] = useState<number | null>(null);
   const [packUnits, setPackUnits] = useState(1);
@@ -681,6 +691,38 @@ export default function ManufacturingPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to start packing order.");
+    }
+  }
+
+  function startEditPackingHeader(order: PackingOrder) {
+    setError(null);
+    setNotice(null);
+    setPackingHeaderEdit({
+      id: order.id,
+      orderNumber: order.order_number,
+      manufacturingDate: order.manufacturing_date,
+      expiryDate: order.expiry_date ?? "",
+      notes: order.notes ?? "",
+    });
+  }
+
+  async function savePackingHeader(event: FormEvent) {
+    event.preventDefault();
+    if (!packingHeaderEdit) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await api.updatePackingOrderHeader(packingHeaderEdit.id, {
+        orderNumber: packingHeaderEdit.orderNumber.trim() || null,
+        manufacturingDate: packingHeaderEdit.manufacturingDate,
+        expiryDate: packingHeaderEdit.expiryDate || null,
+        notes: packingHeaderEdit.notes.trim() || null,
+      });
+      setNotice(`Updated packing order ${packingHeaderEdit.orderNumber.trim()}`);
+      setPackingHeaderEdit(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update the packing order.");
     }
   }
 
@@ -1667,6 +1709,7 @@ export default function ManufacturingPage() {
                         >
                           View
                         </button>{" "}
+                        <button onClick={() => startEditPackingHeader(order)}>Edit details</button>{" "}
                         {order.status === "DRAFT" && (
                           <>
                             <button onClick={() => startEditPackingOrder(order)}>Edit</button>{" "}
@@ -1684,7 +1727,9 @@ export default function ManufacturingPage() {
                                 batch {order.output_batch_number}
                               </span>
                             )}{" "}
-                            <button onClick={() => void reopenPackingOrder(order)}>Edit</button>
+                            <button onClick={() => void reopenPackingOrder(order)}>
+                              Reopen
+                            </button>
                           </>
                         )}
                       </td>
@@ -1847,6 +1892,84 @@ export default function ManufacturingPage() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+      {packingHeaderEdit && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPackingHeaderEdit(null);
+          }}
+        >
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit packing order details"
+            onSubmit={savePackingHeader}
+          >
+            <h2 style={{ marginTop: 0 }}>Edit packing order details</h2>
+            <p className="sub" style={{ marginTop: 0 }}>
+              Changes the number, dates and notes only. Stock, costs and the posted journal are
+              left exactly as they are.
+            </p>
+            <div className="row">
+              <div>
+                <label>Order number</label>
+                <input
+                  value={packingHeaderEdit.orderNumber}
+                  onChange={(e) =>
+                    setPackingHeaderEdit({ ...packingHeaderEdit, orderNumber: e.target.value })
+                  }
+                  style={{ width: 160 }}
+                />
+              </div>
+              <div>
+                <label>Packing date</label>
+                <input
+                  type="date"
+                  required
+                  value={packingHeaderEdit.manufacturingDate}
+                  onChange={(e) =>
+                    setPackingHeaderEdit({
+                      ...packingHeaderEdit,
+                      manufacturingDate: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label>Expiry date</label>
+                <input
+                  type="date"
+                  value={packingHeaderEdit.expiryDate}
+                  onChange={(e) =>
+                    setPackingHeaderEdit({ ...packingHeaderEdit, expiryDate: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label>Notes</label>
+              <textarea
+                rows={2}
+                value={packingHeaderEdit.notes}
+                onChange={(e) =>
+                  setPackingHeaderEdit({ ...packingHeaderEdit, notes: e.target.value })
+                }
+                style={{ width: "100%" }}
+              />
+            </div>
+            <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setPackingHeaderEdit(null)}>
+                Cancel
+              </button>
+              <button className="primary" type="submit">
+                Save changes
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </>
