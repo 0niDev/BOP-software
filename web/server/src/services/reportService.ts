@@ -550,13 +550,16 @@ export class ReportService {
                               AND je.voucher_type = 'PURCHASE' THEN jel.debit ELSE 0 END), 2) purchases,
               -- A stock correction restates the account to the count; counting it
               -- as stock coming in would inflate consumption by its own amount.
+              -- Matched anywhere in the reference, not just at the end: the
+              -- correction scripts post OPENING-STOCK-CORR-2 / PERIODIC-STOCK-CORR-2,
+              -- and a suffix would slip past a trailing-only pattern.
               ROUND(SUM(CASE WHEN je.entry_date >= ? AND (? IS NULL OR je.entry_date <= ?)
                               AND je.voucher_type <> 'PURCHASE'
-                              AND COALESCE(je.reference_no, '') NOT LIKE '%-STOCK-CORR'
+                              AND COALESCE(je.reference_no, '') NOT LIKE '%STOCK-CORR%'
                         THEN jel.debit ELSE 0 END), 2) other_in,
               ROUND(SUM(CASE WHEN je.entry_date >= ? AND (? IS NULL OR je.entry_date <= ?)
                               AND je.voucher_type <> 'PURCHASE'
-                              AND COALESCE(je.reference_no, '') LIKE '%-STOCK-CORR'
+                              AND COALESCE(je.reference_no, '') LIKE '%STOCK-CORR%'
                         THEN jel.debit ELSE 0 END), 2) correction_in,
               ROUND(SUM(CASE WHEN (? IS NULL OR je.entry_date <= ?)
                         THEN jel.debit - jel.credit ELSE 0 END), 2) closing

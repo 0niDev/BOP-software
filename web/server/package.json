@@ -15,6 +15,7 @@
     "seed": "tsx src/seed.ts",
     "seed:rich": "tsx src/seed.ts --rich",
     "reconcile": "tsx src/reconcile.ts",
+    "why:other-stock-in": "tsx src/whyOtherStockIn.ts",
     "smoke": "tsx src/smoke.ts",
     "qa:dataflow": "tsx src/qaDataflow.ts"
   },

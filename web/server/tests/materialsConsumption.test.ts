@@ -218,6 +218,32 @@ describe("ReportService.materialsConsumption", () => {
     expect(dated.total.consumed).toBe(0);
   });
 
+  it("ignores a correction whose reference carries a suffix", async () => {
+    await buy(rawItemId, 10, 50);
+    await ctx.db.run("UPDATE stock_batches SET quantity_in_stock = 6 WHERE batch_number = ?", [
+      "T-" + rawItemId + "-2026-11-08",
+    ]);
+    const before = await reports.materialsConsumption();
+
+    // fix-negative-stock.ts posts its opening restatement as
+    // OPENING-STOCK-CORR-2, so a trailing-only match would miss it.
+    await accounting.postJournalEntry({
+      voucherType: "JOURNAL",
+      entryDate: "2026-11-30",
+      narration: "Opening stock for negative batches brought into the inventory accounts",
+      referenceNo: "OPENING-STOCK-CORR-2",
+      lines: [
+        { accountId: await accountId(ctx.db, "1200"), debit: 400 },
+        { accountId: await accountId(ctx.db, "3100"), credit: 400 },
+      ],
+    });
+
+    const after = await reports.materialsConsumption();
+    // A restatement is not material coming in, so consumption cannot move.
+    expect(after.total.otherIn).toBe(before.total.otherIn);
+    expect(after.total.consumed).toBe(before.total.consumed);
+  });
+
   it("does not value a negative batch as negative stock", async () => {
     await buy(rawItemId, 10, 50);
     // Consumption drove the only batch below zero: there is no stock, not
