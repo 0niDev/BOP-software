@@ -74,6 +74,15 @@ export interface MaterialsConsumptionRow {
   bookClosing: number;
   /** bookClosing − counted: how far the ledger has drifted from the shelf. Null when the report ends in the past. */
   difference: number | null;
+  /** Quantity the production and packing orders dated in the period took out of the store. */
+  orderQty: number;
+  /** The same quantity valued at the unit cost each consumption row was posted at (FIFO layers). */
+  orderValue: number;
+  /** How many consumption rows that value comes from, and how many orders they belong to. */
+  orderLines: number;
+  orderCount: number;
+  /** Quantity taken out at no cost at all, so `orderValue` understates it. */
+  orderUnpricedQty: number;
 }
 
 export interface MaterialsConsumptionResult {
@@ -513,6 +522,11 @@ export class ReportService {
         manufacturingEdits: 0,
         bookClosing: 0,
         difference: null,
+        orderQty: 0,
+        orderValue: 0,
+        orderLines: 0,
+        orderCount: 0,
+        orderUnpricedQty: 0,
       });
       return {
         from: start,
@@ -595,6 +609,59 @@ export class ReportService {
 
     const edits = end ? await this.manufacturingEdits(start, end) : new Map<string, number>();
 
+    // The other way to count consumption: what the production and packing orders
+    // dated in the period actually took off the shelf, priced at the unit cost
+    // their consumption rows were posted at. This one follows the bills of
+    // materials and the FIFO layers instead of the inventory account's balance.
+    const orderUsage = new Map<
+      string,
+      { qty: number; value: number; lines: number; orders: number; unpricedQty: number }
+    >();
+    const usageRows = await this.db.all<{
+      item_type: string;
+      qty: number;
+      value: number;
+      lines: number;
+      orders: number;
+      unpriced_qty: number;
+    }>(
+      `SELECT i.item_type,
+              ROUND(SUM(c.quantity_consumed), 4) qty,
+              ROUND(SUM(c.quantity_consumed * c.unit_cost), 2) value,
+              COUNT(*) lines,
+              COUNT(DISTINCT c.order_id) orders,
+              ROUND(SUM(CASE WHEN c.unit_cost > 0 THEN 0 ELSE c.quantity_consumed END), 4) unpriced_qty
+         FROM (
+           SELECT po.id AS order_id, po.manufacturing_date, pc.component_item_id,
+                  pc.quantity_consumed, pc.unit_cost
+             FROM production_consumption pc
+             JOIN production_orders po ON po.id = pc.production_order_id
+            WHERE po.company_id = ?
+           UNION ALL
+           SELECT pk.id, pk.manufacturing_date, kc.component_item_id,
+                  kc.quantity_consumed, kc.unit_cost
+             FROM packing_consumption kc
+             JOIN packing_orders pk ON pk.id = kc.packing_order_id
+            WHERE pk.company_id = ?
+         ) c
+         JOIN items i ON i.id = c.component_item_id
+        WHERE i.company_id = ?
+          AND c.manufacturing_date >= ?
+          AND (? IS NULL OR c.manufacturing_date <= ?)
+          AND i.item_type IN ('RAW_MATERIAL', 'PACKING_MATERIAL')
+        GROUP BY i.item_type`,
+      [this.companyId, this.companyId, this.companyId, start, end, end],
+    );
+    for (const row of usageRows) {
+      orderUsage.set(row.item_type, {
+        qty: Number(row.qty ?? 0),
+        value: Number(row.value ?? 0),
+        lines: Number(row.lines ?? 0),
+        orders: Number(row.orders ?? 0),
+        unpricedQty: Number(row.unpriced_qty ?? 0),
+      });
+    }
+
     const rows: MaterialsConsumptionRow[] = (
       [
         [SystemAccountCodes.INVENTORY_RAW_MATERIALS, "RAW_MATERIAL"],
@@ -614,6 +681,7 @@ export class ReportService {
       );
       const bookClosing = toStorage(round2(Number(found?.closing ?? 0)));
       const closing = end ? bookClosing : counted.get(itemType) ?? 0;
+      const usage = orderUsage.get(itemType);
       return {
         itemType,
         opening,
@@ -632,6 +700,11 @@ export class ReportService {
         manufacturingEdits: toStorage(round2(edits.get(itemType) ?? 0)),
         bookClosing,
         difference: end ? null : toStorage(round2(bookClosing - closing)),
+        orderQty: toStorage(round2(usage?.qty ?? 0)),
+        orderValue: toStorage(round2(usage?.value ?? 0)),
+        orderLines: usage?.lines ?? 0,
+        orderCount: usage?.orders ?? 0,
+        orderUnpricedQty: toStorage(round2(usage?.unpricedQty ?? 0)),
       };
     });
 
@@ -647,6 +720,11 @@ export class ReportService {
       manufacturingEdits: sum((row) => row.manufacturingEdits),
       bookClosing: sum((row) => row.bookClosing),
       difference: end ? null : sum((row) => row.difference ?? 0),
+      orderQty: sum((row) => row.orderQty),
+      orderValue: sum((row) => row.orderValue),
+      orderLines: rows.reduce((acc, row) => acc + row.orderLines, 0),
+      orderCount: rows.reduce((acc, row) => acc + row.orderCount, 0),
+      orderUnpricedQty: sum((row) => row.orderUnpricedQty),
     };
 
     return { from: start, to: end, rows, total };

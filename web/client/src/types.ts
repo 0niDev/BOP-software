@@ -694,6 +694,15 @@ export interface MaterialsConsumptionRow {
   bookClosing: number;
   /** Null when the report ends in the past. */
   difference: number | null;
+  /** Quantity the production and packing orders dated in the period took off the shelf. */
+  orderQty: number;
+  /** That quantity valued at the unit cost each consumption row was posted at. */
+  orderValue: number;
+  /** Consumption rows behind `orderValue`, and the orders they belong to. */
+  orderLines: number;
+  orderCount: number;
+  /** Quantity taken out at no cost, so `orderValue` understates it. */
+  orderUnpricedQty: number;
 }
 
 export interface MaterialsConsumption {

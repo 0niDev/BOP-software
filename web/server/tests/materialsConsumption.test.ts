@@ -388,6 +388,45 @@ describe("ReportService.materialsConsumption", () => {
     expect(live.total.manufacturingEdits).toBe(0);
   });
 
+  it("values order consumption at each layer's own price", async () => {
+    // 10 at 50 then 10 at 70, both drawn in the same period: 500 + 700.
+    await consumeOrder("production", rawItemId, "2026-11-08", 10, 50, "PO-00020");
+    await consumeOrder("production", rawItemId, "2026-11-18", 10, 70, "PO-00021");
+    // A finished good taken by packing is not a material, so it stays out.
+    await consumeOrder("packing", packingItemId, "2026-11-18", 4, 25, "PCO-00020");
+
+    const result = await reports.materialsConsumption("2026-11-01", "2026-11-30");
+    const raw = result.rows.find((row) => row.itemType === "RAW_MATERIAL");
+    expect(raw?.orderQty).toBe(20);
+    expect(raw?.orderValue).toBe(1_200);
+    expect(raw?.orderLines).toBe(2);
+    expect(raw?.orderCount).toBe(2);
+
+    const packing = result.rows.find((row) => row.itemType === "PACKING_MATERIAL");
+    expect(packing?.orderValue).toBe(100);
+    expect(result.total.orderValue).toBe(1_300);
+  });
+
+  it("leaves order consumption out of a period before it happened", async () => {
+    await consumeOrder("production", rawItemId, "2026-11-18", 10, 70, "PO-00022");
+
+    const early = await reports.materialsConsumption("2026-11-01", "2026-11-10");
+    expect(early.total.orderQty).toBe(0);
+    expect(early.total.orderValue).toBe(0);
+
+    const later = await reports.materialsConsumption("2026-11-01", "2026-11-30");
+    expect(later.total.orderValue).toBe(700);
+  });
+
+  it("flags consumption that carries no cost at all", async () => {
+    await consumeOrder("production", rawItemId, "2026-11-08", 10, 0, "PO-00023");
+    await consumeOrder("production", rawItemId, "2026-11-08", 5, 60, "PO-00024");
+
+    const result = await reports.materialsConsumption("2026-11-01", "2026-11-30");
+    expect(result.total.orderValue).toBe(300);
+    expect(result.total.orderUnpricedQty).toBe(10);
+  });
+
   it("shows the periodic figure on a dated trial balance too", async () => {
     await buy(rawItemId, 10, 50);
 
