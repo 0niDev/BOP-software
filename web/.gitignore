@@ -8,6 +8,10 @@ backups/
 # hosted-database audit (cloud-audit.ts) — dumps and CSVs hold live data
 data/cloud-audit/
 data/audit-local.sqlite
+# inventory audit count sheets, plans and rebuild snapshots — live quantities
+data/inventory-audit-*.csv
+data/inventory-plan-*.csv
+data/inventory-rebuild-*.json
 
 .env
 

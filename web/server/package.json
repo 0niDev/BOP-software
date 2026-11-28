@@ -16,6 +16,9 @@
     "seed:rich": "tsx src/seed.ts --rich",
     "reconcile": "tsx src/reconcile.ts",
     "why:other-stock-in": "tsx src/whyOtherStockIn.ts",
+    "audit:inventory": "tsx src/inventoryAudit.ts",
+    "analyze:inventory": "tsx src/inventoryRebuild.ts",
+    "rebuild:inventory": "tsx src/rebuildInventory.ts",
     "smoke": "tsx src/smoke.ts",
     "qa:dataflow": "tsx src/qaDataflow.ts"
   },
