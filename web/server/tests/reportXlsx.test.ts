@@ -168,9 +168,11 @@ describe("xlsx report exports", () => {
     expect(strings(bsFiles)).toContain("<t>Dr/Cr</t>");
     expect(strings(bsFiles)).toContain("<t>Dr</t>");
     expect(strings(bsFiles)).toContain("<t>Cr</t>");
-    // The proof line must net to zero on a balanced ledger.
-    expect(strings(bsFiles)).toContain("Assets - (Liabilities + Equity)");
-    expect(worksheet(bsFiles)).toContain("<v>0</v>");
+    // Classified face: both columns and their totals, no proof line.
+    expect(strings(bsFiles)).toContain("Non-current assets");
+    expect(strings(bsFiles)).toContain("Current assets");
+    expect(strings(bsFiles)).toContain("Total assets");
+    expect(strings(bsFiles)).toContain("Total equity & liabilities");
 
     const tbFiles = open((await xlsx.trialBalance({})).buffer);
     expect(strings(tbFiles)).toContain("Closing totals");

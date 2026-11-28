@@ -573,9 +573,31 @@ export interface CustomReportHeading extends CustomHeading {
   rows: CustomReportRow[];
 }
 
-/** One printed line of the fixed P&L face. */
-export interface CustomReportFaceLine {
+/** One printed line of the fixed two-column balance sheet face. */
+export interface BsFaceLine {
   headingId?: string;
+  label: string;
+  note?: string;
+  depth?: number;
+  bold?: boolean;
+  noAmount?: boolean;
+  value: number;
+  side: "Dr" | "Cr" | "";
+  rows: CustomReportRow[];
+}
+
+export interface BsFace {
+  leftTitle: string;
+  rightTitle: string;
+  left: BsFaceLine[];
+  right: BsFaceLine[];
+  totalAssets: BsFaceLine;
+  totalEquityLiabilities: BsFaceLine;
+  balanced: boolean;
+}
+
+/** One printed line of the fixed P&L face. */
+export interface CustomReportFaceLine {  headingId?: string;
   label: string;
   note?: string;
   depth?: number;
@@ -591,6 +613,8 @@ export interface CustomReport {
   headings: CustomReportHeading[];
   /** P&L only: the fixed printed face, unaffected by heading (notes) edits. */
   face?: CustomReportFaceLine[];
+  /** Balance sheet only: the fixed two-column classified face. */
+  bsFace?: BsFace;
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   footer: Array<{ label: string; value: number; side: "Dr" | "Cr" | "" }>;
   balanced: boolean | null;

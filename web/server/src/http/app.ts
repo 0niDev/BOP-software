@@ -1741,6 +1741,7 @@ export function createApp(
       await reports.exportAllCsv(
         { from, to, showUnpriced, showZero },
         (await customReports.build("PL", { from, to })).face,
+        (await customReports.build("BS", { asAt: to })).bsFace,
       ),
     );
   });
@@ -1816,7 +1817,8 @@ export function createApp(
 
   app.get("/api/reports/notes.xlsx", requireAuth, async (req, res) => {
     const { from, to } = dateRangeQuery(req);
-    const file = await reportXlsx.notes({ from, to });
+    const kind = String(req.query.kind ?? "").toLowerCase() === "bs" ? "BS" : "PL";
+    const file = await reportXlsx.notes({ from, to, asAt: asAtQuery(req), kind });
     sendXlsx(res, file.fileName, file.buffer);
   });
 

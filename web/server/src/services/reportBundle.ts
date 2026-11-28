@@ -53,6 +53,6 @@ export async function buildReportsBundle(
     profitAndLoss: reports.profitAndLossFrom(periodRows),
     balanceSheet: reports.balanceSheetFrom(sheetRows),
     customPl: await custom.buildFromRows("PL", periodRows),
-    customBs: await custom.buildFromRows("BS", sheetRows),
+    customBs: await custom.buildFromRows("BS", sheetRows, { asAt }),
   };
 }

@@ -364,6 +364,45 @@ describe("ManufacturingService — production", () => {
     expect(consumptions).toHaveLength(1);
   });
 
+  it("consumes raw material oldest batch first, each layer at its own price", async () => {
+    // A second receipt at a higher price: 100 KG at 20, then 20 KG at 30.
+    await insertRow(ctx.db, "stock_batches", {
+      item_id: rawItemId,
+      warehouse_id: 1,
+      batch_number: "RM-1-LATE",
+      purchase_price: 30,
+      quantity_in_stock: 20,
+      is_active: 1,
+    });
+    const bom = await mfg.createBom({
+      bomName: "Two price layers",
+      outputQuantity: 1,
+      components: [{ componentItemId: rawItemId, quantityRequired: 110 }],
+    });
+    const order = await mfg.createProductionOrder({
+      bomId: bom.id,
+      plannedQuantity: 1,
+      manufacturingDate: DATE,
+    });
+    await mfg.startProduction(order.id);
+    const produced = await mfg.produceProduction(order.id, { actualQuantity: 1 });
+
+    // 100 KG from the 20-price batch, then the last 10 KG at 30.
+    expect(produced.productionCost).toBe(2_300);
+    expect(await batchQty("RM-1-BATCH")).toBe(0);
+    expect(await batchQty("RM-1-LATE")).toBe(10);
+
+    const { consumptions } = await mfg.getProductionOrder(order.id);
+    expect(consumptions.map((row) => [row.quantity_consumed, row.unit_cost])).toEqual([
+      [100, 20],
+      [10, 30],
+    ]);
+
+    const je = await accounting.getJournalEntry("production_orders", order.id);
+    const lines = je!.lines as Array<{ account_code: string; debit: number; credit: number }>;
+    expect(lines.find((l) => l.account_code === "1200")?.credit).toBe(2_300);
+  });
+
   it("deducts stock even with Ignore stock set, driving the batch negative", async () => {
     const bom = await mfg.createBom({
       bomName: "Ignore stock run",
@@ -691,6 +730,49 @@ describe("ManufacturingService — packing", () => {
     expect(lines.reduce((a, l) => a + l.debit, 0)).toBe(
       lines.reduce((a, l) => a + l.credit, 0),
     );
+  });
+
+  it("splits packing material consumption across batches by price layer", async () => {
+    const { bom } = await producedBulk();
+    // 100 bottles at 2, then a later receipt at 3.
+    await insertRow(ctx.db, "stock_batches", {
+      item_id: packingItemId,
+      warehouse_id: 1,
+      batch_number: "PM-1-LATE",
+      purchase_price: 3,
+      quantity_in_stock: 1_000,
+      is_active: 1,
+    });
+    const packing = await mfg.createPackingOrder({
+      packingBomName: "Syrup bottles two prices",
+      plannedQuantity: 10,
+      manufacturingDate: DATE,
+      outputItemId: ctx.ids.itemId,
+      unpackedItemId: bom.finishedItemId,
+      unpackedQuantity: 10,
+      // 12 bottles per unit, 120 for the run.
+      materials: [{ componentItemId: packingItemId, quantityRequired: 120 }],
+    });
+    await mfg.startPacking(packing.id);
+    const result = await mfg.packPackingOrder(packing.id, { outputBatchNumber: "FG-TWO-PRICES" });
+
+    // Bulk 10 @10 = 100; 100 bottles @2 = 200, then 20 bottles @3 = 60.
+    expect(result.productionCost).toBe(360);
+    expect(await batchQty("PM-1-BATCH")).toBe(0);
+    expect(await batchQty("PM-1-LATE")).toBe(980);
+
+    const { consumptions } = await mfg.getPackingOrder(packing.id);
+    const bottles = consumptions.filter((row) => row.component_item_id === packingItemId);
+    expect(bottles.map((row) => [row.quantity_consumed, row.unit_cost])).toEqual([
+      [100, 2],
+      [20, 3],
+    ]);
+
+    const fg = await ctx.db.get<{ purchase_price: number; packing_unit_cost: number }>(
+      "SELECT purchase_price, packing_unit_cost FROM stock_batches WHERE batch_number = 'FG-TWO-PRICES'",
+    );
+    expect(fg?.purchase_price).toBe(36);
+    expect(fg?.packing_unit_cost).toBe(26);
   });
 
   it("reopens a completed packing order and undoes its output batch", async () => {

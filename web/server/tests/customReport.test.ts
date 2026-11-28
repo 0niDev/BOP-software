@@ -542,9 +542,11 @@ describe("CustomReportService", () => {
     expect(footer.get("Net profit")).toBe(standard.netProfit);
     expect(result.unassigned.rows).toEqual([]);
 
-    const equity = result.headings.find((heading) => heading.name === "Equity");
+    const equity = result.headings.find((heading) => heading.name === "Capital & earnings");
+    expect(equity).toBeDefined();
+    const netProfit = result.headings.find((heading) => heading.name === "Net profit (P&L)");
     expect(
-      equity?.rows.some(
+      netProfit?.rows.some(
         (row) =>
           row.accountId === NET_PROFIT_ACCOUNT_ID && row.value === standard.netProfit,
       ),

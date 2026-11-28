@@ -11,6 +11,7 @@ import {
 } from "./accountingService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 import type { PlFaceLine } from "./plFace.js";
+import { bsFaceLines, type BsFace } from "./bsFace.js";
 
 export interface TrialBalanceResult {
   rows: TrialBalanceRow[];
@@ -1347,6 +1348,7 @@ export class ReportService {
   async exportAllCsv(
     opts: DateRangeOptions = {},
     plFace?: readonly PlFaceLine[],
+    bsFace?: BsFace,
   ): Promise<string> {
     const from = opts.from ?? null;
     const to = opts.to ?? null;
@@ -1444,22 +1446,37 @@ export class ReportService {
     // --- Balance sheet (position as at the period end) ------------------
     const bs = await this.balanceSheet(to);
     lines.push(`Balance Sheet (as at ${csvEscape(formatDayMonthYear(to) || "today")})`);
-    lines.push(
-      "Assets,Dr/Cr,Liabilities,Dr/Cr,Equity (incl. net profit),Dr/Cr,Net Profit,Dr/Cr,Balanced",
-    );
-    lines.push(
-      [
-        bs.assets.toFixed(2),
-        "Dr",
-        bs.liabilities.toFixed(2),
-        "Cr",
-        bs.equity.toFixed(2),
-        "Cr",
-        bs.netProfit.toFixed(2),
-        bs.netProfit >= 0 ? "Cr" : "Dr",
-        bs.balanced ? "YES" : "NO",
-      ].join(","),
-    );
+    if (bsFace) {
+      // The classified two-column face the website shows, line for line.
+      lines.push("Description,Amount,Dr/Cr,Note");
+      for (const face of bsFaceLines(bsFace)) {
+        lines.push(
+          [
+            csvEscape(face.label),
+            face.noAmount ? "" : face.value.toFixed(2),
+            face.noAmount ? "" : face.side,
+            csvEscape(face.note ?? ""),
+          ].join(","),
+        );
+      }
+    } else {
+      lines.push(
+        "Assets,Dr/Cr,Liabilities,Dr/Cr,Equity (incl. net profit),Dr/Cr,Net Profit,Dr/Cr,Balanced",
+      );
+      lines.push(
+        [
+          bs.assets.toFixed(2),
+          "Dr",
+          bs.liabilities.toFixed(2),
+          "Cr",
+          bs.equity.toFixed(2),
+          "Cr",
+          bs.netProfit.toFixed(2),
+          bs.netProfit >= 0 ? "Cr" : "Dr",
+          bs.balanced ? "YES" : "NO",
+        ].join(","),
+      );
+    }
     lines.push("");
 
     // --- Cash book -----------------------------------------------------

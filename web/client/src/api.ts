@@ -1073,8 +1073,15 @@ export const api = {
     ),
   cashBookXlsx: (from?: string, to?: string) =>
     requestBlob(`/api/reports/cash-book.xlsx${periodQuery(from, to)}`),
-  notesXlsx: (from?: string, to?: string) =>
-    requestBlob(`/api/reports/notes.xlsx${periodQuery(from, to)}`),
+  notesXlsx: (from?: string, to?: string, kind: CustomReportKind = "PL", asAt?: string) =>
+    requestBlob(
+      `/api/reports/notes.xlsx${customReportQuery(
+        from,
+        to,
+        asAt,
+        kind === "BS" ? { kind: "bs" } : {},
+      )}`,
+    ),
   partyLedgerXlsx: (partyId: number, from?: string, to?: string) => {
     const params = new URLSearchParams({ partyId: String(partyId) });
     if (from) params.set("from", from);

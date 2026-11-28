@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useState } from "react";
 import type { ReportPage } from "../App";
 import { api, ApiError } from "../api";
-import CustomReportEditor from "../components/CustomReportEditor";
-import CustomReportTable from "../components/CustomReportTable";
+import BSFace from "../components/BSFace";
 import PLFace from "../components/PLFace";
 import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { formatDate, moneySide, sideOf } from "../lib/format";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, AccountType, AllPartyLedgers, BalanceSheet, CustomHeading, CustomReport, CustomReportKind, LedgerEntry, Party, PartyBalance, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
+import { exportPeriods } from "../lib/periods";
+import type { AccountType, AllPartyLedgers, BalanceSheet, CustomReport, CustomReportKind, LedgerEntry, Party, PartyBalance, PartyLedgerWithBalance, PartyProductSales, PartyType, ProfitAndLoss, TrialBalance, TrialBalanceRow } from "../types";
 
 /** Chart-of-accounts order: assets, liabilities, equity, revenue, expenses. */
 const COA_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"];
@@ -142,59 +142,6 @@ function hasMovement(row: TrialBalanceRow): boolean {
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
-}
-
-/**
- * Period presets for the "Export all reports" action, ported from
- * report_view._populate_export_periods (which listed every month/year since
- * the project's first books, most recent last).
- */
-const EXPORT_START_YEAR = 2022;
-const EXPORT_START_MONTH = 7; // 0-based → August 2022
-const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function exportPeriods(frequency: "Monthly" | "Yearly", now = new Date()): Array<{
-  label: string;
-  from: string;
-  to: string;
-}> {
-  const periods: Array<{ label: string; from: string; to: string }> = [];
-  if (frequency === "Yearly") {
-    for (let year = EXPORT_START_YEAR; year <= now.getFullYear(); year += 1) {
-      periods.push({ label: `${year}`, from: `${year}-01-01`, to: `${year}-12-31` });
-    }
-    return periods;
-  }
-  let year = EXPORT_START_YEAR;
-  let month = EXPORT_START_MONTH;
-  while (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
-    const mm = String(month + 1).padStart(2, "0");
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    periods.push({
-      label: `${year}-${mm}  (${MONTH_NAMES[month]} ${year})`,
-      from: `${year}-${mm}-01`,
-      to: `${year}-${mm}-${String(lastDay).padStart(2, "0")}`,
-    });
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-  return periods;
 }
 
 /**
@@ -690,10 +637,6 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   const [bs, setBs] = useState<BalanceSheet | null>(null);
   const [customPl, setCustomPl] = useState<CustomReport | null>(null);
   const [customBs, setCustomBs] = useState<CustomReport | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [customEditor, setCustomEditor] = useState<CustomReportKind | null>(null);
-  const [customBusy, setCustomBusy] = useState(false);
-  const [customError, setCustomError] = useState<string | null>(null);
   // Custom-report exports show only heading totals unless this is ticked.
   const [includeDetail, setIncludeDetail] = useState(false);
   const [parties, setParties] = useState<Party[]>([]);
@@ -760,6 +703,9 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
   // Default the period picker to the most recent one (like the desktop app).
   const periods = exportPeriods(exportFrequency);
   const selectedPeriod = periods[Math.min(exportIndex, periods.length - 1)];
+  // Quick month jump in the report period card (custom dates still win).
+  const months = exportPeriods("Monthly");
+  const selectedMonth = months.find((month) => month.from === from && month.to === to);
 
   async function loadReports(next?: { from?: string; to?: string; asAt?: string }): Promise<void> {
     const f = next?.from ?? from;
@@ -789,16 +735,14 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
 
   useEffect(() => {
     void loadReports({ from: "", to: "", asAt: "" });
-    // Inactive accounts too: a heading may already reference one, and it must
-    // still be visible (and removable) in the tree.
-    Promise.all([api.parties(), api.accounts(false)])
-      .then(([partyList, accountList]) => {
-        setAccounts(accountList);
+    api
+      .parties()
+      .then((partyList) => {
         setParties(partyList);
         const first = partyList[0];
         if (first) setPartyId(first.id);
       })
-      .catch((err) => setError(errorMessage(err, "Failed to load parties and accounts.")));
+      .catch((err) => setError(errorMessage(err, "Failed to load parties.")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageVisible]);
 
@@ -920,31 +864,14 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
     }
   }
 
-  async function saveCustomHeadings(
-    kind: CustomReportKind,
-    headings: CustomHeading[],
-  ): Promise<void> {
-    setCustomBusy(true);
-    setCustomError(null);
-    try {
-      await api.saveCustomReport(kind, headings);
-      setCustomEditor(null);
-      await loadReports();
-    } catch (err) {
-      setCustomError(errorMessage(err, "Failed to save the headings."));
-    } finally {
-      setCustomBusy(false);
-    }
-  }
-
-  async function exportCustomCsv(kind: CustomReportKind, detail = true): Promise<void> {
+  async function exportCustomCsv(kind: CustomReportKind, detail = false): Promise<void> {
     setCsvBusy(true);
     setError(null);
     try {
       const csv =
         kind === "PL"
           ? await api.customReportCsv("PL", from || undefined, to || undefined, undefined, detail)
-          : await api.customReportCsv("BS", undefined, undefined, asAt || undefined);
+          : await api.customReportCsv("BS", undefined, undefined, asAt || undefined, detail);
       const name =
         kind === "PL"
           ? `custom-profit-and-loss_${periodTag(from, to)}.csv`
@@ -1002,6 +929,23 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
       <div className="card">
         <h2>Report period</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
+          <div>
+            <label>Month</label>
+            <SearchableSelect
+              value={selectedMonth?.from ?? ""}
+              onChange={(next) => {
+                const month = months.find((period) => period.from === next);
+                if (!month) return;
+                setFrom(month.from);
+                setTo(month.to);
+                setAsAt(month.to);
+                void loadReports({ from: month.from, to: month.to, asAt: month.to });
+              }}
+              placeholder="Jump to month…"
+              emptyText="No matching month"
+              options={months.map((period) => ({ value: period.from, label: period.label }))}
+            />
+          </div>
           <div>
             <label>From (trial balance &amp; P&amp;L)</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -1159,7 +1103,6 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
             ) : (
               <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
             )}
-            {customError && <div className="error">{customError}</div>}
           </>
         ) : (
           <p style={{ opacity: 0.7, margin: 0 }}>Loading profit &amp; loss…</p>
@@ -1199,21 +1142,20 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
               <Stat label="Net profit" value={bs.netProfit} side={profitSide(bs.netProfit)} />
             </div>
             <div className="row" style={{ alignItems: "center", marginTop: 12 }}>
-              <h3 style={{ flex: 1, margin: 0 }}>Custom headings</h3>
-              <button
-                onClick={() => {
-                  setCustomError(null);
-                  setCustomEditor(customEditor === "BS" ? null : "BS");
-                }}
-              >
-                {customEditor === "BS" ? "Close editor" : "Edit headings"}
-              </button>
+              <h3 style={{ flex: 1, margin: 0 }}>Statement</h3>
               <button
                 onClick={() =>
                   void exportXlsx(
                     "custom-bs",
-                    () => api.customReportXlsx("BS", undefined, undefined, asAt || undefined),
-                    `custom-balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
+                    () =>
+                      api.customReportXlsx(
+                        "BS",
+                        undefined,
+                        undefined,
+                        asAt || undefined,
+                        false,
+                      ),
+                    `balance-sheet_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
                   )
                 }
                 disabled={xlsxBusy !== null}
@@ -1224,20 +1166,10 @@ export default function TrialBalancePage({ section = "reports" }: { section?: Re
                 {csvBusy ? "Preparing…" : "Export CSV"}
               </button>
             </div>
-            {customEditor === "BS" ? (
-              <CustomReportEditor
-                kind="BS"
-                accounts={accounts}
-                headings={customBs?.headings ?? []}
-                busy={customBusy}
-                error={customError}
-                onSave={(headings) => void saveCustomHeadings("BS", headings)}
-                onCancel={() => setCustomEditor(null)}
-              />
-            ) : customBs ? (
-              <CustomReportTable report={customBs} />
+            {customBs ? (
+              <BSFace report={customBs} />
             ) : (
-              <p style={{ opacity: 0.7, margin: 0 }}>Loading custom report…</p>
+              <p style={{ opacity: 0.7, margin: 0 }}>Loading balance sheet…</p>
             )}
           </>
         ) : (

@@ -22,9 +22,16 @@ import {
   AccountingService,
   type TrialBalanceRow,
 } from "./accountingService.js";
-import { csvEscape } from "./reportService.js";
+import { csvEscape, ReportService } from "./reportService.js";
 import { compareAccountCode } from "./trialBalanceLayout.js";
 import { resolvePlFace, type PlFaceLine } from "./plFace.js";
+import {
+  customerAdvancesFrom,
+  resolveBsFace,
+  bsFaceLines,
+  type BsFace,
+  type PartySplit,
+} from "./bsFace.js";
 
 export type CustomReportKind = "PL" | "BS";
 
@@ -82,6 +89,8 @@ export interface CustomReportResult {
    * template so heading edits (which belong to the notes) cannot change it.
    */
   face?: PlFaceLine[];
+  /** Balance sheet only: the fixed two-column classified face. */
+  bsFace?: BsFace;
   /** Accounts no heading covers, so the report still ties out. */
   unassigned: { value: number; side: "Dr" | "Cr" | ""; rows: CustomReportRow[] };
   /** Standard-report totals for the footer. */
@@ -143,40 +152,8 @@ function dedupeParts(parts: readonly CustomHeadingPart[]): CustomHeadingPart[] {
   return [...seen.entries()].map(([headingId, sign]) => ({ headingId, sign }));
 }
 
-/** Roots of one type: accounts with no parent inside the same type. */
-function rootAccounts(accounts: readonly AccountRow[], type: AccountType): AccountRow[] {
-  const typeIds = new Set(
-    accounts
-      .filter((account) => account.account_type === type && account.is_active === 1)
-      .map((account) => account.id),
-  );
-  return accounts
-    .filter(
-      (account) =>
-        account.account_type === type &&
-        account.is_active === 1 &&
-        (account.parent_account_id == null || !typeIds.has(account.parent_account_id)),
-    )
-    .sort(byAccountCode);
-}
-
-/** Starting headings: the printed "Profit and Loss (Spinning)" layout. */
+/** Starting headings: the printed "Profit and Loss (Spinning)" and classified balance sheet. */
 function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]): CustomHeading[] {
-  if (kind === "BS") {
-    return [
-      { id: "assets", name: "Assets", bold: true, kind: "accounts", accountIds: rootAccounts(accounts, "ASSET").map((a) => a.id), parts: [] },
-      { id: "liabilities", name: "Liabilities", bold: true, kind: "accounts", accountIds: rootAccounts(accounts, "LIABILITY").map((a) => a.id), parts: [] },
-      {
-        id: "equity",
-        name: "Equity",
-        bold: true,
-        kind: "accounts",
-        accountIds: [...rootAccounts(accounts, "EQUITY").map((a) => a.id), NET_PROFIT_ACCOUNT_ID],
-        parts: [],
-      },
-    ];
-  }
-
   const byCode = new Map(accounts.map((account) => [account.account_code, account.id]));
   const ids = (...codes: string[]): number[] =>
     codes.flatMap((code) => {
@@ -215,6 +192,64 @@ function defaultTemplate(kind: CustomReportKind, accounts: readonly AccountRow[]
     accountIds: [],
     parts: parts.map(([headingId, sign]) => ({ headingId, sign })),
   });
+
+  // Classified balance sheet. Account headings partition the chart exactly
+  // once so the notes can still show the control accounts; the printed face
+  // swaps Accounts Receivable / Payable for the gross supplier/customer split
+  // (see bsFace.ts). "Other current assets" is the Assets tree minus everything
+  // already shown (fixed, leased, inventory, cash, receivables control), so a
+  // new current account can never fall off the sheet.
+  if (kind === "BS") {
+    const inventoryCodes = ["1200", "1210", "1220", "15230", "15250"];
+    return [
+      account("fixed-assets", "Fixed assets", "1", [
+        "11",
+        "1500",
+        "1501",
+        "1502",
+        "1503",
+        "1504",
+        "1505",
+      ]),
+      account("leased-assets", "Leased assets", "2", ["12"]),
+      account("inventory", "Inventory", "3", inventoryCodes),
+      // The control account, kept for the notes; the face shows customer
+      // receivables / supplier payables gross instead.
+      account("receivables", "Accounts receivable", "4", ["1100"]),
+      account("cash-bank", "Cash & bank", "5", ["1000", "1010", "15800"]),
+      account("other-current-assets", "Other current assets", "6", ["1", "1300"], [
+        "11",
+        "12",
+        "1000",
+        "1010",
+        "1100",
+        "1500",
+        "1501",
+        "1502",
+        "1503",
+        "1504",
+        "1505",
+        "15800",
+        ...inventoryCodes,
+      ]),
+      // "2" catches accounts filed directly under Liabilities (e.g. borrowing
+      // groups created later) so they land in non-current rather than nowhere.
+      account("non-current-liabilities", "Non-current liabilities", "7", ["2"], ["21"]),
+      account("current-liabilities", "Accounts payable", "8", ["2000"]),
+      account("taxes-other", "Taxes & other current liabilities", "9", ["21", "2100", "2200"], [
+        "2000",
+      ]),
+      account("equity-capital", "Capital & earnings", "10", ["3", "3000", "3100"]),
+      {
+        id: "net-profit",
+        name: "Net profit (P&L)",
+        note: "11",
+        kind: "accounts",
+        accountIds: [NET_PROFIT_ACCOUNT_ID],
+        parts: [],
+      },
+    ];
+  }
 
   const costCategories: CustomHeading[] = [
     account("discount", "Discount", "21", ["512"]),
@@ -683,6 +718,12 @@ function upgradeLegacyDefault(
   });
 }
 
+/** The old three-line balance sheet, replaced by the classified headings. */
+function isLegacyBsTemplate(headings: readonly CustomHeading[]): boolean {
+  const ids = ["assets", "liabilities", "equity"];
+  return headings.length === ids.length && headings.every((heading, index) => heading.id === ids[index]);
+}
+
 /** Account value in its natural sign for the statement. */
 function accountValue(
   row: TrialBalanceRow,
@@ -772,6 +813,9 @@ export class CustomReportService {
     if (saved && kind === "PL" && isLegacyDefaultTemplate(saved)) {
       return upgradeLegacyDefault(saved, accounts);
     }
+    if (saved && kind === "BS" && isLegacyBsTemplate(saved)) {
+      return defaultTemplate("BS", accounts);
+    }
     return saved ?? defaultTemplate(kind, accounts);
   }
 
@@ -792,30 +836,54 @@ export class CustomReportService {
     kind: CustomReportKind,
     options: CustomReportOptions = {},
   ): Promise<CustomReportResult> {
+    const asAt = options.asAt ?? options.to ?? null;
     const rows = await this.accounting.getTrialBalance(
       this.companyId,
-      kind === "PL"
-        ? { from: options.from, to: options.to }
-        : { to: options.asAt ?? options.to ?? null },
+      kind === "PL" ? { from: options.from, to: options.to } : { to: asAt },
     );
-    return this.buildFromRows(kind, rows);
+    return this.buildFromRows(kind, rows, { asAt });
   }
 
   /** Render from trial-balance rows another report call already fetched. */
   async buildFromRows(
     kind: CustomReportKind,
     rows: readonly TrialBalanceRow[],
+    options: { asAt?: string | null } = {},
   ): Promise<CustomReportResult> {
     const template = await this.getTemplate(kind);
     const accounts = await this.accountRows();
     const report = this.render(kind, template, accounts, rows);
-    if (kind !== "PL") return report;
+    // The printed face keeps its own (default) template, independent of the notes.
+    const base = this.render(kind, defaultTemplate(kind, accounts), accounts, rows);
+    if (kind === "PL") return { ...report, face: resolvePlFace(base.headings) };
     return {
       ...report,
-      // The printed face keeps its own template, independent of the notes.
-      face: resolvePlFace(
-        this.render(kind, defaultTemplate(kind, accounts), accounts, rows).headings,
-      ),
+      bsFace: resolveBsFace(base, await this.partySplit(base, options.asAt ?? null)),
+    };
+  }
+
+  /**
+   * The face's gross receivables / payables split. Supplier payables and the
+   * receivable control come straight from the account headings (so they always
+   * agree with the books); customer advances come from the party sub-ledger and
+   * are added back onto receivables — the same amount on both sides, so the
+   * sheet stays balanced whatever the legacy sub-ledger looks like.
+   *
+   * An early `from` makes partyBalances() return the closing balance at `to`
+   * (without it the period loop ignores `to`), which is what "as at" means.
+   */
+  private async partySplit(
+    base: CustomReportResult,
+    asAt: string | null,
+  ): Promise<PartySplit> {
+    const reports = new ReportService(this.db, this.companyId);
+    const balances = await reports.partyBalances("1900-01-01", asAt ?? undefined);
+    const advances = customerAdvancesFrom(balances);
+    const byId = new Map(base.headings.map((heading) => [heading.id, heading]));
+    return {
+      customerReceivable: (byId.get("receivables")?.value ?? 0) + advances,
+      supplierPayable: byId.get("current-liabilities")?.value ?? 0,
+      customerAdvances: advances,
     };
   }
 
@@ -852,6 +920,21 @@ export class CustomReportService {
     // account detail" switches to the full heading tree underneath it.
     if (kind === "PL" && !includeDetail) {
       for (const face of report.face ?? []) {
+        lines.push(
+          line(
+            face.label,
+            "",
+            "",
+            face.noAmount ? null : face.value,
+            face.noAmount ? "" : face.side,
+            face.note,
+          ),
+        );
+      }
+      return lines.join("\n");
+    }
+    if (kind === "BS" && !includeDetail && report.bsFace) {
+      for (const face of bsFaceLines(report.bsFace)) {
         lines.push(
           line(
             face.label,

@@ -119,7 +119,7 @@ export default function AccountsPage() {
 
   // Starts empty, so the tree opens collapsed to its roots.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [partiesOpen, setPartiesOpen] = useState(true);
+  const [partiesOpen, setPartiesOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [addParent, setAddParent] = useState<Account | null>(null);
   const [addName, setAddName] = useState("");

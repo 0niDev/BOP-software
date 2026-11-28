@@ -26,7 +26,7 @@ import {
   type PackingOrderRow,
   type ProductionOrderRow,
 } from "../repositories/manufacturingRepository.js";
-import { StockBatchRepository } from "../repositories/stockBatchRepository.js";
+import { StockBatchRepository, type StockBatchRow } from "../repositories/stockBatchRepository.js";
 import { SystemAccountResolver } from "../repositories/systemAccounts.js";
 import { AccountingService, type JournalLineInput } from "./accountingService.js";
 import { INVENTORY_ACCOUNT_BY_TYPE, ItemService } from "./itemService.js";
@@ -220,6 +220,14 @@ interface ConsumedMaterial {
   itemId: number;
   itemType: ItemType;
   batchId: number | null;
+  quantity: Decimal;
+  unitCost: Decimal;
+  cost: Decimal;
+}
+
+/** One batch's share of a consumption: the quantity drawn from it and its cost. */
+interface ConsumptionShare {
+  batchId: number;
   quantity: Decimal;
   unitCost: Decimal;
   cost: Decimal;
@@ -649,21 +657,20 @@ export class ManufacturingService {
       const wastageQty = requiredQty.times(dec(component.wastage_percent).dividedBy(100));
       const totalRequired = requiredQty.plus(wastageQty);
 
-      const { batchId, unitCost } = await this.resolveConsumptionBatch(
-        component.component_item_id,
-        order.warehouse_id,
-        item.purchase_price,
-      );
-      const cost = round2(totalRequired.times(unitCost));
-      rawCost = rawCost.plus(cost);
-      materials.push({
-        itemId: component.component_item_id,
-        itemType: item.item_type,
-        batchId,
-        quantity: totalRequired,
-        unitCost,
-        cost,
-      });
+      // Draw the requirement FIFO across the batches it actually came from, so
+      // each price layer consumed is costed at its own purchase price.
+      const shares = await this.planConsumption(item, order.warehouse_id, totalRequired);
+      for (const share of shares) {
+        rawCost = rawCost.plus(share.cost);
+        materials.push({
+          itemId: component.component_item_id,
+          itemType: item.item_type,
+          batchId: share.batchId,
+          quantity: share.quantity,
+          unitCost: share.unitCost,
+          cost: share.cost,
+        });
+      }
     }
     if (materials.length === 0) {
       throw new ValidationError("This BOM has no raw materials to produce.");
@@ -1173,21 +1180,20 @@ export class ManufacturingService {
     ];
     for (const entry of toConsume) {
       const item = await this.items.requireById(entry.itemId);
-      const { batchId, unitCost } = await this.resolveConsumptionBatch(
-        entry.itemId,
-        order.warehouse_id,
-        item.purchase_price,
-      );
-      const cost = round2(entry.quantity.times(unitCost));
-      totalCost = totalCost.plus(cost);
-      consumed.push({
-        itemId: entry.itemId,
-        itemType: item.item_type,
-        batchId,
-        quantity: entry.quantity,
-        unitCost,
-        cost,
-      });
+      // Same FIFO split as production: bulk and packing materials are drawn
+      // oldest batch first, each at the price of the layer it came from.
+      const shares = await this.planConsumption(item, order.warehouse_id, entry.quantity);
+      for (const share of shares) {
+        totalCost = totalCost.plus(share.cost);
+        consumed.push({
+          itemId: entry.itemId,
+          itemType: item.item_type,
+          batchId: share.batchId,
+          quantity: share.quantity,
+          unitCost: share.unitCost,
+          cost: share.cost,
+        });
+      }
     }
 
     const outputBatchNumber = await this.uniqueBatchNumber(
@@ -1587,33 +1593,71 @@ export class ManufacturingService {
   }
 
   /**
-   * Find (or create) the batch a component is consumed from. Stock is allowed to
-   * go negative: a component that is not in the store still left it, and the
-   * ledger has to say so. Either way the batch moves, or the inventory account
-   * and the stock ledger drift apart with nothing to reconcile them.
+   * Split a required quantity across the item's batches FIFO — soonest expiry,
+   * then oldest receipt — returning one share per batch, each costed at that
+   * batch's own price. Bought 100 at 5 and 50 at 7: consumption at 5 until that
+   * layer is empty, then 7, exactly like a sale's COGS.
+   *
+   * Stock is allowed to go negative: a component that is not in the store still
+   * left it, and the ledger has to say so. Any shortfall rides on the last
+   * available batch (or a NEG- placeholder when the item has no batch at all),
+   * so the inventory account and the stock ledger never drift apart.
    */
-  private async resolveConsumptionBatch(
-    itemId: number,
+  private async planConsumption(
+    item: ItemRow,
     warehouseId: number,
-    purchasePrice: number,
-  ): Promise<{ batchId: number | null; unitCost: Decimal }> {
-    const positive = await this.batches.findByItemAndWarehouse(itemId, warehouseId);
-    if (positive) {
-      return { batchId: positive.id, unitCost: dec(positive.purchase_price ?? purchasePrice) };
+    needed: Decimal,
+  ): Promise<ConsumptionShare[]> {
+    const batches = await this.batches.listAvailableFifo(item.id, warehouseId);
+
+    if (batches.length === 0) {
+      const batch = await this.negativeBatch(item, warehouseId);
+      const unitCost = this.batchUnitCost(item, batch);
+      return [
+        { batchId: batch.id, quantity: needed, unitCost, cost: round2(needed.times(unitCost)) },
+      ];
     }
-    const any = await this.batches.findByItemAndWarehouseAny(itemId, warehouseId);
-    if (any) {
-      return { batchId: any.id, unitCost: dec(any.purchase_price ?? purchasePrice) };
+
+    const shares: ConsumptionShare[] = [];
+    let remaining = needed;
+    for (let i = 0; i < batches.length; i++) {
+      if (remaining.lessThanOrEqualTo(0)) break;
+      const batch = batches[i]!;
+      const isLast = i === batches.length - 1;
+      const take = isLast ? remaining : Decimal.min(dec(batch.quantity_in_stock), remaining);
+      const unitCost = this.batchUnitCost(item, batch);
+      shares.push({
+        batchId: batch.id,
+        quantity: take,
+        unitCost,
+        cost: round2(take.times(unitCost)),
+      });
+      remaining = remaining.minus(take);
     }
-    const batchId = await this.batches.insert({
-      item_id: itemId,
+    return shares;
+  }
+
+  /** Reuse an existing batch or create a NEG- placeholder so consumption can drive negative. */
+  private async negativeBatch(item: ItemRow, warehouseId: number): Promise<StockBatchRow> {
+    const any = await this.batches.findByItemAndWarehouseAny(item.id, warehouseId);
+    if (any) return any;
+    const id = await this.batches.insert({
+      item_id: item.id,
       warehouse_id: warehouseId,
-      batch_number: `NEG-${itemId}-${Date.now().toString()}`,
-      purchase_price: toStorage(purchasePrice),
+      batch_number: `NEG-${item.id}-${Date.now().toString()}`,
+      purchase_price: toStorage(item.purchase_price),
       quantity_in_stock: 0,
       is_active: 1,
     });
-    return { batchId, unitCost: dec(purchasePrice) };
+    return (await this.batches.findById(id))!;
+  }
+
+  /** Best available unit cost for a batch, falling back to the item price. */
+  private batchUnitCost(item: ItemRow, batch: StockBatchRow): Decimal {
+    const composed = dec(batch.raw_unit_cost).plus(dec(batch.packing_unit_cost));
+    if (composed.greaterThan(0)) return composed;
+    if (dec(batch.purchase_price).greaterThan(0)) return dec(batch.purchase_price);
+    return dec(item.purchase_price);
   }
 
   /** Dr the output inventory account, Cr each consumed item's inventory account. */

@@ -24,6 +24,7 @@ import type { ItemListRow } from "../repositories/itemRepository.js";
 import { ItemService } from "./itemService.js";
 import { ReportService, type LedgerEntry, type PartyBalanceSide } from "./reportService.js";
 import { CustomReportService, type CustomReportKind, type CustomReportResult } from "./customReportService.js";
+import { bsFaceLines, type BsFace } from "./bsFace.js";
 import { ManufacturingService, type ManufacturingReportOrder } from "./manufacturingService.js";
 import { layoutTrialBalance } from "./trialBalanceLayout.js";
 
@@ -304,9 +305,26 @@ function noteBlocks(report: CustomReportResult): NotesBlock[] {
   return blocks;
 }
 
+/** The classified balance sheet as five-column sheet rows (label, code, amount, side, note). */
+function bsFaceCells(face: BsFace): SheetData {
+  return bsFaceLines(face).map((line): Cell[] => {
+    const style: Style = line.noAmount
+      ? { fontWeight: "bold" }
+      : line.bold
+        ? TOTAL
+        : HEADING_PLAIN;
+    return [
+      text(line.label, { indent: (line.depth ?? 0) * 2, ...style }),
+      null,
+      line.noAmount ? null : money(line.value, style),
+      line.noAmount || !line.side ? null : text(line.side, style),
+      text(line.note ?? "", style),
+    ];
+  });
+}
+
 /** The printed notes as sheet rows: Note | Particulars | Amount | Dr/Cr. */
-function noteSheetRows(report: CustomReportResult): SheetData {
-  const rows: Cell[][] = [];
+function noteSheetRows(report: CustomReportResult): SheetData {  const rows: Cell[][] = [];
   for (const block of noteBlocks(report)) {
     rows.push([
       text(block.note ? `Note No : ${block.note}` : "", TOTAL),
@@ -532,7 +550,7 @@ export class ReportXlsx {
         text("Dr/Cr", HEADER),
         text("Note", HEADER),
       ],
-      ...(kind === "PL" && !includeDetail
+      ...(!includeDetail && kind === "PL"
         ? (report.face ?? []).map(
             (line): Cell[] => [
               text(line.label, {
@@ -547,33 +565,35 @@ export class ReportXlsx {
               text(line.note ?? "", line.bold ? TOTAL : HEADING_PLAIN),
             ],
           )
-        : report.headings.flatMap((line): SheetData => {
-            const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
-            return [
-              [
-                text(line.name, style),
-                null,
-                money(line.value, style),
-                line.side ? text(line.side, style) : null,
-                text(line.note ?? "", style),
-              ],
-              ...(includeDetail
-                ? line.rows.map(
-                    (row): Cell[] => [
-                      text(row.name, {
-                        indent: (row.depth + 1) * 2,
-                        ...(row.selected || row.isHeader ? { fontWeight: "bold" } : {}),
-                      }),
-                      text(row.code),
-                      moneyOrBlank(row.value),
-                      row.side ? text(row.side) : null,
-                      null,
-                    ],
-                  )
-                : []),
-            ];
-          })),
-      ...(kind === "PL" && !includeDetail
+        : !includeDetail && kind === "BS" && report.bsFace
+          ? bsFaceCells(report.bsFace)
+          : report.headings.flatMap((line): SheetData => {
+              const style = (line.bold ?? line.kind === "subtotal") ? TOTAL : HEADING_PLAIN;
+              return [
+                [
+                  text(line.name, style),
+                  null,
+                  money(line.value, style),
+                  line.side ? text(line.side, style) : null,
+                  text(line.note ?? "", style),
+                ],
+                ...(includeDetail
+                  ? line.rows.map(
+                      (row): Cell[] => [
+                        text(row.name, {
+                          indent: (row.depth + 1) * 2,
+                          ...(row.selected || row.isHeader ? { fontWeight: "bold" } : {}),
+                        }),
+                        text(row.code),
+                        moneyOrBlank(row.value),
+                        row.side ? text(row.side) : null,
+                        null,
+                      ],
+                    )
+                  : []),
+              ];
+            })),
+      ...(!includeDetail && (kind === "PL" || (kind === "BS" && report.bsFace))
         ? []
         : [
             ...(report.unassigned.rows.length > 0
@@ -638,11 +658,24 @@ export class ReportXlsx {
     };
   }
 
-  /** The printed Notes to the Accounts for the P&L period. */
-  async notes(options: { from?: string; to?: string } = {}): Promise<XlsxFile> {
-    const report = await this.customReports.build("PL", options);
+  /** The printed Notes to the Accounts for the P&L period or the balance-sheet date. */
+  async notes(
+    options: { from?: string; to?: string; asAt?: string | null; kind?: CustomReportKind } = {},
+  ): Promise<XlsxFile> {
+    const kind = options.kind ?? "PL";
+    const report = await this.customReports.build(
+      kind,
+      kind === "BS" ? { asAt: options.asAt ?? null } : options,
+    );
+    const reportTitle = kind === "BS" ? "Notes to the Balance Sheet" : "Notes to the Accounts";
+    const subtitle =
+      kind === "BS"
+        ? options.asAt
+          ? `as at ${formatDayMonthYear(options.asAt)}`
+          : "as at today (all posted entries)"
+        : periodLabel(options.from, options.to);
     const data: SheetData = [
-      ...heading("Notes to the Accounts", periodLabel(options.from, options.to)),
+      ...heading(reportTitle, subtitle),
       [
         text("Note", HEADER),
         text("Particulars", HEADER),
@@ -651,8 +684,14 @@ export class ReportXlsx {
       ],
       ...noteSheetRows(report),
     ];
+    const scope =
+      kind === "BS"
+        ? options.asAt
+          ? `as-at_${options.asAt}`
+          : "as-at-today"
+        : periodSlug(options.from, options.to);
     return {
-      fileName: `notes_${periodSlug(options.from, options.to)}.xlsx`,
+      fileName: `${kind === "BS" ? "balance-sheet-notes" : "notes"}_${scope}.xlsx`,
       buffer: await this.write([
         {
           data,
@@ -1424,32 +1463,29 @@ export class ReportXlsx {
   }
 
   private async balanceSheetSheet(asAt: string | null): Promise<SheetSpec> {
-    const report = await this.reports.balanceSheet(asAt);
-    const difference = report.assets - (report.liabilities + report.equity);
-    return {
-      data: [
-        ...heading("Balance Sheet", asAt ? `as at ${formatDayMonthYear(asAt)}` : "as at today (all posted entries)"),
-        [text("Metric", HEADER), text("Amount", HEADER), text("Dr/Cr", HEADER)],
-        [text("Assets"), money(report.assets), text("Dr")],
-        [text("Liabilities"), money(report.liabilities), text("Cr")],
-        [text("Equity (incl. net profit)"), money(report.equity), text("Cr")],
-        [
-          text("Net Profit"),
-          money(report.netProfit),
-          text(report.netProfit >= 0 ? "Cr" : "Dr"),
-        ],
-        [],
-        [
-          text("Assets - (Liabilities + Equity)", TOTAL),
-          money(difference, TOTAL),
-          sideCell(difference, TOTAL),
-        ],
-        [text("Balanced", TOTAL), text(report.balanced ? "YES" : "NO", TOTAL), null],
-      ],
-      sheet: "Balance Sheet",
-      columns: THREE_COLUMN,
-      stickyRowsCount: 6,
-    };
+    const report = await this.customReports.build("BS", { asAt });
+    const data: SheetData = [
+      ...heading("Balance Sheet", asAt ? `as at ${formatDayMonthYear(asAt)}` : "as at today (all posted entries)"),
+      [text("Metric", HEADER), text("Amount", HEADER), text("Dr/Cr", HEADER)],
+    ];
+    const face = report.bsFace;
+    if (face) {
+      for (const line of bsFaceLines(face)) {
+        const style: Style = line.noAmount
+          ? { fontWeight: "bold" }
+          : line.bold
+            ? TOTAL
+            : HEADING_PLAIN;
+        data.push([
+          text(line.label, { indent: (line.depth ?? 0) * 2, ...style }),
+          line.noAmount ? null : money(line.value, style),
+          line.noAmount || !line.side ? null : text(line.side, style),
+        ]);
+      }
+      data.push([]);
+      data.push([text("Balanced", TOTAL), text(face.balanced ? "YES" : "NO", TOTAL), null]);
+    }
+    return { data, sheet: "Balance Sheet", columns: THREE_COLUMN, stickyRowsCount: 6 };
   }
 
   private async cashBookSheet(options: DateRangeOptions): Promise<SheetSpec> {

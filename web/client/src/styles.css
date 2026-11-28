@@ -565,6 +565,27 @@ tr.heading-plain td {
   border-top: 2px solid var(--border-strong);
 }
 
+/* ---------------------------------------------------- balance-sheet face */
+/* Two-column classified statement: assets left, equity & liabilities right. */
+.bs-face {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.bs-face-table {
+  width: 100%;
+}
+.bs-face-table tr.bs-section td {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+@media (max-width: 720px) {
+  .bs-face {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --------------------------------------------------- chart of accounts tree */
 /* Level bands: class → group → ledger, descending maroon tint per depth so
    the hierarchy reads by weight and colour as well as indent. */

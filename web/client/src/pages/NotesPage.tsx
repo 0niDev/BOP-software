@@ -2,17 +2,22 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import CustomReportEditor from "../components/CustomReportEditor";
 import PLNotes from "../components/PLNotes";
+import SearchableSelect from "../components/SearchableSelect";
 import { saveBlob } from "../lib/download";
 import { usePageVisible } from "../lib/pageVisibility";
-import type { Account, CustomHeading, CustomReport } from "../types";
+import { exportPeriods } from "../lib/periods";
+import type { Account, CustomHeading, CustomReport, CustomReportKind } from "../types";
 
 /**
- * "Notes" module: the printed Notes to the Accounts for the P&L period. Kept
- * apart from the P&L report so the statement and its notes print separately.
+ * "Notes" module: the printed Notes to the Accounts. Holds both the P&L notes
+ * (for a period) and the Balance Sheet notes (as at a date); heading edits here
+ * never change the printed statement faces.
  */
 export default function NotesPage() {
+  const [kind, setKind] = useState<CustomReportKind>("PL");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [asAt, setAsAt] = useState("");
   const [report, setReport] = useState<CustomReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
@@ -23,14 +28,20 @@ export default function NotesPage() {
   const [editorError, setEditorError] = useState<string | null>(null);
 
   const pageVisible = usePageVisible();
+  const months = exportPeriods("Monthly");
+  const selectedMonth = months.find((month) => month.from === from && month.to === to);
 
-  async function load(next?: { from?: string; to?: string }): Promise<void> {
+  async function load(
+    next?: { from?: string; to?: string; asAt?: string; kind?: CustomReportKind },
+  ): Promise<void> {
+    const k = next?.kind ?? kind;
     const f = next?.from ?? from;
     const t = next?.to ?? to;
+    const a = next?.asAt ?? asAt;
     setBusy(true);
     setError(null);
     try {
-      setReport(await api.customReport("PL", f || undefined, t || undefined));
+      setReport(await api.customReport(k, f || undefined, t || undefined, a || undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notes.");
     } finally {
@@ -39,11 +50,17 @@ export default function NotesPage() {
   }
 
   useEffect(() => {
-    void load({ from: "", to: "" });
+    void load({ from: "", to: "", asAt: "", kind: "PL" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageVisible]);
 
-  /** Heading edits belong to the notes: they change these blocks, not the P&L face. */
+  function switchKind(next: CustomReportKind): void {
+    setKind(next);
+    setEditing(false);
+    void load({ kind: next });
+  }
+
+  /** Heading edits belong to the notes: they change these blocks, not the statement faces. */
   async function toggleEditor(): Promise<void> {
     if (editing) {
       setEditing(false);
@@ -63,7 +80,7 @@ export default function NotesPage() {
     setEditorBusy(true);
     setEditorError(null);
     try {
-      await api.saveCustomReport("PL", headings);
+      await api.saveCustomReport(kind, headings);
       setEditing(false);
       await load();
     } catch (err) {
@@ -77,8 +94,15 @@ export default function NotesPage() {
     setExportBusy(true);
     setError(null);
     try {
-      const tag = from || to ? `${from || "start"}_to_${to || "today"}` : "all-posted";
-      saveBlob(await api.notesXlsx(from || undefined, to || undefined), `notes_${tag}.xlsx`);
+      if (kind === "BS") {
+        saveBlob(
+          await api.notesXlsx(undefined, undefined, "BS", asAt || undefined),
+          `balance-sheet-notes_${asAt ? `as-at_${asAt}` : "as-at-today"}.xlsx`,
+        );
+      } else {
+        const tag = from || to ? `${from || "start"}_to_${to || "today"}` : "all-posted";
+        saveBlob(await api.notesXlsx(from || undefined, to || undefined), `notes_${tag}.xlsx`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Excel export failed.");
     } finally {
@@ -92,13 +116,51 @@ export default function NotesPage() {
         <h2>Report period</h2>
         <div className="row" style={{ flexWrap: "wrap" }}>
           <div>
-            <label>From</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <label>Statement</label>
+            <SearchableSelect
+              value={kind}
+              onChange={(value) => switchKind(value as CustomReportKind)}
+              placeholder="Statement"
+              options={[
+                { value: "PL", label: "Profit & Loss notes" },
+                { value: "BS", label: "Balance Sheet notes" },
+              ]}
+            />
           </div>
           <div>
-            <label>To</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <label>Month</label>
+            <SearchableSelect
+              value={selectedMonth?.from ?? ""}
+              onChange={(next) => {
+                const month = months.find((period) => period.from === next);
+                if (!month) return;
+                setFrom(month.from);
+                setTo(month.to);
+                setAsAt(month.to);
+                void load({ from: month.from, to: month.to, asAt: month.to });
+              }}
+              placeholder="Jump to month…"
+              emptyText="No matching month"
+              options={months.map((period) => ({ value: period.from, label: period.label }))}
+            />
           </div>
+          {kind === "PL" ? (
+            <>
+              <div>
+                <label>From</label>
+                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </div>
+              <div>
+                <label>To</label>
+                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label>As at</label>
+              <input type="date" value={asAt} onChange={(e) => setAsAt(e.target.value)} />
+            </div>
+          )}
           <button className="primary" onClick={() => void load()} disabled={busy}>
             {busy ? "Loading…" : "Apply"}
           </button>
@@ -106,7 +168,8 @@ export default function NotesPage() {
             onClick={() => {
               setFrom("");
               setTo("");
-              void load({ from: "", to: "" });
+              setAsAt("");
+              void load({ from: "", to: "", asAt: "" });
             }}
             disabled={busy}
           >
@@ -114,7 +177,9 @@ export default function NotesPage() {
           </button>
         </div>
         <p style={{ opacity: 0.7, fontSize: 12, marginBottom: 0 }}>
-          Leave the dates empty to report on every posted entry.
+          {kind === "PL"
+            ? "Leave the dates empty to report on every posted entry."
+            : "Leave the date empty to report the position on every posted entry."}
         </p>
       </div>
 
@@ -125,7 +190,13 @@ export default function NotesPage() {
           <h2 style={{ flex: 1, margin: 0 }}>
             Notes{" "}
             <span className="badge">
-              {from || to ? "for the period" : "all posted entries"}
+              {kind === "BS"
+                ? asAt
+                  ? `as at ${asAt}`
+                  : "as at today"
+                : from || to
+                  ? "for the period"
+                  : "all posted entries"}
             </span>
           </h2>
           <button onClick={() => void exportXlsx()} disabled={exportBusy}>
@@ -136,8 +207,7 @@ export default function NotesPage() {
           </button>
         </div>
         <p style={{ opacity: 0.7, fontSize: 12, marginTop: 0 }}>
-          Editing headings changes these notes only; the Profit &amp; Loss statement
-          keeps its printed layout.
+          Editing headings changes these notes only; the printed statement keeps its layout.
         </p>
         {report ? (
           <PLNotes report={report} />
@@ -147,7 +217,7 @@ export default function NotesPage() {
         {editing && report && (
           <div style={{ marginTop: 16 }}>
             <CustomReportEditor
-              kind="PL"
+              kind={kind}
               accounts={accounts}
               headings={report.headings}
               busy={editorBusy}
